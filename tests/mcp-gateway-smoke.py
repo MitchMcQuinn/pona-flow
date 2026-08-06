@@ -43,7 +43,7 @@ def principal(user_id: str, *, is_super: bool = False) -> auth.Principal:
 
 
 if not mcp_gateway.MCP_AVAILABLE:
-    print("[FAIL] mcp SDK is not importable; install requirements.txt (mcp>=1.27.0)")
+    print("[FAIL] mcp SDK is not importable; install requirements.txt (mcp>=1.27.0,<2)")
     sys.exit(1)
 
 

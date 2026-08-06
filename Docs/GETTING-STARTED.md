@@ -255,7 +255,7 @@ to add you.
 | Understand security in plain language | [SECURITY-GUIDE.md](SECURITY-GUIDE.md) |
 | Deploy or operate an instance yourself | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | See why architectural choices were made | [DECISIONS.md](DECISIONS.md) |
-| Develop or customize the product | [README.md](../README.md) (developer setup) |
+| Develop or customize the product | [FIRST-TIME-SETUP.md](FIRST-TIME-SETUP.md) then [README.md](../README.md) |
 
 ---
 

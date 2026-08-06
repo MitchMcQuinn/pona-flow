@@ -4,6 +4,10 @@ pona flow is a hybrid SQLite/graph-based design system and runtime application f
 
 ## Development setup
 
+**First-time local instance (clone → env → Neo4j → run):** follow
+[Docs/FIRST-TIME-SETUP.md](Docs/FIRST-TIME-SETUP.md) end to end. The short version below is
+the same path in compressed form.
+
 macOS Homebrew Python does not allow `pip install` globally (PEP 668). Use a project virtual environment:
 
 ```bash

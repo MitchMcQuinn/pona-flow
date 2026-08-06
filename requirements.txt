@@ -3,4 +3,6 @@ fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
 pyjwt[crypto]>=2.8.0
 httpx>=0.27.0
-mcp>=1.27.0
+# Pin <2: gateway uses v1 lowlevel Server decorators (@list_tools / @call_tool).
+# mcp 2.0 replaced those with on_* constructor kwargs (see MCP Python SDK migration).
+mcp>=1.27.0,<2

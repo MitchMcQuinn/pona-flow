@@ -7,6 +7,9 @@ authenticates users via Clerk, and owns its own Neo4j + SQLite data.
 **End-user onboarding (non-technical):** share [GETTING-STARTED.md](GETTING-STARTED.md) with
 customers who only need to sign in and use the product — this document is for operators.
 
+**Local developer machine (clone + venv + Neo4j + UI):** see
+[FIRST-TIME-SETUP.md](FIRST-TIME-SETUP.md).
+
 ```mermaid
 flowchart LR
   User[Browser / API client] --> CF[Cloudflare: TLS, CORS, WAF, rate limit]
