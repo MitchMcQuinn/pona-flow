@@ -1,0 +1,116 @@
+.eventBuilder .eventInlineField {
+  margin-top: 0.25rem;
+}
+
+.eventCheckboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.eventCheckboxLabel input {
+  width: auto;
+  margin: 0;
+}
+
+.eventGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.eventGroup {
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: var(--panel2);
+  box-shadow: var(--shadow-in-sm);
+}
+
+.eventGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.eventGroupTitle {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-right: auto;
+}
+
+.eventChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.eventChip {
+  border: 1px solid var(--border);
+  background: linear-gradient(145deg, var(--raise), var(--panel2));
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-out-sm), var(--edge-hi);
+}
+
+.eventChip.active {
+  border-color: transparent;
+  background: var(--mesh);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: var(--shadow-out-sm), var(--mesh-glow);
+}
+
+.eventRow {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.eventRow .field {
+  flex: 1;
+}
+
+.eventHint {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+
+.eventSeqList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  padding: 0.5rem;
+  background: var(--well);
+  box-shadow: var(--shadow-in-sm);
+}
+
+.eventFilterRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.eventFilterRow input,
+.eventFilterRow select {
+  flex: 1;
+  min-width: 0;
+}
+
+.eventMapArrow {
+  color: var(--muted);
+  flex: 0 0 auto;
+}

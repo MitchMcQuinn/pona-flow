@@ -1,0 +1,159 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.com/schemas/execution-package.schema.json",
+    "title": "EXECUTION",
+    "type": "object",
+    "required": ["steps"],
+    "additionalProperties": false,
+    "$defs": {
+      "stepParameter": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "is_required", "value_type"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Parameter name without the leading $."
+          },
+          "is_required": {
+            "type": "boolean",
+            "description": "Whether this parameter must be supplied before the step runs."
+          },
+          "value_type": {
+            "type": "string",
+            "enum": ["string", "number", "integer", "boolean", "array", "UID", "radio", "checkbox"],
+            "description": "Expected value type for this parameter."
+          },
+          "format": {
+            "type": "string",
+            "description": "Optional string subtype hint; only applies when value_type is string."
+          },
+          "default_value": {
+            "description": "Author-supplied default; pre-fills the run panel and is used when no caller value is supplied."
+          },
+          "options": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "radio/checkbox: the choices the runner picks from."
+          },
+          "min_choices": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "checkbox: minimum number of choices that must be selected."
+          },
+          "max_choices": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "checkbox: maximum number of choices that may be selected."
+          }
+        }
+      },
+      "stepResponseParameter": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["property_path", "parameter"],
+        "properties": {
+          "property_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "JSON path into the webhook response (e.g. $.data.id or items[0].name)."
+          },
+          "parameter": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Parameter name to bind to the value at property_path."
+          },
+          "default_value": {
+            "type": "string",
+            "description": "Fallback value for the parameter when the response omits property_path."
+          }
+        }
+      },
+      "stepTransition": {
+        "type": "object",
+        "required": ["id", "condition_parameter"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the next step.",
+            "minLength": 1
+          },
+          "condition_parameter": {
+            "type": "string",
+            "description": "Name of a parameter (resolved from an earlier step's response) that gates this transition. An empty string means the transition is unconditional. When condition_expected is omitted, the transition runs only when this parameter resolves to a truthy value. An unresolved parameter is treated as false."
+          },
+          "condition_expected": {
+            "type": "boolean",
+            "description": "Optional expected boolean result for condition_parameter. When present, the transition runs only when the parameter's strict boolean value (\"true\"/\"1\" -> true; \"false\"/\"0\"/anything else/unresolved -> false) equals this value. Lets two sibling transitions branch on a single parameter — one expecting true, the other false."
+          }
+        }
+      },
+      "step": {
+        "type": "object",
+        "required": ["id", "query_id", "endpoint", "body", "next"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for this step.",
+            "minLength": 1
+          },
+          "query_id": {
+            "type": "string",
+            "description": "Query id this step executes. Empty string when the step runs a custom endpoint or code resource instead."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["code"],
+            "description": "Set to \"code\" when the step executes a sandboxed code resource (via the runner service) instead of a query or HTTP endpoint. Omitted for query/endpoint steps."
+          },
+          "resource_id": {
+            "type": "string",
+            "description": "Catalog resources-table UID of the script this code step executes. Only present when kind is \"code\"; the code text itself is loaded from disk at run time and never embedded in the package."
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "Webhook endpoint URL. Empty string when the step runs a query instead."
+          },
+          "method": {
+            "type": "string",
+            "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+            "description": "HTTP method used when calling the endpoint."
+          },
+          "headers": {
+            "type": "object",
+            "description": "HTTP headers sent to the endpoint."
+          },
+          "body": {
+            "type": "object",
+            "description": "JSON body sent to the endpoint."
+          },
+          "parameters": {
+            "type": "array",
+            "description": "Parameter definitions for values referenced by this step (request body / inputs).",
+            "items": { "$ref": "#/$defs/stepParameter" }
+          },
+          "next": {
+            "type": "array",
+            "description": "Outgoing transitions from this step, in evaluation order.",
+            "items": { "$ref": "#/$defs/stepTransition" }
+          }
+        }
+      }
+    },
+    "properties": {
+      "steps": {
+        "type": "array",
+        "minItems": 1,
+        "description": "Ordered list of steps in this execution sequence.",
+        "items": { "$ref": "#/$defs/step" }
+      },
+      "response_parameters": {
+        "type": "array",
+        "description": "Sequence-level response mappings shared across steps. When a step runs, values at each property_path are bound to the named parameter for downstream steps; default_value applies when the path is missing.",
+        "items": { "$ref": "#/$defs/stepResponseParameter" }
+      }
+    }
+  }

@@ -1,0 +1,10 @@
+{
+  "name": "pona-flow",
+  "scripts": {
+    "dev": "npm run dev --prefix App/ui",
+    "dev:e2e": "npm run dev:e2e --prefix App/ui"
+  },
+  "dependencies": {
+    "@clerk/react": "^6.7.3"
+  }
+}

@@ -1,0 +1,1030 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/query-package.schema.json",
+  "title": "QUERY / CRUD package",
+  "description": "Either a legacy QUERY package (declarative queries composed to Cypher) or a CRUD package v2 (composed Cypher plus parameters with optional STEP/SCHEMA extensions).",
+  "oneOf": [
+    { "$ref": "#/$defs/legacyQueryPackage" },
+    { "$ref": "#/$defs/crudPackageDocument" }
+  ],
+  "$defs": {
+    "legacyQueryPackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["queries"],
+      "properties": {
+        "space_id": {
+          "type": "string",
+          "description": "Optional working-environment identifier when queries are scoped to a space."
+        },
+        "queries": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/query" }
+        }
+      }
+    },
+    "crudPackageDocument": {
+      "description": "Single-package document (space_id plus one CRUD package) or multi-package document (space_id plus packages array).",
+      "oneOf": [
+        {
+          "allOf": [
+            { "$ref": "#/$defs/crudPackageV2" },
+            {
+              "type": "object",
+              "required": ["space_id"],
+              "properties": {
+                "space_id": {
+                  "type": "string",
+                  "description": "Working environment identifier."
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["space_id", "packages"],
+          "properties": {
+            "space_id": {
+              "type": "string",
+              "description": "Working environment identifier for all packages in this document."
+            },
+            "packages": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/crudPackageV2" }
+            }
+          }
+        }
+      ]
+    },
+    "crudPackageV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "node_label", "id", "name", "cypher", "sqlite", "parameters"],
+      "properties": {
+        "operation": {
+          "$ref": "#/$defs/operationValue"
+        },
+        "node_label": {
+          "$ref": "#/$defs/graphNodeLabel"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable unique identifier for this package."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable unique name for this query."
+        },
+        "cypher": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Composed Cypher with $parameter_name placeholders."
+          }
+        },
+        "sqlite": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "description": "SQLite statements for data.db (e.g. INSERT INTO entities with node_label, common_label, and payload for STEP/SCHEMA/INSTANCE create)."
+          }
+        },
+        "parameters": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/crudParameter" }
+        },
+        "match": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Optional declarative MATCH metadata (relationship condition/condition_type when node_label is STEP and operation is create or update).",
+          "items": { "$ref": "#/$defs/matchClause" }
+        }
+      }
+    },
+    "crudParameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "data_type", "value"],
+      "properties": {
+        "name": { "$ref": "#/$defs/parameterName" },
+        "data_type": { "$ref": "#/$defs/dataType" },
+        "value": {},
+        "schematic_properties": {
+          "$ref": "#/$defs/schematicPropertiesCrud",
+          "description": "On SCHEMA create, each new node property is stored as a catalog parameter with this metadata (name matches property key)."
+        }
+      }
+    },
+    "stepResponseParameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["property_path", "parameter"],
+      "properties": {
+        "property_path": {
+          "type": "string",
+          "description": "JSON path into the webhook response (e.g. $.data.id or items[0].name)."
+        },
+        "parameter": {
+          "type": "string",
+          "description": "Parameter name to bind to the value at property_path."
+        },
+        "default_value": {
+          "type": "string",
+          "description": "Fallback value for the parameter when the response omits property_path."
+        }
+      }
+    },
+    "sequencialPropertiesCrud": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Required on every node when the enclosing match clause label is STEP. Either a saved query reference (query_id) or custom endpoint + body.",
+      "oneOf": [
+        {
+          "required": ["query_id"],
+          "properties": {
+            "query_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "id of a row in the catalog queries table (data.db)."
+            }
+          }
+        },
+        {
+          "required": ["endpoint", "body"],
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "format": "uri",
+              "description": "Webhook or API endpoint URL for this STEP node."
+            },
+            "body": {
+              "type": "object",
+              "description": "JSON body template with $parameter_name placeholders.",
+              "additionalProperties": true
+            },
+            "response_parameters": {
+              "type": "array",
+              "description": "Maps anticipated response JSON paths to parameter names.",
+              "items": { "$ref": "#/$defs/stepResponseParameter" }
+            }
+          }
+        }
+      ]
+    },
+    "cypherConditionBuilder": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "combine": {
+          "type": "string",
+          "enum": ["AND", "OR"],
+          "default": "AND"
+        },
+        "predicates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/cypherConditionPredicate" }
+        }
+      }
+    },
+    "cypherConditionPredicate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["property", "operator"],
+      "properties": {
+        "property": { "type": "string", "minLength": 1 },
+        "operator": {
+          "type": "string",
+          "enum": [
+            "=",
+            "<>",
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "CONTAINS",
+            "STARTS WITH",
+            "ENDS WITH",
+            "IS NULL",
+            "IS NOT NULL"
+          ]
+        },
+        "value": {},
+        "parameter": { "$ref": "#/$defs/parameterName" }
+      }
+    },
+    "schematicPropertiesCrud": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value_type",
+        "is_required",
+        "is_key",
+        "is_label",
+        "is_indexed"
+      ],
+      "properties": {
+        "value_type": {
+          "type": "string",
+          "enum": ["string", "number", "integer", "boolean", "array", "UID", "radio", "checkbox", "attributive label"]
+        },
+        "format": {
+          "type": "string",
+          "enum": ["any", "email", "phone", "point", "URL", "ZIP", "color"],
+          "description": "String subtype hint; only applies when value_type is string."
+        },
+        "is_required": { "type": "boolean" },
+        "is_key": { "type": "boolean" },
+        "is_label": { "type": "boolean" },
+        "is_indexed": { "type": "boolean" },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "radio/checkbox: the choices the end user picks from."
+        },
+        "min_choices": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "checkbox: minimum number of choices the end user must select."
+        },
+        "max_choices": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "checkbox: maximum number of choices the end user may select."
+        }
+      }
+    },
+    "parameterName": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "description": "Neo4j-style parameter name without the leading $. Referenced in expressions and bindings as $name."
+    },
+    "dataType": {
+      "type": "string",
+      "enum": [
+        "string",
+        "number",
+        "integer",
+        "boolean",
+        "object",
+        "array",
+        "null"
+      ],
+      "description": "JSON value type for the parameter; composers map these to Neo4j driver types."
+    },
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "data_type", "value"],
+      "description": "Named query parameter with a default or package-time value. Use $name in MATCH property bindings, WHERE expressions, and SKIP/LIMIT parameter references.",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/parameterName"
+        },
+        "data_type": {
+          "$ref": "#/$defs/dataType"
+        },
+        "value": {
+          "description": "Parameter value; must be compatible with data_type (see allOf below)."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "data_type": {
+                "const": "string"
+              }
+            },
+            "required": ["data_type"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data_type": {
+                "const": "number"
+              }
+            },
+            "required": ["data_type"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data_type": {
+                "const": "integer"
+              }
+            },
+            "required": ["data_type"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data_type": {
+                "const": "boolean"
+              }
+            },
+            "required": ["data_type"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data_type": {
+                "const": "object"
+              }
+            },
+            "required": ["data_type"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data_type": {
+                "const": "array"
+              }
+            },
+            "required": ["data_type"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "array"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data_type": {
+                "const": "null"
+              }
+            },
+            "required": ["data_type"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "parameterRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parameter"],
+      "description": "Reference a query parameter by name (resolved to $parameter at Cypher build time).",
+      "properties": {
+        "parameter": {
+          "$ref": "#/$defs/parameterName"
+        }
+      }
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "literalOrParameter": {
+      "description": "Either a non-negative integer literal or a parameter name (for SKIP/LIMIT).",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value"],
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/nonNegativeInteger"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/parameterRef"
+        }
+      ]
+    },
+    "propertyBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key"],
+      "description": "A single property on a node or relationship pattern: literal value or $parameter reference.",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Property name on the graph element."
+        },
+        "value": {
+          "description": "Literal property value (any JSON type)."
+        },
+        "parameter": {
+          "$ref": "#/$defs/parameterName",
+          "description": "Parameter name; composer emits key: $parameter in Cypher."
+        },
+        "schematic_properties": {
+          "$ref": "#/$defs/schematicPropertiesCrud",
+          "description": "Schema metadata for this property when creating a SCHEMA node (operation create, match label SCHEMA)."
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["value"],
+          "not": {
+            "required": ["parameter"]
+          }
+        },
+        {
+          "required": ["parameter"],
+          "not": {
+            "required": ["value"]
+          }
+        }
+      ]
+    },
+    "graphIdBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "value"],
+      "description": "Literal id property for create operations. Parameters are not allowed for id.",
+      "properties": {
+        "key": {
+          "type": "string",
+          "const": "id"
+        },
+        "value": {
+          "description": "Literal id value (any JSON type)."
+        }
+      }
+    },
+    "graphNodeLabel": {
+      "type": "string",
+      "enum": ["STEP", "SCHEMA", "INSTANCE"],
+      "description": "Allowed node label in this graph model."
+    },
+    "graphRelationshipType": {
+      "type": "string",
+      "const": "POINTS_TO",
+      "description": "The only relationship type; connects nodes sharing the same label (STEP→STEP, etc.)."
+    },
+    "nodePattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Node pattern (variable):Label { ... } segment within a path.",
+      "properties": {
+        "variable": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Cypher variable for this node (e.g. n0). Required for valid composed Cypher; use unique names within a MATCH clause when patterns reference shared entities."
+        },
+        "alias_mode": {
+          "type": "string",
+          "enum": ["define", "reference"],
+          "default": "define",
+          "description": "define: full node pattern with properties; reference: bare (variable) reusing an entity defined earlier in the path."
+        },
+        "alias_ref": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "When alias_mode is reference, the Cypher variable name of the entity defined upstream in this pattern."
+        },
+        "attributive_label": {
+          "type": "string",
+          "description": "Human-readable label stored on the graph node (required for create on STEP/SCHEMA)."
+        },
+        "labels": {
+          "type": "array",
+          "description": "Optional per-node label override. Normally omitted; use matchClause.label instead.",
+          "maxItems": 1,
+          "items": {
+            "$ref": "#/$defs/graphNodeLabel"
+          }
+        },
+        "properties": {
+          "type": "array",
+          "description": "Inline property map entries for the node pattern.",
+          "items": {
+            "$ref": "#/$defs/propertyBinding"
+          }
+        },
+        "id_binding": {
+          "$ref": "#/$defs/graphIdBinding",
+          "description": "Required literal id for create operations. Composer merges this into the node property map as id."
+        },
+        "sequencial_properties": {
+          "$ref": "#/$defs/sequencialPropertiesCrud",
+          "description": "Required when the match clause label is STEP (endpoint and body on each STEP node)."
+        }
+      }
+    },
+    "relationshipLength": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Variable-length relationship bounds (*min..max). Omit max for unbounded upper (*min..).",
+      "properties": {
+        "min": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "Minimum hop count (default 1 when variable length is used)."
+        },
+        "max": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "Maximum hop count; omit for unbounded."
+        }
+      }
+    },
+    "relationshipPattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["direction"],
+      "description": "Relationship pattern between nodes: -[var:TYPE { ... }]-> and variants.",
+      "properties": {
+        "variable": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Cypher variable for this relationship (e.g. r0). Required for valid composed Cypher."
+        },
+        "alias_mode": {
+          "type": "string",
+          "enum": ["define", "reference"],
+          "default": "define",
+          "description": "define: full relationship pattern; reference: bare -[variable]- segment reusing an entity defined earlier."
+        },
+        "alias_ref": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "When alias_mode is reference, the Cypher variable of the relationship defined upstream."
+        },
+        "attributive_label": {
+          "type": "string",
+          "description": "Human-readable label stored on the graph relationship (required for create on STEP/SCHEMA)."
+        },
+        "type": {
+          "$ref": "#/$defs/graphRelationshipType",
+          "description": "Relationship type (always POINTS_TO in this system)."
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["outgoing", "incoming", "undirected"],
+          "description": "Arrow direction: outgoing -[...]->, incoming <-[...]-, undirected -[...]-."
+        },
+        "length": {
+          "$ref": "#/$defs/relationshipLength",
+          "description": "When set, emits a variable-length pattern (e.g. *1..5)."
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/propertyBinding"
+          }
+        },
+        "id_binding": {
+          "$ref": "#/$defs/graphIdBinding",
+          "description": "Required literal id for create operations. Composer merges this into the relationship property map as id."
+        },
+        "condition": {
+          "type": "string",
+          "description": "Resolved guard string: natural language (implicit) or EXISTS subquery on INSTANCE (cypher). Emitted on the relationship as a condition property in composed Cypher."
+        },
+        "condition_type": {
+          "type": "string",
+          "enum": ["null", "cypher", "implicit"],
+          "default": "null",
+          "description": "How to interpret condition. Use null when no relationship guard applies."
+        },
+        "cypher_condition": {
+          "$ref": "#/$defs/cypherConditionBuilder",
+          "description": "Declarative builder for cypher condition_type (INSTANCE EXISTS subquery)."
+        },
+        "required": {
+          "type": "boolean",
+          "description": "When the enclosing match clause label is SCHEMA and operation is create, whether this relationship is required (stored at the root of the relationship entity payload in SQLite, not on the Neo4j relationship)."
+        },
+        "optional": {
+          "type": "boolean",
+          "default": false,
+          "description": "Optional hop (read SCHEMA/INSTANCE only): this relationship and everything after it in the path compose as OPTIONAL MATCH segments anchored on the preceding node, so anchor nodes without the hop still return. Ignored for STEP clauses and non-read operations."
+        },
+        "absent": {
+          "type": "boolean",
+          "default": false,
+          "description": "Absent hop (read SCHEMA/INSTANCE only): this relationship and everything after it in the path compose as a NOT EXISTS { MATCH ... } anti-join anchored on the preceding node, so only anchor nodes WITHOUT the hop return. Mutually exclusive with optional. Ignored for STEP clauses and non-read operations."
+        }
+      }
+    },
+    "pathElement": {
+      "description": "One step in a graph path: node or relationship.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "node"],
+          "properties": {
+            "kind": {
+              "const": "node"
+            },
+            "node": {
+              "$ref": "#/$defs/nodePattern"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "relationship"],
+          "properties": {
+            "kind": {
+              "const": "relationship"
+            },
+            "relationship": {
+              "$ref": "#/$defs/relationshipPattern"
+            }
+          }
+        }
+      ]
+    },
+    "graphPattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "description": "A single comma-separated pattern in MATCH: a path of alternating nodes and relationships. Paths must start with a node; relationships follow nodes.",
+      "properties": {
+        "path": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Ordered path elements. First element must be kind node; relationship elements alternate after nodes.",
+          "items": {
+            "$ref": "#/$defs/pathElement"
+          }
+        }
+      }
+    },
+    "matchClause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "patterns"],
+      "description": "One MATCH or OPTIONAL MATCH clause. All nodes share label (STEP, SCHEMA, or INSTANCE). Each node and relationship declares its own variable (e.g. n0, r0, n1) so multiple comma-separated patterns can reference the same entities. Paths must not end with a dangling relationship.",
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/graphNodeLabel",
+          "description": "Node label for every node in this clause (same-label POINTS_TO paths only)."
+        },
+        "optional": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, composer emits OPTIONAL MATCH instead of MATCH."
+        },
+        "patterns": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/graphPattern"
+          }
+        }
+      }
+    },
+    "whereOperator": {
+      "type": "string",
+      "enum": ["AND", "OR"],
+      "description": "How to combine sibling predicates or nested groups at this level."
+    },
+    "whereCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expression"],
+      "description": "A leaf Cypher boolean expression. Use $parameterName for bound values.",
+      "properties": {
+        "expression": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Cypher predicate (e.g. n.label = $label)."
+        }
+      }
+    },
+    "whereGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operator", "items"],
+      "description": "A group of WHERE predicates combined with AND or OR. Items may be leaf conditions or nested groups (parentheses in composed Cypher).",
+      "properties": {
+        "operator": {
+          "$ref": "#/$defs/whereOperator"
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Sibling predicates or nested groups at this level.",
+          "items": {
+            "$ref": "#/$defs/whereItem"
+          }
+        }
+      }
+    },
+    "whereItem": {
+      "description": "Either a leaf predicate or a nested AND/OR group.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/whereCondition"
+        },
+        {
+          "$ref": "#/$defs/whereGroup"
+        }
+      ]
+    },
+    "returnItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expression"],
+      "description": "One RETURN projection.",
+      "properties": {
+        "expression": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Cypher expression (e.g. n, count(r), labels(n))."
+        },
+        "alias": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Optional AS alias for this projection."
+        }
+      }
+    },
+    "orderByItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expression", "direction"],
+      "description": "One ORDER BY sort key.",
+      "properties": {
+        "expression": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Sort expression (e.g. n.name, count(*))."
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["ASC", "DESC"],
+          "description": "Sort direction."
+        },
+        "null_order": {
+          "type": "string",
+          "enum": ["NULLS FIRST", "NULLS LAST"],
+          "description": "Optional NULLS FIRST or NULLS LAST suffix."
+        }
+      }
+    },
+    "setItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expression"],
+      "description": "One SET assignment or mutation expression for update operations (e.g. n.name = $name, n += $props). The optional fields are builder-only round-trip hints; only expression is compiled into Cypher.",
+      "properties": {
+        "expression": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Cypher SET fragment; may reference $parameters."
+        },
+        "path_variable": {
+          "type": "string",
+          "description": "Builder hint: the MATCH alias whose property this assignment targets (update INSTANCE pickers)."
+        },
+        "attributive_label": {
+          "type": "string",
+          "description": "Builder hint: the attributive_label bound to path_variable when the assignment was authored."
+        },
+        "property_key": {
+          "type": "string",
+          "description": "Builder hint: the assigned property's key."
+        },
+        "entity_role": {
+          "type": "string",
+          "enum": ["node", "relationship"],
+          "description": "Builder hint: whether path_variable binds a node or a relationship."
+        },
+        "value": {
+          "type": "string",
+          "description": "Builder hint: the raw right-hand side as typed — a literal or exact $parameter reference (literal mode), or the free-form Cypher fragment (expression mode)."
+        },
+        "value_mode": {
+          "type": "string",
+          "enum": ["literal", "now", "not_property", "expression"],
+          "description": "Builder hint: how the right-hand side was authored. Omitted means literal. now compiles to toString(datetime()); not_property to (NOT coalesce(source_variable.source_property, false)); expression passes value through verbatim."
+        },
+        "source_variable": {
+          "type": "string",
+          "description": "Builder hint (not_property mode): the in-scope alias whose boolean property is negated."
+        },
+        "source_property": {
+          "type": "string",
+          "description": "Builder hint (not_property mode): the negated boolean property key."
+        }
+      }
+    },
+    "deleteClause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targets"],
+      "description": "DELETE targets after MATCH/WHERE for delete operations.",
+      "properties": {
+        "detach": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, composer emits DETACH DELETE instead of DELETE."
+        },
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Graph elements to delete (e.g. n, r). Comma-separated in Cypher.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "operationValue": {
+      "type": "string",
+      "enum": ["create", "read", "update", "delete"],
+      "description": "Query intent: create (CREATE pattern), read (MATCH…RETURN), update (MATCH…SET), delete (MATCH…DELETE)."
+    },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "operation", "match"],
+      "description": "A single declarative Cypher query. Required clauses depend on operation (see allOf).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable unique identifier for this query (logs, routing, executor packages)."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable name for this query."
+        },
+        "operation": {
+          "$ref": "#/$defs/operationValue"
+        },
+        "parameters": {
+          "type": "array",
+          "description": "Parameters available to this query. Names must be unique within the query. Referenced as $name in property bindings, WHERE, SKIP, and LIMIT.",
+          "items": {
+            "$ref": "#/$defs/parameter"
+          },
+          "uniqueItems": false
+        },
+        "match": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Graph patterns. For read, update, and delete: MATCH / OPTIONAL MATCH clauses. For create: CREATE patterns (same shape; optional on matchClause is ignored).",
+          "items": {
+            "$ref": "#/$defs/matchClause"
+          }
+        },
+        "set": {
+          "type": "array",
+          "minItems": 1,
+          "description": "SET expressions for update operations. Required when operation is update.",
+          "items": {
+            "$ref": "#/$defs/setItem"
+          }
+        },
+        "delete": {
+          "$ref": "#/$defs/deleteClause",
+          "description": "DELETE configuration. Required when operation is delete."
+        },
+        "where": {
+          "$ref": "#/$defs/whereGroup",
+          "description": "Optional WHERE filter as a root AND/OR group. Omit when no filter is needed."
+        },
+        "return": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["items"],
+          "description": "RETURN clause configuration.",
+          "properties": {
+            "distinct": {
+              "type": "boolean",
+              "default": false,
+              "description": "When true, composer emits RETURN DISTINCT."
+            },
+            "items": {
+              "type": "array",
+              "description": "RETURN projections. Empty array on read emits RETURN * (or RETURN DISTINCT * when distinct/hide_duplicates is true).",
+              "items": {
+                "$ref": "#/$defs/returnItem"
+              }
+            }
+          }
+        },
+        "order_by": {
+          "type": "array",
+          "description": "Optional ORDER BY keys. Omit when no sorting is required.",
+          "items": {
+            "$ref": "#/$defs/orderByItem"
+          }
+        },
+        "skip": {
+          "$ref": "#/$defs/literalOrParameter",
+          "description": "Optional SKIP: integer literal or parameter reference."
+        },
+        "limit": {
+          "$ref": "#/$defs/literalOrParameter",
+          "description": "Optional LIMIT: integer literal or parameter reference (read operations)."
+        },
+        "read_traversal": {
+          "type": "string",
+          "enum": ["downstream", "network"],
+          "description": "Read STEP/SCHEMA single-node traversal mode. downstream emits MATCH path = (:LABEL { attributive_label: ... })-[*]->(downstream) RETURN path; network uses an undirected -[*]- variable-length path. Ignored unless the match has exactly one node."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "read"
+              }
+            },
+            "required": ["operation"]
+          },
+          "then": {
+            "required": ["return"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "update"
+              }
+            },
+            "required": ["operation"]
+          },
+          "then": {
+            "required": ["set"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operation": {
+                "const": "delete"
+              }
+            },
+            "required": ["operation"]
+          },
+          "then": {
+            "required": ["delete"]
+          }
+        }
+      ]
+    }
+  }
+}

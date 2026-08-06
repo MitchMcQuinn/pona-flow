@@ -1,0 +1,1694 @@
+:root {
+  /* Dark neumorphic base — lifted off true black; second pass for brighter displays. */
+  --bg: #121214;
+  --panel: #1e1e22;
+  --panel2: #151518;
+  --well: #0e0e11;
+  --raise: #28282e;
+  --text: #f0f1f4;
+  --muted: #8a8d96;
+  --border: rgba(255, 255, 255, 0.07);
+  --ok: #34d399;
+  --bad: #fb7185;
+  --accent: #818cf8;
+  --accent-soft: rgba(129, 140, 248, 0.35);
+
+  /* Soft-3D dual shadows — slightly stronger highlights on an almost-black canvas. */
+  --shadow-out: -5px -5px 12px rgba(255, 255, 255, 0.055), 6px 6px 14px rgba(0, 0, 0, 0.72);
+  --shadow-out-sm: -3px -3px 7px rgba(255, 255, 255, 0.05), 3px 3px 8px rgba(0, 0, 0, 0.65);
+  --shadow-in: inset 3px 3px 8px rgba(0, 0, 0, 0.75), inset -3px -3px 8px rgba(255, 255, 255, 0.045);
+  --shadow-in-sm: inset 2px 2px 5px rgba(0, 0, 0, 0.7), inset -2px -2px 5px rgba(255, 255, 255, 0.04);
+  --edge-hi: inset 0 1px 0 rgba(255, 255, 255, 0.085);
+
+  /* Colorful mesh-gradient accents — reserved for active/interactive emphasis. */
+  --mesh: linear-gradient(135deg, #6366f1 0%, #8b5cf6 28%, #d946ef 55%, #06b6d4 100%);
+  --mesh-soft:
+    radial-gradient(120% 160% at 0% 0%, rgba(99, 102, 241, 0.5), transparent 55%),
+    radial-gradient(140% 160% at 100% 0%, rgba(217, 70, 239, 0.38), transparent 55%),
+    radial-gradient(140% 180% at 50% 120%, rgba(6, 182, 212, 0.4), transparent 60%);
+  --mesh-glow: 0 0 18px rgba(139, 92, 246, 0.28), 0 0 36px rgba(6, 182, 212, 0.14);
+  /* Horizontal panel padding — room for mesh-glow / shadow-out to paint inside overflow clips. */
+  --glow-bleed: 32px;
+  /* Inline bleed for mesh-glow buttons inside nested overflow-x clips (cards, builder rows). */
+  --btn-glow-bleed: 20px;
+
+  --panel-radius: 16px;
+
+  /* Ambient mesh blob anchors — animated by `useMeshBackgroundMotion`. */
+  --mesh-bg-x1: -8%;
+  --mesh-bg-y1: 28%;
+  --mesh-bg-x2: 88%;
+  --mesh-bg-y2: -12%;
+  --mesh-bg-x3: 55%;
+  --mesh-bg-y3: 118%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: "Roboto", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.meshBackground {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 620px at var(--mesh-bg-x1) var(--mesh-bg-y1), rgba(99, 102, 241, 0.32), transparent 62%),
+    radial-gradient(720px 540px at var(--mesh-bg-x2) var(--mesh-bg-y2), rgba(6, 182, 212, 0.2), transparent 60%),
+    radial-gradient(840px 620px at var(--mesh-bg-x3) var(--mesh-bg-y3), rgba(217, 70, 239, 0.2), transparent 62%),
+    var(--bg);
+  opacity: 0;
+  animation: meshBackgroundFadeIn 1.15s ease-out forwards;
+}
+
+.appShell {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  min-height: 100vh;
+  opacity: 0;
+  animation: appRootFadeIn 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+}
+
+.appRoot {
+  height: 100vh;
+  max-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@keyframes meshBackgroundFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes appRootFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meshBackground {
+    animation: none;
+    opacity: 1;
+  }
+
+  .appShell {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.topbar {
+  flex-shrink: 0;
+  height: 56px;
+  background:
+    linear-gradient(90deg, var(--bg) 0%, rgba(18, 18, 20, 0.92) 14%, transparent 42%),
+    linear-gradient(180deg, var(--raise), var(--panel2));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), var(--edge-hi);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  position: relative;
+  z-index: 5;
+}
+
+.topbarLogo {
+  display: block;
+  height: 50px;
+  width: auto;
+}
+
+.topbarActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbarBackBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.topbarBackBtn svg,
+.topbarRunBtn svg {
+  flex-shrink: 0;
+}
+
+.topbarRunBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 280px 360px minmax(420px, 1fr);
+  gap: 12px;
+  padding: 12px;
+}
+
+.layoutResizable {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+body.layoutResizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.layoutNavSlot,
+.layoutVizSlot,
+.layoutConfigSlot {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  height: 100%;
+  flex-shrink: 0;
+  /* Match panel rounding; visible overflow lets outset panel shadows paint. */
+  border-radius: var(--panel-radius);
+  overflow: visible;
+  isolation: isolate;
+}
+
+.layoutNavSlot {
+  position: relative;
+}
+
+.layoutVizSlot {
+  flex: 1 1 auto;
+  min-width: 200px;
+}
+
+.layoutConfigSlot {
+  flex-shrink: 0;
+}
+
+.layoutResizable.layoutVizHidden .layoutConfigSlot {
+  flex: 1 1 auto;
+  width: auto !important;
+  max-width: none;
+}
+
+.layoutResizable.layoutConfigHidden .layoutVizSlot {
+  flex: 1 1 auto;
+  min-width: 200px;
+}
+
+.layoutResizable.layoutConfigHidden.layoutVizHidden .layoutNavSlot {
+  flex: 1 1 auto;
+  width: auto !important;
+  max-width: none;
+}
+
+.layoutVizSlot > .panel,
+.layoutConfigSlot > .panel,
+.layoutNavSlot > .panel,
+.layoutNavSlot > .navPanel {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.layoutVizSlot .panel__body,
+.layoutConfigSlot .panel__body,
+.layoutNavSlot .panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px var(--glow-bleed);
+}
+
+.layoutConfigSlot > .panel.builderPanel .panel__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.layoutResizeHandle {
+  flex: 0 0 10px;
+  margin: 0 2px;
+  cursor: col-resize;
+  border-radius: 6px;
+  align-self: stretch;
+  touch-action: none;
+  background: transparent;
+  position: relative;
+}
+
+.layoutResizeHandle::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background 0.15s;
+}
+
+.layoutResizeHandle:hover::after,
+body.layoutResizing .layoutResizeHandle::after {
+  background: var(--mesh);
+  box-shadow: var(--mesh-glow);
+}
+
+.panel {
+  background: linear-gradient(145deg, var(--panel), var(--panel2));
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  padding: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  isolation: isolate;
+  /* Inset depth only — outer shadow bleeds into square clip rects at panel corners. */
+  box-shadow: var(--shadow-in-sm), var(--edge-hi);
+}
+
+/* Main dashboard columns: outset (raised) neumorphic shells on the canvas. */
+.layoutNavSlot > .panel,
+.layoutVizSlot > .panel,
+.layoutConfigSlot > .panel,
+.layoutNavSlot > .navPanel {
+  position: relative;
+  border: 1px solid var(--border);
+  background: linear-gradient(145deg, var(--raise), var(--panel2));
+  box-shadow: var(--shadow-out), var(--edge-hi);
+}
+
+.layoutNavSlot > .panel::before,
+.layoutVizSlot > .panel::before,
+.layoutConfigSlot > .panel::before,
+.layoutNavSlot > .navPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 130% 130% at 0% 0%,
+    rgba(255, 255, 255, 0.07) 0%,
+    transparent 52%
+  );
+}
+
+.layoutNavSlot > .panel > *,
+.layoutVizSlot > .panel > *,
+.layoutConfigSlot > .panel > *,
+.layoutNavSlot > .navPanel > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Padded scroll region — kept separate from .panel shell so flex + overflow:hidden
+   does not collapse the gutter (affects nav, viz, and builder columns). */
+.panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px var(--glow-bleed);
+  background: transparent;
+}
+
+/* Config panel shell stays full column width; inner content caps at 1000px, left-aligned. */
+.configPanel .panel__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.configPanel .panel__body > * {
+  width: 100%;
+  max-width: 1000px;
+  min-width: 0;
+}
+
+h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+button,
+select,
+input,
+textarea {
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 10px;
+  transition: box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* Inputs read as soft recessed wells. */
+input,
+select,
+textarea {
+  background: var(--well);
+  box-shadow: var(--shadow-in-sm);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: rgba(129, 140, 248, 0.55);
+  box-shadow: var(--shadow-in-sm), 0 0 0 2px rgba(129, 140, 248, 0.25), 0 0 14px rgba(139, 92, 246, 0.2);
+}
+
+/* Buttons read as soft extruded pads. */
+button {
+  cursor: pointer;
+  background: linear-gradient(145deg, var(--raise), var(--panel2));
+  box-shadow: var(--shadow-out-sm), var(--edge-hi);
+}
+
+button:hover {
+  border-color: rgba(129, 140, 248, 0.35);
+}
+
+button:active {
+  box-shadow: var(--shadow-in-sm);
+  background: var(--panel2);
+}
+
+button:focus-visible {
+  outline: none;
+  border-color: rgba(129, 140, 248, 0.55);
+  box-shadow: var(--shadow-out-sm), 0 0 0 2px rgba(129, 140, 248, 0.3);
+}
+
+.btnPrimary {
+  border-color: transparent;
+  background: var(--mesh);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: var(--shadow-out-sm), var(--mesh-glow);
+}
+
+.btnPrimary:hover {
+  border-color: transparent;
+  filter: brightness(1.12);
+}
+
+.btnPrimary:active {
+  background: var(--mesh);
+  filter: brightness(0.92);
+  box-shadow: var(--shadow-in-sm);
+}
+
+.btnSecondary {
+  border-color: rgba(6, 182, 212, 0.35);
+  background: linear-gradient(145deg, rgba(6, 182, 212, 0.16), rgba(6, 182, 212, 0.05)), linear-gradient(145deg, var(--raise), var(--panel2));
+  color: #a5f3fc;
+}
+
+.btnDanger {
+  border-color: rgba(251, 113, 133, 0.4);
+  background: linear-gradient(145deg, rgba(251, 113, 133, 0.16), rgba(251, 113, 133, 0.05)), linear-gradient(145deg, var(--raise), var(--panel2));
+  color: #fecdd3;
+}
+
+.buttonRow {
+  display: flex;
+  gap: 8px;
+  margin-inline: calc(-1 * var(--btn-glow-bleed));
+  padding-inline: var(--btn-glow-bleed);
+}
+
+.sectionHeader {
+  margin-top: 14px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.navSectionTitle {
+  margin: 14px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.navSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 14px 0 8px;
+  min-height: 26px;
+}
+
+.navSectionHeader .navSectionTitle {
+  margin: 0;
+  line-height: 1;
+}
+
+.navSpaceRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.navSpaceRow select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.navSpaceActions {
+  flex-shrink: 0;
+}
+
+.navAddBtn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  border: 1px solid var(--border);
+  background: linear-gradient(145deg, var(--raise), var(--panel2));
+  color: var(--text);
+  box-shadow: var(--shadow-out-sm), var(--edge-hi);
+}
+
+.navAddBtn:hover {
+  border-color: rgba(129, 140, 248, 0.5);
+  color: #c7d2fe;
+  box-shadow: var(--shadow-out-sm), var(--mesh-glow);
+}
+
+.navSectionStack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel__body > .navCollapsible {
+  margin-top: 14px;
+}
+
+.navCollapsibleToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.navCollapsibleToggle:hover {
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.navCollapsibleChevron {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.navCollapsibleToggle.is-open .navCollapsibleChevron {
+  transform: rotate(90deg);
+}
+
+.navCollapsibleBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.navCollapsibleBody .navCollapsibleToggle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.navCollapsibleBody .navCollapsibleBody {
+  padding-left: 12px;
+}
+
+.navGroupList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.navGroupTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.navGroupHeader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  padding: 2px 2px;
+  border-radius: 6px;
+}
+
+.navGroupToggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.navGroupToggleLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.navGroupToggle .navGroupTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navGroupChevron {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.navGroupToggle:not([aria-expanded="true"]) .navGroupChevron {
+  transform: rotate(-90deg);
+}
+
+.navGroupHeader.sequenceDropTarget {
+  background: rgba(129, 140, 248, 0.12);
+  outline: 1px dashed var(--accent);
+}
+
+.navGroupHeaderUngrouped {
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.navGroupHeader.dragging {
+  opacity: 0.45;
+}
+
+.navGroupHeader.dropBefore::before,
+.navGroupHeader.dropAfter::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--mesh);
+  box-shadow: var(--mesh-glow);
+}
+
+.navGroupHeader.dropBefore::before {
+  top: -3px;
+}
+
+.navGroupHeader.dropAfter::after {
+  bottom: -3px;
+}
+
+.navGroupDragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 18px;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.navGroupDragHandle:hover {
+  color: var(--text);
+}
+
+.navGroupDragHandle:active {
+  cursor: grabbing;
+}
+
+.navGroupDragHandle svg {
+  width: 9px;
+  height: 14px;
+}
+
+.navGroupDeleteBtn {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.navGroupHeader:hover .navGroupDeleteBtn {
+  opacity: 1;
+}
+
+
+.navAddGroupBtn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.navAddGroupBtn:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.navAddGroupForm {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.navAddGroupActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.sequenceList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sequenceItem {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  background: linear-gradient(145deg, var(--raise), var(--panel2));
+  box-shadow: var(--shadow-out-sm), var(--edge-hi);
+}
+
+/* Active sequence: mesh-gradient border ring + soft glow. */
+.sequenceItem.active {
+  border-color: transparent;
+  background:
+    linear-gradient(145deg, var(--panel), var(--bg)) padding-box,
+    var(--mesh) border-box;
+  box-shadow: var(--shadow-out-sm), var(--mesh-glow);
+}
+
+.sequenceItem.dragging {
+  opacity: 0.45;
+}
+
+/* Suspended sequence: a SCHEMA change invalidated one of its INSTANCE steps. Highlighted red
+   and not runnable until the step is re-saved to match the new pattern. */
+.sequenceItem.suspended {
+  border-color: #ef4444;
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.16), rgba(239, 68, 68, 0.08));
+  box-shadow: var(--shadow-out-sm), 0 0 0 1px rgba(239, 68, 68, 0.35);
+}
+
+.sequenceItem.suspended .sequenceBtnLabel {
+  color: #fca5a5;
+}
+
+/* Suspension wins over the active ring so the warning stays visible while selected. */
+.sequenceItem.suspended.active {
+  border-color: #ef4444;
+  background: linear-gradient(145deg, rgba(239, 68, 68, 0.22), rgba(239, 68, 68, 0.1));
+  box-shadow: var(--shadow-out-sm), 0 0 0 2px rgba(239, 68, 68, 0.5);
+}
+
+/* Drop indicators: a line above/below the hovered item. */
+.sequenceItem.dropBefore::before,
+.sequenceItem.dropAfter::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--mesh);
+  box-shadow: var(--mesh-glow);
+}
+
+.sequenceItem.dropBefore::before {
+  top: -5px;
+}
+
+.sequenceItem.dropAfter::after {
+  bottom: -5px;
+}
+
+.sequenceDragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 22px;
+  padding: 0 1px;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.sequenceDragHandle:hover {
+  color: var(--text);
+}
+
+.sequenceDragHandle:active {
+  cursor: grabbing;
+}
+
+.sequenceDragHandle svg {
+  width: 10px;
+  height: 16px;
+}
+
+.sequenceBtn {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  border: none;
+  padding: 4px 6px;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.sequenceBtnLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inlineActions {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.sequenceItemActions {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: max-width 0.15s ease, opacity 0.12s ease;
+}
+
+.sequenceItem:hover .sequenceItemActions,
+.sequenceItem:focus-within .sequenceItemActions {
+  max-width: 54px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tinyBtn {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.tinyBtnIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+.tinyBtnIcon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.navSpaceConfigBtn {
+  color: #fff;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.navSpaceConfigBtn:hover,
+.navSpaceConfigBtn:focus-visible,
+.navSpaceConfigBtn.active {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.tinyBtn.danger {
+  border-color: rgba(251, 113, 133, 0.45);
+}
+
+/* User settings footer — pinned to the bottom of the navigation panel. */
+.navUserSettings {
+  position: relative;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: 8px;
+  background: transparent;
+}
+
+.navUserButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.navUserButton:hover,
+.navUserButton.active {
+  background: linear-gradient(145deg, var(--raise), var(--panel2));
+  border-color: var(--border);
+  box-shadow: var(--shadow-out-sm), var(--edge-hi);
+}
+
+.navUserName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.navUserGear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.navUserGear svg {
+  width: 16px;
+  height: 16px;
+}
+
+.navUserMenu {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  left: 8px;
+  right: 8px;
+  background: linear-gradient(145deg, var(--raise), var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), var(--shadow-out-sm), var(--edge-hi);
+  padding: 12px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.navUserMenuHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navUserMenuName {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navUserMenuEmail {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navUserMenuField {
+  margin: 0;
+}
+
+.navUserMenuField select {
+  width: 100%;
+}
+
+.navUserMenuHint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.navUserLogoutBtn {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(251, 113, 133, 0.45);
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--bad);
+  cursor: pointer;
+}
+
+.navUserLogoutBtn:hover {
+  background: rgba(251, 113, 133, 0.12);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.errorText {
+  color: var(--bad);
+  font-size: 12px;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.auditLogTable {
+  font-size: 0.82rem;
+}
+
+.auditLogTable td {
+  vertical-align: top;
+  color: var(--text);
+}
+
+th,
+td {
+  border-bottom: 1px solid var(--border);
+  padding: 8px;
+  text-align: left;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+/* Inputs whose step has already executed: locked while the run is paused. */
+.field input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.paramLockedHint {
+  font-size: 12px;
+}
+
+.appError {
+  flex-shrink: 0;
+  margin: 8px 12px 0;
+  color: var(--bad);
+}
+
+/* No-access screen for a signed-in principal with no spaces and no create capability. */
+.noAccessRoot {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.noAccessCard {
+  max-width: 460px;
+  width: 100%;
+  text-align: center;
+  background: linear-gradient(145deg, var(--panel), var(--panel2));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-out), var(--edge-hi);
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.noAccessCard h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.noAccessCard p {
+  margin: 0;
+}
+
+.noAccessCard .btnPrimary {
+  align-self: center;
+  margin-top: 8px;
+  padding: 8px 16px;
+}
+
+.builderPanel {
+  min-height: 0;
+  max-height: 100%;
+  height: 100%;
+}
+
+.builderPanel .builderRoot {
+  flex: 0 0 auto;
+  min-height: auto;
+}
+
+.vizPanel {
+  min-height: 0;
+  max-height: 100%;
+  height: 100%;
+}
+
+.layoutVizSlot .vizPanel .panel__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.layoutVizSlot .resultView {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.layoutVizSlot .graphViewContainer {
+  min-height: 200px;
+}
+
+.designGraphView {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.inspectKind {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.inspectValue {
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.inspectPayloadSection {
+  margin-top: 12px;
+}
+
+.inspectPayloadSection h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.inspectPayloadTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.inspectPayloadTable th,
+.inspectPayloadTable td {
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.inspectPayloadTable th {
+  width: 34%;
+  background: rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+}
+
+.inspectPayloadValue {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}
+
+/* ----- Sequence parameters panel: response parameters (lower half) ----- */
+
+.sequenceDescription {
+  margin: 0 0 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sequenceDescriptionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sequenceDescriptionHead h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sequenceDescriptionText {
+  margin: 6px 0 0;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.sequenceDescriptionInput {
+  width: 100%;
+  margin-top: 8px;
+  resize: vertical;
+}
+
+.responseParamsSection {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.responseParamsSection h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.responseParamsSection .muted {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+
+.responseParamsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.responseParamsTable th,
+.responseParamsTable td {
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.responseParamsTable th {
+  width: 40%;
+  background: rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.responseParamValue {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}
+
+.responseParamPending {
+  font-style: italic;
+}
+
+/* ----- RBAC / Users panel ----- */
+
+.rbacHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rbacInviteRow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 10px 0;
+  flex-wrap: wrap;
+}
+
+.rbacInviteRow input,
+.rbacInviteRow select {
+  flex: 1 1 auto;
+  min-width: 120px;
+}
+
+.rbacMemberList {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rbacMemberRow {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.rbacMemberHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rbacMemberId {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.rbacMemberControls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rbacBadge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted, #aaa);
+}
+
+.rbacBadgeOwner {
+  background: rgba(99, 179, 237, 0.18);
+  color: #63b3ed;
+}
+
+.rbacOwnerNote {
+  font-size: 12px;
+  font-style: italic;
+}
+
+.rbacSubId {
+  font-size: 12px;
+  color: var(--muted, #aaa);
+}
+
+.rbacSectionHint {
+  margin: 2px 0 10px;
+  font-size: 12px;
+}
+
+.agentTokenCode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.agentTokenCode code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--well);
+  box-shadow: var(--shadow-in-sm);
+  font-size: 12px;
+}
+
+.rbacMemberDetail {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.rbacCheckRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.rbacFlowTable {
+  border-collapse: collapse;
+  margin: 4px 0 8px;
+}
+
+.rbacFlowTable th,
+.rbacFlowTable td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.rbacFlowTable th {
+  text-transform: capitalize;
+}
+
+.rbacMatrix h4 {
+  margin: 10px 0 4px;
+}
+
+.rbacSequenceList {
+  margin-left: 8px;
+}
+
+.spaceConfigTabs {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0 14px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.spaceConfigTabs button {
+  border: 1px solid var(--border);
+  background: linear-gradient(145deg, var(--raise), var(--panel2));
+  color: inherit;
+  border-radius: 8px;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+
+.spaceConfigTabs button.active {
+  border-color: transparent;
+  background:
+    linear-gradient(145deg, var(--panel), var(--bg)) padding-box,
+    var(--mesh) border-box;
+  color: #e0e7ff;
+  font-weight: 600;
+  box-shadow: var(--shadow-out-sm), var(--mesh-glow);
+}
+
+.spaceConfigSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.spaceConfigPanel .auditLogTable {
+  font-size: 12px;
+}
+
+.templateOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.templateOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.templateOption input {
+  width: auto;
+  margin: 0;
+}
+
+.templatesImportHeader {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.templateConflicts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.templateConflictList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.templateConflictRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.templateConflictName {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+
+.templateConflictRow input {
+  flex: 0 0 50%;
+}
+
+.templateSelectionGroups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.templateSelectionGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.templateSelectionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.templateSelectionRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.templateInstanceToggle {
+  margin-left: 26px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.templateSummary {
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.templateSummaryList {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 4px 16px;
+}
+
+.templateSummaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.templateSummaryLabel {
+  color: var(--muted);
+}
+
+.templateSummaryCount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.templateCredentials {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.templateCredentialList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.templateCredentialRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.templateCredentialName {
+  font-weight: 600;
+}
+
+.templateCredOk {
+  margin-left: auto;
+  color: var(--success, #2e7d32);
+  font-size: 12px;
+}
+
+.templateCredMissing {
+  margin-left: auto;
+  color: var(--danger, #c0392b);
+  font-size: 12px;
+}
