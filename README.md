@@ -116,7 +116,7 @@ inert and the rest of the API is unaffected. Architecture: [Docs/DECISIONS.md](D
 
 ## Design Philosophy
 
-Graph databases are the ideal substrate for context engineering due to their capacity to represent diverse patterns of information. In the Schemato system we identify and group these patterns into three main categories: 
+Graph databases are the ideal substrate for context engineering due to their capacity to represent diverse patterns of information. In the pona flow system we identify and group these patterns into three main categories: 
 
 - **Sequencial**: Conditional, branching, and looping operations
 - **Schematic**: Hierarchical taxonomies or heterarchical ontologies
@@ -138,7 +138,7 @@ Possible applications include but are not limited to:
 
 ### The Graph Ontology
 
-At the highest level of abstraction Schemato implements a minimalist ontology consisting of only three types of nodes and only type of relationship. Nodes are only connected to others of the same type and correspond with the three categories of graph patterns (sequencial, schematic, and instantial). 
+At the highest level of abstraction pona flow implements a minimalist ontology consisting of only three types of nodes and only type of relationship. Nodes are only connected to others of the same type and correspond with the three categories of graph patterns (sequencial, schematic, and instantial). 
 
 - (STEP)-[POINTS_TO]->(STEP)
 - (SCHEMA)-[POINTS_TO]->(SCHEMA)
@@ -160,7 +160,7 @@ On **create**, `common_label` is set as follows: for `node_label` `STEP` or `SCH
 
 #### Spaces
 
-A "space" refers to a working environment within the Schemato system. It may optionally be associated with a primary webhook endpoint, an array of specific entities identified by their label property, an array of keys used for authentication, and the names of environment-variable keys (in `.env`) used to connect to that space's Neo4j database. Each space has a unique name and ID, however spaces may share webhook endpoints or entities.
+A "space" refers to a working environment within the pona flow system. It may optionally be associated with a primary webhook endpoint, an array of specific entities identified by their label property, an array of keys used for authentication, and the names of environment-variable keys (in `.env`) used to connect to that space's Neo4j database. Each space has a unique name and ID, however spaces may share webhook endpoints or entities.
 
 The spaces table within the SQLite database (located at `data.db`) stores all space data mapped to thier IDs. The `neo4j_uri_key`, `neo4j_user_key`, `neo4j_password_key`, and `sqlite_database_path_key` columns store the **names** of keys in the `.env` file (not the secret values themselves); the runtime resolves those names to load the Neo4j and SQLite connections for the space. New spaces get prefixed key names derived from their name (e.g. a space named `New Space` uses `NEW_SPACE_NEO4J_URI`). When a space's prefixed key is not present in the `.env` file, the runtime falls back to the shared default key (`NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD`, `SQLITE_DATABASE_PATH`), so you only need to define a space-specific key when you want to override the default. Below is a table that demonstrates the column labels with the expected types and examples:
 
