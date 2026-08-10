@@ -11,7 +11,7 @@
  */
 import assert from "node:assert/strict";
 import composer from "./helpers/composer.mjs";
-import { validateQuery } from "../App/ui/src/state/builder/validation.ts";
+import { validateQuery } from "../App/authoring/src/validation.ts";
 import {
   hopForcedMode,
   relationshipHopMode,

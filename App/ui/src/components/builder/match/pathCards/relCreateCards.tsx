@@ -17,19 +17,19 @@ import {
   instanceEntityIdPatch,
   instanceKeyValue,
   INSTANCE_ALIAS_DEFAULT_PLACEHOLDER
-} from "../../../../state/builder/instanceRules";
+} from "@pona-flow/authoring";
 import {
   filterAliasReferencesForRequiredAttributiveLabel,
   isAliasReference,
   isAliasSet
-} from "../../../../state/builder/matchAlias";
+} from "@pona-flow/authoring";
 import {
   normalizeAlias,
   normalizeAttributiveLabel,
   sanitizeAttributiveLabelInput
-} from "../../../../state/builder/normalizeField";
+} from "@pona-flow/authoring";
 import { addSchemaProperty, updateNode } from "../../../../state/builder/queryHelpers";
-import { propertiesFromSchemata } from "../../../../state/builder/schemaRules";
+import { propertiesFromSchemata } from "@pona-flow/authoring";
 import type { NodePattern, RelationshipPattern } from "../../../../state/builder/types";
 import { PropertyBinding } from "../../PropertyBinding";
 import { AliasField } from "../../fields/AliasField";

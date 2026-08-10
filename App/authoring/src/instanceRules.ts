@@ -1,6 +1,6 @@
-import { isSchemaNullRaw } from "./schemaRules";
-import { attributiveLabelToDefaultAlias } from "./matchAlias";
-import type { GraphIdBinding, PropertyBinding, QueryObject } from "./types";
+import { isSchemaNullRaw } from "./schemaRules.js";
+import { attributiveLabelToDefaultAlias } from "./matchAlias.js";
+import type { GraphIdBinding, PropertyBinding, QueryObject } from "./types.js";
 
 export const INSTANCE_ALIAS_DEFAULT_PLACEHOLDER = "Defaults to schema label";
 

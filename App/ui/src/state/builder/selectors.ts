@@ -1,73 +1,21 @@
 import composer from "../../services/composer";
 import { formatPreviewSqlBlock, formatSqlForPreview } from "../../utils/formatSqlForPreview";
-import { collectCreateAttributiveLabels } from "./attributiveLabels";
-import {
-  isEntityConfigUpdate,
-  isLabelOnlyDelete,
-  isLabelOnlyMatch,
-  isRunnableEndpointStepCreate
-} from "./matchMode";
-import { queryUsesParameters } from "./parameterRefs";
-import { collectDeleteTargetBindings } from "./returnProjections";
 import {
   catalogRuntimeEnabled,
   checksAllClear,
+  collectCreateAttributiveLabels,
   isActiveCheckKey,
+  isEntityConfigUpdate,
+  isRunnableEndpointStepCreate,
   isStepCreateQuery,
+  normalizeForCompose,
+  primaryNodeLabel,
+  queryUsesParameters,
   validateQuery
-} from "./validation";
-import type { BuilderState, ComposedQuery, PathElement, QueryObject } from "./types";
+} from "@pona-flow/authoring";
+import type { BuilderState, ComposedQuery, QueryObject } from "./types";
 
-// Relationships built with a cypher condition store the structured builder, but
-// the composer reads a precomputed `condition` string. Derive it before composing.
-export function normalizeForCompose(query: QueryObject): QueryObject {
-  // Read/delete STEP/SCHEMA targets matched entities by attributive_label only: strip any
-  // residual per-path WHERE filters so no stray predicate composes. Delete additionally
-  // (below) replaces the DELETE clause with a DETACH DELETE of every MATCH variable.
-  const labelOnlyMatch = isLabelOnlyMatch(query.operation, query.match[0]?.label);
-  const labelOnlyDelete = isLabelOnlyDelete(query.operation, query.match[0]?.label);
-
-  const normalized: QueryObject = {
-    ...query,
-    match: query.match.map((clause) => ({
-      ...clause,
-      patterns: clause.patterns.map((pattern) => ({
-        ...pattern,
-        path: pattern.path.map((element): PathElement => {
-          if (element.kind === "relationship") {
-            let rel = element.relationship;
-            if (rel.condition_type === "cypher" && rel.cypher_condition) {
-              rel = {
-                ...rel,
-                condition: composer.buildExistsInstanceCondition(rel.cypher_condition)
-              };
-            }
-            if (labelOnlyMatch) {
-              rel = { ...rel, where: undefined, where_enabled: false };
-            }
-            return { kind: "relationship", relationship: rel };
-          }
-          if (labelOnlyMatch && element.kind === "node") {
-            return {
-              kind: "node",
-              node: { ...element.node, where: undefined, where_enabled: false }
-            };
-          }
-          return element;
-        })
-      }))
-    }))
-  };
-
-  if (labelOnlyDelete) {
-    const targets = collectDeleteTargetBindings(normalized)
-      .map((binding) => binding.variable.trim())
-      .filter(Boolean);
-    normalized.delete = { detach: true, targets };
-  }
-
-  return normalized;
-}
+export { normalizeForCompose, primaryNodeLabel };
 
 export interface ComposedPreview {
   composed: ComposedQuery;
@@ -179,10 +127,6 @@ function buildPreviewSqlite(
     text: blocks.length ? blocks.map((b) => b.text).join("\n\n") : "(none)",
     blocks
   };
-}
-
-export function primaryNodeLabel(query: QueryObject): string {
-  return query.match[0]?.label ?? "STEP";
 }
 
 function splitCypher(cypher: string): string[] {

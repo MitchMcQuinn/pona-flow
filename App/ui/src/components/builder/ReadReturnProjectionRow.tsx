@@ -9,7 +9,7 @@ import {
   isReturnFieldParameter,
   readReturnItemPatch,
   resolvedReadReturnFields
-} from "../../state/builder/returnProjections";
+} from "@pona-flow/authoring";
 import { updateReturnItem } from "../../state/builder/queryHelpers";
 import {
   ALIAS_NAME_ERROR_MSG,
@@ -17,7 +17,7 @@ import {
   isAttributiveLabelParameter,
   normalizeAlias,
   validateOptionalAlias
-} from "../../state/builder/normalizeField";
+} from "@pona-flow/authoring";
 import { fetchWherePropertyKeysForEntity } from "./where/wherePropertyOptions";
 import type { ReturnItem } from "../../state/builder/types";
 

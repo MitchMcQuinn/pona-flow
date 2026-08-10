@@ -1,4 +1,4 @@
-import { normalizeAttributiveLabel } from "./normalizeField";
+import { normalizeAttributiveLabel } from "@pona-flow/authoring";
 import type { GraphNodeLabel, NodePattern, QueryObject, RelationshipPattern } from "./types";
 
 export function attributiveLabelChanged(before: string | undefined, after: string): boolean {

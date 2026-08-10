@@ -1,4 +1,4 @@
-import type { Parameter } from "./types";
+import type { Parameter } from "./types.js";
 
 /** Parameter names: letter or underscore first; never a leading digit. */
 export const PARAMETER_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;

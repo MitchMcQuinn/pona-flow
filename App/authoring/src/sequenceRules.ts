@@ -1,4 +1,4 @@
-import type { MatchClause, QueryObject } from "./types";
+import type { MatchClause, QueryObject } from "./types.js";
 
 // The execution engine only supports sequences with a single entry point. A read
 // query made of multiple MATCH patterns must therefore be fully connected: every

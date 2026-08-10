@@ -53,7 +53,10 @@ async def queries_upsert(
     group_title = str(body.get("group_title") or "").strip()
     kind = str(body.get("kind") or "user").strip().lower()
     if space_id:
-        auth.require_space_access(principal, space_id)
+        # Authoring a package is a STEP-flow write, not just space membership: a saved row
+        # becomes a runnable STEP once wrapped. Gate it like /api/execute-create so an agent
+        # key that may only *run* sequences cannot author new ones.
+        auth.require_flow(principal, space_id, "create", "STEP")
         # A sequence's name becomes its STEP node's attributive_label, which must be unique
         # within the underlying graph. Reject names already used by another sequence in any
         # space that shares this space's graph.

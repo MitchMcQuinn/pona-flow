@@ -1,20 +1,33 @@
-/** Package execution endpoint. */
+/** Package execution endpoints. */
 
-import { joinApiPath } from "./api-path.js";
-import type { ExecuteCreateBody } from "./types.js";
+import { requestJson } from "./http.js";
+import type {
+  ExecuteCreateBody,
+  ExecuteQueryBody,
+  ExecuteQueryResponse,
+} from "./types.js";
 
 export async function executeCreatePackage(
   body: ExecuteCreateBody,
-  apiBase = ""
+  apiBase?: string
 ): Promise<Record<string, unknown>> {
-  const res = await fetch(joinApiPath("/api/execute-create", apiBase), {
+  return requestJson("/api/execute-create", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body,
+    apiBase,
+    errorLabel: "executing create",
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status} executing create`);
-  }
-  return data;
+}
+
+/** Run a composed read/update/delete package (graph Cypher + entity SQLite). */
+export async function executeQueryPackage(
+  body: ExecuteQueryBody,
+  apiBase?: string
+): Promise<ExecuteQueryResponse> {
+  return requestJson<ExecuteQueryResponse>("/api/execute-query", {
+    method: "POST",
+    body,
+    apiBase,
+    errorLabel: "executing query",
+  });
 }

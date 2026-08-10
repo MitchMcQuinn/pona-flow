@@ -6,7 +6,7 @@ import { BuilderPanel } from "./builder/BuilderPanel";
 import { EventBuilder } from "./events/EventBuilder";
 import { SpaceConfigPanel } from "./space/SpaceConfigPanel";
 import { TypedValueInput } from "./builder/fields/TypedValueInput";
-import { parseCheckboxSelection } from "../state/builder/schemaRules";
+import { parseCheckboxSelection } from "@pona-flow/authoring";
 import "./builder/builder.css";
 
 interface ConfigPanelProps {

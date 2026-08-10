@@ -1,4 +1,4 @@
-import { parseCheckboxSelection } from "../../../state/builder/schemaRules";
+import { parseCheckboxSelection } from "@pona-flow/authoring";
 
 interface TypedValueInputProps {
   /** Declared value_type driving which control renders. */

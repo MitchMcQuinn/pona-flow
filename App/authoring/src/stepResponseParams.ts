@@ -1,5 +1,5 @@
-import type { StepResponseParameter } from "./types";
-import { isValidParameterName } from "./stepBodyParams";
+import type { StepResponseParameter } from "./types.js";
+import { isValidParameterName } from "./stepBodyParams.js";
 
 export function validateStepResponseParameters(
   items: StepResponseParameter[] | undefined

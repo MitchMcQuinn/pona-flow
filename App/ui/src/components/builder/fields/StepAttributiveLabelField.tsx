@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { attributiveLabelChanged } from "../../../state/builder/cardReset";
 import { isRegisteredInSpaceCatalog, spaceCatalogLabelKeys } from "../../../state/builder/attributiveLabelOptions";
-import { isAttributiveLabelParameter } from "../../../state/builder/normalizeField";
+import { isAttributiveLabelParameter } from "@pona-flow/authoring";
 import { useBuilder } from "../../../state/builder/BuilderContext";
 import connector from "../../../services/connector";
 import type { GraphNodeLabel, SequencialProperties } from "../../../state/builder/types";

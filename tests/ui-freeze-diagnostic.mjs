@@ -24,13 +24,13 @@ import {
   collectParameterOriginMeta,
   collectReferencedParameterNames,
   syncParametersFromReferences
-} from "../App/ui/src/state/builder/parameterRefs.ts";
+} from "../App/authoring/src/parameterRefs.ts";
 import { reconcileCreateInstanceQuery } from "../App/ui/src/state/builder/createInstanceSync.ts";
 import {
   projectMatchToGraph,
   serializeMatchGraph
 } from "../App/ui/src/state/builder/matchGraph.ts";
-import { propertiesFromSchemata } from "../App/ui/src/state/builder/schemaRules.ts";
+import { propertiesFromSchemata } from "../App/authoring/src/schemaRules.ts";
 import { formatSqlForPreview } from "../App/ui/src/utils/formatSqlForPreview.ts";
 
 const MAX_SYNC_PASSES = 5;

@@ -2,7 +2,7 @@ import {
   bindingForVariable,
   parseReadReturnExpression,
   type ReadMatchPathBinding
-} from "./returnProjections";
+} from "@pona-flow/authoring";
 import type { OrderByItem } from "./types";
 
 /** Build the `variable.property` ORDER BY expression, or "" when incomplete. */

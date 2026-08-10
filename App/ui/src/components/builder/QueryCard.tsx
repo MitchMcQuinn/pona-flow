@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useBuilder } from "../../state/builder/BuilderContext";
-import { hasReferencedParameters } from "../../state/builder/parameterRefs";
-import { syncParametersFromReferences } from "../../state/builder/parameterRefs";
+import { hasReferencedParameters } from "@pona-flow/authoring";
+import { syncParametersFromReferences } from "@pona-flow/authoring";
 import { DeleteSection } from "./DeleteSection";
 import { LabelSelect } from "./LabelSelect";
 import { MatchSection } from "./match/MatchSection";
@@ -9,7 +9,7 @@ import { OperationSelect } from "./OperationSelect";
 import { ParametersSection } from "./ParametersSection";
 import { ReturnSection } from "./ReturnSection";
 import { SetSection } from "./SetSection";
-import { isEntityConfigUpdate, isLabelOnlyDelete } from "../../state/builder/matchMode";
+import { isEntityConfigUpdate, isLabelOnlyDelete } from "@pona-flow/authoring";
 
 export function QueryCard() {
   const { state, patchQuery } = useBuilder();

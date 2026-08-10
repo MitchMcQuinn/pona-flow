@@ -4,7 +4,7 @@ import { addSetItem, removeSetItem, updateSetItem } from "../../state/builder/qu
 import {
   bindingForVariable,
   collectReadMatchPathBindings
-} from "../../state/builder/returnProjections";
+} from "@pona-flow/authoring";
 import { SetProjectionRow } from "./SetProjectionRow";
 import { useUpdateInstanceGuard } from "./hooks/useUpdateInstanceGuard";
 

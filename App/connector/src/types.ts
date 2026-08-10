@@ -166,6 +166,11 @@ export interface ExecuteCreateBody {
   sqlite: string[];
   cypher_params?: Record<string, unknown>;
   attributive_labels?: string[];
+  /**
+   * Entity ids this package writes. The server treats an attributive_label held only by
+   * these as the caller re-saving its own entity rather than colliding with another one.
+   */
+  attributive_label_owner_ids?: string[];
   queries_catalog?: {
     id: string;
     name: string;
@@ -178,6 +183,127 @@ export interface ExecuteCreateBody {
     parameters: unknown[];
   };
 }
+
+/** Body for POST /api/execute-query (read / update / delete packages). */
+export interface ExecuteQueryBody {
+  space_id: string;
+  operation: string;
+  node_label?: string;
+  cypher: string[];
+  sqlite: string[];
+  cypher_params?: Record<string, unknown>;
+}
+
+export interface CypherStatementResult {
+  records?: Array<Record<string, unknown>>;
+  graph?: {
+    nodes: Array<Record<string, unknown>>;
+    relationships: Array<Record<string, unknown>>;
+  };
+  summary?: Record<string, unknown>;
+}
+
+export interface ExecuteQueryResponse {
+  result?: {
+    operation?: string;
+    cypher?: CypherStatementResult[];
+    sqlite?: Array<{ rowcount?: number; lastrowid?: number }>;
+  };
+}
+
+/**
+ * Body for POST /api/queries/upsert. `builder_config` is the declarative QueryObject
+ * snapshot that lets a saved package be reopened in the visual builder; the composer is
+ * forward-only, so omitting it makes the row un-editable.
+ */
+export interface QueriesUpsertPayload {
+  id: string;
+  name: string;
+  kind: string;
+  operation: string;
+  runtime_enabled: boolean;
+  author_selectable: boolean;
+  triggerable?: boolean;
+  group_title?: string;
+  space_id?: string;
+  cypher: string[];
+  sqlite: string[];
+  parameters: unknown[];
+  description?: string;
+  builder_config?: unknown;
+}
+
+export type CodeResourceLanguage = "python" | "javascript";
+
+export interface CodeResourceMetadata {
+  id: string;
+  space_id: string;
+  name: string;
+  description: string;
+  language: CodeResourceLanguage;
+  path: string;
+  creation_date: string;
+  modified_date: string;
+}
+
+export interface CodeResourceWithCode extends CodeResourceMetadata {
+  code: string;
+}
+
+export interface UpsertCodeResourceInput {
+  /** Existing resource UID to update in place; omit to create a new resource. */
+  resourceId?: string;
+  name: string;
+  description?: string;
+  language: CodeResourceLanguage;
+  code: string;
+}
+
+export interface DeleteWarning {
+  code: string;
+  message: string;
+}
+
+export interface DeleteSpaceRef {
+  id: string;
+  name: string;
+}
+
+/** Shared shape of the SCHEMA / STEP delete-cascade dry run. */
+interface DeletePreviewBase {
+  space_id: string;
+  attributive_label: string;
+  mode: "purge" | "unlink";
+  requires_confirmation?: boolean;
+  warnings: DeleteWarning[];
+}
+
+/** Shared shape of an executed SCHEMA / STEP delete cascade. */
+interface DeleteResultBase {
+  space_id: string;
+  attributive_label: string;
+  mode: "purge" | "unlink";
+  purged: boolean;
+  unlinked_labels: string[];
+  warnings: DeleteWarning[];
+  entities_deleted?: number;
+  catalog?: { queries_deleted: number; state_deleted: number };
+  graph?: { nodes_deleted: number };
+}
+
+export interface SchemaDeletePreview extends DeletePreviewBase {
+  summary: Record<string, number>;
+  affected: Record<string, unknown>;
+}
+
+export type SchemaDeleteResult = DeleteResultBase;
+
+export interface StepDeletePreview extends DeletePreviewBase {
+  summary: Record<string, number>;
+  affected: Record<string, unknown>;
+}
+
+export type StepDeleteResult = DeleteResultBase;
 
 export interface SpaceConnections {
   space_id: string;

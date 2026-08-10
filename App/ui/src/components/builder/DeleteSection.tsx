@@ -12,7 +12,7 @@ import {
   bindingForVariable,
   collectDeleteTargetBindings,
   soleDeleteTargetVariable
-} from "../../state/builder/returnProjections";
+} from "@pona-flow/authoring";
 import { GRAPH_NODE_LABELS } from "../../state/builder/types";
 import { Picker } from "./Picker";
 import { Toggle } from "./Toggle";

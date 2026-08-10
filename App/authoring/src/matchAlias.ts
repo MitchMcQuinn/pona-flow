@@ -1,5 +1,5 @@
-import { ALIAS_NAME_PATTERN, normalizeAlias, normalizeAttributiveLabel } from "./normalizeField";
-import type { PathElement, QueryObject } from "./types";
+import { ALIAS_NAME_PATTERN, normalizeAlias, normalizeAttributiveLabel } from "./normalizeField.js";
+import type { PathElement, QueryObject } from "./types.js";
 
 export const MATCH_ALIAS_DEFAULT_PLACEHOLDER = "Defaults to attributive label";
 

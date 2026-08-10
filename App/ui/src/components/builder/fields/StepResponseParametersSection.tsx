@@ -1,5 +1,5 @@
 import type { StepResponseParameter } from "../../../state/builder/types";
-import { isValidParameterName } from "../../../state/builder/stepBodyParams";
+import { isValidParameterName } from "@pona-flow/authoring";
 
 export function emptyStepResponseParameter(): StepResponseParameter {
   return { property_path: "", parameter: "", default_value: "" };

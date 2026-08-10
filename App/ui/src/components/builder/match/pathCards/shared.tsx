@@ -16,14 +16,14 @@ import {
   instanceKeyIsUid,
   instanceKeyProperty,
   instanceKeyValue
-} from "../../../../state/builder/instanceRules";
-import { patchForAliasReference } from "../../../../state/builder/matchAlias";
+} from "@pona-flow/authoring";
+import { patchForAliasReference } from "@pona-flow/authoring";
 import { pathFiltersVisible } from "../../../../state/builder/pathWhereHelpers";
 import {
   updateNode,
   updateRelationship
 } from "../../../../state/builder/queryHelpers";
-import { isAttributiveLabelParameter } from "../../../../state/builder/normalizeField";
+import { isAttributiveLabelParameter } from "@pona-flow/authoring";
 import type {
   GraphNodeLabel,
   NodePattern,

@@ -192,6 +192,30 @@ def attributive_label_exists(
     return bool(val)
 
 
+def attributive_label_owner_ids(space_id: str, attributive_label: str) -> set[str]:
+    """Ids of every STEP/SCHEMA node or POINTS_TO rel currently holding this label.
+
+    ``attributive_label_exists`` answers "is it taken", which is enough for a field check
+    but not for a write: an idempotent re-save legitimately re-MERGEs a label it already
+    owns. Returning the holders lets a caller distinguish "taken by me" from "taken by
+    someone else".
+    """
+    al = (attributive_label or "").strip()
+    if not al:
+        return set()
+    cypher = (
+        "OPTIONAL MATCH (n:STEP {attributive_label: $attributive_label}) "
+        "OPTIONAL MATCH (m:SCHEMA {attributive_label: $attributive_label}) "
+        f"OPTIONAL MATCH ()-[r:{GRAPH_REL_TYPE} {{attributive_label: $attributive_label}}]-() "
+        "RETURN collect(DISTINCT n.id) + collect(DISTINCT m.id) + collect(DISTINCT r.id) AS ids"
+    )
+    out = run_cypher_for_space(space_id, cypher, {"attributive_label": al})
+    if not out["records"]:
+        return set()
+    ids = out["records"][0].get("ids") or []
+    return {str(i).strip() for i in ids if str(i or "").strip()}
+
+
 def _label_property_key_for_schema(space_id: str, schema_attributive_label: str) -> str | None:
     """Property key marked is_label on the SCHEMA for INSTANCE target display."""
     al = (schema_attributive_label or "").strip()

@@ -226,6 +226,60 @@ Developer guide: `Docs/EXTERNAL-EVENTS.md`.
 
 ---
 
+## D11. MCP authoring gateway (agent-driven configuration)
+
+**Decision:** Expose pona flow's *authoring* surface — SCHEMAs, INSTANCEs, STEP nodes,
+transitions, sequences — as a second MCP server, implemented in Node at `App/mcp` and
+launched over **stdio**. D9 serves a space's sequences as runnable tools; this serves the
+surface that creates them.
+
+- **Why not extend D9.** Authoring cannot be modelled as a sequence. Sequence steps execute
+  Cypher only (`_execute_query_step` never reads a `sqlite` array, and
+  `EXECUTION-package.schema.json` has no such field), while STEP/SCHEMA definitions live in
+  the per-space SQLite `entities.payload`. A run also cannot write a catalog `queries` row by
+  design (`catalog._is_queries_catalog_upsert_sql` strips those upserts). And composition is
+  TypeScript-only. A Node process calling `POST /api/execute-create` clears all three.
+- **Shared authoring package.** The builder's validation and save choreography moved out of
+  the React app into `@pona-flow/authoring` (`App/authoring`), consumed by both the UI and
+  the MCP server. `BuilderState` is replaced at that boundary by a narrow `AuthoringContext`
+  (`spaceId`, `query`, `runtimeEnabled`, `matchPositions`), so the choreography runs headless
+  in Node. `initialBuilderState` stays in the UI — it reads localStorage. This is what makes
+  agent-authored and human-authored operations the same artifact, both editable in the
+  visual builder via the stored `builder_config` snapshot.
+- **Connector auth seam.** `@pona-flow/connector` gained `configure({ fetch, apiBase,
+  headers })` and routes every call through one `requestJson` helper. The browser keeps
+  injecting Clerk tokens by wrapping `window.fetch`; Node has no `window` and registers an
+  `stg_` agent key header instead.
+- **Server-side gates.** Validation that previously existed only in the browser is now also
+  enforced in Python, because any client can call the API directly: `require_flow(create,
+  STEP)` on `/api/queries/upsert`, and an attributive-label uniqueness preflight in
+  `packages.execute_create_package`. The uniqueness check is ownership-aware — the request
+  carries `attributive_label_owner_ids` so an entity re-saving its own label is not treated
+  as a collision.
+- **Intent-level tool arguments.** Tools take flat arguments and the server assembles the
+  nested QueryObject, with a raw `query` escape hatch. Asking a model to emit a valid nested
+  QueryObject in one shot is the main reliability risk, so the intent layer is load-bearing.
+  Attributive labels and property keys are normalized to UPPER_SNAKE rather than rejected,
+  mirroring the builder's live input normalization.
+- **Two-phase deletes.** `delete_step`, `delete_schema`, and `delete_operation` return the
+  `/preview` blast radius plus a single-use, target-bound confirmation token on the first
+  call and write only on the second. Deletion cascades across three stores and an agent has
+  no other way to know what it is about to remove.
+- **No transaction across stores.** Saving one operation is several HTTP calls spanning the
+  catalog database, per-space SQLite, and Neo4j. Partial failure leaves a STEP node without
+  its entity row, so a `repair_step_wraps` tool detects and re-runs those wraps.
+
+Developer guide: `Docs/MCP-AUTHORING.md`.
+
+**Commercial note (D1, D9):** D9 positions the runtime MCP gateway as a paid/closed feature.
+An authoring surface is a larger commercial question — it is the product's configuration
+interface, not an integration point — and is recorded separately here rather than inheriting
+D9's position. The server is a self-contained package (`App/mcp`) that an instance simply
+does not launch to disable; `App/authoring` is a pure refactor of existing builder code and
+carries no such question.
+
+---
+
 ## Out-of-scope hooks (where commercial features will plug in)
 
 - **Enterprise RBAC** extends `users` + `space_members` (D5).
@@ -233,3 +287,5 @@ Developer guide: `Docs/EXTERNAL-EVENTS.md`.
 - **MCP gateway** (D9) reuses the space-membership authorization path (D5) to decide which
   sequences an agent principal may call, wrapping the `server.sequence_service` primitives
   introduced in D8.
+- **MCP authoring gateway** (D11) reuses the same authorization path for writes, and builds
+  on `@pona-flow/authoring` — the extracted builder logic that the React app also uses.

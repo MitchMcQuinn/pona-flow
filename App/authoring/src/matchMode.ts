@@ -1,5 +1,5 @@
-import { extractExactParameterRef } from "./parameterRefs";
-import type { GraphNodeLabel, GraphPattern, NodePattern, Operation, QueryObject } from "./types";
+import { extractExactParameterRef } from "./parameterRefs.js";
+import type { GraphNodeLabel, GraphPattern, NodePattern, Operation, QueryObject } from "./types.js";
 
 export function isMatchOperation(operation: Operation): boolean {
   return operation === "read" || operation === "update" || operation === "delete";

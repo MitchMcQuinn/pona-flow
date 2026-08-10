@@ -5,9 +5,9 @@
 // flag any residual drift (a binding for a deleted property, a value that no longer satisfies a
 // live constraint, or a required live property the operation never sets). Side effects
 // (fetch) live in the useCreateInstanceGuard hook so these helpers stay unit-testable.
-import { isAttributiveLabelParameter } from "./normalizeField";
-import { extractExactParameterRef } from "./parameterRefs";
-import { validateInstanceValue } from "./schemaRules";
+import { isAttributiveLabelParameter } from "@pona-flow/authoring";
+import { extractExactParameterRef } from "@pona-flow/authoring";
+import { validateInstanceValue } from "@pona-flow/authoring";
 import { type ConstraintsByLabel } from "./updateInstanceGuard";
 import type { PropertyBinding, QueryObject } from "./types";
 

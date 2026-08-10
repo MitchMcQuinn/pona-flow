@@ -1,5 +1,5 @@
 import { useBuilder } from "../../../state/builder/BuilderContext";
-import { isEntityConfigUpdate } from "../../../state/builder/matchMode";
+import { isEntityConfigUpdate } from "@pona-flow/authoring";
 import { useCreateInstanceGuard } from "../hooks/useCreateInstanceGuard";
 import { useCreateInstanceSchemaSync } from "../hooks/useCreateInstanceSchemaSync";
 import { Pattern } from "./Pattern";

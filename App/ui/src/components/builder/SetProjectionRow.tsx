@@ -6,7 +6,7 @@ import {
   bindingDisplayLabels,
   bindingForVariable,
   collectReadMatchPathBindings
-} from "../../state/builder/returnProjections";
+} from "@pona-flow/authoring";
 import {
   isSetValueParameter,
   resolvedSetFields,
@@ -14,8 +14,8 @@ import {
   type SetExpressionInputs
 } from "../../state/builder/setProjections";
 import { updateSetItem } from "../../state/builder/queryHelpers";
-import { formatParameterInput, isAttributiveLabelParameter } from "../../state/builder/normalizeField";
-import { validateInstanceValue } from "../../state/builder/schemaRules";
+import { formatParameterInput, isAttributiveLabelParameter } from "@pona-flow/authoring";
+import { validateInstanceValue } from "@pona-flow/authoring";
 import { schemaConstraintMap } from "../../state/builder/updateInstanceGuard";
 import { fetchWherePropertyKeysForEntity, fetchWherePropertyValuesForEntity } from "./where/wherePropertyOptions";
 import type { SchematicProperties, SetItem, SetValueMode } from "../../state/builder/types";

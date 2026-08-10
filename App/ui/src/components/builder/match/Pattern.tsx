@@ -15,8 +15,8 @@ import {
   lastNodeAttributiveLabelInPattern,
   schemaDrivenHopClause,
   supportsIncomingHop
-} from "../../../state/builder/matchMode";
-import { isAttributiveLabelParameter } from "../../../state/builder/normalizeField";
+} from "@pona-flow/authoring";
+import { isAttributiveLabelParameter } from "@pona-flow/authoring";
 import type { GraphNodeLabel, GraphPattern, Operation } from "../../../state/builder/types";
 import { NodePathEntry } from "./NodePathEntry";
 import { RelPathEntry } from "./RelPathEntry";

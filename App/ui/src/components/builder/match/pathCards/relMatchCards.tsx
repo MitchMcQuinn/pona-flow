@@ -17,16 +17,16 @@ import {
   MATCH_ALIAS_DEFAULT_PLACEHOLDER,
   matchCardTitleAlias,
   patchForAliasReference
-} from "../../../../state/builder/matchAlias";
+} from "@pona-flow/authoring";
 import {
   isLabelOnlyMatch,
   supportsIncomingHop,
   supportsOptionalHop
-} from "../../../../state/builder/matchMode";
+} from "@pona-flow/authoring";
 import {
   normalizeAlias,
   normalizeAttributiveLabel
-} from "../../../../state/builder/normalizeField";
+} from "@pona-flow/authoring";
 import {
   addSchemaProperty,
   clampTraversalDepth,
@@ -41,7 +41,7 @@ import {
   updateRelationship,
   type HopMode
 } from "../../../../state/builder/queryHelpers";
-import { propertiesFromSchemata } from "../../../../state/builder/schemaRules";
+import { propertiesFromSchemata } from "@pona-flow/authoring";
 import { parametersFromEntityRows } from "../../../../state/builder/stepEntityLoad";
 import type { QueryObject, RelationshipPattern } from "../../../../state/builder/types";
 import { PropertyBinding } from "../../PropertyBinding";

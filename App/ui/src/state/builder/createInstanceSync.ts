@@ -7,9 +7,9 @@
 //   - retained property -> kept as-is (existing value / parameter binding preserved)
 // Side effects (schema fetches) live in the useCreateInstanceSchemaSync hook; these helpers are
 // pure so the merge logic stays unit-testable.
-import { isAttributiveLabelParameter } from "./normalizeField";
-import { extractExactParameterRef } from "./parameterRefs";
-import { propertiesFromSchemata } from "./schemaRules";
+import { isAttributiveLabelParameter } from "@pona-flow/authoring";
+import { extractExactParameterRef } from "@pona-flow/authoring";
+import { propertiesFromSchemata } from "@pona-flow/authoring";
 import type { SchemaPropertyConstraint } from "../../services/connector";
 import type {
   Parameter,

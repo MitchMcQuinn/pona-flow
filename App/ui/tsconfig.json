@@ -19,7 +19,8 @@
       "@pona-flow/composer": ["../composer/src/index.ts"],
       "@pona-flow/composer/*": ["../composer/src/*"],
       "@pona-flow/regex-validator": ["../regex-validator/src/index.ts"],
-      "@pona-flow/connector": ["../connector/src/index.ts"]
+      "@pona-flow/connector": ["../connector/src/index.ts"],
+      "@pona-flow/authoring": ["../authoring/src/index.ts"]
     }
   },
   "include": ["src"],

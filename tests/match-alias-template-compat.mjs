@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {
   filterAliasReferencesForRequiredAttributiveLabel,
   patchForAliasReference,
-} from "../App/ui/src/state/builder/matchAlias.ts";
+} from "../App/authoring/src/matchAlias.ts";
 
 const query = {
   operation: "read",

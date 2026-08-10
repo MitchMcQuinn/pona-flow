@@ -12,8 +12,8 @@
  */
 import assert from "node:assert/strict";
 import composer from "./helpers/composer.mjs";
-import { normalizeForCompose } from "../App/ui/src/state/builder/selectors.ts";
-import { collectReadMatchPathBindings } from "../App/ui/src/state/builder/returnProjections.ts";
+import { normalizeForCompose } from "../App/authoring/src/normalize.ts";
+import { collectReadMatchPathBindings } from "../App/authoring/src/returnProjections.ts";
 import { setItemPatch } from "../App/ui/src/state/builder/setProjections.ts";
 
 // The natively re-authored query: identical to the saved builder_config of

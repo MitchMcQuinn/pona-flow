@@ -7,7 +7,7 @@ import {
   setSkip,
   updateOrderBy
 } from "../../state/builder/queryHelpers";
-import { extractExactParameterRef } from "../../state/builder/parameterRefs";
+import { extractExactParameterRef } from "@pona-flow/authoring";
 import { OrderByProjectionRow } from "./OrderByProjectionRow";
 import type { LiteralOrParameter } from "../../state/builder/types";
 

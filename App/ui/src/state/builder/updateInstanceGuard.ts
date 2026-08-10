@@ -6,18 +6,18 @@
 // useUpdateInstanceGuard hook so this module stays unit-testable.
 import regexValidator from "../../services/regexValidator";
 import type { SchemaDefinition } from "../../services/connector";
-import { isAttributiveLabelParameter } from "./normalizeField";
-import { extractExactParameterRef } from "./parameterRefs";
+import { isAttributiveLabelParameter } from "@pona-flow/authoring";
+import { extractExactParameterRef } from "@pona-flow/authoring";
 import {
   bindingForVariable,
   type ReadMatchPathBinding
-} from "./returnProjections";
+} from "@pona-flow/authoring";
 import {
   isSchemaNullRaw,
   propertiesFromSchemata,
   validateInstanceValue,
   validateSchemaDefaultValue
-} from "./schemaRules";
+} from "@pona-flow/authoring";
 import type {
   QueryObject,
   RunResult,

@@ -5,7 +5,7 @@ import {
   removeParameter,
   updateParameterAt
 } from "../../../state/builder/queryHelpers";
-import { isValidParameterName } from "../../../state/builder/stepBodyParams";
+import { isValidParameterName } from "@pona-flow/authoring";
 import { Toggle } from "../Toggle";
 import type { DataType } from "../../../state/builder/types";
 

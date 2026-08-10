@@ -1,4 +1,4 @@
-import { normalizeAttributiveLabel } from "./normalizeField";
+import { normalizeAttributiveLabel } from "@pona-flow/authoring";
 
 function sortUniqueLabels(labels: string[]): string[] {
   return Array.from(new Set(labels.filter(Boolean))).sort((a, b) => a.localeCompare(b));

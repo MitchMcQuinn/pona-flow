@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 
 const { collectReferencedParameterNames, syncParametersFromReferences } = await import(
-  "../App/ui/src/state/builder/parameterRefs.ts"
+  "../App/authoring/src/parameterRefs.ts"
 );
 
 const baseQuery = {

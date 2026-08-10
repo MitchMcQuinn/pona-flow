@@ -1,5 +1,5 @@
-import { newQuery } from "./defaults";
-import type { BuilderConfig, BuilderState } from "./types";
+import { newQuery } from "./defaults.js";
+import type { AuthoringContext, BuilderConfig } from "./types.js";
 
 /**
  * Capture the declarative builder snapshot persisted alongside a saved operation (the queries
@@ -8,14 +8,14 @@ import type { BuilderConfig, BuilderState } from "./types";
  * source of truth; `runtimeEnabled` and canvas positions live outside it and are carried here too.
  */
 export function serializeBuilderConfig(
-  state: BuilderState,
+  ctx: Pick<AuthoringContext, "query" | "matchPositions">,
   runtimeEnabled: boolean
 ): BuilderConfig {
   return {
     version: 1,
-    query: state.query,
+    query: ctx.query,
     runtimeEnabled,
-    matchPositions: state.matchPositions
+    matchPositions: ctx.matchPositions
   };
 }
 

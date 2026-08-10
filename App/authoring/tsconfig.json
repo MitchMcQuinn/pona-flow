@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "lib": ["ES2020", "DOM"],
+    "paths": {
+      "@pona-flow/composer": ["../composer/src/index.ts"],
+      "@pona-flow/connector": ["../connector/src/index.ts"],
+      "@pona-flow/regex-validator": ["../regex-validator/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

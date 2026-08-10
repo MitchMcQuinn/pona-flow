@@ -3,7 +3,7 @@ import {
   isRegisteredInSpaceCatalog,
   spaceCatalogLabelKeys
 } from "../../../state/builder/attributiveLabelOptions";
-import { normalizeAttributiveLabel } from "../../../state/builder/normalizeField";
+import { normalizeAttributiveLabel } from "@pona-flow/authoring";
 import { useBuilder } from "../../../state/builder/BuilderContext";
 import connector, { type StepOutgoingEdge } from "../../../services/connector";
 import { Picker } from "../Picker";

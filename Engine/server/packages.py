@@ -75,6 +75,38 @@ def _run_sqlite_list(
     return results
 
 
+def _assert_attributive_labels_available(
+    space_id: str,
+    attributive_labels: list[str] | None,
+    owner_ids: list[str] | None,
+) -> None:
+    """Reject a create whose new attributive_labels are already owned by another entity.
+
+    Attributive labels are globally unique across STEP and SCHEMA. The React builder
+    enforces this with debounced field checks before enabling Run, but that gate lives
+    entirely in the browser — any other client (the MCP authoring server, a raw API call)
+    would otherwise MERGE onto an existing node and silently graft new configuration onto
+    someone else's entity.
+
+    ``owner_ids`` are the entity ids this package itself writes. A label held only by
+    those is a re-save of the caller's own entity (the STEP auto-wrap does exactly this
+    on every save) and is allowed; a label held by anything else is a collision.
+    """
+    mine = {str(i or "").strip() for i in (owner_ids or []) if str(i or "").strip()}
+    seen: set[str] = set()
+    for raw in attributive_labels or []:
+        label = str(raw or "").strip()
+        if not label or label in seen:
+            continue
+        seen.add(label)
+        holders = graph.attributive_label_owner_ids(space_id, label)
+        if holders - mine:
+            raise ValueError(
+                f"attributive_label {label!r} is already used by another STEP or SCHEMA "
+                "in this graph. Choose a different name."
+            )
+
+
 def execute_create_package(
     space_id: str,
     cypher_statements: list[str],
@@ -82,8 +114,13 @@ def execute_create_package(
     cypher_params: dict[str, Any] | None = None,
     queries_catalog: dict[str, Any] | None = None,
     attributive_labels: list[str] | None = None,
+    attributive_label_owner_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run composed Cypher (Neo4j) and SQLite statements for a space."""
+    _assert_attributive_labels_available(
+        space_id, attributive_labels, attributive_label_owner_ids
+    )
+
     catalog_result = None
     if queries_catalog:
         catalog_result = catalog.upsert_queries_catalog_row(

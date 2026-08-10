@@ -2,7 +2,7 @@ import composer from "../../services/composer";
 import {
   bindingForVariable,
   type ReadMatchPathBinding
-} from "./returnProjections";
+} from "@pona-flow/authoring";
 import type { SetItem, SetValueMode } from "./types";
 
 // Matches a value that is exactly a parameter reference, e.g. "$personName".

@@ -16,21 +16,21 @@ import {
   MATCH_ALIAS_DEFAULT_PLACEHOLDER,
   matchCardTitleAlias,
   patchForAliasReference
-} from "../../../../state/builder/matchAlias";
+} from "@pona-flow/authoring";
 import {
   isLabelOnlyMatch,
   matchPickerNodeLabel
-} from "../../../../state/builder/matchMode";
+} from "@pona-flow/authoring";
 import {
   normalizeAlias,
   normalizeAttributiveLabel
-} from "../../../../state/builder/normalizeField";
+} from "@pona-flow/authoring";
 import {
   addSchemaProperty,
   clearPathAttributiveLabelsAfter,
   updateNode
 } from "../../../../state/builder/queryHelpers";
-import { propertiesFromSchemata } from "../../../../state/builder/schemaRules";
+import { propertiesFromSchemata } from "@pona-flow/authoring";
 import { loadStepNodeIntoQuery } from "../../../../state/builder/stepEntityLoad";
 import type { NodePattern } from "../../../../state/builder/types";
 import { PropertyBinding } from "../../PropertyBinding";

@@ -1,10 +1,10 @@
 // Shared SCHEMA-create validation used both for inline field feedback
 // (PropertyBinding) and Run gating (validation.ts).
-import regexValidator from "../../services/regexValidator";
-import { extractExactParameterRef } from "./parameterRefs";
-import { normalizeAttributiveLabel, normalizeSchemaPropertyKey } from "./normalizeField";
-import type { SchemaPropertyConstraint } from "../../services/connector";
-import type { PropertyBinding, SchematicProperties, ValueType } from "./types";
+import { regexValidator } from "@pona-flow/regex-validator";
+import { extractExactParameterRef } from "./parameterRefs.js";
+import { normalizeAttributiveLabel, normalizeSchemaPropertyKey } from "./normalizeField.js";
+import type { SchemaPropertyConstraint } from "@pona-flow/connector";
+import type { PropertyBinding, SchematicProperties, ValueType } from "./types.js";
 
 const SCHEMA_VALUE_TYPES: ValueType[] = [
   "string",

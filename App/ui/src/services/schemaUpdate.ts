@@ -11,7 +11,7 @@ import type {
   SchemaPropertyConstraint,
   SuspensionChange,
 } from "./connector";
-import { effectiveSchemaSchemataPayload } from "../state/builder/schemaRules";
+import { effectiveSchemaSchemataPayload } from "@pona-flow/authoring";
 import type {
   BuilderState,
   NodePattern,

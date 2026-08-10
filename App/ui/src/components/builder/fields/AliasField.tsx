@@ -3,7 +3,7 @@ import {
   ALIAS_NAME_ERROR_MSG,
   ALIAS_NAME_PATTERN,
   normalizeAlias
-} from "../../../state/builder/normalizeField";
+} from "@pona-flow/authoring";
 import { Picker } from "../Picker";
 import { ModalBackdrop } from "../../modals/ModalBackdrop";
 

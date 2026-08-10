@@ -12,6 +12,9 @@ for the underlying run/resume contract — and on the architecture decision in
 > with an agent API key, and the space's runnable sequences appear as callable tools — each
 > returning either a final result or the parameters it still needs (human-in-the-loop).
 
+For the companion server that *creates* those sequences rather than running them, see
+[MCP-AUTHORING.md](MCP-AUTHORING.md) (D11).
+
 ---
 
 ## 1. How it works

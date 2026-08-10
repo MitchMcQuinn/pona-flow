@@ -1,7 +1,7 @@
 // Pure immutable helpers for editing the QueryObject tree. Components pass these
 // (curried) into the UPDATE_QUERY action so the reducer stays a one-liner.
 
-import { clearedMatchAliasFields } from "./matchAlias";
+import { clearedMatchAliasFields } from "@pona-flow/authoring";
 import {
   newMatchClause,
   newParameter,

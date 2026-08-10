@@ -1,6 +1,6 @@
 /** SCHEMA definition and outgoing-edge endpoints. */
 
-import { joinApiPath } from "./api-path.js";
+import { requestJson } from "./http.js";
 import type {
   SchemaAffectedOperation,
   SchemaDefinition,
@@ -12,38 +12,28 @@ import type {
 
 export async function fetchSchemaDefinition(
   opts: { spaceId: string; attributiveLabel: string },
-  apiBase = ""
+  apiBase?: string
 ): Promise<SchemaDefinition> {
-  const q = new URLSearchParams({
-    space_id: opts.spaceId,
-    attributive_label: opts.attributiveLabel,
+  return requestJson<SchemaDefinition>("/api/schema/definition", {
+    query: { space_id: opts.spaceId, attributive_label: opts.attributiveLabel },
+    apiBase,
+    errorLabel: "loading schema definition",
   });
-  const res = await fetch(`${joinApiPath("/api/schema/definition", apiBase)}?${q}`, {
-    cache: "no-store",
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status} loading schema definition`);
-  }
-  return data;
 }
 
 export async function fetchSchemaOutgoing(
   opts: { spaceId: string; attributiveLabel: string; includeIncoming?: boolean },
-  apiBase = ""
+  apiBase?: string
 ): Promise<SchemaOutgoingEdge[]> {
-  const q = new URLSearchParams({
-    space_id: opts.spaceId,
-    attributive_label: opts.attributiveLabel,
+  const data = await requestJson<{ edges?: SchemaOutgoingEdge[] }>("/api/schema/outgoing", {
+    query: {
+      space_id: opts.spaceId,
+      attributive_label: opts.attributiveLabel,
+      include_incoming: opts.includeIncoming ? "true" : undefined,
+    },
+    apiBase,
+    errorLabel: "loading schema outgoing edges",
   });
-  if (opts.includeIncoming) q.set("include_incoming", "true");
-  const res = await fetch(`${joinApiPath("/api/schema/outgoing", apiBase)}?${q}`, {
-    cache: "no-store",
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status} loading schema outgoing edges`);
-  }
   return Array.isArray(data.edges) ? data.edges : [];
 }
 
@@ -59,23 +49,19 @@ export async function updateSchemaDefinition(
     attributiveLabel: string;
     schemata: SchemaPropertyConstraint[];
   },
-  apiBase = ""
+  apiBase?: string
 ): Promise<SchemaUpdateResult> {
-  const res = await fetch(joinApiPath("/api/schema/update", apiBase), {
+  return requestJson<SchemaUpdateResult>("/api/schema/update", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+    body: {
       space_id: opts.spaceId,
       schema_id: opts.schemaId,
       attributive_label: opts.attributiveLabel,
       schemata: opts.schemata,
-    }),
+    },
+    apiBase,
+    errorLabel: "updating schema",
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status} updating schema`);
-  }
-  return data as SchemaUpdateResult;
 }
 
 /**
@@ -90,41 +76,33 @@ export async function previewSchemaUpdate(
     attributiveLabel: string;
     schemata: SchemaPropertyConstraint[];
   },
-  apiBase = ""
+  apiBase?: string
 ): Promise<SchemaUpdatePreview> {
-  const res = await fetch(joinApiPath("/api/schema/update/preview", apiBase), {
+  return requestJson<SchemaUpdatePreview>("/api/schema/update/preview", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+    body: {
       space_id: opts.spaceId,
       schema_id: opts.schemaId,
       attributive_label: opts.attributiveLabel,
       schemata: opts.schemata,
-    }),
+    },
+    apiBase,
+    errorLabel: "previewing schema update",
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status} previewing schema update`);
-  }
-  return data as SchemaUpdatePreview;
 }
 
 /** List create-INSTANCE operations in the catalog that target a SCHEMA (reverse index). */
 export async function fetchSchemaAffectedOperations(
   opts: { spaceId: string; attributiveLabel: string },
-  apiBase = ""
+  apiBase?: string
 ): Promise<SchemaAffectedOperation[]> {
-  const q = new URLSearchParams({
-    space_id: opts.spaceId,
-    attributive_label: opts.attributiveLabel,
-  });
-  const res = await fetch(
-    `${joinApiPath("/api/schema/affected-operations", apiBase)}?${q}`,
-    { cache: "no-store" }
+  const data = await requestJson<{ operations?: SchemaAffectedOperation[] }>(
+    "/api/schema/affected-operations",
+    {
+      query: { space_id: opts.spaceId, attributive_label: opts.attributiveLabel },
+      apiBase,
+      errorLabel: "loading affected operations",
+    }
   );
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status} loading affected operations`);
-  }
   return Array.isArray(data.operations) ? data.operations : [];
 }

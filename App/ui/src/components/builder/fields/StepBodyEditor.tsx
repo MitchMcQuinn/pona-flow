@@ -1,5 +1,5 @@
 import { useMemo, useRef } from "react";
-import { buildStepBodyHighlightHtml, escapeHtml } from "../../../state/builder/stepBodyParams";
+import { buildStepBodyHighlightHtml, escapeHtml } from "@pona-flow/authoring";
 import type { Parameter } from "../../../state/builder/types";
 
 interface StepBodyEditorProps {

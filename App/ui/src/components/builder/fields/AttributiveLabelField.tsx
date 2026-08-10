@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useBuilder } from "../../../state/builder/BuilderContext";
 import connector from "../../../services/connector";
 import { attributiveLabelChanged } from "../../../state/builder/cardReset";
-import { normalizeAttributiveLabel } from "../../../state/builder/normalizeField";
+import { normalizeAttributiveLabel } from "@pona-flow/authoring";
 import type { GraphNodeLabel, NodePattern } from "../../../state/builder/types";
 import { useDebouncedCheck } from "../hooks/useDebouncedCheck";
 import { Picker } from "../Picker";

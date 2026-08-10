@@ -1,5 +1,5 @@
-import { isAttributiveLabelParameter } from "./normalizeField";
-import type { QueryObject, ReturnItem } from "./types";
+import { isAttributiveLabelParameter } from "./normalizeField.js";
+import type { QueryObject, ReturnItem } from "./types.js";
 
 export interface ReadMatchPathBinding {
   variable: string;

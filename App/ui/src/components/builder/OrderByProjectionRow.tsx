@@ -7,7 +7,7 @@ import {
   bindingForVariable,
   collectReadMatchPathBindings,
   isReturnFieldParameter
-} from "../../state/builder/returnProjections";
+} from "@pona-flow/authoring";
 import {
   orderByItemPatch,
   resolvedOrderByFields

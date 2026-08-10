@@ -11,10 +11,10 @@
  */
 import assert from "node:assert/strict";
 import composer from "./helpers/composer.mjs";
-import { normalizeForCompose } from "../App/ui/src/state/builder/selectors.ts";
-import { validateQuery } from "../App/ui/src/state/builder/validation.ts";
-import { syncParametersFromReferences } from "../App/ui/src/state/builder/parameterRefs.ts";
-import { soleDeleteTargetVariable } from "../App/ui/src/state/builder/returnProjections.ts";
+import { normalizeForCompose } from "../App/authoring/src/normalize.ts";
+import { validateQuery } from "../App/authoring/src/validation.ts";
+import { syncParametersFromReferences } from "../App/authoring/src/parameterRefs.ts";
+import { soleDeleteTargetVariable } from "../App/authoring/src/returnProjections.ts";
 import { setDeleteTargets } from "../App/ui/src/state/builder/queryHelpers.ts";
 
 function pillarNode() {

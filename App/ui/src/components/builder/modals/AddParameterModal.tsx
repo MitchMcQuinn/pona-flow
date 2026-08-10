@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { isAttributiveLabelParameter } from "../../../state/builder/normalizeField";
+import { isAttributiveLabelParameter } from "@pona-flow/authoring";
 import { ModalBackdrop } from "../../modals/ModalBackdrop";
 
 interface AddParameterModalProps {

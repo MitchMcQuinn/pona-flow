@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useBuilder } from "../../state/builder/BuilderContext";
 import { setReturnDistinct, updateMatchClause } from "../../state/builder/queryHelpers";
-import { showMatchOptionalControls } from "../../state/builder/matchMode";
+import { showMatchOptionalControls } from "@pona-flow/authoring";
 import { OrderPaginationSection } from "./OrderPaginationSection";
 import { Toggle } from "./Toggle";
 

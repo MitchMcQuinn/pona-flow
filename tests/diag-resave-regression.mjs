@@ -16,7 +16,7 @@
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import composer from "./helpers/composer.mjs";
-import { normalizeForCompose } from "../App/ui/src/state/builder/selectors.ts";
+import { normalizeForCompose } from "../App/authoring/src/normalize.ts";
 
 const DB_PATH = fileURLToPath(new URL("../data.db", import.meta.url));
 

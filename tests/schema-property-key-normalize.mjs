@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 const {
   normalizeSchemaPropertyKey,
   sanitizeSchemaPropertyKeyInput
-} = await import("../App/ui/src/state/builder/normalizeField.ts");
-const { validateSchemaPropertyKey } = await import("../App/ui/src/state/builder/schemaRules.ts");
+} = await import("../App/authoring/src/normalizeField.ts");
+const { validateSchemaPropertyKey } = await import("../App/authoring/src/schemaRules.ts");
 
 assert.equal(normalizeSchemaPropertyKey("first name"), "FIRST_NAME");
 assert.equal(normalizeSchemaPropertyKey("status"), "STATUS");

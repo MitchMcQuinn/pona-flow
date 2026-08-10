@@ -1,5 +1,6 @@
 // Typed builder model derived from Docs/QUERY-package.schema.json.
-// Query/composer types live in @pona-flow/composer; UI-only types remain here.
+// The query model and the authoring-level types it needs live in @pona-flow/authoring
+// (shared with the MCP server); React-only view state remains here.
 
 export type {
   Operation,
@@ -41,65 +42,27 @@ export type {
   ReturnClause,
   QueryObject,
   ComposedQuery,
-} from "@pona-flow/composer";
+  AuthoringContext,
+  BuilderConfig,
+  CheckStatus,
+  FieldCheck,
+  MatchNodePositions,
+} from "@pona-flow/authoring";
 
-export { GRAPH_NODE_LABELS, GRAPH_REL_TYPE } from "@pona-flow/composer";
+export {
+  GRAPH_NODE_LABELS,
+  GRAPH_REL_TYPE,
+  LABELS_REQUIRING_UNIQUE_ATTRIBUTIVE_LABEL,
+  WHERE_COMPARISON_OPERATORS,
+  WHERE_VALUE_PICKER_OPERATORS,
+  isWhereFilter,
+  isWhereGroup,
+  whereFilterUsesValuePicker,
+} from "@pona-flow/authoring";
 
-export const LABELS_REQUIRING_UNIQUE_ATTRIBUTIVE_LABEL: import("@pona-flow/composer").GraphNodeLabel[] = [
-  "STEP",
-  "SCHEMA",
-];
+import type { MatchNodePositions } from "@pona-flow/authoring";
 
-export const WHERE_COMPARISON_OPERATORS: import("@pona-flow/composer").WhereComparisonOperator[] = [
-  "=",
-  "<>",
-  ">",
-  ">=",
-  "<",
-  "<=",
-  "CONTAINS",
-  "STARTS WITH",
-  "ENDS WITH",
-  "IS NULL",
-  "IS NOT NULL",
-];
-
-/** Operators whose value is chosen from graph-backed distinct values. */
-export const WHERE_VALUE_PICKER_OPERATORS: readonly import("@pona-flow/composer").WhereComparisonOperator[] = [
-  "=",
-  "<>",
-  ">",
-  ">=",
-  "<",
-  "<=",
-];
-
-export function whereFilterUsesValuePicker(
-  operator: import("@pona-flow/composer").WhereComparisonOperator
-): boolean {
-  return (WHERE_VALUE_PICKER_OPERATORS as readonly string[]).includes(operator);
-}
-
-export function isWhereFilter(
-  item: import("@pona-flow/composer").WhereItem
-): item is import("@pona-flow/composer").WhereFilter {
-  return "property_key" in item;
-}
-
-export function isWhereGroup(
-  item: import("@pona-flow/composer").WhereItem
-): item is import("@pona-flow/composer").WhereGroup {
-  return "items" in item;
-}
-
-// ---- UI / async-validation state (replaces legacy element.dataset flags) ----
-
-export type CheckStatus = "idle" | "checking" | "ok" | "duplicate" | "error";
-
-export interface FieldCheck {
-  status: CheckStatus;
-  message?: string;
-}
+// ---- UI-only view state (replaces legacy element.dataset flags) ----
 
 export type ModalKind = "param" | "alias" | "attributiveLabel" | "regex" | null;
 
@@ -162,19 +125,6 @@ export type BuilderSeed =
   | EditSequenceBuilderSeed
   | StepRelationshipBuilderSeed;
 
-/**
- * Declarative snapshot of the builder for a saved operation, stored in the queries catalog's
- * `builder_config` column so an operation-backed STEP can be round-tripped back into the builder
- * for editing (the composer is forward-only and has no decompiler). `query` is the QueryObject
- * source of truth; `runtimeEnabled` and `matchPositions` live outside it.
- */
-export interface BuilderConfig {
-  version: 1;
-  query: import("@pona-flow/composer").QueryObject;
-  runtimeEnabled: boolean;
-  matchPositions?: MatchNodePositions;
-}
-
 export interface GraphRelationship {
   element_id: string;
   type: string;
@@ -193,9 +143,6 @@ export interface SelectedMatchElement {
   kind: "node" | "relationship";
   variable: string;
 }
-
-/** UI-only persisted canvas positions keyed by entity variable. */
-export type MatchNodePositions = Record<string, { x: number; y: number }>;
 
 export interface RunResult {
   kind: "graph" | "table" | "summary" | "response";
@@ -217,8 +164,8 @@ export interface RunResult {
 export interface BuilderState {
   spaceId: string | null;
   runtimeEnabled: boolean;
-  query: import("@pona-flow/composer").QueryObject;
-  checks: Record<string, FieldCheck>;
+  query: import("@pona-flow/authoring").QueryObject;
+  checks: Record<string, import("@pona-flow/authoring").FieldCheck>;
   modal: ModalState;
   savedQueries: Array<{
     id: string;

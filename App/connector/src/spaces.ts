@@ -1,15 +1,16 @@
 /** Space catalog and per-space metadata endpoints. */
 
-import { joinApiPath } from "./api-path.js";
+import { requestJson } from "./http.js";
 import type { SpaceConnections, SpaceRow } from "./types.js";
 
-export async function fetchSpaces(apiBase = ""): Promise<{
+export async function fetchSpaces(apiBase?: string): Promise<{
   catalogSqliteEnvKey: string;
   spaces: SpaceRow[];
 }> {
-  const res = await fetch(joinApiPath("/api/spaces", apiBase), { cache: "no-store" });
-  if (!res.ok) throw new Error(`HTTP ${res.status} loading spaces`);
-  const data = await res.json();
+  const data = await requestJson<{ catalog_sqlite_env_key?: string; spaces?: SpaceRow[] }>(
+    "/api/spaces",
+    { apiBase, errorLabel: "loading spaces" }
+  );
   if (!data || !Array.isArray(data.spaces)) throw new Error("Invalid /api/spaces response");
   return {
     catalogSqliteEnvKey: data.catalog_sqlite_env_key || "",
@@ -19,38 +20,33 @@ export async function fetchSpaces(apiBase = ""): Promise<{
 
 export async function fetchSpaceConnections(
   spaceId: string,
-  apiBase = ""
+  apiBase?: string
 ): Promise<SpaceConnections> {
-  const q = new URLSearchParams({ space_id: spaceId });
-  const res = await fetch(`${joinApiPath("/api/space/connections", apiBase)}?${q}`, {
-    cache: "no-store",
+  const data = await requestJson<SpaceConnections>("/api/space/connections", {
+    query: { space_id: spaceId },
+    apiBase,
+    errorLabel: "loading space connections",
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} loading space connections`);
-  const data = await res.json();
-  if (!data || data.space_id !== spaceId) throw new Error("Invalid /api/space/connections response");
+  if (!data || data.space_id !== spaceId) {
+    throw new Error("Invalid /api/space/connections response");
+  }
   return data;
 }
 
-export async function fetchSpaceLabels(spaceId: string, apiBase = ""): Promise<string[]> {
-  const q = new URLSearchParams({ space_id: spaceId });
-  const res = await fetch(`${joinApiPath("/api/space/labels", apiBase)}?${q}`, {
-    cache: "no-store",
+export async function fetchSpaceLabels(spaceId: string, apiBase?: string): Promise<string[]> {
+  const data = await requestJson<{ labels?: string[] }>("/api/space/labels", {
+    query: { space_id: spaceId },
+    apiBase,
+    errorLabel: "loading space labels",
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status} loading space labels`);
-  }
   return Array.isArray(data.labels) ? data.labels : [];
 }
 
-export async function fetchSpaceGroups(spaceId: string, apiBase = ""): Promise<string[]> {
-  const q = new URLSearchParams({ space_id: spaceId });
-  const res = await fetch(`${joinApiPath("/api/space/groups", apiBase)}?${q}`, {
-    cache: "no-store",
+export async function fetchSpaceGroups(spaceId: string, apiBase?: string): Promise<string[]> {
+  const data = await requestJson<{ groups?: string[] }>("/api/space/groups", {
+    query: { space_id: spaceId },
+    apiBase,
+    errorLabel: "loading space groups",
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status} loading space groups`);
-  }
   return Array.isArray(data.groups) ? data.groups : [];
 }

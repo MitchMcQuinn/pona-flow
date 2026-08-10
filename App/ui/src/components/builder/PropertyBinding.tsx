@@ -11,9 +11,9 @@ import {
   isReservedSchemaPropertyKey,
   validateSchemaDefaultValue,
   validateSchemaPropertyKey
-} from "../../state/builder/schemaRules";
-import { extractExactParameterRef } from "../../state/builder/parameterRefs";
-import { sanitizeSchemaPropertyKeyInput } from "../../state/builder/normalizeField";
+} from "@pona-flow/authoring";
+import { extractExactParameterRef } from "@pona-flow/authoring";
+import { sanitizeSchemaPropertyKeyInput } from "@pona-flow/authoring";
 import type {
   PropertyBinding as PropertyBindingType,
   SchematicProperties,

@@ -15,13 +15,13 @@ import { runButtonLabel } from "./runButtonLabels";
 import { regenerateQueryIdAfterOperationSave } from "../../state/builder/afterOperationSave";
 import { BuilderProvider, useBuilder } from "../../state/builder/BuilderContext";
 import { builderSelectors } from "../../state/builder/selectors";
-import { sequenceEntryPointWarnings } from "../../state/builder/sequenceRules";
+import { sequenceEntryPointWarnings } from "@pona-flow/authoring";
 import type { BuilderSeed, RunResult } from "../../state/builder/types";
 import {
   loadStepNodeIntoQuery,
   loadStepRelationshipIntoQuery
 } from "../../state/builder/stepEntityLoad";
-import { isHydratableBuilderConfig } from "../../state/builder/builderConfig";
+import { isHydratableBuilderConfig } from "@pona-flow/authoring";
 import { AdvancedOptions } from "./AdvancedOptions";
 import { LivePreview } from "./LivePreview";
 import {

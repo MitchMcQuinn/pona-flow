@@ -12,7 +12,7 @@ import {
   bindingForVariable,
   collectReadMatchPathBindings,
   isReturnFieldParameter
-} from "../../state/builder/returnProjections";
+} from "@pona-flow/authoring";
 import { ReadReturnProjectionRow } from "./ReadReturnProjectionRow";
 import { Toggle } from "./Toggle";
 

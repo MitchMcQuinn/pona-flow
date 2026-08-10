@@ -32,9 +32,9 @@ import {
 } from "./wherePropertyOptions";
 import connector from "../../../services/connector";
 import { SegmentToggle } from "../SegmentToggle";
-import { extractExactParameterRef } from "../../../state/builder/parameterRefs";
-import { isAttributiveLabelParameter } from "../../../state/builder/normalizeField";
-import { validateSchemaDefaultValue } from "../../../state/builder/schemaRules";
+import { extractExactParameterRef } from "@pona-flow/authoring";
+import { isAttributiveLabelParameter } from "@pona-flow/authoring";
+import { validateSchemaDefaultValue } from "@pona-flow/authoring";
 import { schemaConstraintMap } from "../../../state/builder/updateInstanceGuard";
 import type { SchematicProperties } from "../../../state/builder/types";
 

@@ -1,4 +1,4 @@
-import { isMatchOperation } from "../../../state/builder/matchMode";
+import { isMatchOperation } from "@pona-flow/authoring";
 import type { GraphNodeLabel, NodePattern, Operation } from "../../../state/builder/types";
 import {
   InstanceCreateNodeCard,

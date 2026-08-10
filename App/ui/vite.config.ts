@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => ({
       "@pona-flow/composer": path.resolve(__dirname, "../composer/src/index.ts"),
       "@pona-flow/regex-validator": path.resolve(__dirname, "../regex-validator/src/index.ts"),
       "@pona-flow/connector": path.resolve(__dirname, "../connector/src/index.ts"),
+      "@pona-flow/authoring": path.resolve(__dirname, "../authoring/src/index.ts"),
     },
   },
   server: {

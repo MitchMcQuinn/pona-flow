@@ -1,24 +1,24 @@
-import { validateOptionalAlias } from "./normalizeField";
-import { validateStepBodyParameters } from "./stepBodyParams";
-import { validateStepResponseParameters } from "./stepResponseParams";
-import { ATTRIBUTIVE_LABEL_VALUE_TYPE, extractExactParameterRef } from "./parameterRefs";
+import { validateOptionalAlias } from "./normalizeField.js";
+import { validateStepBodyParameters } from "./stepBodyParams.js";
+import { validateStepResponseParameters } from "./stepResponseParams.js";
+import { ATTRIBUTIVE_LABEL_VALUE_TYPE, extractExactParameterRef } from "./parameterRefs.js";
 import type {
-  BuilderState,
+  FieldCheck,
   MatchClause,
   NodePattern,
   Parameter,
   PropertyBinding,
   QueryObject
-} from "./types";
-import { instanceKeyRequiresValue } from "./instanceRules";
-import { isEntityConfigUpdate, isLabelOnlyDelete } from "./matchMode";
+} from "./types.js";
+import { instanceKeyRequiresValue } from "./instanceRules.js";
+import { isEntityConfigUpdate, isLabelOnlyDelete } from "./matchMode.js";
 import {
   choiceConfigOf,
   validateAttributiveLabelValue,
   validateInstanceValue,
   validateSchemaDefaultValue,
   validateSchemaPropertyKey
-} from "./schemaRules";
+} from "./schemaRules.js";
 
 // Pure structural validation, ported from the legacy validatePathStructure +
 // create-gated checks. Returns human-readable warnings (empty array = valid).
@@ -708,7 +708,10 @@ export function isActiveCheckKey(key: string, query: QueryObject): boolean {
 }
 
 // Async-check gating: every active check must be resolved and not duplicate.
-export function checksAllClear(checks: BuilderState["checks"], query: QueryObject): boolean {
+export function checksAllClear(
+  checks: Record<string, FieldCheck>,
+  query: QueryObject
+): boolean {
   return Object.entries(checks)
     .filter(([key]) => isActiveCheckKey(key, query))
     .every(([, check]) => check.status === "ok" || check.status === "idle");

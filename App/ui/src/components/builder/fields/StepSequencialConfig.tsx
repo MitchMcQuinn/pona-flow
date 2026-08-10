@@ -35,7 +35,7 @@ function formatHeadersJson(headers: Record<string, unknown> | undefined): string
 import {
   formatStepBodyJson,
   validateStepBodyJson
-} from "../../../state/builder/validation";
+} from "@pona-flow/authoring";
 import { SegmentToggle } from "../SegmentToggle";
 import { StepBodyEditor } from "./StepBodyEditor";
 import { StepResponseParametersSection } from "./StepResponseParametersSection";

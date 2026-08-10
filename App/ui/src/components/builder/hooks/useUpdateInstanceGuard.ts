@@ -3,9 +3,9 @@ import composer from "../../../services/composer";
 import connector from "../../../services/connector";
 import { cypherStatementsForExecution, runReadCypher } from "../../../services/execute";
 import { useBuilder } from "../../../state/builder/BuilderContext";
-import { isAttributiveLabelParameter } from "../../../state/builder/normalizeField";
-import { queryUsesParameters } from "../../../state/builder/parameterRefs";
-import { collectReadMatchPathBindings } from "../../../state/builder/returnProjections";
+import { isAttributiveLabelParameter } from "@pona-flow/authoring";
+import { queryUsesParameters } from "@pona-flow/authoring";
+import { collectReadMatchPathBindings } from "@pona-flow/authoring";
 import { normalizeForCompose } from "../../../state/builder/selectors";
 import {
   buildMatchReadQuery,

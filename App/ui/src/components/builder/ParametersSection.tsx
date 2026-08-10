@@ -7,13 +7,13 @@ import {
   ATTRIBUTIVE_LABEL_VALUE_TYPE,
   collectLockedParameterNames,
   collectValueTypeLockedParameterNames
-} from "../../state/builder/parameterRefs";
-import { isValidParameterName } from "../../state/builder/stepBodyParams";
+} from "@pona-flow/authoring";
+import { isValidParameterName } from "@pona-flow/authoring";
 import {
   choiceConfigOf,
   validateAttributiveLabelValue,
   validateSchemaDefaultValue
-} from "../../state/builder/schemaRules";
+} from "@pona-flow/authoring";
 import type { Parameter, SchematicProperties, ValueType } from "../../state/builder/types";
 import { Toggle } from "./Toggle";
 import { RegexPatternModal } from "./modals/RegexPatternModal";

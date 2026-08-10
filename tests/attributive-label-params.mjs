@@ -10,7 +10,7 @@ const {
   syncParametersFromReferences,
   collectLockedParameterNames,
   ATTRIBUTIVE_LABEL_VALUE_TYPE
-} = await import("../App/ui/src/state/builder/parameterRefs.ts");
+} = await import("../App/authoring/src/parameterRefs.ts");
 
 const query = {
   id: "q-attr-label-param",

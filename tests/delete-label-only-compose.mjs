@@ -7,7 +7,7 @@
  */
 import assert from "node:assert/strict";
 import composer from "./helpers/composer.mjs";
-import { normalizeForCompose } from "../App/ui/src/state/builder/selectors.ts";
+import { normalizeForCompose } from "../App/authoring/src/normalize.ts";
 
 function deleteQuery(label) {
   const nodeWhere = {

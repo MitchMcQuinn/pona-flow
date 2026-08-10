@@ -1,4 +1,4 @@
-import type { QueryObject } from "./types";
+import type { QueryObject } from "./types.js";
 
 function collectFromQuery(
   query: QueryObject,
@@ -37,4 +37,35 @@ export function collectCreateAttributiveLabels(query: QueryObject): string[] {
     ...collectStepCreateAttributiveLabels(query),
     ...collectSchemaCreateAttributiveLabels(query)
   ];
+}
+
+/**
+ * Graph ids of every entity a create package writes. The server pairs these with
+ * `collectCreateAttributiveLabels` to tell a re-save of the caller's own entity apart
+ * from a collision with somebody else's.
+ */
+export function collectCreateEntityIds(query: QueryObject): string[] {
+  const out = new Set<string>();
+  if (query.operation !== "create") return [];
+
+  const add = (entity: {
+    alias_mode?: string;
+    node_source?: string;
+    id_binding?: { value?: unknown };
+  }) => {
+    if (entity.alias_mode === "reference" || entity.node_source === "existing") return;
+    const id = String(entity.id_binding?.value ?? "").trim();
+    // A `$param` id is minted at run time and cannot pre-own a label.
+    if (id && !id.startsWith("$")) out.add(id);
+  };
+
+  query.match.forEach((clause) => {
+    clause.patterns.forEach((pattern) => {
+      pattern.path.forEach((element) => {
+        if (element.kind === "node") add(element.node);
+        else add(element.relationship);
+      });
+    });
+  });
+  return [...out];
 }

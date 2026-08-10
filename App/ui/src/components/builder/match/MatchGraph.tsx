@@ -11,8 +11,8 @@ import {
   hopGatedByGraphOutgoing,
   schemaDrivenHopClause,
   supportsIncomingHop
-} from "../../../state/builder/matchMode";
-import { isAttributiveLabelParameter } from "../../../state/builder/normalizeField";
+} from "@pona-flow/authoring";
+import { isAttributiveLabelParameter } from "@pona-flow/authoring";
 import {
   addGraphEdge,
   projectMatchToGraph

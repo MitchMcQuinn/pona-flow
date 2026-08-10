@@ -1,0 +1,10 @@
+{
+  "name": "@pona-flow/authoring",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts"
+  }
+}

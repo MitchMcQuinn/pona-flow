@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   normalizeAttributiveLabel,
   sanitizeAttributiveLabelInput
-} from "../../../state/builder/normalizeField";
+} from "@pona-flow/authoring";
 import { Picker } from "../Picker";
 import { Toggle } from "../Toggle";
 import { ModalBackdrop } from "../../modals/ModalBackdrop";

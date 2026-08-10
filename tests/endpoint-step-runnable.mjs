@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 
 const { isRunnableEndpointStepCreate } = await import(
-  "../App/ui/src/state/builder/matchMode.ts"
+  "../App/authoring/src/matchMode.ts"
 );
 const { buildStepLabelOptions } = await import(
   "../App/ui/src/state/builder/attributiveLabelOptions.ts"

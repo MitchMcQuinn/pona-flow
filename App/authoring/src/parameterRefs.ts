@@ -1,6 +1,6 @@
-import { newSchematicProperties } from "./defaults";
-import { PARAMETER_NAME_RE, STEP_BODY_PARAM_REF_RE } from "./stepBodyParams";
-import type { Parameter, PropertyBinding, QueryObject, ValueType, WhereItem } from "./types";
+import { newSchematicProperties } from "./defaults.js";
+import { PARAMETER_NAME_RE, STEP_BODY_PARAM_REF_RE } from "./stepBodyParams.js";
+import type { Parameter, PropertyBinding, QueryObject, ValueType, WhereItem } from "./types.js";
 
 const PARAM_REF_RE = STEP_BODY_PARAM_REF_RE;
 const PARAM_REF_EXACT_RE = /^\$(?![0-9])(?!\{[0-9]+\})[A-Za-z_][A-Za-z0-9_]*$/;
