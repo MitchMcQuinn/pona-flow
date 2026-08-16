@@ -310,7 +310,8 @@ export async function runQuery(ctx: AuthoringContext): Promise<RunResult> {
     node_label: primaryNodeLabel(query),
     cypher: cypherStatementsForExecution(composed.cypher),
     sqlite: entitySqliteStatements(composed.sqlite),
-    cypher_params: cypherParamsFromQuery(query)
+    cypher_params: cypherParamsFromQuery(query),
+    parameters: composer.queryParametersForQueriesCatalog(query)
   });
   return recordsToResult(query.operation, (data.result?.cypher ?? []) as CypherStatementResult[]);
 }

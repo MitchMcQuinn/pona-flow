@@ -156,6 +156,7 @@ def execute_mutation_package(
     sqlite_statements: list[str],
     cypher_params: dict[str, Any] | None = None,
     operation: str = "read",
+    declared: list[Any] | None = None,
 ) -> dict[str, Any]:
     """
     Run composed Cypher (and optional SQLite mirror writes) for a read/update/delete query.
@@ -166,8 +167,12 @@ def execute_mutation_package(
     a single transaction on the space DB.
     """
     # Vector-search Cypher needs the query text embedded before Neo4j runs; no-op for
-    # ordinary MATCH…RETURN packages.
-    resolved = embeddings.resolve_search_params(space_id, cypher_statements, cypher_params)
+    # ordinary MATCH…RETURN packages. ``declared`` names which parameter holds the
+    # text/k when the author parameterized them (``vector_role``); reserved names
+    # are the fallback for operations saved before that existed.
+    resolved = embeddings.resolve_search_params(
+        space_id, cypher_statements, cypher_params, declared
+    )
     cypher_results = _run_cypher_list(space_id, cypher_statements, resolved)
     sqlite_results: list[dict[str, Any]] = []
     if sqlite_statements:

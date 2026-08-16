@@ -322,17 +322,17 @@ export default function App() {
         return;
       }
 
-      // Finished: surface resolved response parameters in the params panel. The result
-      // panel is only for graph data now — non-graph responses live in the response-
-      // parameters view, so we leave the sequence design graph in place for those.
+      // Finished: surface resolved response parameters in the params panel. Query-step
+      // finals (graph or table) go in the results panel — a vector-search read returns
+      // the node plus a score, and if the driver only hydrated property maps the
+      // classifier still emits a table we must not drop. Custom-endpoint JSON stays a
+      // response view. Anything else keeps the sequence design graph.
       dispatch({ type: "RESPONSE_VALUES_UPDATED", values: result.resolved });
       const final = result.final_result;
-      // builderResult drives the visualization (it takes precedence over state.results), so we
-      // dispatch result: null and let it render the graph when there is one. Graph finals show
-      // the graph; custom-endpoint responses show the returned body + HTTP status so a blocked
-      // or failed call is visible; other non-graph finals fall back to the design graph.
       if (final && final.kind === "graph") {
         setBuilderResult({ kind: "graph", columns: final.columns, rows: final.rows, graph: final.graph });
+      } else if (final && final.kind === "table") {
+        setBuilderResult({ kind: "table", columns: final.columns, rows: final.rows });
       } else if (final && final.kind === "response") {
         setBuilderResult({
           kind: "response",

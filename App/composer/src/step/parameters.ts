@@ -119,7 +119,22 @@ export function queryParametersForQueriesCatalog(query: QueryObject | null | und
     const textParameter = vectorTextParameterName(query);
     if (textParameter) {
       const row = byName.get(textParameter);
-      if (row) row.vector_role = "text";
+      if (row) {
+        row.vector_role = "text";
+      } else if (!declared.has(textParameter)) {
+        // The $name is on vector_search.text but is not in query.parameters yet
+        // (save-without-sync, MCP). Still declare it so a sequence can collect it
+        // and the engine can find the role marker.
+        rows.push({
+          name: textParameter,
+          value_type: "string",
+          value: "",
+          is_required: true,
+          vector_role: "text",
+          description: "Free-text query for nearest-neighbour vector search.",
+        });
+        declared.add(textParameter);
+      }
     } else if (!declared.has(VECTOR_PARAM_TEXT)) {
       rows.push({
         name: VECTOR_PARAM_TEXT,
@@ -133,7 +148,19 @@ export function queryParametersForQueriesCatalog(query: QueryObject | null | und
     const kParameter = vectorKParameterName(query);
     if (kParameter) {
       const row = byName.get(kParameter);
-      if (row) row.vector_role = "k";
+      if (row) {
+        row.vector_role = "k";
+      } else if (!declared.has(kParameter)) {
+        rows.push({
+          name: kParameter,
+          value_type: "integer",
+          value: "",
+          is_required: true,
+          vector_role: "k",
+          description: "Number of nearest neighbours to return (1–100).",
+        });
+        declared.add(kParameter);
+      }
     } else if (!declared.has(VECTOR_PARAM_K)) {
       rows.push({
         name: VECTOR_PARAM_K,

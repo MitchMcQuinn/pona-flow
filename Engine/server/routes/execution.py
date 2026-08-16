@@ -85,6 +85,9 @@ async def execute_query(
     cypher_params = body.get("cypher_params") or {}
     if not isinstance(cypher_params, dict):
         raise bad_request("cypher_params must be an object")
+    declared = body.get("parameters")
+    if declared is not None and not isinstance(declared, list):
+        raise bad_request("parameters must be an array")
     operation = str(body.get("operation") or "read").strip().lower()
     if operation not in ("read", "update", "delete"):
         raise bad_request("operation must be read, update, or delete")
@@ -96,6 +99,7 @@ async def execute_query(
             [str(s) for s in sqlite_statements],
             cypher_params,
             operation=operation,
+            declared=declared if isinstance(declared, list) else None,
         )
     except embeddings.EmbeddingsUnavailable as e:
         # A vector-search read cannot degrade: the query text must be embedded with the
@@ -171,6 +175,10 @@ async def sequence_run(
         )
     except PermissionError as e:
         raise HTTPException(403, str(e))
+    except embeddings.EmbeddingsUnavailable as e:
+        raise HTTPException(503, str(e))
+    except ValueError as e:
+        raise bad_request(str(e))
     except Exception as e:
         sys.stderr.write(f"sequence-run error: {e}\n")
         raise HTTPException(500, str(e))

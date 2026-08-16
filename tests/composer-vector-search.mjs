@@ -298,6 +298,17 @@ assert.equal(paramByName.topK.vector_role, "k");
 assert.equal(paramRows.find((r) => r.name === "vector_query_text"), undefined);
 assert.equal(paramRows.find((r) => r.name === "vector_k"), undefined);
 
+// Save-without-sync (MCP, or a snapshot that never ran QueryCard's effect): the $name
+// is on vector_search but not yet in query.parameters. Still emit a role-tagged row
+// so a sequence can collect the value and the engine can find it.
+const unsyncedRows = composer.queryParametersForQueriesCatalog(
+  parameterized({ parameters: [] })
+);
+const unsyncedByName = Object.fromEntries(unsyncedRows.map((r) => [r.name, r]));
+assert.equal(unsyncedByName.searchTerm.vector_role, "text");
+assert.equal(unsyncedByName.topK.vector_role, "k");
+assert.equal(unsyncedRows.find((r) => r.name === "vector_query_text"), undefined);
+
 // Mixed: a literal k still declares the reserved row, and only text is tagged.
 const mixedRows = composer.queryParametersForQueriesCatalog(
   parameterized({ vector_search: { enabled: true, text: "$searchTerm", k: { value: 7 } } })

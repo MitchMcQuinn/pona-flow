@@ -198,6 +198,8 @@ export interface ExecuteQueryBody {
   cypher: string[];
   sqlite: string[];
   cypher_params?: Record<string, unknown>;
+  /** Catalog parameter rows (including ``vector_role``) so the engine can embed author-named search text. */
+  parameters?: unknown[];
 }
 
 export interface CypherStatementResult {

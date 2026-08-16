@@ -678,6 +678,39 @@ def _record_columns(records: list[Any]) -> list[str]:
     return columns
 
 
+def _node_like_record_value(value: Any) -> dict[str, Any] | None:
+    """A property map that came from returning a graph node (``record.data()``).
+
+    Vector-index ``YIELD node AS x`` is a live Node when the driver hydrates it, but
+    some CALL shapes only leave the flattened property map in ``records``. The
+    visualizer still needs an ``element_id`` + labels to draw a node.
+    """
+    if not isinstance(value, dict):
+        return None
+    nid = str(value.get("id") or "").strip()
+    if not nid:
+        return None
+    al = str(value.get("attributive_label") or "").strip()
+    labels = ["INSTANCE"] if al else ["NODE"]
+    return {"element_id": nid, "labels": labels, "properties": value}
+
+
+def _graph_from_records(records: list[Any]) -> dict[str, Any]:
+    """Rebuild a graph payload from flattened node maps when ``_graph`` is empty."""
+    nodes: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        for val in rec.values():
+            node = _node_like_record_value(val)
+            if not node or node["element_id"] in seen:
+                continue
+            seen.add(node["element_id"])
+            nodes.append(node)
+    return {"nodes": nodes, "relationships": []}
+
+
 def _classify_final_response(
     step: dict[str, Any], response: dict[str, Any]
 ) -> dict[str, Any]:
@@ -696,6 +729,10 @@ def _classify_final_response(
         rels = graph.get("relationships") or [] if isinstance(graph, dict) else []
         records = response.get("records") or []
         columns = _record_columns(records)
+        if not nodes and not rels and records:
+            synthesized = _graph_from_records(records)
+            nodes = synthesized.get("nodes") or []
+            rels = synthesized.get("relationships") or []
         if nodes or rels:
             return {
                 "kind": "graph",
@@ -703,10 +740,9 @@ def _classify_final_response(
                 "columns": columns,
                 "rows": records,
             }
-        if records:
-            return {"kind": "table", "columns": columns, "rows": records}
-        visible = {k: v for k, v in response.items() if not str(k).startswith("_")}
-        return {"kind": "response", "response": json.dumps(visible)}
+        # An empty hit list is still a query result — the UI shows "No rows returned"
+        # instead of falling back to the sequence design graph.
+        return {"kind": "table", "columns": columns, "rows": records}
 
     # Custom endpoint: surface the raw JSON / text / XML body plus the transport
     # outcome (HTTP status / network error) so a blocked or failed call is visible
