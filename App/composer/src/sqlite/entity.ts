@@ -96,7 +96,9 @@ export function composeEntitySqlite(query: QueryObject, operation?: string): str
           if (label === "STEP") {
             payloadSql = escapeSqliteString(stepEntityPayload(step.node.sequencial_properties));
           } else if (label === "SCHEMA") {
-            payloadSql = escapeSqliteString(schemaPayloadFromProperties(step.node.properties || []));
+            payloadSql = escapeSqliteString(
+              schemaPayloadFromProperties(step.node.properties || [], step.node)
+            );
           } else {
             return;
           }

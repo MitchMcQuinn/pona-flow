@@ -7,6 +7,7 @@ describe("auth & permissions", () => {
     cy.get('[data-testid="space-tab-users"]').should("be.visible");
     cy.get('[data-testid="space-tab-agents"]').should("be.visible");
     cy.get('[data-testid="space-tab-credentials"]').should("be.visible");
+    cy.get('[data-testid="space-tab-embeddings"]').should("be.visible");
     cy.get('[data-testid="space-tab-audit"]').should("be.visible");
   });
 

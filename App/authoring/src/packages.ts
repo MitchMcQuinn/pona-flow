@@ -7,7 +7,15 @@
  * and the MCP server produce byte-identical bodies for the same QueryObject.
  */
 
-import { composer } from "@pona-flow/composer";
+import {
+  composer,
+  isVectorSearchEnabled,
+  vectorKLiteral,
+  vectorKParameterName,
+  vectorTextParameterName,
+  VECTOR_PARAM_K,
+  VECTOR_PARAM_TEXT,
+} from "@pona-flow/composer";
 import type { ExecuteCreateBody } from "@pona-flow/connector";
 import { collectCreateAttributiveLabels, collectCreateEntityIds } from "./attributiveLabels.js";
 import { serializeBuilderConfig } from "./builderConfig.js";
@@ -38,12 +46,24 @@ const MATCH_TAIL_LINE =
 // MATCH and OPTIONAL MATCH lines (optional hops / optional clauses) glue into one statement.
 const MATCH_LINE = /^(OPTIONAL\s+)?MATCH\s/i;
 
+// A CALL … YIELD line (vector search) opens a statement the same way MATCH does: its
+// WHERE / RETURN / ORDER BY / LIMIT tail belongs to it, not to standalone statements.
+const CALL_LINE = /^CALL\s/i;
+
 // Glue consecutive MATCH lines, then MERGE/CREATE (create) or WHERE/RETURN/… (read/update/delete).
 function groupCypherStatementsForExecution(lines: string[]): string[] {
   const out: string[] = [];
   let i = 0;
   while (i < lines.length) {
-    if (MATCH_LINE.test(lines[i])) {
+    if (CALL_LINE.test(lines[i])) {
+      const parts: string[] = [lines[i]];
+      i += 1;
+      while (i < lines.length && MATCH_TAIL_LINE.test(lines[i])) {
+        parts.push(lines[i]);
+        i += 1;
+      }
+      out.push(parts.join(" "));
+    } else if (MATCH_LINE.test(lines[i])) {
       const parts: string[] = [];
       while (i < lines.length && MATCH_LINE.test(lines[i])) {
         parts.push(lines[i]);
@@ -109,7 +129,7 @@ export function entitySqliteStatements(sqlite: string[]): string[] {
  * Cypher boolean filter (the sequence executor applies the same coercion server-side).
  */
 export function cypherParamsFromQuery(query: QueryObject): Record<string, unknown> {
-  return Object.fromEntries(
+  const params = Object.fromEntries(
     (query.parameters || []).map((p) => {
       const valueType = p.schematic_properties?.value_type ?? p.data_type;
       let value: unknown = p.value;
@@ -121,6 +141,20 @@ export function cypherParamsFromQuery(query: QueryObject): Record<string, unknow
       return [p.name, value];
     })
   );
+  // A literal vector-search text/k lives on QueryObject.vector_search rather than in
+  // query.parameters, so it does not trip queryUsesParameters (which would hide the Run
+  // button); synthesize it here the same way create ids are minted for direct runs. A
+  // parameterized one is an ordinary declared parameter already bound above — and it
+  // does hide Run, like any other parameterized query.
+  if (isVectorSearchEnabled(query) && query.vector_search) {
+    if (!vectorTextParameterName(query) && !(VECTOR_PARAM_TEXT in params)) {
+      params[VECTOR_PARAM_TEXT] = String(query.vector_search.text ?? "");
+    }
+    if (!vectorKParameterName(query) && !(VECTOR_PARAM_K in params)) {
+      params[VECTOR_PARAM_K] = vectorKLiteral(query);
+    }
+  }
+  return params;
 }
 
 export function createExpectsEntityMirrorWrites(query: QueryObject): boolean {

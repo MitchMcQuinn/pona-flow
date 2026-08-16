@@ -125,6 +125,7 @@ export interface ConnectorApi {
       schemaId: string;
       attributiveLabel: string;
       schemata: import("./types.js").SchemaPropertyConstraint[];
+      isVectorized?: boolean;
     },
     apiBase?: string
   ): Promise<import("./types.js").SchemaUpdateResult>;
@@ -134,6 +135,7 @@ export interface ConnectorApi {
       schemaId: string;
       attributiveLabel: string;
       schemata: import("./types.js").SchemaPropertyConstraint[];
+      isVectorized?: boolean;
     },
     apiBase?: string
   ): Promise<import("./types.js").SchemaUpdatePreview>;

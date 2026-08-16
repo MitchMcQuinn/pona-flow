@@ -17,6 +17,7 @@ import {
   supportsIncomingHop
 } from "@pona-flow/authoring";
 import { isAttributiveLabelParameter } from "@pona-flow/authoring";
+import { isVectorSearchEnabled } from "@pona-flow/composer";
 import type { GraphNodeLabel, GraphPattern, Operation } from "../../../state/builder/types";
 import { NodePathEntry } from "./NodePathEntry";
 import { RelPathEntry } from "./RelPathEntry";
@@ -96,11 +97,13 @@ export function Pattern({
     };
   }, [gatedHop, useSchemaOutgoingApi, state.spaceId, state.spaceLabels, lastNodeLabel, operation, label]);
 
-  const showHop = isSchemaCreate
-    ? trailingIsNode
-    : gatedHop
-      ? Boolean(lastNodeLabel) && (outgoingCount ?? 0) > 0
-      : trailingIsNode;
+  const showHop = isVectorSearchEnabled(state.query)
+    ? false
+    : isSchemaCreate
+      ? trailingIsNode
+      : gatedHop
+        ? Boolean(lastNodeLabel) && (outgoingCount ?? 0) > 0
+        : trailingIsNode;
 
   return (
     <div className="builderPattern">

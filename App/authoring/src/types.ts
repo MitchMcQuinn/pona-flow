@@ -41,6 +41,7 @@ export type {
   Parameter,
   ReturnClause,
   QueryObject,
+  VectorSearchConfig,
   ComposedQuery,
 } from "@pona-flow/composer";
 

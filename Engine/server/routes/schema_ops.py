@@ -19,8 +19,14 @@ from ..http_utils import DOMAIN_ERRORS, bad_request, json_body, require_body_spa
 router = APIRouter()
 
 
-def _schema_update_args(body: dict[str, Any]) -> tuple[str, str, str, list[Any]]:
-    """Validate and unpack the shared apply/preview request body."""
+def _schema_update_args(
+    body: dict[str, Any],
+) -> tuple[str, str, str, list[Any], bool | None]:
+    """Validate and unpack the shared apply/preview request body.
+
+    ``is_vectorized`` (SCHEMA-level, vector search) is optional and stays None when absent,
+    which means "leave whatever is stored alone".
+    """
     space_id = require_body_space_id(body)
     schema_id = str(body.get("schema_id") or "").strip()
     attributive_label = str(body.get("attributive_label") or "").strip()
@@ -29,7 +35,10 @@ def _schema_update_args(body: dict[str, Any]) -> tuple[str, str, str, list[Any]]
         raise bad_request("schema_id is required")
     if not isinstance(schemata, list):
         raise bad_request("schemata must be an array")
-    return space_id, schema_id, attributive_label, schemata
+    is_vectorized = (
+        bool(body.get("is_vectorized")) if "is_vectorized" in body else None
+    )
+    return space_id, schema_id, attributive_label, schemata, is_vectorized
 
 
 @router.post("/api/schema/update")
@@ -37,11 +46,11 @@ async def schema_update_apply(
     request: Request, principal: Principal = Depends(auth.current_principal)
 ):
     body = await json_body(request)
-    space_id, schema_id, attributive_label, schemata = _schema_update_args(body)
+    space_id, schema_id, attributive_label, schemata, is_vectorized = _schema_update_args(body)
     auth.require_flow(principal, space_id, "update", "SCHEMA")
     try:
         return schema_workflow.apply_schema_update(
-            space_id, schema_id, attributive_label, schemata
+            space_id, schema_id, attributive_label, schemata, is_vectorized
         )
     except ValueError as e:
         raise bad_request(str(e))
@@ -58,7 +67,7 @@ async def schema_update_preview(
     sequences *would* be suspended, without persisting anything. Drives the confirmation
     modal so the user can abort before any change is committed."""
     body = await json_body(request)
-    space_id, schema_id, attributive_label, schemata = _schema_update_args(body)
+    space_id, schema_id, attributive_label, schemata, _ = _schema_update_args(body)
     auth.require_flow(principal, space_id, "update", "SCHEMA")
     try:
         return schema_workflow.preview_schema_update(

@@ -8,7 +8,16 @@ import sys
 from fastapi import APIRouter, Depends, Request
 from fastapi.exceptions import HTTPException
 
-from .. import auth, catalog, cypher_utils, execution, packages, schema_currency
+from .. import (
+    auth,
+    catalog,
+    cypher_utils,
+    embeddings,
+    execution,
+    packages,
+    scheduler,
+    schema_currency,
+)
 from ..auth import Principal
 from ..http_utils import bad_request, infer_node_label, json_body, require_body_space_id
 
@@ -88,7 +97,13 @@ async def execute_query(
             cypher_params,
             operation=operation,
         )
-    except (RuntimeError, sqlite3.Error, KeyError, ValueError) as e:
+    except embeddings.EmbeddingsUnavailable as e:
+        # A vector-search read cannot degrade: the query text must be embedded with the
+        # same model, so there is no partial answer to return.
+        raise HTTPException(503, str(e))
+    except ValueError as e:
+        raise bad_request(str(e))
+    except (RuntimeError, sqlite3.Error, KeyError) as e:
         raise HTTPException(500, str(e))
     # After an INSTANCE update, release the is_current marker from any instance of the
     # touched label(s) that now fully conforms to its SCHEMA (filled in the required property).
@@ -100,6 +115,12 @@ async def execute_query(
                 if label:
                     labels.add(label)
         schema_currency.reconcile_labels(space_id, labels)
+        # An updated record's stored vector describes its old text. A *created* record
+        # needs no marker: it has no vector, which the reindex already treats as pending.
+        embeddings.mark_labels_stale(space_id, labels)
+        # Re-embedding is deferred, not skipped: ask the periodic job to sweep sooner than
+        # its next tick. Requests coalesce, so a burst of updates still costs one sweep.
+        scheduler.request_embedding_sweep()
     return {"space_id": space_id, "result": result}
 
 

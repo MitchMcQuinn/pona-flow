@@ -1130,6 +1130,112 @@ export async function deleteCredential(spaceId: string, name: string): Promise<v
   );
 }
 
+// ----- Embeddings (local vector search) -------------------------------------
+
+/** A space's vector-search settings. `dimensions` is probed from the model, never typed. */
+export interface EmbeddingsConfig {
+  enabled: boolean;
+  ollamaUrl: string;
+  embedModel: string;
+  dimensions: number | null;
+  /** "space" once saved here; "env" while inheriting the instance defaults. */
+  source: string;
+}
+
+/** Live check of the configured Ollama. A failure is data, not an exception. */
+export interface EmbeddingsHealth extends EmbeddingsConfig {
+  ok: boolean;
+  error: string | null;
+}
+
+export interface ReindexResult {
+  /** Empty for a space-wide run. */
+  attributiveLabel: string;
+  /** Number of vectorized SCHEMAs covered by a space-wide run. */
+  labels: number | null;
+  scanned: number;
+  embedded: number;
+  skipped: number;
+  failed: number;
+  capped: boolean;
+  aborted: boolean;
+}
+
+function mapEmbeddingsConfig(data: Record<string, unknown>): EmbeddingsConfig {
+  const dimensions = Number(data.dimensions);
+  return {
+    enabled: Boolean(data.enabled),
+    ollamaUrl: String(data.ollama_url || ""),
+    embedModel: String(data.embed_model || data.model || ""),
+    dimensions: Number.isFinite(dimensions) && dimensions > 0 ? dimensions : null,
+    source: String(data.source || "")
+  };
+}
+
+export async function fetchEmbeddingsConfig(spaceId: string): Promise<EmbeddingsConfig> {
+  const data = await getJson<Record<string, unknown>>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/embeddings/config`,
+    "Failed to load embedding settings",
+    { cache: "no-store" }
+  );
+  return mapEmbeddingsConfig(data);
+}
+
+export async function saveEmbeddingsConfig(
+  spaceId: string,
+  values: { enabled: boolean; ollamaUrl?: string; embedModel?: string }
+): Promise<EmbeddingsConfig> {
+  const body: Record<string, unknown> = { enabled: values.enabled };
+  if (values.ollamaUrl !== undefined) body.ollama_url = values.ollamaUrl;
+  if (values.embedModel !== undefined) body.embed_model = values.embedModel;
+  const data = await postJson<Record<string, unknown>>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/embeddings/config`,
+    body,
+    "Failed to save embedding settings"
+  );
+  return mapEmbeddingsConfig(data);
+}
+
+export async function fetchEmbeddingsHealth(spaceId: string): Promise<EmbeddingsHealth> {
+  const data = await getJson<Record<string, unknown>>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/embeddings/health`,
+    "Failed to reach the embedding service",
+    { cache: "no-store" }
+  );
+  return {
+    ...mapEmbeddingsConfig(data),
+    ok: Boolean(data.ok),
+    error: data.error ? String(data.error) : null
+  };
+}
+
+/** Reindex one type, or every vectorized SCHEMA in the space when the label is omitted. */
+export async function reindexEmbeddings(
+  spaceId: string,
+  attributiveLabel?: string,
+  kind: "node" | "relationship" = "node"
+): Promise<ReindexResult> {
+  const body: Record<string, unknown> = attributiveLabel
+    ? { attributive_label: attributiveLabel, kind }
+    : {};
+  const data = await postJson<Record<string, unknown>>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/embeddings/reindex`,
+    body,
+    "Failed to reindex embeddings"
+  );
+  const labels = Number(data.labels);
+  return {
+    attributiveLabel: String(data.attributive_label || attributiveLabel || ""),
+    labels: Number.isFinite(labels) ? labels : null,
+    scanned: Number(data.scanned || 0),
+    embedded: Number(data.embedded || 0),
+    skipped: Number(data.skipped || 0),
+    failed: Number(data.failed || 0),
+    capped: Boolean(data.capped),
+    aborted: Boolean(data.aborted)
+  };
+}
+
 /** What the operator picked to export; the backend resolves the dependency closure. */
 export interface TemplateSelection {
   /** Sequence query ids (their steps + nested queries are pulled in automatically). */

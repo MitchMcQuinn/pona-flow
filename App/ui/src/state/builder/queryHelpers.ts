@@ -28,6 +28,7 @@ import type {
   ReturnItem,
   SchematicProperties,
   SetItem,
+  VectorSearchConfig,
   WhereGroup,
   WhereItem
 } from "./types";
@@ -409,6 +410,55 @@ export function updateSchematic(
     );
 }
 
+/**
+ * Flip a SCHEMA element's `is_vectorized` flag (node or relationship, whichever sits at
+ * `pathIndex`).
+ *
+ * Turning it on seeds `is_embedded` on the `is_label` property when nothing else is marked,
+ * so a newly vectorized type has something to embed without further clicking. Turning it off
+ * leaves the per-property marks alone: they cost nothing while dormant and come back intact
+ * if vector search is re-enabled.
+ */
+export function setSchemaVectorized(
+  clauseIndex: number,
+  patternIndex: number,
+  pathIndex: number,
+  value: boolean
+) {
+  return (q: QueryObject): QueryObject =>
+    mapPattern(q, clauseIndex, patternIndex, (pattern) => {
+      const element = pattern.path[pathIndex];
+      const properties =
+        element.kind === "node" ? element.node.properties : element.relationship.properties;
+      const seeded =
+        value && !properties.some((prop) => prop.schematic_properties?.is_embedded)
+          ? properties.map((prop) =>
+              prop.schematic_properties?.is_label
+                ? {
+                    ...prop,
+                    schematic_properties: { ...prop.schematic_properties, is_embedded: true }
+                  }
+                : prop
+            )
+          : properties;
+      const nextElement: PathElement =
+        element.kind === "node"
+          ? {
+              kind: "node",
+              node: { ...element.node, is_vectorized: value, properties: seeded }
+            }
+          : {
+              kind: "relationship",
+              relationship: {
+                ...element.relationship,
+                is_vectorized: value,
+                properties: seeded
+              }
+            };
+      return { ...pattern, path: replaceAt(pattern.path, pathIndex, nextElement) };
+    });
+}
+
 // ---- Parameters ----
 
 export function addParameter() {
@@ -473,6 +523,27 @@ export function setReturnDistinct(distinct: boolean) {
     ...q,
     return: { distinct, items: q.return?.items ?? [] }
   });
+}
+
+/** Patch the READ INSTANCE vector_search block (toggle / text / k). */
+export function setVectorSearch(patch: {
+  enabled?: boolean;
+  text?: string;
+  k?: VectorSearchConfig["k"];
+  all_labels?: boolean;
+}) {
+  return (q: QueryObject): QueryObject => {
+    const current = q.vector_search ?? { enabled: false, text: "", k: 10, all_labels: false };
+    return {
+      ...q,
+      vector_search: {
+        enabled: patch.enabled ?? current.enabled,
+        text: patch.text !== undefined ? patch.text : current.text,
+        k: patch.k !== undefined ? patch.k : current.k,
+        all_labels: patch.all_labels ?? current.all_labels ?? false
+      }
+    };
+  };
 }
 
 // ---- ORDER BY / pagination ----

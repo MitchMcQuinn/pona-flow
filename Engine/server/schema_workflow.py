@@ -16,11 +16,15 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from . import schema_currency, schema_suspension, schema_update
+from . import embeddings, schema_currency, schema_suspension, schema_update
 
 
 def apply_schema_update(
-    space_id: str, schema_id: str, attributive_label: str, schemata: list[Any]
+    space_id: str,
+    schema_id: str,
+    attributive_label: str,
+    schemata: list[Any],
+    is_vectorized: bool | None = None,
 ) -> dict[str, Any]:
     """Persist a SCHEMA update, then refresh suspensions and instance currency.
 
@@ -28,7 +32,7 @@ def apply_schema_update(
     one step that must not fail silently); the follow-on side effects never raise.
     """
     result = schema_update.apply_schema_update(
-        space_id, schema_id, attributive_label, schemata
+        space_id, schema_id, attributive_label, schemata, is_vectorized
     )
     # Suspend any sequence (and standalone INSTANCE operation) that no longer matches the new
     # SCHEMA pattern, and release any that now conform. Recomputed against the persisted schema.
@@ -55,11 +59,20 @@ def apply_schema_update(
         instances = {**instances, "cleared": cleared.get("cleared", 0)}
     except Exception as e:
         sys.stderr.write(f"schema-update instance currency reconcile error: {e}\n")
+    # A change to the embedded include list (or to is_vectorized itself) means every stored
+    # vector for this label describes text the schema no longer produces.
+    embeddings_marked: dict[str, int] | None = None
+    if result.get("embedding_include_changed"):
+        try:
+            embeddings_marked = embeddings.mark_label_stale(space_id, instance_label)
+        except Exception as e:
+            sys.stderr.write(f"schema-update embedding staleness error: {e}\n")
     return {
         "space_id": space_id,
         **result,
         "suspension": suspension,
         "instances": instances,
+        **({"embeddings": embeddings_marked} if embeddings_marked else {}),
     }
 
 

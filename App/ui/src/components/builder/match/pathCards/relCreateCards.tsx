@@ -40,6 +40,7 @@ import {
   type ExistingSchemaRelationshipType
 } from "../../fields/SchemaRelAttributiveLabelField";
 import { StepRelConditionField } from "../../fields/StepRelConditionField";
+import { VectorizedField } from "../../fields/VectorizedField";
 import {
   collectDeclaredAliases,
   useInstanceIdSync,
@@ -355,6 +356,7 @@ export function SchemaCreateRelCard(props: RelCardProps) {
       id = "";
     }
     let typeProperties: RelationshipPattern["properties"] = [];
+    let typeVectorized = false;
     const spaceId = state.spaceId ?? "";
     if (spaceId) {
       try {
@@ -362,6 +364,7 @@ export function SchemaCreateRelCard(props: RelCardProps) {
           spaceId,
           attributiveLabel: record.attributive_label.trim()
         });
+        typeVectorized = definition.is_vectorized === true;
         // Drop the implicit is_key UID — the composer re-injects it at payload time,
         // keeping the copy byte-identical to the type's other edges.
         typeProperties = propertiesFromSchemata(definition.schemata ?? []).filter(
@@ -378,6 +381,7 @@ export function SchemaCreateRelCard(props: RelCardProps) {
       node_source: "existing",
       id_binding: { key: "id", value: id },
       variable: aliasLocked ? relationship.variable : id,
+      is_vectorized: typeVectorized,
       properties: typeProperties
     });
   }
@@ -423,6 +427,13 @@ export function SchemaCreateRelCard(props: RelCardProps) {
             </p>
           ) : null}
           <div className="builderBlock">
+            <VectorizedField
+              clauseIndex={clauseIndex}
+              patternIndex={patternIndex}
+              pathIndex={pathIndex}
+              checked={relationship.is_vectorized === true}
+              disabled={isExisting}
+            />
             {relationship.properties.map((prop, propIndex) => (
               <PropertyBinding
                 key={propIndex}
@@ -434,6 +445,7 @@ export function SchemaCreateRelCard(props: RelCardProps) {
                 schemaMode
                 canDelete={!isExisting}
                 readOnly={isExisting}
+                vectorized={relationship.is_vectorized === true}
               />
             ))}
             {!isExisting ? (

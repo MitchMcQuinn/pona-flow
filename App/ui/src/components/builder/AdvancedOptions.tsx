@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useBuilder } from "../../state/builder/BuilderContext";
 import { setReturnDistinct, updateMatchClause } from "../../state/builder/queryHelpers";
 import { showMatchOptionalControls } from "@pona-flow/authoring";
+import { isVectorSearchEnabled } from "@pona-flow/composer";
 import { OrderPaginationSection } from "./OrderPaginationSection";
 import { Toggle } from "./Toggle";
 
@@ -108,6 +109,10 @@ export function AdvancedOptions() {
     // DISTINCT / ORDER BY / pagination controls, so the accordion is hidden there.
     const label = state.query.match[0]?.label;
     if (label === "SCHEMA" || label === "STEP") {
+      return null;
+    }
+    // Vector search owns k and score order; hide DISTINCT / ORDER BY / LIMIT.
+    if (isVectorSearchEnabled(state.query)) {
       return null;
     }
     return (

@@ -35,6 +35,11 @@ export function propertySchemaFromBinding(binding: PropertyBinding | null | unde
     is_label: !!sp.is_label,
     is_indexed: !!sp.is_indexed,
   };
+  // Emitted only when set, so a SCHEMA that does not use vector search writes the payload
+  // it always has.
+  if (sp.is_embedded) {
+    property_schema.is_embedded = true;
+  }
   if (value_type === "string" && sp.format) {
     property_schema.format = sp.format;
   }
@@ -73,9 +78,21 @@ export function effectiveSchemataFromBindings(bindings: PropertyBinding[] | null
   return schemata;
 }
 
-export function schemaPayloadFromProperties(properties: PropertyBinding[] | null | undefined): string {
+/**
+ * SCHEMA node payload. `is_vectorized` is a sibling of `schemata` rather than a property
+ * attribute (the same shape a relationship's `condition_type` uses) because it describes the
+ * type, and it is written only when on so existing payloads are unaffected.
+ */
+export function schemaPayloadFromProperties(
+  properties: PropertyBinding[] | null | undefined,
+  flags?: { is_vectorized?: boolean } | null
+): string {
   const schemata = effectiveSchemataFromBindings(properties);
-  return JSON.stringify({ schemata });
+  const payload: Record<string, unknown> = { schemata };
+  if (flags && flags.is_vectorized) {
+    payload.is_vectorized = true;
+  }
+  return JSON.stringify(payload);
 }
 
 export function schemaPayloadFromParametersLegacy(parameters: Parameter[] | null | undefined): string {
@@ -92,6 +109,7 @@ export function schemaPayloadFromParametersLegacy(parameters: Parameter[] | null
           is_key: !!sp.is_key,
           is_label: !!sp.is_label,
           is_indexed: !!sp.is_indexed,
+          ...(sp.is_embedded ? { is_embedded: true } : {}),
           ...(sp.format ? { format: sp.format } : {}),
           ...(isChoice ? { options: normalizeChoiceOptions(sp.options) } : {}),
           ...(sp.value_type === "checkbox" && typeof sp.min_choices === "number"
@@ -108,12 +126,14 @@ export function schemaPayloadFromParametersLegacy(parameters: Parameter[] | null
 
 export function schemaPayloadFromMatch(query: QueryObject): string {
   let properties: PropertyBinding[] = [];
+  let flags: { is_vectorized?: boolean } | null = null;
   (query.match || []).forEach((clause) => {
     if (clause.label !== "SCHEMA") return;
     (clause.patterns || []).forEach((pattern) => {
       (pattern.path || []).forEach((step) => {
         if (step.kind === "node" && step.node && step.node.properties) {
           properties = step.node.properties;
+          flags = { is_vectorized: !!step.node.is_vectorized };
         }
       });
     });
@@ -121,7 +141,7 @@ export function schemaPayloadFromMatch(query: QueryObject): string {
   if (!properties.length) {
     return schemaPayloadFromParametersLegacy(query.parameters);
   }
-  return schemaPayloadFromProperties(properties);
+  return schemaPayloadFromProperties(properties, flags);
 }
 
 export function stepRelPayload(rel: RelationshipPattern | null | undefined): string {
@@ -153,6 +173,9 @@ export function schemaRelPayload(rel: RelationshipPattern | null | undefined): s
   const schemata = effectiveSchemataFromBindings(rel.properties || []);
   if (schemata.length) {
     payload.schemata = schemata;
+  }
+  if (rel.is_vectorized) {
+    payload.is_vectorized = true;
   }
   if (rel.condition_type && rel.condition_type !== "null") {
     payload.condition_type = String(rel.condition_type);

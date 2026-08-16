@@ -40,6 +40,7 @@ import {
   type ExistingStepNode
 } from "../../fields/StepAttributiveLabelField";
 import { StepSequencialConfig } from "../../fields/StepSequencialConfig";
+import { VectorizedField } from "../../fields/VectorizedField";
 import {
   collectDeclaredAliases,
   useInstanceIdSync,
@@ -325,6 +326,12 @@ export function PickerCreateNodeCard(props: NodeCardProps) {
 
       {!isAliasRef && hasSelection && schemaMode && !isExisting ? (
         <div className="builderBlock">
+          <VectorizedField
+            clauseIndex={clauseIndex}
+            patternIndex={patternIndex}
+            pathIndex={pathIndex}
+            checked={node.is_vectorized === true}
+          />
           {node.properties.map((prop, propIndex) => (
             <PropertyBinding
               key={propIndex}
@@ -335,6 +342,7 @@ export function PickerCreateNodeCard(props: NodeCardProps) {
               prop={prop}
               schemaMode
               canDelete
+              vectorized={node.is_vectorized === true}
             />
           ))}
           <div className="builderCardFooter">

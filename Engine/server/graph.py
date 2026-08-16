@@ -39,16 +39,48 @@ NEO4J_AVAILABLE = GraphDatabase is not None
 
 GRAPH_REL_TYPE = "POINTS_TO"
 
+# Reserved INSTANCE system property holding a record's embedding vector (written by
+# ``server.embeddings``). It lives here because this module is the result-serialization
+# boundary that has to strip it: the composer appends ``RETURN *`` to every create, and a
+# 768-1024 float array on every node would swamp the graph viz and MCP payloads.
+EMBEDDING_PROPERTY = "embedding"
+
+# System properties an author may never define in a SCHEMA's ``schemata[]``. Mirrors
+# ``isReservedSchemaPropertyKey`` in App/authoring/src/schemaRules.ts, enforced again in
+# Python because any client can call the API directly. ``embedding_stale`` is *not*
+# stripped from results — filtering on it is how you read not-yet-indexed records.
+RESERVED_EMBEDDING_PROPERTY_KEYS = frozenset({EMBEDDING_PROPERTY, "embedding_stale"})
+
 
 def _require_neo4j() -> None:
     if GraphDatabase is None:
         raise RuntimeError("Missing dependency: install with `pip install neo4j`.")
 
 
+def _strip_embedding_properties(value: Any) -> Any:
+    """Drop embedding vectors from the property maps ``record.data()`` flattens out.
+
+    Only nested maps are filtered. A top-level column is left alone, so an explicit
+    ``RETURN n.embedding AS embedding`` still works while the implicit ``RETURN *`` does
+    not leak a float array per node.
+    """
+    if isinstance(value, dict):
+        return {
+            key: _strip_embedding_properties(val)
+            for key, val in value.items()
+            if key != EMBEDDING_PROPERTY
+        }
+    if isinstance(value, list):
+        return [_strip_embedding_properties(item) for item in value]
+    return value
+
+
 def _record_data(record) -> dict[str, Any]:
     if hasattr(record, "data"):
-        return dict(record.data())
-    return {key: record[key] for key in record.keys()}
+        raw = dict(record.data())
+    else:
+        raw = {key: record[key] for key in record.keys()}
+    return {key: _strip_embedding_properties(val) for key, val in raw.items()}
 
 
 def _collect_graph_entities(value, nodes: dict[str, Any], rels: dict[str, Any]) -> None:
@@ -70,7 +102,7 @@ def _collect_graph_entities(value, nodes: dict[str, Any], rels: dict[str, Any]) 
             {
                 "element_id": value.element_id,
                 "labels": list(value.labels),
-                "properties": dict(value),
+                "properties": _strip_embedding_properties(dict(value)),
             },
         )
     elif isinstance(value, Relationship):
@@ -85,7 +117,7 @@ def _collect_graph_entities(value, nodes: dict[str, Any], rels: dict[str, Any]) 
                 "type": value.type,
                 "start": value.start_node.element_id if value.start_node else None,
                 "end": value.end_node.element_id if value.end_node else None,
-                "properties": dict(value),
+                "properties": _strip_embedding_properties(dict(value)),
             },
         )
     elif isinstance(value, Path):
@@ -826,6 +858,7 @@ def _normalize_property_schema(entry: dict[str, Any]) -> dict[str, Any] | None:
         "is_key": bool(ps.get("is_key")),
         "is_label": bool(ps.get("is_label")),
         "is_indexed": bool(ps.get("is_indexed")),
+        "is_embedded": bool(ps.get("is_embedded")),
     }
     if value_type == "string" and ps.get("format"):
         out["format"] = str(ps.get("format"))
@@ -860,9 +893,21 @@ def _apply_schema_schemata_defaults(schemata: list[dict[str, Any]]) -> list[dict
                 "is_key": True,
                 "is_label": False,
                 "is_indexed": False,
+                "is_embedded": False,
             },
         )
     return out
+
+
+def _schema_flags_from_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
+    """SCHEMA-level flags stored beside ``schemata`` in the payload.
+
+    ``is_vectorized`` describes the type, not a property, so it sits at the payload's top
+    level — the same place a relationship SCHEMA keeps ``condition_type``.
+    """
+    if not isinstance(payload, dict):
+        return {"is_vectorized": False}
+    return {"is_vectorized": bool(payload.get("is_vectorized"))}
 
 
 def _schemata_from_payload(payload: dict[str, Any] | None) -> list[dict[str, Any]]:
@@ -935,6 +980,7 @@ def fetch_schema_definition(space_id: str, attributive_label: str) -> dict[str, 
                 "schema_id": rel_id,
                 "attributive_label": al,
                 "schemata": _schemata_from_payload(payload),
+                **_schema_flags_from_payload(payload),
             }
         raise ValueError(f"No SCHEMA node with attributive_label {al!r}")
     if len(records) > 1:
@@ -950,6 +996,7 @@ def fetch_schema_definition(space_id: str, attributive_label: str) -> dict[str, 
         "schema_id": schema_id,
         "attributive_label": al,
         "schemata": _schemata_from_payload(payload),
+        **_schema_flags_from_payload(payload),
     }
 
 
@@ -996,6 +1043,9 @@ def list_schema_outgoing(
                     "target_attributive_label": target_al,
                     "rel_schemata": _schemata_from_payload(rel_payload),
                     "target_schemata": _schemata_from_payload(target_payload),
+                    "rel_is_vectorized": _schema_flags_from_payload(rel_payload)[
+                        "is_vectorized"
+                    ],
                     "direction": direction,
                 }
             )

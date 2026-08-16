@@ -3,6 +3,14 @@
 import { instanceCreateIdParamName } from "../entity/ids.js";
 import { escapeSqliteString } from "../literals.js";
 import { isStepCustomEndpoint } from "./endpoint.js";
+import {
+  isVectorSearchEnabled,
+  vectorKLiteral,
+  vectorKParameterName,
+  vectorTextParameterName,
+  VECTOR_PARAM_K,
+  VECTOR_PARAM_TEXT,
+} from "../render/vectorSearch.js";
 import type { Parameter, QueryObject, SequencialProperties } from "../types.js";
 
 function parameterValueType(p: Parameter): string {
@@ -101,6 +109,41 @@ export function queryParametersForQueriesCatalog(query: QueryObject | null | und
       is_required: false,
       auto_generate: true,
     });
+  }
+  // Vector search: a literal text/k is authored on QueryObject.vector_search rather than
+  // in query.parameters (which would disable the builder Run button), so declare it here
+  // under the reserved name. A parameterized one is already a row from the author's own
+  // $name; tag it with vector_role so the engine knows which value to embed or limit by.
+  if (query && isVectorSearchEnabled(query)) {
+    const byName = new Map(rows.map((r) => [String(r.name), r]));
+    const textParameter = vectorTextParameterName(query);
+    if (textParameter) {
+      const row = byName.get(textParameter);
+      if (row) row.vector_role = "text";
+    } else if (!declared.has(VECTOR_PARAM_TEXT)) {
+      rows.push({
+        name: VECTOR_PARAM_TEXT,
+        value_type: "string",
+        value: String(query.vector_search!.text ?? ""),
+        is_required: true,
+        description: "Free-text query for nearest-neighbour vector search.",
+      });
+      declared.add(VECTOR_PARAM_TEXT);
+    }
+    const kParameter = vectorKParameterName(query);
+    if (kParameter) {
+      const row = byName.get(kParameter);
+      if (row) row.vector_role = "k";
+    } else if (!declared.has(VECTOR_PARAM_K)) {
+      rows.push({
+        name: VECTOR_PARAM_K,
+        value_type: "integer",
+        value: vectorKLiteral(query),
+        is_required: false,
+        description: "Number of nearest neighbours to return (1–100).",
+      });
+      declared.add(VECTOR_PARAM_K);
+    }
   }
   return rows;
 }

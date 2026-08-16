@@ -73,6 +73,8 @@ export interface SchemaPropertyConstraint {
   is_key: boolean;
   is_label: boolean;
   is_indexed: boolean;
+  /** Include this property's value in the record's vector-search embedding text. */
+  is_embedded?: boolean;
   format?: string;
   default_value?: string;
   /** radio + checkbox: the choices the end user picks from. */
@@ -88,6 +90,8 @@ export interface SchemaDefinition {
   schema_id: string;
   attributive_label: string;
   schemata: SchemaPropertyConstraint[];
+  /** SCHEMA-level: this type's INSTANCE records are embedded for vector search. */
+  is_vectorized?: boolean;
 }
 
 export interface SchemaOutgoingEdge {
@@ -97,6 +101,8 @@ export interface SchemaOutgoingEdge {
   target_attributive_label: string;
   rel_schemata: SchemaPropertyConstraint[];
   target_schemata: SchemaPropertyConstraint[];
+  /** The relationship type's own vector-search opt-in. */
+  rel_is_vectorized?: boolean;
   /**
    * Edge direction from the queried node's perspective ("outgoing" when omitted).
    * Incoming edges only appear when the fetch opts in via includeIncoming;

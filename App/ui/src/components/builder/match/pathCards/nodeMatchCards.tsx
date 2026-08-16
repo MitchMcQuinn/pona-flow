@@ -39,6 +39,7 @@ import { InstanceNodeAttributiveField } from "../../fields/InstanceNodeAttributi
 import { MatchAttributiveLabelField } from "../../fields/MatchAttributiveLabelField";
 import { StepSequencialConfig } from "../../fields/StepSequencialConfig";
 import { UpdateStepNodeField } from "../../fields/UpdateStepNodeField";
+import { VectorizedField } from "../../fields/VectorizedField";
 import {
   clearDownstreamChecks,
   PathWhereFooter,
@@ -79,6 +80,7 @@ export function ConfigUpdateNodeCard(props: NodeCardProps) {
           id_binding: { key: "id", value: def.schema_id },
           variable: def.schema_id || attributiveLabel,
           alias_locked: true,
+          is_vectorized: def.is_vectorized === true,
           properties
         });
       })
@@ -136,6 +138,12 @@ export function ConfigUpdateNodeCard(props: NodeCardProps) {
 
       {!isStepConfig && hasAttributiveLabel && !lockedRelEdit ? (
         <div className="builderBlock">
+          <VectorizedField
+            clauseIndex={clauseIndex}
+            patternIndex={patternIndex}
+            pathIndex={pathIndex}
+            checked={node.is_vectorized === true}
+          />
           {node.properties.map((prop, propIndex) => (
             <PropertyBinding
               key={propIndex}
@@ -147,6 +155,7 @@ export function ConfigUpdateNodeCard(props: NodeCardProps) {
               schemaMode
               canDelete
               locked={Boolean(prop.locked)}
+              vectorized={node.is_vectorized === true}
             />
           ))}
           <div className="builderCardFooter">

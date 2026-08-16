@@ -573,6 +573,7 @@ _SPACES_COLUMN_MIGRATIONS = (
     ("is_private", "INTEGER NOT NULL DEFAULT 0"),
     ("dev_mode", "INTEGER NOT NULL DEFAULT 0"),
     ("description", "TEXT NOT NULL DEFAULT ''"),
+    ("embeddings_config", "TEXT NOT NULL DEFAULT '{}'"),
 )
 
 
@@ -634,6 +635,93 @@ def parse_space_groups_column(raw: str | None) -> list[str]:
 def format_space_groups_column(groups: list[str]) -> str:
     """Serialize group titles for the spaces.groups column."""
     return json.dumps({"groups": groups}, separators=(",", ":"))
+
+
+def _ensure_spaces_embeddings_config_column(conn: sqlite3.Connection) -> None:
+    """Add catalog ``spaces.embeddings_config`` JSON column (legacy DBs)."""
+    sqlite_util.ensure_column(
+        conn, "spaces", "embeddings_config", "TEXT NOT NULL DEFAULT '{}'"
+    )
+
+
+def parse_space_embeddings_config(raw: str | None) -> dict[str, Any]:
+    """Parse spaces.embeddings_config JSON into a normalized dict.
+
+    Vector-search settings for a space: whether the feature is on, which local Ollama
+    serves it, and the model's vector width (probed on save, not typed by hand — the
+    dimension is baked into the Neo4j index). An unset/corrupt column reads as ``{}``,
+    which means "never configured" and lets the instance env vars stand in.
+    """
+    if raw is None:
+        return {}
+    text = str(raw).strip()
+    if not text:
+        return {}
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict) or not data:
+        return {}
+    dimensions = data.get("dimensions")
+    try:
+        dims = int(dimensions) if dimensions not in (None, "") else None
+    except (TypeError, ValueError):
+        dims = None
+    return {
+        "enabled": bool(data.get("enabled")),
+        "ollama_url": str(data.get("ollama_url") or "").strip(),
+        "embed_model": str(data.get("embed_model") or "").strip(),
+        "dimensions": dims,
+    }
+
+
+def format_space_embeddings_config(cfg: dict[str, Any]) -> str:
+    """Serialize vector-search settings for the spaces.embeddings_config column."""
+    payload = {
+        "enabled": bool(cfg.get("enabled")),
+        "ollama_url": str(cfg.get("ollama_url") or "").strip(),
+        "embed_model": str(cfg.get("embed_model") or "").strip(),
+        "dimensions": cfg.get("dimensions"),
+    }
+    return json.dumps(payload, separators=(",", ":"))
+
+
+def fetch_space_embeddings_config(space_id: str) -> dict[str, Any]:
+    """Read a space's stored vector-search settings (``{}`` when never configured)."""
+    sid = (space_id or "").strip()
+    if not sid:
+        raise ValueError("space_id is required")
+    with catalog_db() as conn:
+        _ensure_spaces_embeddings_config_column(conn)
+        conn.commit()
+        cur = conn.execute("SELECT embeddings_config FROM spaces WHERE id = ?", (sid,))
+        row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"Unknown space id: {sid!r}")
+        return parse_space_embeddings_config(row["embeddings_config"])
+
+
+def write_space_embeddings_config(space_id: str, cfg: dict[str, Any]) -> dict[str, Any]:
+    """Persist a space's vector-search settings verbatim (no policy checks here).
+
+    Validation and the Neo4j index lifecycle live in ``server.embeddings``; this is the
+    storage half only.
+    """
+    sid = (space_id or "").strip()
+    if not sid:
+        raise ValueError("space_id is required")
+    with catalog_db() as conn:
+        _ensure_spaces_embeddings_config_column(conn)
+        cur = conn.execute("SELECT id FROM spaces WHERE id = ?", (sid,))
+        if cur.fetchone() is None:
+            raise ValueError(f"Unknown space id: {sid!r}")
+        conn.execute(
+            "UPDATE spaces SET embeddings_config = ? WHERE id = ?",
+            (format_space_embeddings_config(cfg), sid),
+        )
+        conn.commit()
+    return fetch_space_embeddings_config(sid)
 
 
 def append_space_group(space_id: str, group_title: str) -> dict[str, Any]:

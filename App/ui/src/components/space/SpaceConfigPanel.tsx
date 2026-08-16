@@ -12,6 +12,7 @@ import {
 } from "../../utils/spaceName";
 import { AgentsPanel } from "../agents/AgentsPanel";
 import { CredentialsPanel } from "../credentials/CredentialsPanel";
+import { EmbeddingsPanel } from "../embeddings/EmbeddingsPanel";
 import { SpaceLabelsPicker } from "../modals/SpaceLabelsPicker";
 import { TemplatesPanel } from "../templates/TemplatesPanel";
 import { UsersPanel } from "../users/UsersPanel";
@@ -21,6 +22,7 @@ type SpaceConfigTab =
   | "users"
   | "agents"
   | "credentials"
+  | "embeddings"
   | "templates"
   | "audit";
 
@@ -282,6 +284,16 @@ export function SpaceConfigPanel({
           {canManageSpace ? (
             <button
               type="button"
+              className={tab === "embeddings" ? "active" : undefined}
+              data-testid="space-tab-embeddings"
+              onClick={() => setTab("embeddings")}
+            >
+              Embeddings
+            </button>
+          ) : null}
+          {canManageSpace ? (
+            <button
+              type="button"
               className={tab === "templates" ? "active" : undefined}
               data-testid="space-tab-templates"
               onClick={() => setTab("templates")}
@@ -394,6 +406,10 @@ export function SpaceConfigPanel({
 
         {tab === "credentials" && canManageSpace ? (
           <CredentialsPanel spaceId={spaceId} />
+        ) : null}
+
+        {tab === "embeddings" && canManageSpace ? (
+          <EmbeddingsPanel spaceId={spaceId} />
         ) : null}
 
         {tab === "templates" && canManageSpace ? (

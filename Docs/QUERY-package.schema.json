@@ -245,6 +245,10 @@
         "is_key": { "type": "boolean" },
         "is_label": { "type": "boolean" },
         "is_indexed": { "type": "boolean" },
+        "is_embedded": {
+          "type": "boolean",
+          "description": "Include this property's value in the record's vector-search embedding text. Only read when the SCHEMA is is_vectorized."
+        },
         "options": {
           "type": "array",
           "items": { "type": "string" },
@@ -561,6 +565,10 @@
         "sequencial_properties": {
           "$ref": "#/$defs/sequencialPropertiesCrud",
           "description": "Required when the match clause label is STEP (endpoint and body on each STEP node)."
+        },
+        "is_vectorized": {
+          "type": "boolean",
+          "description": "SCHEMA-level: embed this type's INSTANCE records for vector search. Stored beside schemata in the SCHEMA payload. With no property marked is_embedded, the display-label property is embedded."
         }
       }
     },
@@ -637,6 +645,10 @@
           "enum": ["null", "cypher", "implicit"],
           "default": "null",
           "description": "How to interpret condition. Use null when no relationship guard applies."
+        },
+        "is_vectorized": {
+          "type": "boolean",
+          "description": "SCHEMA-level: embed this relationship type's INSTANCE edges for vector search. Stored beside schemata in the SCHEMA payload."
         },
         "cypher_condition": {
           "$ref": "#/$defs/cypherConditionBuilder",
@@ -982,6 +994,43 @@
           "type": "string",
           "enum": ["downstream", "network"],
           "description": "Read STEP/SCHEMA single-node traversal mode. downstream emits MATCH path = (:LABEL { attributive_label: ... })-[*]->(downstream) RETURN path; network uses an undirected -[*]- variable-length path. Ignored unless the match has exactly one node."
+        },
+        "vector_search": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "text", "k"],
+          "description": "READ INSTANCE nearest-neighbour search. When enabled, the composer emits CALL db.index.vector.queryNodes($vector_index, $vector_overfetch, $vector_query) YIELD node AS <var>, score instead of a MATCH, filters on attributive_label (plus any per-node WHERE) and returns the node with its score ordered by score DESC LIMIT. The engine fills $vector_query / $vector_index / $vector_overfetch at run time. Requires a single INSTANCE node with no relationship hops, and (unless all_labels is set) a literal attributive_label. Both text and k may instead be supplied by a parameter so a sequence step can populate them: a literal is declared on the catalog row under the reserved name (vector_query_text / vector_k), while a parameterized one is declared under the author's own name and tagged vector_role text or k so the engine knows which value to embed or limit by.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Opt this read into vector search."
+            },
+            "text": {
+              "type": "string",
+              "description": "Search text, embedded with the space's Ollama model. Either a literal, or exactly $name (the whole field, not a fragment) to have a sequence supply it."
+            },
+            "k": {
+              "description": "Number of nearest neighbours to return: an integer 1-100, or a parameter reference so a sequence supplies it. A bare integer is accepted from packages authored before k could be parameterized.",
+              "oneOf": [
+                { "type": "integer", "minimum": 1, "maximum": 100 },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["value"],
+                  "properties": {
+                    "value": { "type": "integer", "minimum": 1, "maximum": 100 }
+                  }
+                },
+                { "$ref": "#/$defs/parameterRef" }
+              ]
+            },
+            "all_labels": {
+              "type": "boolean",
+              "default": false,
+              "description": "Search every vectorized type rather than one. The shared :INSTANCE index already spans all of them, so this omits the attributive_label filter and the selected label is ignored. The composed Cypher then names no SCHEMA, so the operation is not reported as a reference to one. Compose-time only: it changes the statement shape, so a sequence cannot flip it per run."
+            }
+          }
         }
       },
       "allOf": [

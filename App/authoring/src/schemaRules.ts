@@ -58,8 +58,26 @@ export function isEmptyCheckboxRaw(valueType: ValueType, raw: string): boolean {
 /** Default INSTANCE key column when the SCHEMA author does not define is_key. */
 export const DEFAULT_SCHEMA_KEY_PROPERTY_NAME = "id";
 
-/** Reserved on SCHEMA create; implicit UID ``id`` is injected at compose time. */
+/**
+ * System property names an author may not define, and why.
+ *
+ * `id` is injected as the implicit UID key at compose time. The embedding properties are
+ * written by the engine's vector-search module (Engine/server/embeddings.py) and rejected
+ * again server-side in `schema_update.validate_schema_update`, since any client can call
+ * the API directly.
+ */
+export const RESERVED_SCHEMA_PROPERTY_KEYS: ReadonlyMap<string, string> = new Map([
+  [DEFAULT_SCHEMA_KEY_PROPERTY_NAME, "reserved for the implicit INSTANCE key"],
+  ["embedding", "reserved for the vector-search embedding"],
+  ["embedding_stale", "reserved for the vector-search staleness marker"]
+]);
+
 export function isReservedSchemaPropertyKey(key: string): boolean {
+  return RESERVED_SCHEMA_PROPERTY_KEYS.has((key ?? "").trim().toLowerCase());
+}
+
+/** The implicit UID key name specifically (kept out of live input, unlike the others). */
+export function isImplicitSchemaKeyName(key: string): boolean {
   return (key ?? "").trim().toLowerCase() === DEFAULT_SCHEMA_KEY_PROPERTY_NAME;
 }
 
@@ -67,11 +85,9 @@ export function validateSchemaPropertyKey(key: string): { valid: boolean; messag
   const name = (key ?? "").trim();
   if (!name) return { valid: false, message: "required" };
   if (extractExactParameterRef(name)) return { valid: true, message: "" };
-  if (isReservedSchemaPropertyKey(name)) {
-    return {
-      valid: false,
-      message: `"${DEFAULT_SCHEMA_KEY_PROPERTY_NAME}" is reserved for the implicit INSTANCE key`
-    };
+  const reservedReason = RESERVED_SCHEMA_PROPERTY_KEYS.get(name.toLowerCase());
+  if (reservedReason) {
+    return { valid: false, message: `"${name}" is ${reservedReason}` };
   }
   if (normalizeSchemaPropertyKey(name) !== name || !/^[A-Z]/.test(name)) {
     return {
@@ -89,6 +105,11 @@ export interface SchemaPropertySchemaEntry {
   is_key: boolean;
   is_label: boolean;
   is_indexed: boolean;
+  /**
+   * Included in the record's vector-search embedding text. Emitted only when true, so a
+   * SCHEMA that does not use vector search keeps the payload it has always written.
+   */
+  is_embedded?: boolean;
   format?: string;
   default_value?: string;
   options?: string[];
@@ -123,6 +144,7 @@ function bindingToSchemaEntry(binding: PropertyBinding): SchemaPropertySchemaEnt
     is_label: Boolean(sp.is_label),
     is_indexed: Boolean(sp.is_indexed)
   };
+  if (sp.is_embedded) entry.is_embedded = true;
   if (value_type === "string" && sp.format) entry.format = sp.format;
   if (value_type === "radio" || value_type === "checkbox") {
     entry.options = normalizeOptions(sp.options);
@@ -194,7 +216,8 @@ export function propertiesFromSchemata(schemata: SchemaPropertyConstraint[]): Pr
       is_required: Boolean(c.is_required),
       is_key: Boolean(c.is_key),
       is_label: Boolean(c.is_label),
-      is_indexed: Boolean(c.is_indexed)
+      is_indexed: Boolean(c.is_indexed),
+      is_embedded: Boolean(c.is_embedded)
     };
     if (value_type === "radio" || value_type === "checkbox") {
       schematic_properties.options = normalizeOptions(c.options);

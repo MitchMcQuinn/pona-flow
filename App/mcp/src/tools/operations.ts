@@ -70,12 +70,56 @@ const intentSchema = {
         is_key: z.boolean().optional().describe("Value must be unique across instances."),
         is_label: z.boolean().optional().describe("Used as the instance's display name."),
         is_indexed: z.boolean().optional(),
+        is_embedded: z
+          .boolean()
+          .optional()
+          .describe(
+            "Include this property's text in the record's vector-search embedding. " +
+              "Only read when the SCHEMA is is_vectorized."
+          ),
         default_value: z.string().optional(),
         options: z.array(z.string()).optional().describe("Choices for radio/checkbox."),
       })
     )
     .optional()
     .describe("Property contract. Only meaningful when creating a SCHEMA."),
+  is_vectorized: z
+    .boolean()
+    .optional()
+    .describe(
+      "Embed this SCHEMA's INSTANCE records for semantic search. With no property marked " +
+        "is_embedded, the display-label property is embedded."
+    ),
+  vector_search: z
+    .object({
+      enabled: z.boolean().optional(),
+      text: z
+        .string()
+        .optional()
+        .describe(
+          "Search text. A literal is overridable per run under vector_query_text; exactly " +
+            "$name instead declares a parameter of that name for a sequence to populate."
+        ),
+      k: z
+        .union([z.number().int().min(1).max(100), z.string()])
+        .optional()
+        .describe(
+          "Nearest neighbours to return: 1-100, or exactly $name to take it from a parameter."
+        ),
+      all_labels: z
+        .boolean()
+        .optional()
+        .describe(
+          "Search every vectorized type instead of the selected attributive_label, which is " +
+            "then ignored. Defaults to false."
+        ),
+    })
+    .optional()
+    .describe(
+      "READ INSTANCE semantic search instead of a plain MATCH. Needs a single INSTANCE node " +
+        "and no hops; unless all_labels is set it also needs a literal attributive_label whose " +
+        "SCHEMA is marked is_vectorized. Results come back as the matched nodes plus a score column."
+    ),
   instance_properties: z
     .array(z.object({ key: z.string(), value: z.string() }))
     .optional()

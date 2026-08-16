@@ -163,6 +163,44 @@ def runner_token() -> str:
     return (os.environ.get("PONA_FLOW_RUNNER_TOKEN") or "").strip()
 
 
+def ollama_url() -> str:
+    """Base URL of the local Ollama service (``PONA_FLOW_OLLAMA_URL``).
+
+    Ollama is a trusted engine-owned localhost service (like the sandbox runner): the
+    server calls it directly for embeddings, and sequence STEPs never reach it.
+    """
+    return (
+        os.environ.get("PONA_FLOW_OLLAMA_URL") or "http://127.0.0.1:11434"
+    ).strip().rstrip("/")
+
+
+def ollama_embed_model() -> str:
+    """Embedding model name for vector search (``PONA_FLOW_OLLAMA_EMBED_MODEL``).
+
+    Intentionally has no default: an embedding model must be pulled in Ollama and named
+    explicitly, since its dimensions are baked into the Neo4j vector index.
+    """
+    return (os.environ.get("PONA_FLOW_OLLAMA_EMBED_MODEL") or "").strip()
+
+
+def embedding_reindex_seconds() -> int:
+    """How often the engine sweeps stale records back into the vector index.
+
+    ``PONA_FLOW_EMBEDDING_REINDEX_SECONDS``; ``0`` (or anything unparseable) turns the
+    periodic sweep off entirely, leaving the Reindex button as the only trigger. Defaults
+    to five minutes: an embed round trip per changed record is real work, so this trails
+    writes rather than racing them.
+    """
+    raw = (os.environ.get("PONA_FLOW_EMBEDDING_REINDEX_SECONDS") or "").strip()
+    if not raw:
+        return 300
+    try:
+        seconds = int(raw)
+    except ValueError:
+        return 0
+    return max(0, seconds)
+
+
 def credential_backend() -> str:
     """Selected credential store backend (``passthrough`` | ``local`` | ``hosted``).
 

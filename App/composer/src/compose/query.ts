@@ -5,6 +5,7 @@ import { appendCreateReturnStar, joinComposedCypherLines } from "../render/join.
 import { renderMatchClauses } from "../render/match.js";
 import { renderDeleteLine, renderOrderSkipLimit, renderReturnLine } from "../render/return.js";
 import { composeReadDefaultNetworkLines, composeReadTraversalLines } from "../render/traversal.js";
+import { composeVectorSearchLines } from "../render/vectorSearch.js";
 import { renderWhereLine } from "../render/where.js";
 import { composeEntitySqlite } from "../sqlite/entity.js";
 import type { ComposedQuery, QueryObject } from "../types.js";
@@ -33,6 +34,19 @@ export function composeQuery(query: QueryObject | null | undefined): ComposedQue
   if (operation === "update" && (primaryLabel === "STEP" || primaryLabel === "SCHEMA")) {
     return {
       cypher: "",
+      sqlite: composeEntitySqlite(query, operation),
+      parameters: collectParameters(query),
+      operation
+    };
+  }
+
+  // Vector search replaces the whole MATCH…RETURN shape (engine fills $vector_query).
+  // No ORDER BY / LIMIT / RETURN from the query object — k and score order are fixed.
+  const vectorLines = composeVectorSearchLines(query);
+  if (vectorLines) {
+    vectorLines.forEach((line) => lines.push(line));
+    return {
+      cypher: joinComposedCypherLines(lines, operation),
       sqlite: composeEntitySqlite(query, operation),
       parameters: collectParameters(query),
       operation

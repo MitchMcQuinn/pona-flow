@@ -8,7 +8,7 @@ import {
 import { newSchematicProperties } from "../../state/builder/defaults";
 import {
   choiceConfigOf,
-  isReservedSchemaPropertyKey,
+  isImplicitSchemaKeyName,
   validateSchemaDefaultValue,
   validateSchemaPropertyKey
 } from "@pona-flow/authoring";
@@ -55,6 +55,11 @@ interface PropertyBindingProps {
    * default included), since edits belong to the type and go through the schema-update flow.
    */
   readOnly?: boolean;
+  /**
+   * The owning SCHEMA takes part in vector search, so the `is_embedded` flag is meaningful and
+   * gets a toggle. Hidden otherwise — an embed flag on a type nothing indexes is just noise.
+   */
+  vectorized?: boolean;
 }
 
 export function PropertyBinding({
@@ -66,7 +71,8 @@ export function PropertyBinding({
   schemaMode = false,
   canDelete = true,
   locked = false,
-  readOnly = false
+  readOnly = false,
+  vectorized = false
 }: PropertyBindingProps) {
   const { state, patchQuery } = useBuilder();
   const usingParameter = prop.parameter !== undefined;
@@ -126,7 +132,9 @@ export function PropertyBinding({
               disabled={structuralLock}
               onChange={(e) => {
                 const next = sanitizeSchemaPropertyKeyInput(e.target.value);
-                if (isReservedSchemaPropertyKey(next)) return;
+                // Only the implicit key is blocked mid-typing; the other reserved names are
+                // prefixes of plausible ones (EMBEDDING_DATE), so those fail validation instead.
+                if (isImplicitSchemaKeyName(next)) return;
                 patch({ key: next });
               }}
             />
@@ -223,6 +231,14 @@ export function PropertyBinding({
             label="is_indexed"
             disabled={readOnly}
           />
+          {vectorized ? (
+            <Toggle
+              checked={schema.is_embedded === true}
+              onChange={(value) => patchSchema({ is_embedded: value })}
+              label="is_embedded"
+              disabled={readOnly}
+            />
+          ) : null}
         </div>
         {canDelete ? (
           <div className="builderRowActions">

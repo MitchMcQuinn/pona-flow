@@ -30,7 +30,8 @@ export function newSchematicProperties(): SchematicProperties {
     is_required: false,
     is_key: false,
     is_label: false,
-    is_indexed: false
+    is_indexed: false,
+    is_embedded: false
   };
 }
 

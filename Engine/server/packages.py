@@ -27,7 +27,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from . import catalog, graph, spaces
+from . import catalog, embeddings, graph, spaces
 
 
 def _run_cypher_list(
@@ -165,7 +165,10 @@ def execute_mutation_package(
     render; ``update`` / ``delete`` additionally apply SQLite ``entities`` mirror writes in
     a single transaction on the space DB.
     """
-    cypher_results = _run_cypher_list(space_id, cypher_statements, cypher_params)
+    # Vector-search Cypher needs the query text embedded before Neo4j runs; no-op for
+    # ordinary MATCH…RETURN packages.
+    resolved = embeddings.resolve_search_params(space_id, cypher_statements, cypher_params)
+    cypher_results = _run_cypher_list(space_id, cypher_statements, resolved)
     sqlite_results: list[dict[str, Any]] = []
     if sqlite_statements:
         sqlite_results = _run_sqlite_list(

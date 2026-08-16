@@ -24,7 +24,8 @@ Install these before cloning (or as you hit each step):
 | **Neo4j** | Local DB reachable at `bolt://localhost:7687` (Neo4j Desktop is the usual path). Remember the password you set when creating the DB. |
 | **Clerk** (optional for day one) | Free Clerk development app if you want real sign-in. You can also bypass auth locally (see Auth below). |
 
-Optional later: Docker (for the code runner images under `Engine/runner/`).
+Optional later: Docker (for the code runner images under `Engine/runner/`);
+Ollama (for local vector search — [VECTORIZATION-SETUP.md](VECTORIZATION-SETUP.md)).
 
 ---
 
@@ -354,5 +355,7 @@ cd App/ui && npm run dev                    # terminal 2 → http://127.0.0.1:51
 - [README.md](../README.md) — project overview + module map  
 - [DEPLOYMENT.md](DEPLOYMENT.md) — production checklist  
 - [SECURITY-GUIDE.md](SECURITY-GUIDE.md) — auth model in plain language  
-- [DECISIONS.md](DECISIONS.md) — why Clerk, single-tenant, credential backends, etc.  
+- [DECISIONS.md](DECISIONS.md) — why Clerk, single-tenant, credential backends, etc.
+- [VECTORIZATION-SETUP.md](VECTORIZATION-SETUP.md) — local Ollama vector search smoke test
+- [VECTORIZATION-VISION.md](VECTORIZATION-VISION.md) — product design for embeddings  
 - [SEQUENCE-WEBHOOKS.md](SEQUENCE-WEBHOOKS.md) / [MCP-GATEWAY.md](MCP-GATEWAY.md) — agent surfaces after the app is up  

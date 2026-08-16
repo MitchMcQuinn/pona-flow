@@ -13,6 +13,7 @@
  */
 
 import {
+  extractExactParameterRef,
   newMatchClause,
   newQuery,
   newSchematicProperties,
@@ -20,6 +21,7 @@ import {
   normalizeSchemaPropertyKey,
   type ConditionType,
   type GraphNodeLabel,
+  type LiteralOrParameter,
   type Operation,
   type Parameter,
   type PropertyBinding,
@@ -28,6 +30,7 @@ import {
   type ValueType,
   type WhereFilter,
 } from "@pona-flow/authoring";
+import { VECTOR_SEARCH_DEFAULT_K, VECTOR_SEARCH_MAX_K } from "@pona-flow/composer";
 
 export interface SchemaPropertyIntent {
   key: string;
@@ -37,6 +40,8 @@ export interface SchemaPropertyIntent {
   is_key?: boolean;
   is_label?: boolean;
   is_indexed?: boolean;
+  /** Include this property's value in the record's vector-search embedding text. */
+  is_embedded?: boolean;
   default_value?: string;
   options?: string[];
 }
@@ -85,6 +90,8 @@ export interface OperationIntent {
   node_label: GraphNodeLabel;
   attributive_label?: string;
   schema_properties?: SchemaPropertyIntent[];
+  /** SCHEMA-level: embed this type's INSTANCE records for vector search. */
+  is_vectorized?: boolean;
   instance_properties?: InstancePropertyIntent[];
   http_step?: StepHttpIntent;
   code_step?: StepCodeIntent;
@@ -94,6 +101,17 @@ export interface OperationIntent {
   delete_targets?: string[];
   parameters?: ParameterIntent[];
   limit?: number;
+  /**
+   * READ INSTANCE semantic search. Replaces the MATCH with a Neo4j vector-index CALL;
+   * the engine embeds the text at run time. Requires the SCHEMA to be is_vectorized.
+   * text and k each accept exactly ``$name`` to be populated by a sequence instead.
+   */
+  vector_search?: {
+    enabled?: boolean;
+    text?: string;
+    k?: number | string;
+    all_labels?: boolean;
+  };
 }
 
 /** Ids minted server-side and injected so this module stays pure. */
@@ -136,6 +154,7 @@ function schematicFrom(prop: SchemaPropertyIntent): SchematicProperties {
     is_key: Boolean(prop.is_key),
     is_label: Boolean(prop.is_label),
     is_indexed: Boolean(prop.is_indexed),
+    is_embedded: Boolean(prop.is_embedded),
     ...(prop.options?.length ? { options: prop.options } : {}),
   };
 }
@@ -182,6 +201,17 @@ function whereGroup(intent: OperationIntent): { operator: "AND"; items: WhereFil
   return filters.length ? { operator: "AND", items: filters } : undefined;
 }
 
+/** Vector-search k: a count clamped into range, or a $name a sequence supplies. */
+function vectorSearchK(raw: number | string | undefined): LiteralOrParameter {
+  if (typeof raw === "string") {
+    const name = extractExactParameterRef(raw);
+    if (name) return { parameter: name };
+  }
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n <= 0) return { value: VECTOR_SEARCH_DEFAULT_K };
+  return { value: Math.min(n, VECTOR_SEARCH_MAX_K) };
+}
+
 /**
  * Assemble the QueryObject an operation tool describes.
  *
@@ -216,6 +246,7 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
     element.node.id_binding = { key: "id", value: ids.entityIds[0] ?? "" };
     if (intent.node_label === "SCHEMA") {
       element.node.properties = schemaProperties(intent);
+      if (intent.is_vectorized) element.node.is_vectorized = true;
     } else if (intent.node_label === "INSTANCE") {
       element.node.properties = instanceProperties(intent);
     } else if (intent.http_step) {
@@ -255,6 +286,15 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
       })),
     };
     if (typeof intent.limit === "number") query.limit = { value: intent.limit };
+    // Vector search owns ordering and k, so it is not combined with limit/return items.
+    if (intent.vector_search?.enabled) {
+      query.vector_search = {
+        enabled: true,
+        text: intent.vector_search.text ?? "",
+        k: vectorSearchK(intent.vector_search.k),
+        all_labels: intent.vector_search.all_labels === true,
+      };
+    }
   }
   if (intent.operation === "update") {
     query.set = (intent.set_expressions || []).map((expression) => ({ expression }));

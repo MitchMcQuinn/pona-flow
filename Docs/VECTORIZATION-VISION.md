@@ -1,8 +1,4 @@
 # Vectorization vision
-
-Status: **revised design — not scheduled for implementation.**
-Last updated: 2026-08-15
-
 Local semantic find over INSTANCE nodes and relationships. The engine owns a thin
 index + search feature: serialize opted-in records, embed them with Ollama, store
 the vectors on the graph, and return nearest neighbors. Sequences do the rest
@@ -13,6 +9,8 @@ sidecar vector database, and it is not a user-owned maintenance workflow.
 
 Related reading:
 
+- [VECTORIZATION-SETUP.md](VECTORIZATION-SETUP.md) — step-by-step local setup
+  and smoke test (Ollama → space config → SCHEMA opt-in → reindex → search).
 - [CONTEXT-GRAPH-DECISIONING.md](CONTEXT-GRAPH-DECISIONING.md) — graphs answer
   “what is connected / which rule applies”; vectors answer “what is similar.”
 - [DECISIONS.md](DECISIONS.md) — space isolation, Neo4j-per-space, D7 SSRF
@@ -284,7 +282,6 @@ context graph, and sequences already do it.
 - Not a user-owned consolidation sequence the manager reimplements
 - Not embed templates (join `KEY: value` in schema order)
 - Not overflow summarization / `embedding_summary` / generate-on-embed
-- Not a vector-search toggle in the QUERY builder
 - Not a following `POINTS_TO` hop on the search call
 - Not hybrid keyword + vector ranking
 - Not cloud embedding providers
@@ -305,8 +302,62 @@ code STEPs, not a user sequence.
 
 ### 7.3 How you search
 
-Engine search API. Sequences consume IDs and traverse. No QUERY-builder
-operation type in v1.
+Two front doors onto the same engine primitive.
+
+The **engine search API** (`POST /api/spaces/{id}/embeddings/search`) returns scalar
+hits — id, label, score. Sequences consume those ids and traverse.
+
+The **QUERY builder** offers a `vector_search` toggle on READ INSTANCE. It is not a new
+operation type: the composer emits ordinary Cypher that calls the vector index, and the
+engine fills the embedding before the statement runs.
+
+```cypher
+CALL db.index.vector.queryNodes($vector_index, $vector_overfetch, $vector_query) YIELD node AS PROJECT, score
+WHERE PROJECT.attributive_label = 'PROJECT' AND (PROJECT.STATUS = 'active')
+RETURN PROJECT, score
+ORDER BY score DESC
+LIMIT $vector_k
+```
+
+Returning the node itself (rather than scalar projections) is what lets the results
+panel render both the graph and table views. Because the statement is ordinary stored
+Cypher, a vector-search operation saves to the catalog and runs inside a sequence like
+any other read.
+
+Two parameter tiers:
+
+- Author-facing, declared on the catalog row so a sequence step can override them:
+  `vector_query_text`, `vector_k`. This is what makes "search text from an upstream
+  step" work.
+- Engine-filled, never sent by the client: `vector_query` (the embedding),
+  `vector_index`, `vector_overfetch`.
+
+An author can name the first tier themselves by typing exactly `$searchTerm` or
+`$topK` into the text or k field, which turns it into an ordinary declared parameter.
+That is what lets two vector searches coexist in one sequence — under the reserved
+names they would both read the same `vector_query_text`. The composer tags the
+resulting catalog row `vector_role: "text" | "k"` so the resolver knows which value to
+embed, falling back to the reserved names when no row carries the marker (which is
+every operation saved before this existed). A parameterized `k` renders as
+`LIMIT $topK`; a literal one keeps `LIMIT $vector_k`. The text never reaches Cypher
+either way.
+
+The resolver (`embeddings.resolve_search_params`) runs on both execution paths and
+no-ops unless a statement calls `db.index.vector.query*`, so ordinary reads pay nothing.
+
+A `all_labels` toggle (off by default) drops the label filter entirely, searching every
+vectorized type at once — the shared `:INSTANCE` index already spans all of them. It is
+compose-time only, since it changes the statement shape rather than a bound value. Note
+that a broad search names no SCHEMA in its Cypher, so it is not counted as a reference
+to one by delete blast radius or template export.
+
+Scope: a single INSTANCE node with no relationship hops, and (unless `all_labels` is on)
+a literal `attributive_label`. Per-node WHERE filters are kept and render after the
+index call as a post-filter —
+which means a tight filter can return fewer than `k` hits, because the filter applies to
+the overfetched candidate set rather than the whole label. RETURN projections, ORDER BY,
+SKIP/LIMIT and DISTINCT are hidden while the toggle is on: `k` is the limit and score is
+the order.
 
 ### 7.4 How you maintain
 
@@ -335,7 +386,8 @@ default viz / `RETURN *`.
 
 ### 7.9 Label filter
 
-Search defaults to one `attributive_label`. Mixed types are opt-in.
+Search defaults to one `attributive_label`. Mixed types are opt-in — via `kind` /
+omitted label on the API, or the **Search all types** toggle in the builder.
 Overfetch when post-filtering.
 
 ### 7.10 Space toggle
@@ -358,8 +410,8 @@ Known local version: Desktop `2026.07.0`. Setup docs pin **Neo4j 2025.01+**
 ## 8. Later (not v1)
 
 - Inline embed on the write path when text fits and Ollama is up
-- QUERY-builder / composer expression of vector search
 - Embed templates (`{{NAME}} is a {{TITLE}}`)
+- Relationship-kind vector search in the QUERY builder (the API already supports it)
 - Following hop from hits in the same read
 - Hybrid keyword + vector ranking
 - Child `CHUNK` INSTANCE pattern (a SCHEMA convention, not engine magic)
@@ -385,6 +437,8 @@ Not a task list — a map of where this would land.
 | Scheduled reindex | `Engine/server/scheduler.py` calling the reindex endpoint |
 | Vector index DDL | `Engine/server/schema_update.py` (`_apply_index_changes` as the btree analogue) |
 | Graph result stripping | `Engine/server/graph.py` |
+| QUERY-builder toggle | `App/ui/src/components/builder/VectorSearchSection.tsx`, `App/composer/src/render/vectorSearch.ts` |
+| Execution pre-step | `Engine/server/embeddings.py` (`resolve_search_params`), `Engine/server/packages.py`, `Engine/server/execution_run.py` |
 | Setup docs | `Docs/FIRST-TIME-SETUP.md` (Neo4j 2025.01+ / 5.18+; Ollama optional) |
 
 

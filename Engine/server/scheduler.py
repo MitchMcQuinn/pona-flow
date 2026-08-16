@@ -28,7 +28,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from . import catalog, execution, triggers
+from . import catalog, config, embeddings, execution, spaces, triggers
 
 # Upper bound on how long the loop sleeps between checks. Bounds responsiveness to
 # clock changes and acts as a safety net even though create/edit/delete signal a wake.
@@ -158,6 +158,104 @@ def _tick() -> float:
     return max(_MIN_SLEEP_SECONDS, min(delta, _MAX_SLEEP_SECONDS))
 
 
+def sweep_stale_embeddings() -> dict[str, Any]:
+    """Embed the pending records of every space with vector search enabled.
+
+    Engine-internal, not an authorable sequence: nothing about it is per-space configurable
+    beyond the on/off switch, and it has to keep running whether or not anyone has built a
+    sequence. Only records with no vector or a stale one are embedded, so a sweep over an
+    unchanged space costs one query per vectorized type and no Ollama calls at all.
+    """
+    summary: dict[str, Any] = {"spaces": 0, "embedded": 0, "failed": 0}
+    try:
+        rows = spaces.fetch_spaces()
+    except Exception as e:  # noqa: BLE001 - a catalog hiccup must not kill the loop
+        sys.stderr.write(f"scheduler: embedding sweep could not list spaces: {e}\n")
+        return summary
+    for row in rows:
+        space_id = str(row.get("id") or "").strip()
+        if not space_id:
+            continue
+        try:
+            if not embeddings.resolve_config(space_id).get("enabled"):
+                continue
+            result = embeddings.reindex_space(space_id, only_stale=True)
+        except Exception as e:  # noqa: BLE001 - one space must not stop the others
+            sys.stderr.write(f"scheduler: embedding sweep failed for {space_id!r}: {e}\n")
+            summary["failed"] += 1
+            continue
+        summary["spaces"] += 1
+        summary["embedded"] += int(result.get("embedded") or 0)
+    return summary
+
+
+class EmbeddingReindexJob:
+    """Periodic stale-record sweep, coalesced.
+
+    The sweep runs in the loop body, so two can never overlap; a request that arrives mid-run
+    sets one flag, which collapses any number of writes into a single follow-up sweep rather
+    than a queue of them. This is why the sweep does not need to be idempotent-per-request:
+    it always re-reads what is still pending.
+    """
+
+    def __init__(self) -> None:
+        self._task: Optional[asyncio.Task] = None
+        self._wake = asyncio.Event()
+        self._stopped = False
+        self._pending = False
+
+    def request(self) -> None:
+        """Ask for a sweep as soon as the current one (if any) finishes."""
+        self._pending = True
+        self._wake.set()
+
+    async def start(self) -> None:
+        self._stopped = False
+        self._task = asyncio.create_task(self._loop())
+
+    async def stop(self) -> None:
+        self._stopped = True
+        self._wake.set()
+        if self._task is not None:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+            self._task = None
+
+    async def _loop(self) -> None:
+        while not self._stopped:
+            interval = config.embedding_reindex_seconds()
+            if interval <= 0:
+                # Turned off: drop any request rather than accumulating one, and idle on the
+                # wake event so re-enabling it (a new interval) is picked up promptly.
+                self._pending = False
+                self._wake.clear()
+                try:
+                    await asyncio.wait_for(self._wake.wait(), timeout=_MAX_SLEEP_SECONDS)
+                except asyncio.TimeoutError:
+                    pass
+                continue
+            # A request that arrived during the last sweep is served without waiting; the flag
+            # (not the event) is what survives, since the event is cleared before each wait.
+            if not self._pending:
+                self._wake.clear()
+                try:
+                    await asyncio.wait_for(self._wake.wait(), timeout=float(interval))
+                except asyncio.TimeoutError:
+                    self._pending = True
+            if self._stopped:
+                break
+            if not self._pending:
+                continue
+            self._pending = False
+            try:
+                await asyncio.to_thread(sweep_stale_embeddings)
+            except Exception as e:  # noqa: BLE001 - keep the loop alive
+                sys.stderr.write(f"scheduler: embedding sweep error: {e}\n")
+
+
 class Scheduler:
     """Owns the background asyncio task and a wake signal for create/edit/delete."""
 
@@ -205,24 +303,40 @@ class Scheduler:
 
 
 _INSTANCE: Optional[Scheduler] = None
+_EMBEDDINGS: Optional[EmbeddingReindexJob] = None
 
 
 async def start() -> None:
     """Create and start the singleton scheduler (called on app startup)."""
-    global _INSTANCE
+    global _INSTANCE, _EMBEDDINGS
     if _INSTANCE is not None:
         return
     _INSTANCE = Scheduler()
     await _INSTANCE.start()
+    _EMBEDDINGS = EmbeddingReindexJob()
+    await _EMBEDDINGS.start()
 
 
 async def stop() -> None:
     """Stop and clear the singleton scheduler (called on app shutdown)."""
-    global _INSTANCE
+    global _INSTANCE, _EMBEDDINGS
+    if _EMBEDDINGS is not None:
+        await _EMBEDDINGS.stop()
+        _EMBEDDINGS = None
     if _INSTANCE is None:
         return
     await _INSTANCE.stop()
     _INSTANCE = None
+
+
+def request_embedding_sweep() -> None:
+    """Ask the periodic job to sweep stale records at its next opportunity.
+
+    Called after a write marks records stale, so a change is picked up without waiting out
+    the full interval. Coalesced: many writes cause one sweep.
+    """
+    if _EMBEDDINGS is not None:
+        _EMBEDDINGS.request()
 
 
 def request_reload() -> None:

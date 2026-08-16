@@ -48,6 +48,8 @@ export async function updateSchemaDefinition(
     schemaId: string;
     attributiveLabel: string;
     schemata: SchemaPropertyConstraint[];
+    /** Omit to keep whatever the stored SCHEMA already says about vector search. */
+    isVectorized?: boolean;
   },
   apiBase?: string
 ): Promise<SchemaUpdateResult> {
@@ -58,6 +60,7 @@ export async function updateSchemaDefinition(
       schema_id: opts.schemaId,
       attributive_label: opts.attributiveLabel,
       schemata: opts.schemata,
+      ...(opts.isVectorized === undefined ? {} : { is_vectorized: opts.isVectorized }),
     },
     apiBase,
     errorLabel: "updating schema",
@@ -75,6 +78,7 @@ export async function previewSchemaUpdate(
     schemaId: string;
     attributiveLabel: string;
     schemata: SchemaPropertyConstraint[];
+    isVectorized?: boolean;
   },
   apiBase?: string
 ): Promise<SchemaUpdatePreview> {
@@ -85,6 +89,7 @@ export async function previewSchemaUpdate(
       schema_id: opts.schemaId,
       attributive_label: opts.attributiveLabel,
       schemata: opts.schemata,
+      ...(opts.isVectorized === undefined ? {} : { is_vectorized: opts.isVectorized }),
     },
     apiBase,
     errorLabel: "previewing schema update",

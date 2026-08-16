@@ -70,6 +70,10 @@ Builder (`components/builder/`):
 - `builder-picker-toggle`, `builder-picker-menu`
 - `builder-run-btn`, `builder-create-operation-btn`, `builder-save-operation-btn`
 - `builder-create-sequence-btn`
+- `vector-search-section`, `vector-search-text`, `vector-search-k`,
+  `vector-search-hint` (the toggles are the `#vector-search-toggle` and
+  `#vector-search-all-labels-toggle` element ids, as elsewhere for `Toggle`).
+  `vector-search-k` is a text input, not a number one, so it can hold `$topK`
 
 Top bar: `topbar-run-btn`, `topbar-back-btn`
 
@@ -88,8 +92,12 @@ Modals:
 Space admin:
 
 - `space-tab-settings`, `space-tab-users`, `space-tab-agents`,
-  `space-tab-credentials`, `space-tab-templates`, `space-tab-audit`
+  `space-tab-credentials`, `space-tab-embeddings`, `space-tab-templates`,
+  `space-tab-audit`
 - `space-settings-save-btn`, `space-delete-btn`
+- `embeddings-url-input`, `embeddings-model-input`, `embeddings-save-btn`,
+  `embeddings-check-btn`, `embeddings-reindex-btn` (the enabled switch is the
+  `#embeddings-enabled-toggle` element id, as elsewhere for `Toggle`)
 - `template-select-sequences`, `template-select-operations`,
   `template-select-schemas`, `template-select-events`, `template-resolve-btn`,
   `template-export-summary`, `template-export-btn` (download)

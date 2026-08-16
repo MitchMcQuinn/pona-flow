@@ -38,6 +38,7 @@ from . import catalog
 from . import config
 from . import credentials
 from . import cypher_utils
+from . import embeddings
 from . import graph
 from . import resources
 from . import schema_currency
@@ -216,6 +217,12 @@ def _execute_query_step(
         cypher = [cypher]
     operation = str(referenced.get("operation") or "read").strip().lower()
     resolved = _coerce_declared_boolean_params(referenced.get("parameters"), resolved)
+    # Vector-search operations store CALL db.index.vector.queryNodes; embed the query
+    # text here so sequences re-run the stored Cypher without a separate search step.
+    # The declared rows say which parameter holds that text when the author named it.
+    resolved = embeddings.resolve_search_params(
+        space_id, cypher, resolved, referenced.get("parameters")
+    )
     records: list[Any] = []
     last_graph: Any = None
     nodes_deleted = 0
@@ -239,6 +246,9 @@ def _execute_query_step(
                 if label:
                     instance_labels.add(label)
     schema_currency.reconcile_labels(
+        space_id, instance_labels, log_context=f"step {query_id}"
+    )
+    embeddings.mark_labels_stale(
         space_id, instance_labels, log_context=f"step {query_id}"
     )
     response: dict[str, Any] = {"records": records}

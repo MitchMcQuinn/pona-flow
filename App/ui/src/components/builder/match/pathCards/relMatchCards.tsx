@@ -50,6 +50,7 @@ import { InstanceRelAttributiveField } from "../../fields/InstanceRelAttributive
 import { MatchRelAttributiveLabelField } from "../../fields/MatchRelAttributiveLabelField";
 import { MatchStepRelAttributiveLabelField } from "../../fields/MatchStepRelAttributiveLabelField";
 import { StepRelConditionField } from "../../fields/StepRelConditionField";
+import { VectorizedField } from "../../fields/VectorizedField";
 import {
   clearDownstreamChecks,
   PathWhereFooter,
@@ -129,6 +130,7 @@ export function ConfigUpdateRelCard(props: RelCardProps) {
         id_binding: { key: "id", value: edge.rel_id },
         variable: edge.rel_id,
         alias_locked: true,
+        is_vectorized: edge.rel_is_vectorized === true,
         properties: relProperties
       })(q);
       const following = next.match[clauseIndex]?.patterns[patternIndex]?.path[pathIndex + 1];
@@ -194,6 +196,12 @@ export function ConfigUpdateRelCard(props: RelCardProps) {
 
       {hasAttributiveLabel && label === "SCHEMA" ? (
         <div className="builderBlock">
+          <VectorizedField
+            clauseIndex={clauseIndex}
+            patternIndex={patternIndex}
+            pathIndex={pathIndex}
+            checked={relationship.is_vectorized === true}
+          />
           {relationship.properties.map((prop, propIndex) => (
             <PropertyBinding
               key={propIndex}
@@ -204,6 +212,7 @@ export function ConfigUpdateRelCard(props: RelCardProps) {
               prop={prop}
               schemaMode
               canDelete
+              vectorized={relationship.is_vectorized === true}
             />
           ))}
           <div className="builderCardFooter">

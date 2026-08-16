@@ -19,6 +19,14 @@ import {
   validateSchemaDefaultValue,
   validateSchemaPropertyKey
 } from "./schemaRules.js";
+import {
+  isVectorSearchAllLabels,
+  isVectorSearchEnabled,
+  vectorKParameterName,
+  vectorTextParameterName,
+  VECTOR_RESERVED_PARAM_NAMES,
+  VECTOR_SEARCH_MAX_K,
+} from "@pona-flow/composer";
 
 // Pure structural validation, ported from the legacy validatePathStructure +
 // create-gated checks. Returns human-readable warnings (empty array = valid).
@@ -483,7 +491,110 @@ export function validateQuery(query: QueryObject, _runtimeEnabled: boolean): str
 
   validateParameterDefaults(query.parameters, warnings);
 
+  validateVectorSearch(query, warnings);
+
   return warnings;
+}
+
+const ATTRIBUTIVE_LABEL_PARAM_RE = /^\$(?![0-9])([A-Za-z_][A-Za-z0-9_]*)$/;
+
+function validateVectorSearch(query: QueryObject, warnings: string[]): void {
+  if (!isVectorSearchEnabled(query)) {
+    // Still reject reserved vector_* names even when the toggle is off, so a
+    // hand-authored parameter cannot collide with the engine-filled ones later.
+    for (const p of query.parameters || []) {
+      const name = String(p?.name || "").trim();
+      if (name && VECTOR_RESERVED_PARAM_NAMES.has(name)) {
+        warnings.push(
+          `Parameter "${name}" is reserved for vector search and cannot be declared manually.`
+        );
+      }
+    }
+    return;
+  }
+
+  if ((query.operation || "read") !== "read") {
+    warnings.push("Vector search is only available on READ operations.");
+    return;
+  }
+
+  const primaryLabel = query.match[0]?.label;
+  if (primaryLabel !== "INSTANCE") {
+    warnings.push("Vector search is only available for READ INSTANCE.");
+    return;
+  }
+
+  const vs = query.vector_search!;
+  // A $param supplies the text at run time, so an empty literal is only a problem
+  // when the field is not parameterized.
+  const text = String(vs.text ?? "").trim();
+  if (!text && !vectorTextParameterName(query)) {
+    warnings.push("Vector search requires a search text.");
+  }
+
+  // Likewise k: a parameterized one is unknown until the run, and the engine rejects
+  // an out-of-range value then. Read the raw literal rather than the normalized one,
+  // which clamps for the catalog and would hide an out-of-range entry here.
+  if (!vectorKParameterName(query)) {
+    const rawK =
+      typeof vs.k === "number" ? vs.k : vs.k && "value" in vs.k ? vs.k.value : undefined;
+    const k = Number(rawK);
+    if (!Number.isFinite(k) || k < 1 || k > VECTOR_SEARCH_MAX_K || !Number.isInteger(k)) {
+      warnings.push(`Vector search k must be an integer between 1 and ${VECTOR_SEARCH_MAX_K}.`);
+    }
+  }
+
+  let nodeCount = 0;
+  let hasRelationship = false;
+  let attributiveLabel = "";
+  let variable = "";
+  for (const clause of query.match || []) {
+    for (const pattern of clause.patterns || []) {
+      for (const element of pattern.path || []) {
+        if (element.kind === "relationship") {
+          hasRelationship = true;
+          continue;
+        }
+        if (element.kind === "node") {
+          nodeCount += 1;
+          if (nodeCount === 1) {
+            attributiveLabel = String(element.node.attributive_label || "").trim();
+            variable = String(element.node.variable || "").trim();
+          }
+        }
+      }
+    }
+  }
+  if (hasRelationship || nodeCount !== 1) {
+    warnings.push(
+      "Vector search supports a single INSTANCE node with no relationship hops."
+    );
+  }
+  // A broad search spans the whole :INSTANCE index, so the selected label is ignored
+  // and neither its presence nor its concreteness matters.
+  if (!isVectorSearchAllLabels(query)) {
+    if (!attributiveLabel) {
+      warnings.push("Vector search requires an attributive_label.");
+    } else if (ATTRIBUTIVE_LABEL_PARAM_RE.test(attributiveLabel)) {
+      warnings.push(
+        "Vector search requires a concrete attributive_label (not a $parameter)."
+      );
+    }
+  }
+  if (variable.toLowerCase() === "score") {
+    warnings.push(
+      'Vector search reserves the alias "score" for the similarity score; rename the node variable.'
+    );
+  }
+
+  for (const p of query.parameters || []) {
+    const name = String(p?.name || "").trim();
+    if (name && VECTOR_RESERVED_PARAM_NAMES.has(name)) {
+      warnings.push(
+        `Parameter "${name}" is reserved for vector search and cannot be declared manually.`
+      );
+    }
+  }
 }
 
 function validateClause(

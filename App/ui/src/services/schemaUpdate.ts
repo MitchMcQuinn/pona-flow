@@ -57,6 +57,7 @@ function constraintsFromBindings(props: PropertyBinding[]): SchemaPropertyConstr
       is_label: ps.is_label,
       is_indexed: ps.is_indexed
     };
+    if (ps.is_embedded) constraint.is_embedded = true;
     if (ps.format) constraint.format = ps.format;
     if (ps.options) constraint.options = ps.options;
     if (typeof ps.min_choices === "number") constraint.min_choices = ps.min_choices;
@@ -72,6 +73,8 @@ export interface SchemaUpdateInput {
   schemaId: string;
   attributiveLabel: string;
   schemata: SchemaPropertyConstraint[];
+  /** Whether this type's instances take part in vector search. */
+  isVectorized: boolean;
 }
 
 /** Pull the edited SCHEMA node + its constraints out of the current builder query. */
@@ -84,7 +87,13 @@ export function extractSchemaUpdateInput(state: BuilderState): SchemaUpdateInput
   const attributiveLabel = (subject.attributive_label ?? "").trim();
   if (!schemaId) throw new Error("Select an existing SCHEMA to update.");
   if (!attributiveLabel) throw new Error("The selected SCHEMA is missing an attributive_label.");
-  return { spaceId, schemaId, attributiveLabel, schemata: constraintsFromBindings(subject.properties) };
+  return {
+    spaceId,
+    schemaId,
+    attributiveLabel,
+    schemata: constraintsFromBindings(subject.properties),
+    isVectorized: subject.is_vectorized === true
+  };
 }
 
 export interface SchemaUpdatePreviewOutcome {

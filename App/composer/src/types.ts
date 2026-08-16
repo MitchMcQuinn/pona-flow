@@ -32,6 +32,12 @@ export interface SchematicProperties {
   is_key: boolean;
   is_label: boolean;
   is_indexed: boolean;
+  /**
+   * Include this property's value in the record's embedding text (vector search).
+   * Opt-in per property: embedding every field buries the meaningful ones in ids and
+   * codes. Only read when the SCHEMA itself is `is_vectorized`.
+   */
+  is_embedded?: boolean;
   /** radio + checkbox: the choices the end user picks from. */
   options?: string[];
   /** checkbox: minimum number of choices the end user must select. */
@@ -124,6 +130,12 @@ export interface NodePattern {
   where_enabled?: boolean;
   where?: WhereGroup;
   node_source?: "new" | "existing";
+  /**
+   * SCHEMA-level: this type's INSTANCE records are embedded for vector search. Stored as a
+   * sibling of `schemata` in the SCHEMA payload (like a relationship's `condition_type`),
+   * because it describes the type rather than any one property.
+   */
+  is_vectorized?: boolean;
 }
 
 export interface RelationshipLength {
@@ -168,6 +180,8 @@ export interface RelationshipPattern {
   where_enabled?: boolean;
   where?: WhereGroup;
   node_source?: "new" | "existing";
+  /** SCHEMA-level: embed this relationship type's INSTANCE edges for vector search. */
+  is_vectorized?: boolean;
 }
 
 export type PathElement =
@@ -284,6 +298,34 @@ export interface ReturnClause {
   items: ReturnItem[];
 }
 
+/**
+ * READ INSTANCE nearest-neighbour search over a space's Neo4j vector index.
+ *
+ * When enabled, the composer emits ``CALL db.index.vector.queryNodes`` instead of a
+ * normal MATCH. The engine fills ``$vector_query`` (the embedding) at run time so the
+ * same stored Cypher works from the builder and inside a sequence.
+ */
+export interface VectorSearchConfig {
+  enabled: boolean;
+  /**
+   * Free-text query embedded with the space's Ollama model. Either a literal, or
+   * exactly ``$name`` to have a sequence supply it (the whole field, not a fragment).
+   */
+  text: string;
+  /**
+   * Top-k hits after the attributive_label (and optional WHERE) filter. A bare number
+   * is tolerated from snapshots saved before this became a LiteralOrParameter.
+   */
+  k: LiteralOrParameter | number;
+  /**
+   * Search every vectorized type instead of the selected attributive_label. The shared
+   * :INSTANCE index already spans all of them, so this simply omits the label filter —
+   * which also means the operation no longer references one SCHEMA. Compose-time only
+   * (it changes the statement shape), so a sequence cannot flip it per run.
+   */
+  all_labels?: boolean;
+}
+
 export interface QueryObject {
   id: string;
   name: string;
@@ -305,6 +347,8 @@ export interface QueryObject {
    * returning the matched path. Ignored unless the match has exactly one node.
    */
   read_traversal?: "downstream" | "network";
+  /** READ INSTANCE semantic search; ignored unless enabled on a single INSTANCE node. */
+  vector_search?: VectorSearchConfig;
 }
 
 export interface ComposedQuery {

@@ -1,3 +1,4 @@
+import { vectorKParameterName, vectorTextParameterName } from "@pona-flow/composer";
 import { newSchematicProperties } from "./defaults.js";
 import { PARAMETER_NAME_RE, STEP_BODY_PARAM_REF_RE } from "./stepBodyParams.js";
 import type { Parameter, PropertyBinding, QueryObject, ValueType, WhereItem } from "./types.js";
@@ -102,6 +103,10 @@ export function collectReferencedParameterNames(query: QueryObject): string[] {
   if (query.limit && "parameter" in query.limit && PARAMETER_NAME_RE.test(query.limit.parameter)) {
     refs.add(query.limit.parameter);
   }
+  // Vector search: the search text and k may each be a $param a sequence supplies.
+  [vectorTextParameterName(query), vectorKParameterName(query)].forEach((name) => {
+    if (name && PARAMETER_NAME_RE.test(name)) refs.add(name);
+  });
 
   return Array.from(refs).sort((a, b) => a.localeCompare(b));
 }
@@ -284,6 +289,27 @@ export function collectParameterOriginMeta(query: QueryObject): Map<string, Para
       });
     }
   });
+
+  // Vector search: the search text is the string the engine embeds, k is a count.
+  // Both are required (the search cannot run without them) and type-locked.
+  const vectorText = vectorTextParameterName(query);
+  if (vectorText && PARAMETER_NAME_RE.test(vectorText)) {
+    out.set(vectorText, {
+      value_type: "string",
+      format: undefined,
+      is_required: true,
+      locked: true
+    });
+  }
+  const vectorK = vectorKParameterName(query);
+  if (vectorK && PARAMETER_NAME_RE.test(vectorK)) {
+    out.set(vectorK, {
+      value_type: "integer",
+      format: undefined,
+      is_required: true,
+      locked: true
+    });
+  }
 
   return out;
 }

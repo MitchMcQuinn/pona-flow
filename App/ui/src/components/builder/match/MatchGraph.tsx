@@ -13,6 +13,7 @@ import {
   supportsIncomingHop
 } from "@pona-flow/authoring";
 import { isAttributiveLabelParameter } from "@pona-flow/authoring";
+import { isVectorSearchEnabled } from "@pona-flow/composer";
 import {
   addGraphEdge,
   projectMatchToGraph
@@ -161,6 +162,8 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
 
   function canConnectFrom(attributiveLabel: string): boolean {
     if (!editable) return false;
+    // Vector search matches a single anchor node; a hop would break the index CALL.
+    if (isVectorSearchEnabled(state.query)) return false;
     if (!gatedMode) return true;
     const al = attributiveLabel.trim();
     if (!al) return false;

@@ -13,11 +13,13 @@ import json
 import re
 from typing import Any
 
-# Matches an ``attributive_label: 'X'`` / ``attributive_label:"X"`` binding inside a
-# Cypher (or SQLite) statement. Used for precise (exact-label) reference detection
-# rather than naive substring matching, which would catch labels embedded in other
-# labels or string literals.
-ATTR_LABEL_RE = re.compile(r"attributive_label\s*:\s*['\"]([^'\"]+)['\"]")
+# Matches an ``attributive_label: 'X'`` / ``attributive_label:"X"`` map binding, or the
+# equality form ``attributive_label = 'X'`` used by vector-search WHERE filters.
+# Used for precise (exact-label) reference detection rather than naive substring
+# matching, which would catch labels embedded in other labels or string literals.
+ATTR_LABEL_RE = re.compile(
+    r"attributive_label\s*(?::|=)\s*['\"]([^'\"]+)['\"]"
+)
 
 # A relationship pattern (``-[...]->``) in a sequence read query means the sequence
 # walks past its initial STEP into the downstream POINTS_TO chain. Without one, the

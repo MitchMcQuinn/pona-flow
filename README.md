@@ -87,7 +87,11 @@ The dev server is a local HTTP process for browser-based tools under `App/`. It 
 | [`Engine/server/sequence_service.py`](Engine/server/sequence_service.py) | Transport-agnostic run primitive (`run_sequence_once`, `list_runnable_sequences`) shared by the webhook and MCP gateway. |
 | [`Engine/server/agent_keys.py`](Engine/server/agent_keys.py) | Agent API keys: mint/verify/revoke (`stg_` tokens, stored as SHA-256 hashes) for non-Clerk principals. |
 | [`Engine/server/mcp_gateway.py`](Engine/server/mcp_gateway.py) | Per-space Model Context Protocol server (Streamable HTTP); exposes sequences as agent-callable tools. |
+| [`Engine/server/execution_run.py`](Engine/server/execution_run.py) | Sequence executor: walk STEPs, pause for required parameters, run a query / HTTP call / sandboxed script, bind response parameters. |
+| [`Engine/server/embeddings.py`](Engine/server/embeddings.py) | Local vector search: Ollama embeddings, Neo4j vector indexes, reindex, and `resolve_search_params` before a vector-search Cypher statement runs. |
 | [`Engine/server/app.py`](Engine/server/app.py) | FastAPI routing, authenticated JSON API, static files under `/App/`. |
+
+Code-execution STEPs are **not** run inside this process. The engine POSTs `{language, code, timeout_seconds, space_id}` to a separate sandbox runner (`Engine/runner/`, default `127.0.0.1:8766`). See [Engine/runner/README.md](Engine/runner/README.md).
 
 Each module file includes a longer module docstring describing logic and how it fits the project.
 
@@ -138,11 +142,52 @@ Possible applications include but are not limited to:
 
 ### The Graph Ontology
 
-At the highest level of abstraction pona flow implements a minimalist ontology consisting of only three types of nodes and only type of relationship. Nodes are only connected to others of the same type and correspond with the three categories of graph patterns (sequencial, schematic, and instantial). 
+At the highest level of abstraction pona flow implements a minimalist ontology consisting of only three types of nodes and only one type of relationship. Nodes are only connected to others of the same type and correspond with the three categories of graph patterns (sequencial, schematic, and instantial).
 
 - (STEP)-[POINTS_TO]->(STEP)
 - (SCHEMA)-[POINTS_TO]->(SCHEMA)
 - (INSTANCE)-[POINTS_TO]->(INSTANCE)
+
+| Label | What it is |
+| --- | --- |
+| **SCHEMA** | A property contract: which keys exist, their types, which are required or unique. An INSTANCE of that type must satisfy it. |
+| **INSTANCE** | One record that satisfies a SCHEMA. This is the data a sequence reads, writes, and (optionally) vector-searches. |
+| **STEP** | An executable unit. A sequence is a chain of STEPs linked by `POINTS_TO`. |
+
+A **sequence** is a saved, runnable entry point that names the STEP the run starts at. At run time the executor walks outgoing `POINTS_TO` edges. An edge may be unconditional, or gated on a parameter (optionally compared to an expected boolean, which is how two sibling edges branch).
+
+Saving a catalog operation auto-wraps it in a STEP node. A STEP that does not wrap an operation is a custom step: an outbound HTTP call, or a sandboxed script. Build order matters — operations (and their wrapping STEPs) first, then transitions, then the sequence. A sequence created before its STEPs exist matches nothing and runs as a no-op.
+
+### STEPs
+
+Every STEP is one of three kinds. The executor (`Engine/server/execution_run.py`) picks the runner from the step payload: a `query_id` runs a saved operation; `kind: "code"` runs a script; an `endpoint` URL runs an HTTP request.
+
+| Kind | How it is authored | What runs |
+| --- | --- | --- |
+| **Saved operation** | QUERY builder (create / read / update / delete on STEP, SCHEMA, or INSTANCE). Save wraps a STEP that stores the catalog `query_id`. | The stored Cypher (and any SQLite) against the space's Neo4j / per-space SQLite. Parameters declared on the catalog row are supplied by the sequence; required ones pause the run as `pending` until a human or an upstream step fills them. |
+| **HTTP (custom endpoint)** | STEP create with an endpoint URL, method, headers, and JSON body. Body fields may contain `$parameter` tokens; headers and body may contain `$secret.NAME` tokens resolved from the space credential store at request time. | An outbound HTTP request. Loopback, link-local, and other non-public addresses are blocked (D7) — HTTP STEPs cannot call Ollama, the runner, or the engine itself. |
+| **Code (sandboxed)** | STEP create with `step_type: "code"`, a language (`python` or `javascript`), and a script stored as a catalog resource. `$parameter` tokens in the script are substituted before the run. | The engine never executes the script. It POSTs the payload to the sandbox runner, which starts a disposable Docker container (`--network none`, non-root, memory/CPU/PID caps, 30s wall clock). JSON output can be mapped into downstream parameters via `response_parameters`. Setup: [Engine/runner/README.md](Engine/runner/README.md). |
+
+`response_parameters` on an HTTP or code STEP map a JSON path in the result onto a parameter name so a later STEP (or a condition on a `POINTS_TO` edge) can use it. That is how an HTTP or code step can populate `$searchTerm` for a downstream vector-search read.
+
+Sequences are run from the dashboard, from `POST /api/spaces/{space_id}/sequences/{sequence_id}/run`, or as MCP tools. All three share `Engine/server/sequence_service.py`.
+
+### Vector search
+
+Local nearest-neighbour search over opted-in INSTANCE records. There is no sidecar vector database: Ollama embeds the text, Neo4j stores the vector on the node (and on INSTANCE-to-INSTANCE `POINTS_TO` edges), and a hit *is* the record.
+
+A SCHEMA opts in with `is_vectorized`; individual properties opt in with `is_embedded` (the display-label property is the default). Reindex writes the vectors. Walkthrough: [Docs/VECTORIZATION-SETUP.md](Docs/VECTORIZATION-SETUP.md). Design notes: [Docs/VECTORIZATION-VISION.md](Docs/VECTORIZATION-VISION.md).
+
+In the QUERY builder, a **read INSTANCE** can flip `vector_search` on. That replaces the MATCH with `CALL db.index.vector.queryNodes(...)`, filters on the selected `attributive_label` (unless **Search all types** is on), and returns the node plus a `score`. Two author-facing inputs:
+
+| Field | Literal | Parameter |
+| --- | --- | --- |
+| **Search text** | Embedded at run time; declared on the catalog row as `vector_query_text` so a sequence can override it. | Exactly `$searchTerm` (the whole field) declares a parameter of that name. The catalog row is tagged `vector_role: "text"` so the engine knows which value to embed. |
+| **k** (top results, 1–100) | Declared as `vector_k`. Composed Cypher is `LIMIT $vector_k`. | Exactly `$topK` declares that parameter (`vector_role: "k"`). Composed Cypher is `LIMIT $topK`. Range-checked at run time, not while authoring. |
+
+Author-named parameters are what let two vector searches coexist in one sequence — under the reserved names they would both read the same `vector_query_text`. Once either field is parameterized the builder **Run** button hides (there is no value until a sequence supplies one); save the operation and drive it from a sequence.
+
+The engine fills `$vector_query` (the embedding), `$vector_index`, and `$vector_overfetch` immediately before Cypher runs. Those names are reserved; they are never sent by the client. Ollama is reached only from `Engine/server/embeddings.py` — HTTP STEPs cannot call it.
 
 ### The SQLite Database Structure
 
