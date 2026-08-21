@@ -31,13 +31,15 @@ export interface GraphNodeRow {
   // strict types as the composer (HTTP verb union; object body) rather than string/unknown.
   sequencial_properties?: {
     query_id?: string;
-    step_type?: "http" | "code";
+    step_type?: "http" | "code" | "local_llm";
     endpoint?: string;
     method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     headers?: Record<string, unknown>;
     body?: Record<string, unknown>;
     /** Code-execution STEP: backing catalog resources row (code fetched separately). */
     resource_id?: string;
+    /** Local LLM STEP: catalog local_llm_configs row id. */
+    local_llm_config_id?: string;
     response_parameters?: Array<{
       property_path: string;
       parameter: string;

@@ -34,6 +34,19 @@ describe("sequence: lifecycle", () => {
     cy.get(".sequenceDescription").should("contain.text", "E2E lifecycle description for agents.");
   });
 
+  it("shows a copyable webhook curl and parameter input list for a selected sequence", () => {
+    seedSequence();
+
+    cy.selectSequenceInNav(GOLDEN_SEQUENCE_NAME);
+    cy.get('[data-testid="sequence-webhook-toggle"]').click();
+    cy.get('[data-testid="sequence-webhook-curl"]', { timeout: 20_000 }).should(
+      "contain.text",
+      "/sequences/"
+    );
+    cy.get('[data-testid="sequence-webhook-curl"]').should("contain.text", "/run");
+    cy.get('[data-testid="sequence-webhook-copy"]').should("contain.text", "Copy curl");
+  });
+
   it("edits a sequence from the nav and re-saves its builder config", () => {
     seedSequence();
 

@@ -22,7 +22,8 @@ import {
   composeStepWrapEntitySql,
   composeStepWrapGraphCypher,
   isStepCodeExecution,
-  isStepCustomEndpoint
+  isStepCustomEndpoint,
+  isStepLocalLlm
 } from "./step/endpoint.js";
 import { instanceCreateIdParamName } from "./entity/ids.js";
 import {
@@ -158,6 +159,7 @@ export interface ComposerApi {
     sp: { query_id?: string; endpoint?: string; body?: unknown } | null | undefined
   ): boolean;
   isStepCodeExecution(sp: SequencialProperties | null | undefined): boolean;
+  isStepLocalLlm(sp: SequencialProperties | null | undefined): boolean;
   composeStepWrapEntitySql(params: {
     entityId: string;
     operationId: string;
@@ -194,6 +196,7 @@ export const composer: ComposerApi = {
   instanceCreateIdParamName,
   isStepCustomEndpoint,
   isStepCodeExecution,
+  isStepLocalLlm,
   composeStepWrapEntitySql,
   composeStepWrapGraphCypher,
   composeOneStepSequenceCypher,

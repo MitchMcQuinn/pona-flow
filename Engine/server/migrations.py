@@ -39,6 +39,7 @@ _CATALOG_DDL_FILES = (
     "space-credentials-table.sql",
     "resources-table.sql",
     "template-imports-table.sql",
+    "local-llm-configs-table.sql",
 )
 
 

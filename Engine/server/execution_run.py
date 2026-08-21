@@ -40,6 +40,7 @@ from . import credentials
 from . import cypher_utils
 from . import embeddings
 from . import graph
+from . import local_llms
 from . import resources
 from . import schema_currency
 
@@ -637,14 +638,75 @@ def _execute_code_step(
     return {**meta, "result": result, "_raw_text": json.dumps({"result": result})}
 
 
+def _local_llm_overrides(resolved: dict[str, Any]) -> dict[str, Any]:
+    """This run's optional Local LLM settings, taken from the resolved parameters.
+
+    A parameter left blank never reaches ``resolved`` (the resolve loop skips
+    empties), so an absent key means "keep the saved config's value".
+    """
+    out: dict[str, Any] = {}
+    for key in local_llms.OVERRIDE_KEYS:
+        if key not in resolved:
+            continue
+        value = resolved[key]
+        if value is None or value == "":
+            continue
+        out[key] = value
+    return out
+
+
+def _execute_local_llm_step(
+    space_id: str, step: dict[str, Any], resolved: dict[str, Any]
+) -> dict[str, Any]:
+    """Run a saved local LLM config against Ollama using the sequence ``prompt`` param."""
+    config_id = str(step.get("config_id") or "").strip()
+    if not config_id:
+        return {"_ok": False, "_error": "Local LLM step has no config_id configured."}
+    prompt = resolved.get("prompt")
+    if prompt is None or (isinstance(prompt, str) and not prompt.strip()):
+        return {
+            "_ok": False,
+            "_error": "Local LLM step requires a non-empty sequence parameter named 'prompt'.",
+        }
+    prompt_text = prompt if isinstance(prompt, str) else str(prompt)
+    try:
+        result = local_llms.run_config(
+            space_id, config_id, prompt_text, _local_llm_overrides(resolved)
+        )
+    except local_llms.ConfigNotFound as e:
+        return {"_ok": False, "_error": str(e)}
+    except local_llms.LocalLlmUnavailable as e:
+        return {"_ok": False, "_error": str(e)}
+    except ValueError as e:
+        return {"_ok": False, "_error": str(e)}
+    except Exception as e:  # noqa: BLE001
+        return {"_ok": False, "_error": f"Local LLM step failed: {e}"}
+    out = dict(result)
+    out["_ok"] = True
+    out["_raw_text"] = json.dumps(
+        {
+            "config_id": result.get("config_id"),
+            "model": result.get("model"),
+            "response": result.get("response"),
+            "parsed": result.get("parsed"),
+            "done_reason": result.get("done_reason"),
+            "eval_count": result.get("eval_count"),
+        }
+    )
+    return out
+
+
 def _execute_step(
     space_id: str, step: dict[str, Any], resolved: dict[str, Any]
 ) -> dict[str, Any]:
     query_id = str(step.get("query_id") or "").strip()
     if query_id:
         return _execute_query_step(space_id, query_id, resolved)
-    if str(step.get("kind") or "").strip() == "code":
+    kind = str(step.get("kind") or "").strip()
+    if kind == "code":
         return _execute_code_step(space_id, step, resolved)
+    if kind == "local_llm":
+        return _execute_local_llm_step(space_id, step, resolved)
     if str(step.get("endpoint") or "").strip():
         return _execute_endpoint_step(space_id, step, resolved)
     return {}
@@ -1049,6 +1111,9 @@ def run_execution(
         if str(step.get("kind") or "").strip() == "code":
             executed_entry["kind"] = "code"
             executed_entry["resource_id"] = str(step.get("resource_id") or "")
+        elif str(step.get("kind") or "").strip() == "local_llm":
+            executed_entry["kind"] = "local_llm"
+            executed_entry["config_id"] = str(step.get("config_id") or "")
         executed.append(executed_entry)
         _bind_response_parameters(response, response_parameters, resolved)
 

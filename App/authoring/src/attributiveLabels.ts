@@ -1,5 +1,19 @@
 import type { QueryObject } from "./types.js";
 
+/**
+ * Entities a create package is actually writing. Alias references and matched-existing
+ * endpoints are in the pattern so the composer can MERGE an edge onto them, but they
+ * already own their attributive_label — claiming those labels as "new" makes the server
+ * uniqueness gate reject a self-referential SCHEMA relationship (or a STEP transition)
+ * as a collision with the node the author just selected.
+ */
+function isWrittenCreateEntity(entity: {
+  alias_mode?: string;
+  node_source?: string;
+}): boolean {
+  return entity.alias_mode !== "reference" && entity.node_source !== "existing";
+}
+
 function collectFromQuery(
   query: QueryObject,
   clauseLabel: "STEP" | "SCHEMA"
@@ -7,8 +21,12 @@ function collectFromQuery(
   const out = new Set<string>();
   if (query.operation !== "create" || query.match[0]?.label !== clauseLabel) return [];
 
-  const add = (entity: { attributive_label?: string; alias_mode?: string }) => {
-    if (entity.alias_mode === "reference") return;
+  const add = (entity: {
+    attributive_label?: string;
+    alias_mode?: string;
+    node_source?: string;
+  }) => {
+    if (!isWrittenCreateEntity(entity)) return;
     const al = (entity.attributive_label ?? "").trim();
     if (al) out.add(al);
   };
@@ -53,7 +71,7 @@ export function collectCreateEntityIds(query: QueryObject): string[] {
     node_source?: string;
     id_binding?: { value?: unknown };
   }) => {
-    if (entity.alias_mode === "reference" || entity.node_source === "existing") return;
+    if (!isWrittenCreateEntity(entity)) return;
     const id = String(entity.id_binding?.value ?? "").trim();
     // A `$param` id is minted at run time and cannot pre-own a label.
     if (id && !id.startsWith("$")) out.add(id);

@@ -50,6 +50,8 @@ export type AppEvent =
   | { type: "PERMISSIONS_LOADED"; permissions: SpacePermissions | null }
   | { type: "SPACE_PANEL_OPENED" }
   | { type: "SPACE_PANEL_CLOSED" }
+  | { type: "LOCAL_LLMS_PANEL_OPENED" }
+  | { type: "LOCAL_LLMS_PANEL_CLOSED" }
   | { type: "AUDIT_LOG_OPENED" }
   | { type: "AUDIT_LOG_LOAD_STARTED" }
   | { type: "AUDIT_LOG_LOAD_SUCCEEDED"; entries: AuditEntry[] }

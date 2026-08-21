@@ -413,6 +413,7 @@ export default function App() {
           state.view.rightPanelMode === "params" ||
           state.view.rightPanelMode === "event" ||
           state.view.rightPanelMode === "space" ||
+          state.view.rightPanelMode === "localLlms" ||
           builderEditOperationActive
         }
         onBackToBuilder={() => {
@@ -445,6 +446,11 @@ export default function App() {
             onOpenSpaceConfig={() => {
               dismissVisualization();
               dispatch({ type: "SPACE_PANEL_OPENED" });
+            }}
+            localLlmsActive={state.view.rightPanelMode === "localLlms"}
+            onOpenLocalLlms={() => {
+              dismissVisualization();
+              dispatch({ type: "LOCAL_LLMS_PANEL_OPENED" });
             }}
             sequences={navSequences}
             groups={state.nav.groups}
@@ -522,6 +528,9 @@ export default function App() {
             onDeleteSpace={spacesLifecycle.openDeleteSpaceModal}
             onLoadAuditLog={loadAuditLog}
             onSpacePanelClose={() => dispatch({ type: "SPACE_PANEL_CLOSED" })}
+            onLocalLlmsPanelClose={() => dispatch({ type: "LOCAL_LLMS_PANEL_CLOSED" })}
+            executionPackage={composedSequence?.package ?? null}
+            composeError={composeError}
           />
         }
       />

@@ -9,6 +9,35 @@ const PARAM_REF_EXACT_RE = /^\$(?![0-9])(?!\{[0-9]+\})[A-Za-z_][A-Za-z0-9_]*$/;
 /** Special value_type for parameters used in an attributive_label field. */
 export const ATTRIBUTIVE_LABEL_VALUE_TYPE = "attributive label" as const;
 
+/** Response format choices a Local LLM run may pick. */
+const LOCAL_LLM_RESPONSE_FORMAT_OPTIONS = ["text", "json_schema"];
+
+/**
+ * Optional Local LLM overrides: a run may replace any saved config setting through
+ * these parameters, blank meaning "keep the config's value". Mirrors the engine's
+ * local_llms.OVERRIDE_KEYS / execution_compose._LOCAL_LLM_OVERRIDE_VALUE_TYPES.
+ * `json_schema` is a string because parameters have no object value_type — the
+ * engine parses the JSON text.
+ */
+const LOCAL_LLM_OVERRIDE_PARAMS: { name: string; value_type: ValueType; options?: string[] }[] = [
+  { name: "system_prompt", value_type: "string" },
+  {
+    name: "response_format",
+    value_type: "radio",
+    options: LOCAL_LLM_RESPONSE_FORMAT_OPTIONS
+  },
+  { name: "json_schema", value_type: "string" },
+  { name: "temperature", value_type: "number" },
+  { name: "top_p", value_type: "number" },
+  { name: "top_k", value_type: "integer" },
+  { name: "min_p", value_type: "number" },
+  { name: "repeat_penalty", value_type: "number" },
+  { name: "num_ctx", value_type: "integer" },
+  { name: "num_predict", value_type: "integer" },
+  { name: "seed", value_type: "integer" },
+  { name: "stop", value_type: "array" }
+];
+
 function addRefsFromText(raw: string, refs: Set<string>): void {
   PARAM_REF_RE.lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -68,6 +97,12 @@ export function collectReferencedParameterNames(query: QueryObject): string[] {
             if (body !== undefined) addRefsFromText(JSON.stringify(body), refs);
             // Code-execution STEP: $param tokens in the script behave like body refs.
             addRefsFromText(String(el.node.sequencial_properties?.code ?? ""), refs);
+            // Local LLM STEP: the engine always reads the sequence parameter `prompt`,
+            // plus the optional parameters that override the saved config for a run.
+            if (el.node.sequencial_properties?.step_type === "local_llm") {
+              refs.add("prompt");
+              LOCAL_LLM_OVERRIDE_PARAMS.forEach((p) => refs.add(p.name));
+            }
           }
           if (el.node.where) addRefsFromWhereItem(el.node.where, refs);
         } else {
@@ -194,6 +229,8 @@ function originFromSchematicProperties(
  *   3. attributive_label (any operation) → "attributive label" type, required (locked).
  *   4. RETURN schema/property/alias → required + locked; value_type stays editable.
  *   5. SKIP / LIMIT → integer, required (locked).
+ *   6. Local LLM STEP → ``prompt`` string, required (locked), plus the optional
+ *      setting overrides, each locked to its own value_type.
  */
 export function collectParameterOriginMeta(query: QueryObject): Map<string, ParameterOrigin> {
   const out = new Map<string, ParameterOrigin>();
@@ -201,6 +238,10 @@ export function collectParameterOriginMeta(query: QueryObject): Map<string, Para
   const instanceCreate = isInstanceCreate(query);
 
   query.match.forEach((clause) => {
+    // Create STEP against an existing node: that node's Local LLM config belongs to the
+    // already-saved STEP, not this operation's runtime parameters.
+    const skipExistingStepNodeParams =
+      query.operation === "create" && clause.label === "STEP";
     clause.patterns.forEach((pattern) => {
       pattern.path.forEach((el) => {
         if (schemaCreate) {
@@ -260,6 +301,30 @@ export function collectParameterOriginMeta(query: QueryObject): Map<string, Para
             format: undefined,
             is_required: true,
             locked: true
+          });
+        }
+
+        // Local LLM STEP: prompt is required (the engine always reads `prompt`); the
+        // setting overrides are optional and fall back to the saved config when blank.
+        if (
+          el.kind === "node" &&
+          el.node.sequencial_properties?.step_type === "local_llm" &&
+          !(skipExistingStepNodeParams && el.node.node_source === "existing")
+        ) {
+          out.set("prompt", {
+            value_type: "string",
+            format: undefined,
+            is_required: true,
+            locked: true
+          });
+          LOCAL_LLM_OVERRIDE_PARAMS.forEach((p) => {
+            out.set(p.name, {
+              value_type: p.value_type,
+              format: undefined,
+              is_required: false,
+              locked: true,
+              options: p.options
+            });
           });
         }
       });

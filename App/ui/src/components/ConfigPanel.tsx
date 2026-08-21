@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import type { AppState, ParameterSchema, SequenceDefinition, StepGraphNode, StepGraphRelationship } from "../state/types";
 import type { BuilderSeed, RunResult } from "../state/builder/types";
-import { updateSequenceDescription } from "../services/api";
+import { updateSequenceDescription, type ExecutionPackage } from "../services/api";
 import { BuilderPanel } from "./builder/BuilderPanel";
 import { EventBuilder } from "./events/EventBuilder";
 import { SpaceConfigPanel } from "./space/SpaceConfigPanel";
+import { LocalLlmsPanel } from "./localLlms/LocalLlmsPanel";
+import { SequenceWebhookSection } from "./sequence/SequenceWebhookSection";
 import { TypedValueInput } from "./builder/fields/TypedValueInput";
 import { parseCheckboxSelection } from "@pona-flow/authoring";
 import "./builder/builder.css";
@@ -33,6 +35,10 @@ interface ConfigPanelProps {
   onDeleteSpace: () => void;
   onLoadAuditLog: () => void;
   onSpacePanelClose: () => void;
+  onLocalLlmsPanelClose?: () => void;
+  /** Composed EXECUTION package for the selected sequence (webhook curl + input list). */
+  executionPackage?: ExecutionPackage | null;
+  composeError?: string | null;
 }
 
 function paramHasValue(parameter: ParameterSchema, value: unknown): boolean {
@@ -267,7 +273,10 @@ export function ConfigPanel({
   spaceSaveError,
   onDeleteSpace,
   onLoadAuditLog,
-  onSpacePanelClose
+  onSpacePanelClose,
+  onLocalLlmsPanelClose,
+  executionPackage = null,
+  composeError = null
 }: ConfigPanelProps) {
   const { rightPanelMode } = state.view;
 
@@ -324,13 +333,23 @@ export function ConfigPanel({
       <div className="panel configPanel">
         <div className="panel__body">
           {selectedSequence ? (
-            <SequenceDescriptionEditor
-              key={selectedSequence.id}
-              spaceId={state.spaceId}
-              sequenceId={selectedSequence.id}
-              initialDescription={selectedSequence.description}
-              onSaved={onNavRefresh}
-            />
+            <div key={selectedSequence.id} className="sequenceParamsMeta">
+              <SequenceDescriptionEditor
+                spaceId={state.spaceId}
+                sequenceId={selectedSequence.id}
+                initialDescription={selectedSequence.description}
+                onSaved={onNavRefresh}
+              />
+              {state.spaceId ? (
+                <SequenceWebhookSection
+                  spaceId={state.spaceId}
+                  sequenceId={selectedSequence.id}
+                  executionPackage={executionPackage}
+                  composeError={composeError}
+                  currentValues={state.params.values}
+                />
+              ) : null}
+            </div>
           ) : null}
           <h2>Parameters</h2>
           {inputParams.length === 0 ? (
@@ -427,6 +446,15 @@ export function ConfigPanel({
         onDeleteSpace={onDeleteSpace}
         onLoadAuditLog={onLoadAuditLog}
         onClose={onSpacePanelClose}
+      />
+    );
+  }
+
+  if (rightPanelMode === "localLlms") {
+    return (
+      <LocalLlmsPanel
+        spaceId={state.spaceId}
+        onClose={onLocalLlmsPanelClose ?? onSpacePanelClose}
       />
     );
   }

@@ -84,6 +84,11 @@ export interface StepCodeIntent {
   response_parameters?: Array<{ property_path: string; parameter: string; default_value?: string }>;
 }
 
+export interface StepLocalLlmIntent {
+  config_id: string;
+  response_parameters?: Array<{ property_path: string; parameter: string; default_value?: string }>;
+}
+
 export interface OperationIntent {
   name: string;
   operation: Operation;
@@ -95,6 +100,7 @@ export interface OperationIntent {
   instance_properties?: InstancePropertyIntent[];
   http_step?: StepHttpIntent;
   code_step?: StepCodeIntent;
+  local_llm_step?: StepLocalLlmIntent;
   where?: WhereIntent[];
   return_items?: ReturnIntent[];
   set_expressions?: string[];
@@ -265,6 +271,12 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
         language: intent.code_step.language ?? "python",
         code: intent.code_step.code,
         response_parameters: intent.code_step.response_parameters ?? [],
+      };
+    } else if (intent.local_llm_step) {
+      element.node.sequencial_properties = {
+        step_type: "local_llm",
+        local_llm_config_id: intent.local_llm_step.config_id,
+        response_parameters: intent.local_llm_step.response_parameters ?? [],
       };
     }
   } else {

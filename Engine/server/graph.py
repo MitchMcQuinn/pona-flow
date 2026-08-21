@@ -404,6 +404,13 @@ def list_graph_nodes_by_label(space_id: str, node_label: str) -> list[dict[str, 
                         "response_parameters": payload.get("response_parameters") or [],
                     }
                     node["parameters"] = _fetch_entity_parameters(space_id, entity_id, "STEP")
+                elif str(payload.get("kind") or "").strip() == "local_llm":
+                    node["sequencial_properties"] = {
+                        "step_type": "local_llm",
+                        "local_llm_config_id": str(payload.get("config_id") or ""),
+                        "response_parameters": payload.get("response_parameters") or [],
+                    }
+                    node["parameters"] = _fetch_entity_parameters(space_id, entity_id, "STEP")
                 else:
                     headers = payload.get("headers")
                     # Custom-endpoint STEP nodes are editable in the update flow, so

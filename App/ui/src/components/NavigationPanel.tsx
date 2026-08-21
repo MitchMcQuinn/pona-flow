@@ -33,6 +33,9 @@ interface NavigationPanelProps {
   canCreateSpace: boolean;
   spaceConfigActive: boolean;
   onOpenSpaceConfig: () => void;
+  /** Whether the Local LLMs management panel is open. */
+  localLlmsActive: boolean;
+  onOpenLocalLlms: () => void;
   /** Persist a new sequence ordering / group assignment after a drag. */
   onReorderSequences: (sequences: SequenceSummary[]) => void;
   /** Persist a new ordered group-title list. */
@@ -520,6 +523,8 @@ export function NavigationPanel({
   canCreateSpace,
   spaceConfigActive,
   onOpenSpaceConfig,
+  localLlmsActive,
+  onOpenLocalLlms,
   onReorderSequences,
   onReorderGroups,
   onAddGroup,
@@ -873,6 +878,23 @@ export function NavigationPanel({
             <AddGroupControl existingGroups={groups} onAddGroup={onAddGroup} />
           </>
         ) : null}
+
+        <div className="navSectionHeader">
+          <h3 className="navSectionTitle">Local LLMs</h3>
+        </div>
+        <ul className="sequenceList">
+          <li className={`sequenceItem${localLlmsActive ? " active" : ""}`}>
+            <button
+              type="button"
+              className="sequenceBtn"
+              disabled={!selectedSpaceId}
+              onClick={onOpenLocalLlms}
+              data-testid="nav-local-llms"
+            >
+              <span className="sequenceBtnLabel">Manage configs</span>
+            </button>
+          </li>
+        </ul>
 
         <div className="navSectionHeader">
           <h3 className="navSectionTitle">Events</h3>

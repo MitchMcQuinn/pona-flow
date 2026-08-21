@@ -72,13 +72,13 @@ export interface StepResponseParameter {
   default_value?: string;
 }
 
-/** Custom STEP execution kind: HTTP request (default/legacy) or sandboxed code. */
-export type StepType = "http" | "code";
+/** Custom STEP execution kind: HTTP request (default/legacy), sandboxed code, or local LLM. */
+export type StepType = "http" | "code" | "local_llm";
 export type CodeLanguage = "python" | "javascript";
 
 export interface SequencialProperties {
   query_id?: string;
-  /** Omitted/"http" -> endpoint step (legacy payloads); "code" -> code-execution step. */
+  /** Omitted/"http" -> endpoint step (legacy payloads); "code" -> code-execution; "local_llm" -> named Ollama config. */
   step_type?: StepType;
   endpoint?: string;
   method?: HttpMethod;
@@ -91,6 +91,8 @@ export interface SequencialProperties {
   language?: CodeLanguage;
   /** Code text held in builder state only; persisted via the resources API, not the entity payload. */
   code?: string;
+  /** Local LLM: catalog `local_llm_configs` row id. Prompt comes from sequence param `prompt`. */
+  local_llm_config_id?: string;
   response_parameters?: StepResponseParameter[];
 }
 

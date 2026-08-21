@@ -25,9 +25,10 @@ function runResultHasContent(result: RunResult): boolean {
 
 function shouldShowBuilderResult(state: AppState, builderResult?: RunResult | null): boolean {
   if (!builderResult || !runResultHasContent(builderResult)) return false;
-  if (state.createSequence || state.createEvent || state.spacePanelOpen) return false;
+  if (state.createSequence || state.createEvent || state.spacePanelOpen || state.localLlmsPanelOpen)
+    return false;
   const mode = state.view.rightPanelMode;
-  return mode !== "space" && mode !== "event";
+  return mode !== "space" && mode !== "event" && mode !== "localLlms";
 }
 
 export const selectors = {

@@ -136,7 +136,9 @@ const intentSchema = {
       response_parameters: z.array(responseParameterSchema).optional(),
     })
     .optional()
-    .describe("Creates a custom-endpoint STEP node. Mutually exclusive with code_step."),
+    .describe(
+      "Creates a custom-endpoint STEP node. Mutually exclusive with code_step and local_llm_step."
+    ),
   code_step: z
     .object({
       resource_name: z.string().describe("Name of the catalog resource holding the script."),
@@ -145,7 +147,24 @@ const intentSchema = {
       response_parameters: z.array(responseParameterSchema).optional(),
     })
     .optional()
-    .describe("Creates a code-execution STEP node. Mutually exclusive with http_step."),
+    .describe(
+      "Creates a code-execution STEP node. Mutually exclusive with http_step and local_llm_step."
+    ),
+  local_llm_step: z
+    .object({
+      config_id: z
+        .string()
+        .describe("Id of a saved Local LLM config in this space (from the Local LLMs panel)."),
+      response_parameters: z.array(responseParameterSchema).optional(),
+    })
+    .optional()
+    .describe(
+      "Creates a Local LLM STEP node. Uses sequence parameter `prompt` at run time, plus " +
+        "optional parameters that override the saved config for that run: `system_prompt`, " +
+        "`response_format` (text|json_schema), `json_schema` (JSON text), `temperature`, " +
+        "`top_p`, `top_k`, `min_p`, `repeat_penalty`, `num_ctx`, `num_predict`, `seed`, `stop`. " +
+        "Mutually exclusive with http_step and code_step."
+    ),
   where: z
     .array(
       z.object({

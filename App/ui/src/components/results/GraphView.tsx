@@ -173,6 +173,14 @@ function resolveNodeLabel(
   return labels[0] ?? fallback.slice(0, 6);
 }
 
+/** Visible graph titles cap here so long display labels don't stretch the layout. */
+const MAX_NODE_LABEL_CHARS = 20;
+
+function abbreviateNodeLabel(label: string, maxChars = MAX_NODE_LABEL_CHARS): string {
+  if (label.length <= maxChars) return label;
+  return `${label.slice(0, maxChars - 1)}…`;
+}
+
 function resolveRelationshipLabel(properties: Record<string, unknown>, fallback: string): string {
   const al = properties.attributive_label;
   if (typeof al === "string" && al.trim()) return al;
@@ -490,7 +498,7 @@ export function GraphView({
 
     node
       .append("text")
-      .text((d) => d.label)
+      .text((d) => abbreviateNodeLabel(d.label))
       .attr("x", 0)
       .attr("y", NODE_RADIUS + 14)
       .attr("text-anchor", "middle")

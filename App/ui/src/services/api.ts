@@ -463,6 +463,8 @@ export interface ExecutionStepParameter {
   min_choices?: number;
   /** checkbox: maximum number of choices that may be selected. */
   max_choices?: number;
+  /** Minted by the executor (create-INSTANCE graph ids); never a caller-supplied input. */
+  auto_generate?: boolean;
 }
 
 export interface ExecutionStepTransition {
@@ -1233,6 +1235,197 @@ export async function reindexEmbeddings(
     failed: Number(data.failed || 0),
     capped: Boolean(data.capped),
     aborted: Boolean(data.aborted)
+  };
+}
+
+// ----- Local LLMs (named Ollama configs) ------------------------------------
+
+export interface LocalLlmOptions {
+  temperature?: number;
+  top_p?: number;
+  top_k?: number;
+  min_p?: number;
+  repeat_penalty?: number;
+  num_ctx?: number;
+  num_predict?: number;
+  seed?: number;
+  stop?: string[];
+}
+
+export interface LocalLlmResponseFormat {
+  type: "text" | "json_schema";
+  json_schema?: Record<string, unknown>;
+}
+
+export interface LocalLlmConfig {
+  id: string;
+  spaceId: string;
+  name: string;
+  model: string;
+  systemPrompt: string;
+  options: LocalLlmOptions;
+  responseFormat: LocalLlmResponseFormat;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LocalLlmModelInfo {
+  name: string;
+  size: number | null;
+  modifiedAt: string | null;
+}
+
+export interface LocalLlmHealth {
+  status: string;
+  ollama: boolean;
+  ollamaUrl: string;
+  ollamaError: string | null;
+}
+
+export interface LocalLlmRunResult {
+  configId: string;
+  model: string;
+  response: string;
+  parsed: unknown;
+  doneReason: string | null;
+  evalCount: number | null;
+}
+
+export type LocalLlmConfigInput = {
+  name: string;
+  model: string;
+  system_prompt?: string;
+  options?: LocalLlmOptions;
+  response_format?: LocalLlmResponseFormat;
+};
+
+function mapLocalLlmConfig(data: Record<string, unknown>): LocalLlmConfig {
+  const options =
+    data.options && typeof data.options === "object" && !Array.isArray(data.options)
+      ? (data.options as LocalLlmOptions)
+      : {};
+  const rfRaw =
+    data.response_format && typeof data.response_format === "object"
+      ? (data.response_format as Record<string, unknown>)
+      : {};
+  const rfType = rfRaw.type === "json_schema" ? "json_schema" : "text";
+  return {
+    id: String(data.id || ""),
+    spaceId: String(data.space_id || ""),
+    name: String(data.name || ""),
+    model: String(data.model || ""),
+    systemPrompt: String(data.system_prompt || ""),
+    options,
+    responseFormat: {
+      type: rfType,
+      json_schema:
+        rfType === "json_schema" && rfRaw.json_schema && typeof rfRaw.json_schema === "object"
+          ? (rfRaw.json_schema as Record<string, unknown>)
+          : undefined
+    },
+    createdAt: String(data.created_at || ""),
+    updatedAt: String(data.updated_at || "")
+  };
+}
+
+export async function fetchLocalLlmConfigs(spaceId: string): Promise<LocalLlmConfig[]> {
+  const data = await getJson<{ configs?: Record<string, unknown>[] }>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/local-llms`,
+    "Failed to load local LLM configs",
+    { cache: "no-store" }
+  );
+  return (data.configs || []).map(mapLocalLlmConfig);
+}
+
+export async function fetchLocalLlmConfig(
+  spaceId: string,
+  configId: string
+): Promise<LocalLlmConfig> {
+  const data = await getJson<Record<string, unknown>>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/local-llms/${encodeURIComponent(configId)}`,
+    "Failed to load local LLM config",
+    { cache: "no-store" }
+  );
+  return mapLocalLlmConfig(data);
+}
+
+export async function createLocalLlmConfig(
+  spaceId: string,
+  body: LocalLlmConfigInput
+): Promise<LocalLlmConfig> {
+  const data = await postJson<Record<string, unknown>>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/local-llms`,
+    body,
+    "Failed to create local LLM config"
+  );
+  return mapLocalLlmConfig(data);
+}
+
+export async function replaceLocalLlmConfig(
+  spaceId: string,
+  configId: string,
+  body: LocalLlmConfigInput
+): Promise<LocalLlmConfig> {
+  const data = await sendJson<Record<string, unknown>>(
+    "PUT",
+    `/api/spaces/${encodeURIComponent(spaceId)}/local-llms/${encodeURIComponent(configId)}`,
+    body,
+    "Failed to save local LLM config"
+  );
+  return mapLocalLlmConfig(data);
+}
+
+export async function deleteLocalLlmConfig(spaceId: string, configId: string): Promise<void> {
+  await deleteJson<unknown>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/local-llms/${encodeURIComponent(configId)}`,
+    "Failed to delete local LLM config"
+  );
+}
+
+export async function fetchLocalLlmHealth(spaceId: string): Promise<LocalLlmHealth> {
+  const data = await getJson<Record<string, unknown>>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/local-llms/health`,
+    "Failed to check Ollama health",
+    { cache: "no-store" }
+  );
+  return {
+    status: String(data.status || ""),
+    ollama: Boolean(data.ollama),
+    ollamaUrl: String(data.ollama_url || ""),
+    ollamaError: data.ollama_error ? String(data.ollama_error) : null
+  };
+}
+
+export async function fetchLocalLlmModels(spaceId: string): Promise<LocalLlmModelInfo[]> {
+  const data = await getJson<{ models?: Record<string, unknown>[] }>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/local-llms/models`,
+    "Failed to list Ollama models",
+    { cache: "no-store" }
+  );
+  return (data.models || []).map((item) => ({
+    name: String(item.name || ""),
+    size: typeof item.size === "number" ? item.size : null,
+    modifiedAt: item.modified_at ? String(item.modified_at) : null
+  }));
+}
+
+export async function runLocalLlmConfig(
+  spaceId: string,
+  configId: string,
+  prompt: string
+): Promise<LocalLlmRunResult> {
+  const data = await postJson<Record<string, unknown>>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/local-llms/${encodeURIComponent(configId)}/run`,
+    { prompt },
+    "Failed to run local LLM"
+  );
+  return {
+    configId: String(data.config_id || configId),
+    model: String(data.model || ""),
+    response: String(data.response || ""),
+    parsed: data.parsed ?? null,
+    doneReason: data.done_reason != null ? String(data.done_reason) : null,
+    evalCount: typeof data.eval_count === "number" ? data.eval_count : null
   };
 }
 
