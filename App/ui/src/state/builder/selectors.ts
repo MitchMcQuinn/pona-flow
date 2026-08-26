@@ -4,6 +4,7 @@ import {
   catalogRuntimeEnabled,
   checksAllClear,
   collectCreateAttributiveLabels,
+  hopModeNotices,
   isActiveCheckKey,
   isEntityConfigUpdate,
   isRunnableEndpointStepCreate,
@@ -185,6 +186,9 @@ export const builderSelectors = {
         warnings.push(guardInfo.message);
       }
     }
+    // Optional-hop blast-radius notes. Display-only for the same reason as uguardInfo:
+    // the query is valid Cypher either way, so these must not reach validateQuery.
+    hopModeNotices(state.query).forEach((notice) => warnings.push(notice));
     return warnings;
   },
 

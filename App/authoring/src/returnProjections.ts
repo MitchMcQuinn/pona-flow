@@ -1,3 +1,4 @@
+import { hopTailVariables } from "@pona-flow/composer";
 import { isAttributiveLabelParameter } from "./normalizeField.js";
 import type { QueryObject, ReturnItem } from "./types.js";
 
@@ -11,12 +12,35 @@ export interface ReadMatchPathBinding {
    * predicates) are invalid Cypher, so pickers must not offer it.
    */
   variableLength?: boolean;
+  /**
+   * The alias is bound by an OPTIONAL MATCH segment, so it is null on rows where the
+   * hop did not match. Valid to reference; pickers flag it so the author knows the
+   * assignment or deletion is a no-op for those rows.
+   */
+  nullable?: boolean;
+  /**
+   * The alias lives inside a must-not-exist (NOT EXISTS) tail and is never bound in
+   * the outer query — referencing it is invalid Cypher, so pickers must not offer it.
+   */
+  unbound?: boolean;
+}
+
+/** Hop-tail flags for a variable, spread into the binding it belongs to. */
+function hopTailFlags(
+  variable: string,
+  tails: { optional: Set<string>; absent: Set<string> }
+): Pick<ReadMatchPathBinding, "nullable" | "unbound"> {
+  return {
+    ...(tails.optional.has(variable) ? { nullable: true as const } : {}),
+    ...(tails.absent.has(variable) ? { unbound: true as const } : {})
+  };
 }
 
 /** Path variables with attributive_label from INSTANCE match patterns (read RETURN pickers). */
 export function collectReadMatchPathBindings(query: QueryObject): ReadMatchPathBinding[] {
   const out: ReadMatchPathBinding[] = [];
   const seen = new Set<string>();
+  const tails = hopTailVariables(query);
   for (const clause of query.match || []) {
     if (clause.label !== "INSTANCE") continue;
     for (const pattern of clause.patterns || []) {
@@ -28,7 +52,12 @@ export function collectReadMatchPathBindings(query: QueryObject): ReadMatchPathB
           const key = `node:${variable}`;
           if (seen.has(key)) continue;
           seen.add(key);
-          out.push({ variable, attributive_label, entityRole: "node" });
+          out.push({
+            variable,
+            attributive_label,
+            entityRole: "node",
+            ...hopTailFlags(variable, tails)
+          });
         } else if (step.kind === "relationship" && step.relationship) {
           const variable = (step.relationship.variable || "").trim();
           const attributive_label = (step.relationship.attributive_label || "").trim();
@@ -44,7 +73,8 @@ export function collectReadMatchPathBindings(query: QueryObject): ReadMatchPathB
             variable,
             attributive_label,
             entityRole: "relationship",
-            ...(variableLength ? { variableLength } : {})
+            ...(variableLength ? { variableLength } : {}),
+            ...hopTailFlags(variable, tails)
           });
         }
       }
@@ -58,34 +88,42 @@ export function collectReadMatchPathBindings(query: QueryObject): ReadMatchPathB
  * spans every graph label (STEP/SCHEMA/INSTANCE) so the delete card can offer a
  * match-bound dropdown in those flows too; entries are kept even when an
  * attributive_label is missing so a freshly added node is still selectable.
+ *
+ * Must-not-exist tail variables are omitted entirely: they are bound only inside the
+ * NOT EXISTS subquery, so a DELETE against one is invalid Cypher. Dropping them here
+ * also lets the delete card's stale-target effect clear a selection when its hop is
+ * switched to "must not exist".
  */
 export function collectDeleteTargetBindings(query: QueryObject): ReadMatchPathBinding[] {
   const out: ReadMatchPathBinding[] = [];
   const seen = new Set<string>();
+  const tails = hopTailVariables(query);
   for (const clause of query.match || []) {
     for (const pattern of clause.patterns || []) {
       for (const step of pattern.path || []) {
         if (step.kind === "node" && step.node) {
           const variable = (step.node.variable || "").trim();
-          if (!variable) continue;
+          if (!variable || tails.absent.has(variable)) continue;
           const key = `node:${variable}`;
           if (seen.has(key)) continue;
           seen.add(key);
           out.push({
             variable,
             attributive_label: (step.node.attributive_label || "").trim(),
-            entityRole: "node"
+            entityRole: "node",
+            ...hopTailFlags(variable, tails)
           });
         } else if (step.kind === "relationship" && step.relationship) {
           const variable = (step.relationship.variable || "").trim();
-          if (!variable) continue;
+          if (!variable || tails.absent.has(variable)) continue;
           const key = `rel:${variable}`;
           if (seen.has(key)) continue;
           seen.add(key);
           out.push({
             variable,
             attributive_label: (step.relationship.attributive_label || "").trim(),
-            entityRole: "relationship"
+            entityRole: "relationship",
+            ...hopTailFlags(variable, tails)
           });
         }
       }
@@ -119,6 +157,9 @@ export function soleDeleteTargetVariable(query: QueryObject): string | null {
  *
  * Pass the *unfiltered* binding list so numbering stays consistent across
  * pickers that filter differently (e.g. variable-length exclusions).
+ *
+ * Optional-hop bindings are suffixed "(optional)" — they are null wherever the hop
+ * misses, which changes what a projection or an assignment against them means.
  */
 export function bindingDisplayLabels(bindings: ReadMatchPathBinding[]): Map<string, string> {
   const counts = new Map<string, number>();
@@ -130,15 +171,17 @@ export function bindingDisplayLabels(bindings: ReadMatchPathBinding[]): Map<stri
   const out = new Map<string, string>();
   for (const b of bindings) {
     const label = b.attributive_label;
+    let display: string;
     if (!label) {
-      out.set(b.variable, b.variable);
+      display = b.variable;
     } else if ((counts.get(label) ?? 0) > 1) {
       const n = (ordinals.get(label) ?? 0) + 1;
       ordinals.set(label, n);
-      out.set(b.variable, `${label} ${n}`);
+      display = `${label} ${n}`;
     } else {
-      out.set(b.variable, label);
+      display = label;
     }
+    out.set(b.variable, b.nullable ? `${display} (optional)` : display);
   }
   return out;
 }

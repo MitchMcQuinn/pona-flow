@@ -1,13 +1,15 @@
 /**
- * Absent hop (must-not-exist anti-join) for read SCHEMA/INSTANCE:
+ * Absent hop (must-not-exist anti-join) for read SCHEMA/INSTANCE and for
+ * update/delete INSTANCE:
  * - the path splits at the first absent relationship; the tail renders as
  *   NOT EXISTS { MATCH (anchor)<tail> } in the global WHERE, anchored on the
  *   preceding node's bare variable
  * - filters on tail entities move inside the subquery's own WHERE
  * - hops after the absent hop normalize into the negated pattern
  * - an earlier optional hop claims the tail first (first flagged hop wins)
- * - READ STEP and non-read operations ignore the flag entirely
- * - RETURN / ORDER BY must not reference variables scoped to the negated tail
+ * - STEP clauses, create, and update/delete SCHEMA ignore the flag entirely
+ * - RETURN / ORDER BY / SET / DELETE must not reference variables scoped to the
+ *   negated tail — they are bound only inside the subquery
  */
 import assert from "node:assert/strict";
 import composer from "./helpers/composer.mjs";
@@ -219,7 +221,7 @@ assert.ok(
 );
 assert.match(stepCypher, /^MATCH \(A:STEP .*\)-\[r0:POINTS_TO .*\]->\(B:STEP .*\)\nRETURN \*$/);
 
-// ---- 10. Non-read operations ignore the flag ----
+// ---- 10. create operations ignore the flag ----
 
 const createQuery = {
   ...readQuery("SCHEMA", [
@@ -320,6 +322,87 @@ assert.equal(
   relationshipHopMode(optionalPath[3].relationship),
   "optional",
   "setting optional forces downstream hops optional"
+);
+
+// ---- 14. DELETE INSTANCE: the anti-join narrows what the DELETE removes ----
+// The motivating case: delete every GROUP that has no TASK.
+
+const deleteChildless = readQuery(
+  "INSTANCE",
+  [node("GROUP", "GROUP"), rel("r0", "HAS_TASK", { absent: true }), node("TASK", "TASK")],
+  { operation: "delete", delete: { detach: true, targets: ["GROUP"] } }
+);
+
+assert.equal(
+  composer.composeQuery(deleteChildless).cypher,
+  [
+    "MATCH (GROUP:INSTANCE { attributive_label: 'GROUP' })",
+    "WHERE NOT EXISTS { MATCH (GROUP)-[r0:POINTS_TO { attributive_label: 'HAS_TASK' }]->(TASK:INSTANCE { attributive_label: 'TASK' }) }",
+    "DETACH DELETE GROUP"
+  ].join("\n"),
+  "delete INSTANCE renders the absent hop as an anti-join before the DELETE"
+);
+
+// ---- 15. UPDATE INSTANCE: same anti-join, SET on the anchor ----
+
+const updateChildless = readQuery(
+  "INSTANCE",
+  [node("GROUP", "GROUP"), rel("r0", "HAS_TASK", { absent: true }), node("TASK", "TASK")],
+  { operation: "update", set: [{ expression: "GROUP.empty = true" }] }
+);
+
+assert.equal(
+  composer.composeQuery(updateChildless).cypher,
+  [
+    "MATCH (GROUP:INSTANCE { attributive_label: 'GROUP' })",
+    "WHERE NOT EXISTS { MATCH (GROUP)-[r0:POINTS_TO { attributive_label: 'HAS_TASK' }]->(TASK:INSTANCE { attributive_label: 'TASK' }) }",
+    "SET GROUP.empty = true"
+  ].join("\n"),
+  "update INSTANCE renders the absent hop as an anti-join before the SET"
+);
+
+// ---- 16. SCHEMA mutations ignore the flag ----
+
+const deleteSchemaAbsent = readQuery(
+  "SCHEMA",
+  [node("GROUP", "GROUP"), rel("r0", "HAS_TASK", { absent: true }), node("TASK", "TASK")],
+  { operation: "delete", delete: { detach: true, targets: ["GROUP"] } }
+);
+
+assert.ok(
+  !composer.composeQuery(deleteSchemaAbsent).cypher.includes("NOT EXISTS"),
+  "delete SCHEMA never splits: it runs the cascade endpoint, not the composed pattern"
+);
+
+// ---- 17. Validation: SET / DELETE must not reference negated-tail variables ----
+
+const setsNegatedVariable = {
+  ...updateChildless,
+  set: [{ expression: "TASK.done = true", path_variable: "TASK" }]
+};
+
+assert.ok(
+  validateQuery(setsNegatedVariable, false).some((w) =>
+    w.includes('"TASK" is inside a must-not-exist pattern')
+  ),
+  "SET assignments targeting negated-tail variables are rejected"
+);
+
+const deletesNegatedVariable = {
+  ...deleteChildless,
+  delete: { detach: true, targets: ["TASK"] }
+};
+
+assert.ok(
+  validateQuery(deletesNegatedVariable, false).some((w) =>
+    w.includes('"TASK" is inside a must-not-exist pattern')
+  ),
+  "DELETE targets inside the negated tail are rejected"
+);
+
+assert.ok(
+  !validateQuery(deleteChildless, false).some((w) => w.includes("must-not-exist")),
+  "deleting the anchor of an anti-join stays valid"
 );
 
 console.log("composer-absent-hop: ok");

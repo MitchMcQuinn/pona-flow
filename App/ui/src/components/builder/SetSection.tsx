@@ -31,11 +31,14 @@ export function SetSection() {
       const binding = bindingForVariable(bindings, pathVariable);
       const boundLabel = (item.attributive_label || "").trim();
       // A binding that turned variable-length is stale too: its alias now holds a
-      // relationship list, so the assignment target would be invalid Cypher.
+      // relationship list, so the assignment target would be invalid Cypher. Same for
+      // one whose hop turned "must not exist" — it is no longer bound outside the
+      // NOT EXISTS subquery.
       const stale =
         !binding ||
         binding.attributive_label.trim() !== boundLabel ||
-        binding.variableLength === true;
+        binding.variableLength === true ||
+        binding.unbound === true;
       if (stale) {
         patchQuery(
           updateSetItem(index, {
@@ -57,7 +60,11 @@ export function SetSection() {
       const sourceVariable = (item.source_variable || "").trim();
       if (item.value_mode === "not_property" && sourceVariable) {
         const sourceBinding = bindingForVariable(bindings, sourceVariable);
-        if (!sourceBinding || sourceBinding.variableLength === true) {
+        if (
+          !sourceBinding ||
+          sourceBinding.variableLength === true ||
+          sourceBinding.unbound === true
+        ) {
           patchQuery(
             updateSetItem(index, {
               source_variable: undefined,

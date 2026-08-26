@@ -8,7 +8,7 @@ import { buildExistsInstanceCondition } from "./exists.js";
 import { nodePropertiesForCypher, relationshipPropertiesForCypher } from "./entity/properties.js";
 import { escapeSqliteString, formatLiteral } from "./literals.js";
 import { renderNode } from "./render/node.js";
-import { renderPath } from "./render/path.js";
+import { hopSplit, hopTailVariables, renderPath, supportsHopSplit } from "./render/path.js";
 import { renderRelationship } from "./render/relationship.js";
 import { normalizeWhere, renderWhereGroup } from "./render/where.js";
 import {
@@ -65,6 +65,12 @@ export {
   VECTOR_SEARCH_DEFAULT_K,
   VECTOR_SEARCH_MAX_K,
 };
+
+// Hop-mode rules: which clauses may split a path, and which variables the split
+// tails bind. Shared with @pona-flow/authoring so its validation and binding
+// pickers cannot drift from what the composer actually emits.
+export { hopSplit, hopTailVariables, supportsHopSplit };
+export type { HopSplitMode, HopTailVariables } from "./render/path.js";
 
 export type {
   Operation,

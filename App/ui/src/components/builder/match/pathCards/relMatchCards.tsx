@@ -20,8 +20,8 @@ import {
 } from "@pona-flow/authoring";
 import {
   isLabelOnlyMatch,
-  supportsIncomingHop,
-  supportsOptionalHop
+  supportsHopModes,
+  supportsIncomingHop
 } from "@pona-flow/authoring";
 import {
   normalizeAlias,
@@ -428,10 +428,10 @@ export function MatchRelCard(props: RelCardProps) {
     Boolean(relationship.variable?.trim()) &&
     !isLabelOnlyMatch(operation, label) &&
     !hasVariableLength;
-  // Hop mode (required / optional / must not exist): read SCHEMA/INSTANCE only
-  // (READ STEP needs one concrete entry point).
+  // Hop mode (required / optional / must not exist): read SCHEMA/INSTANCE and
+  // update/delete INSTANCE — see supportsHopModes for why the rest are excluded.
   const showHopMode =
-    supportsOptionalHop(operation, label) && !matchIsReference && hasAttributiveLabel;
+    supportsHopModes(operation, label) && !matchIsReference && hasAttributiveLabel;
   const forcedMode = hopForcedMode(
     state.query.match[clauseIndex]?.patterns[patternIndex],
     pathIndex
@@ -514,7 +514,7 @@ export function MatchRelCard(props: RelCardProps) {
               ? "An earlier hop in this path is optional, so this hop is optional too."
               : forcedMode === "absent"
                 ? "An earlier hop in this path must not exist, so this hop is part of that excluded pattern."
-                : "required: anchor nodes must have this hop. optional: anchor nodes without this hop still return (OPTIONAL MATCH). must not exist: only anchor nodes WITHOUT this hop return (NOT EXISTS)."
+                : "required: anchor nodes must have this hop. optional: anchor nodes without this hop are still matched (OPTIONAL MATCH). must not exist: only anchor nodes WITHOUT this hop are matched (NOT EXISTS)."
           }
         >
           <label className="builderToggleLabel">

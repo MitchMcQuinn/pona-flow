@@ -250,9 +250,12 @@ export function buildMatchReadQuery(
     return: {
       // Variable-length aliases bind relationship *lists*, not entities — the graph
       // inspection below expects entity projections, so they are skipped (they can't
-      // be SET targets anyway).
+      // be SET targets anyway). Must-not-exist tail aliases are skipped for a harder
+      // reason: they are only bound inside the NOT EXISTS subquery, so projecting one
+      // makes the probe itself invalid Cypher and the guard would silently fall back
+      // to "ok" on the caught error.
       items: bindings
-        .filter((b) => !b.variableLength)
+        .filter((b) => !b.variableLength && !b.unbound)
         .map((b) => ({
           expression: b.variable,
           path_variable: b.variable,
@@ -321,8 +324,11 @@ export function validateMatchedInstances(
 ): { count: number; issues: GuardIssue[] } {
   const issues: GuardIssue[] = [];
   const seen = new Set<string>();
-  const nodes = result.graph?.nodes ?? [];
-  const relationships = result.graph?.relationships ?? [];
+  // An optional hop that did not match projects null. Such a row carries no entity to
+  // inspect, and treating its empty property map as an instance would report every
+  // required property as missing.
+  const nodes = (result.graph?.nodes ?? []).filter(Boolean);
+  const relationships = (result.graph?.relationships ?? []).filter(Boolean);
   nodes.forEach((node) => {
     const props = node.properties ?? {};
     checkMatchedEntity(

@@ -20,6 +20,7 @@ import {
   validateSchemaPropertyKey
 } from "./schemaRules.js";
 import {
+  hopTailVariables,
   isVectorSearchAllLabels,
   isVectorSearchEnabled,
   vectorKParameterName,
@@ -369,46 +370,6 @@ export function isStepCreateQuery(query: QueryObject): boolean {
   return query.operation === "create" && query.match[0]?.label === "STEP";
 }
 
-/**
- * Variables inside must-not-exist (absent) tails. Mirrors the composer's split rule:
- * on read SCHEMA/INSTANCE patterns, the first absent relationship with a preceding
- * named anchor node starts the negated tail; everything from there renders inside
- * NOT EXISTS { ... } and is never bound in the outer query. An earlier optional hop
- * claims the tail first (first flagged hop wins), so no absent split happens then.
- */
-function collectAbsentTailVariables(query: QueryObject): Set<string> {
-  const negated = new Set<string>();
-  if (query.operation !== "read") return negated;
-  query.match.forEach((clause) => {
-    if (clause.label === "STEP") return;
-    clause.patterns.forEach((pattern) => {
-      let hasAnchor = false;
-      let splitIndex = -1;
-      for (let i = 0; i < pattern.path.length; i += 1) {
-        const el = pattern.path[i];
-        if (el.kind === "node") {
-          if ((el.node.variable || "").trim()) hasAnchor = true;
-          continue;
-        }
-        if (!hasAnchor) continue;
-        if (el.relationship.absent === true) {
-          splitIndex = i;
-          break;
-        }
-        if (el.relationship.optional === true) break;
-      }
-      if (splitIndex < 0) return;
-      for (let i = splitIndex; i < pattern.path.length; i += 1) {
-        const el = pattern.path[i];
-        const variable =
-          el.kind === "node" ? el.node.variable : el.relationship.variable;
-        if ((variable || "").trim()) negated.add(variable.trim());
-      }
-    });
-  });
-  return negated;
-}
-
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -422,14 +383,15 @@ function expressionReferencesVariable(expression: string, variable: string): boo
   return re.test(expression);
 }
 
-// Must-not-exist tail variables only exist inside the NOT EXISTS subquery — the
-// outer RETURN / ORDER BY cannot reference them.
+// Must-not-exist tail variables only exist inside the NOT EXISTS subquery, so the
+// outer RETURN / ORDER BY / SET / DELETE cannot reference them — Neo4j rejects the
+// statement with an "unbound variable" error.
 function validateAbsentTailReferences(query: QueryObject, warnings: string[]): void {
-  const negated = collectAbsentTailVariables(query);
+  const negated = hopTailVariables(query).absent;
   if (!negated.size) return;
-  const referencedVariable = (expression: string, pathVariable?: string): string | null => {
+  const referencedVariable = (expression: string, ...variables: (string | undefined)[]) => {
     for (const variable of negated) {
-      if (pathVariable?.trim() === variable) return variable;
+      if (variables.some((v) => v?.trim() === variable)) return variable;
       if (expressionReferencesVariable(expression, variable)) return variable;
     }
     return null;
@@ -447,6 +409,22 @@ function validateAbsentTailReferences(query: QueryObject, warnings: string[]): v
     if (hit) {
       warnings.push(
         `ORDER BY ${index + 1}: "${hit}" is inside a must-not-exist pattern and cannot be ordered on.`
+      );
+    }
+  });
+  (query.set ?? []).forEach((item, index) => {
+    const hit = referencedVariable(item.expression ?? "", item.path_variable, item.source_variable);
+    if (hit) {
+      warnings.push(
+        `SET ${index + 1}: "${hit}" is inside a must-not-exist pattern and cannot be assigned.`
+      );
+    }
+  });
+  (query.delete?.targets ?? []).forEach((target, index) => {
+    const hit = referencedVariable("", target);
+    if (hit) {
+      warnings.push(
+        `DELETE target ${index + 1}: "${hit}" is inside a must-not-exist pattern and cannot be deleted.`
       );
     }
   });

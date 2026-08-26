@@ -1,11 +1,14 @@
 /**
- * Optional hop (per-relationship OPTIONAL MATCH) for read SCHEMA/INSTANCE:
+ * Optional hop (per-relationship OPTIONAL MATCH) for read SCHEMA/INSTANCE and for
+ * update/delete INSTANCE:
  * - the path splits at the first optional relationship; the tail renders as
  *   OPTIONAL MATCH segments anchored on the preceding node's bare variable
  * - each hop gets its own OPTIONAL MATCH line so levels match independently
  * - filters on optional-segment entities ride inline on their OPTIONAL MATCH
  *   line (a null hop must not fail the global WHERE)
- * - READ STEP and non-read operations ignore the flag entirely
+ * - on a mutation the OPTIONAL MATCH lines land after the global WHERE and before
+ *   the SET / DELETE tail, so the whole thing stays one statement
+ * - STEP clauses, create, and update/delete SCHEMA ignore the flag entirely
  */
 import assert from "node:assert/strict";
 import composer from "./helpers/composer.mjs";
@@ -150,7 +153,7 @@ assert.ok(
 );
 assert.match(stepCypher, /^MATCH \(A:STEP .*\)-\[r0:POINTS_TO .*\]->\(B:STEP .*\)\nRETURN \*$/);
 
-// ---- 7. Non-read operations ignore the flag ----
+// ---- 7. create operations ignore the flag ----
 
 const createQuery = {
   ...readQuery("SCHEMA", [
@@ -180,6 +183,80 @@ assert.equal(
   composer.composeQuery(plainRead).cypher,
   "MATCH (GROUP:INSTANCE { attributive_label: 'GROUP' })-[r0:POINTS_TO { attributive_label: 'HAS_TASK' }]->(TASK:INSTANCE { attributive_label: 'TASK' })\nRETURN *",
   "paths without optional hops compose exactly as before"
+);
+
+// ---- 9. DELETE INSTANCE: OPTIONAL MATCH sits between the WHERE and the DELETE ----
+
+const deleteOptional = readQuery(
+  "INSTANCE",
+  [
+    node("GROUP", "GROUP", {
+      where: {
+        operator: "AND",
+        items: [{ property_key: "status", operator: "=", value: "archived" }]
+      }
+    }),
+    rel("r0", "HAS_TASK", { optional: true }),
+    node("TASK", "TASK")
+  ],
+  { operation: "delete", delete: { detach: true, targets: ["GROUP", "TASK"] } }
+);
+
+assert.equal(
+  composer.composeQuery(deleteOptional).cypher,
+  [
+    "MATCH (GROUP:INSTANCE { attributive_label: 'GROUP' })",
+    "WHERE (GROUP.status = 'archived')",
+    "OPTIONAL MATCH (GROUP)-[r0:POINTS_TO { attributive_label: 'HAS_TASK' }]->(TASK:INSTANCE { attributive_label: 'TASK' })",
+    "DETACH DELETE GROUP, TASK"
+  ].join("\n"),
+  "delete INSTANCE splits on an optional hop and keeps DELETE after the tail"
+);
+
+// ---- 10. UPDATE INSTANCE: SET follows the OPTIONAL MATCH lines ----
+
+const updateOptional = readQuery(
+  "INSTANCE",
+  [
+    node("GROUP", "GROUP"),
+    rel("r0", "HAS_TASK", { optional: true }),
+    node("TASK", "TASK")
+  ],
+  { operation: "update", set: [{ expression: "TASK.done = true" }] }
+);
+
+assert.equal(
+  composer.composeQuery(updateOptional).cypher,
+  [
+    "MATCH (GROUP:INSTANCE { attributive_label: 'GROUP' })",
+    "OPTIONAL MATCH (GROUP)-[r0:POINTS_TO { attributive_label: 'HAS_TASK' }]->(TASK:INSTANCE { attributive_label: 'TASK' })",
+    "SET TASK.done = true"
+  ].join("\n"),
+  "update INSTANCE splits on an optional hop and keeps SET after the tail"
+);
+
+// ---- 11. SCHEMA mutations ignore the flag (entities payload / cascade endpoint) ----
+
+const deleteSchema = readQuery(
+  "SCHEMA",
+  [node("GROUP", "GROUP"), rel("r0", "HAS_TASK", { optional: true }), node("TASK", "TASK")],
+  { operation: "delete", delete: { detach: true, targets: ["GROUP"] } }
+);
+
+assert.ok(
+  !composer.composeQuery(deleteSchema).cypher.includes("OPTIONAL MATCH"),
+  "delete SCHEMA never splits: it runs the cascade endpoint, not the composed pattern"
+);
+
+const deleteStep = readQuery(
+  "STEP",
+  [node("A", "A"), rel("r0", "NEXT", { optional: true }), node("B", "B")],
+  { operation: "delete", delete: { detach: true, targets: ["A"] } }
+);
+
+assert.ok(
+  !composer.composeQuery(deleteStep).cypher.includes("OPTIONAL MATCH"),
+  "delete STEP never splits"
 );
 
 console.log("composer-optional-hop: ok");

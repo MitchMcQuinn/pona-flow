@@ -62,6 +62,17 @@ function nodeDisplayLabel(attributiveLabel: string): string {
   return attributiveLabel.trim() || UNLABELED_NODE_DISPLAY;
 }
 
+/**
+ * Stroke pattern signalling a hop's mode: a long dash for an optional hop (the
+ * OPTIONAL MATCH segment) and a tighter dot for a must-not-exist hop (the NOT EXISTS
+ * anti-join), so the two read differently at a glance. Required hops stay solid.
+ */
+function hopDashArray(relationship: { optional?: boolean; absent?: boolean }): string | null {
+  if (relationship.absent === true) return "2 4";
+  if (relationship.optional === true) return "6 4";
+  return null;
+}
+
 interface MatchGraphProps {
   clauseIndex: number;
   label: GraphNodeLabel;
@@ -224,7 +235,8 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
           e.to,
           e.direction,
           e.attributiveLabel,
-          e.relationship.optional === true
+          e.relationship.optional === true,
+          e.relationship.absent === true
         ])
       }),
     [graph]
@@ -386,8 +398,7 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
       .attr("data-edge", (e) => e.variable)
       .attr("stroke", GRAPH_THEME.edge)
       .attr("stroke-opacity", GRAPH_THEME.edgeOpacity)
-      // Optional hops render dashed to signal the OPTIONAL MATCH segment.
-      .attr("stroke-dasharray", (e) => (e.relationship.optional === true ? "6 4" : null))
+      .attr("stroke-dasharray", (e) => hopDashArray(e.relationship))
       .attr("marker-end", arrowMarkerUrl(themePrefix))
       .style("cursor", "pointer")
       .on("click", (event, e) => {
@@ -423,7 +434,7 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
       .attr("data-edge", (e) => e.variable)
       .attr("stroke", GRAPH_THEME.edge)
       .attr("stroke-opacity", GRAPH_THEME.edgeOpacity)
-      .attr("stroke-dasharray", (e) => (e.relationship.optional === true ? "6 4" : null))
+      .attr("stroke-dasharray", (e) => hopDashArray(e.relationship))
       .attr("marker-end", arrowMarkerUrl(themePrefix, true))
       .style("cursor", "pointer")
       .on("click", (event, e) => {

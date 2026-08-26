@@ -166,17 +166,18 @@ export interface RelationshipPattern {
   cypher_condition?: CypherConditionBuilder;
   required?: boolean;
   /**
-   * Optional hop (read SCHEMA/INSTANCE only): this relationship and everything after
-   * it in the path render as OPTIONAL MATCH segments anchored on the preceding node,
-   * so anchor nodes without the hop still return. Ignored for STEP clauses and
-   * non-read operations.
+   * Optional hop: this relationship and everything after it in the path render as
+   * OPTIONAL MATCH segments anchored on the preceding node, so anchor nodes without
+   * the hop are still matched. Applies to read SCHEMA/INSTANCE and to update/delete
+   * INSTANCE (see `supportsHopSplit`); ignored everywhere else.
    */
   optional?: boolean;
   /**
-   * Absent hop (read SCHEMA/INSTANCE only): this relationship and everything after
-   * it in the path render as a NOT EXISTS { MATCH ... } anti-join anchored on the
-   * preceding node, so only anchor nodes WITHOUT the hop return. Mutually exclusive
-   * with `optional`. Ignored for STEP clauses and non-read operations.
+   * Absent hop: this relationship and everything after it in the path render as a
+   * NOT EXISTS { MATCH ... } anti-join anchored on the preceding node, so only anchor
+   * nodes WITHOUT the hop are matched. Mutually exclusive with `optional`. Applies to
+   * read SCHEMA/INSTANCE and to update/delete INSTANCE (see `supportsHopSplit`);
+   * ignored everywhere else.
    */
   absent?: boolean;
   where_enabled?: boolean;

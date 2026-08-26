@@ -48,10 +48,11 @@ export function SetProjectionRow({ index, item, onRemove }: SetProjectionRowProp
   );
 
   // Variable-length aliases bind relationship *lists* — alias.prop assignment
-  // targets would be invalid Cypher, so they are never offered.
+  // targets would be invalid Cypher, so they are never offered. Must-not-exist tail
+  // aliases are not bound in the outer query at all, so they are excluded too.
   const displayLabels = bindingDisplayLabels(bindings);
   const schemaOptions = bindings
-    .filter((b) => !b.variableLength)
+    .filter((b) => !b.variableLength && !b.unbound)
     .map((b) => ({
       value: b.variable,
       label: displayLabels.get(b.variable) ?? b.attributive_label
