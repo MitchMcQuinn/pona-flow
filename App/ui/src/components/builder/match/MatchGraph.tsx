@@ -16,7 +16,9 @@ import { isAttributiveLabelParameter } from "@pona-flow/authoring";
 import { isVectorSearchEnabled } from "@pona-flow/composer";
 import {
   addGraphEdge,
-  projectMatchToGraph
+  edgeDrawOrder,
+  projectMatchToGraph,
+  type MatchGraphEdge
 } from "../../../state/builder/matchGraph";
 import type {
   GraphNodeLabel,
@@ -25,6 +27,7 @@ import type {
 } from "../../../state/builder/types";
 import {
   arrowMarkerUrl,
+  arrowSelfStartMarkerUrl,
   GRAPH_THEME,
   graphFilterId,
   graphGlowFilterUrl,
@@ -389,6 +392,14 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
       return { x: n?.x ?? width / 2, y: n?.y ?? height / 2 };
     };
 
+    /** Trimmed segment for a straight edge, oriented so it ends at the arrowhead. */
+    const edgeSegment = (e: MatchGraphEdge) => {
+      const { source, target } = edgeDrawOrder(e);
+      const a = center(source);
+      const b = center(target);
+      return trimLineForRelationship(a.x, a.y, b.x, b.y, NODE_RADIUS, NODE_RADIUS);
+    };
+
     // --- straight relationships ---
     const link = root
       .append("g")
@@ -435,7 +446,14 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
       .attr("stroke", GRAPH_THEME.edge)
       .attr("stroke-opacity", GRAPH_THEME.edgeOpacity)
       .attr("stroke-dasharray", (e) => hopDashArray(e.relationship))
-      .attr("marker-end", arrowMarkerUrl(themePrefix, true))
+      // A loop can't be redrawn end-to-end to move its head, so a reverse hop puts the
+      // arrow on the arc's start instead.
+      .attr("marker-end", (e) =>
+        e.direction === "incoming" ? null : arrowMarkerUrl(themePrefix, true)
+      )
+      .attr("marker-start", (e) =>
+        e.direction === "incoming" ? arrowSelfStartMarkerUrl(themePrefix) : null
+      )
       .style("cursor", "pointer")
       .on("click", (event, e) => {
         event.stopPropagation();
@@ -592,36 +610,22 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
     function render() {
       updateNodeTransforms();
       link.each(function (e) {
-        const from = center(e.from);
-        const to = center(e.to);
-        const trimmed = trimLineForRelationship(from.x, from.y, to.x, to.y, NODE_RADIUS, NODE_RADIUS);
+        const seg = edgeSegment(e);
         d3.select(this)
-          .attr("x1", trimmed.x1)
-          .attr("y1", trimmed.y1)
-          .attr("x2", trimmed.x2)
-          .attr("y2", trimmed.y2);
-        updateEdgeMeshGradient(
-          defs,
-          themePrefix,
-          e.variable,
-          trimmed.x1,
-          trimmed.y1,
-          trimmed.x2,
-          trimmed.y2
-        );
+          .attr("x1", seg.x1)
+          .attr("y1", seg.y1)
+          .attr("x2", seg.x2)
+          .attr("y2", seg.y2);
+        updateEdgeMeshGradient(defs, themePrefix, e.variable, seg.x1, seg.y1, seg.x2, seg.y2);
       });
       linkLabels
         .attr("x", (e) => {
-          const from = center(e.from);
-          const to = center(e.to);
-          const trimmed = trimLineForRelationship(from.x, from.y, to.x, to.y, NODE_RADIUS, NODE_RADIUS);
-          return (trimmed.x1 + trimmed.x2) / 2;
+          const seg = edgeSegment(e);
+          return (seg.x1 + seg.x2) / 2;
         })
         .attr("y", (e) => {
-          const from = center(e.from);
-          const to = center(e.to);
-          const trimmed = trimLineForRelationship(from.x, from.y, to.x, to.y, NODE_RADIUS, NODE_RADIUS);
-          return (trimmed.y1 + trimmed.y2) / 2 - 4;
+          const seg = edgeSegment(e);
+          return (seg.y1 + seg.y2) / 2 - 4;
         });
       selfLink.attr("d", (e) => {
         const c = center(e.from);

@@ -572,7 +572,7 @@ export function installArrowMarkers(
   idPrefix = ""
 ) {
   const p = (name: string) => `${idPrefix}${name}`;
-  const add = (id: string, fill: string) => {
+  const add = (id: string, fill: string, orient = "auto") => {
     defs
       .append("marker")
       .attr("id", p(id))
@@ -582,13 +582,16 @@ export function installArrowMarkers(
       .attr("markerWidth", 7)
       .attr("markerHeight", 7)
       .attr("markerUnits", "userSpaceOnUse")
-      .attr("orient", "auto")
+      .attr("orient", orient)
       .append("path")
       .attr("d", "M0,-5L10,0L0,5")
       .attr("fill", fill);
   };
   add("arrow", "context-stroke");
   add("arrow-self", "context-stroke");
+  // Head for a reversed self-loop, attached as a marker-start: `auto-start-reverse` turns it
+  // around so it points back into the node the arc leaves from rather than away from it.
+  add("arrow-self-start", "context-stroke", "auto-start-reverse");
   // Explicit red fill — context-stroke on markers breaks when a glow filter is applied to the
   // parent line (the line's bbox is too thin and clips the marker head).
   add("arrow-affected", AFFECTED_STROKE);
@@ -597,6 +600,11 @@ export function installArrowMarkers(
 
 export function arrowMarkerUrl(idPrefix: string, selfLoop = false): string {
   return `url(#${idPrefix}${selfLoop ? "arrow-self" : "arrow"})`;
+}
+
+/** Self-loop head for a marker-start (reverse hop), pre-rotated to point back at the node. */
+export function arrowSelfStartMarkerUrl(idPrefix: string): string {
+  return `url(#${idPrefix}arrow-self-start)`;
 }
 
 export function arrowAffectedMarkerUrl(idPrefix: string, selfLoop = false): string {

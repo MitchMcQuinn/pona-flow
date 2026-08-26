@@ -53,6 +53,19 @@ export interface MatchGraph {
   edges: MatchGraphEdge[];
 }
 
+/**
+ * Endpoints in *drawing* order, which is not always path order: a reverse hop composes as
+ * `(from)<-[rel]-(to)`, so its arrow points back at `from`. Rendering that edge to -> from
+ * puts the arrowhead on the node the relationship actually points at, matching the `←` the
+ * hop picker shows, and keeps the head at the segment's end — the end canvases trim to make
+ * room for it.
+ */
+export function edgeDrawOrder(edge: MatchGraphEdge): { source: string; target: string } {
+  return edge.direction === "incoming"
+    ? { source: edge.to, target: edge.from }
+    : { source: edge.from, target: edge.to };
+}
+
 function replaceAt<T>(arr: T[], index: number, value: T): T[] {
   return arr.map((item, i) => (i === index ? value : item));
 }
