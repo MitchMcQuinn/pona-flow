@@ -354,10 +354,53 @@ export async function fetchSequences(): Promise<SequenceSummary[]> {
     attributiveLabel: parseSequenceAttributiveLabel(query.cypher),
     runtimeEnabled: Boolean(query.runtime_enabled),
     suspended: Boolean(query.suspended),
+    orphaned: false,
     groupTitle: query.group_title?.trim() || null,
     sortOrder: typeof query.sort_order === "number" ? query.sort_order : null,
     description: typeof query.description === "string" ? query.description : ""
   }));
+}
+
+/** attributive_labels of STEP nodes that currently exist in the space's graph. */
+export async function fetchStepAttributiveLabels(spaceId: string): Promise<Set<string>> {
+  const data = await getJson<{ nodes?: Array<{ attributive_label?: string }> }>(
+    `/api/graph/nodes-by-label?space_id=${encodeURIComponent(spaceId)}&node_label=STEP`,
+    "Failed to load step nodes",
+    { cache: "no-store" }
+  );
+  const labels = new Set<string>();
+  for (const node of data.nodes || []) {
+    const label = String(node.attributive_label || "").trim();
+    if (label) labels.add(label);
+  }
+  return labels;
+}
+
+/**
+ * A sequence is orphaned when its read query names an entry STEP that is not in the graph
+ * (`stepLabels` null means the graph could not be read — leave flags unset).
+ */
+export function markOrphanedSequences(
+  sequences: SequenceSummary[],
+  stepLabels: Set<string> | null
+): SequenceSummary[] {
+  if (!stepLabels) {
+    return sequences.map((sequence) => ({ ...sequence, orphaned: false }));
+  }
+  return sequences.map((sequence) => {
+    if (sequence.kind !== "sequence") return { ...sequence, orphaned: false };
+    const label = sequence.attributiveLabel.trim();
+    return { ...sequence, orphaned: !label || !stepLabels.has(label) };
+  });
+}
+
+/** Catalog sequences annotated with whether their entry STEP still exists in this space. */
+export async function fetchNavSequences(spaceId: string): Promise<SequenceSummary[]> {
+  const [sequences, stepLabels] = await Promise.all([
+    fetchSequences(),
+    fetchStepAttributiveLabels(spaceId).catch(() => null)
+  ]);
+  return markOrphanedSequences(sequences, stepLabels);
 }
 
 /**

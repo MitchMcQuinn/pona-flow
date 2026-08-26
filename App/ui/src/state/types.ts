@@ -124,6 +124,8 @@ export interface SequenceSummary {
   runtimeEnabled: boolean;
   /** A SCHEMA change invalidated an INSTANCE step; not runnable until the step is re-saved. */
   suspended: boolean;
+  /** The sequence's entry STEP is missing from the graph (dangling catalog row). */
+  orphaned: boolean;
   groupTitle: string | null;
   sortOrder: number | null;
   /** Prose shown to MCP agents as the tool description; editable post-hoc. */

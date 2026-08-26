@@ -10,8 +10,8 @@ import {
   composeSequence,
   deleteSequenceDefinition,
   executeStepDeletion,
+  fetchNavSequences,
   fetchSequenceDefinition,
-  fetchSequences,
   fetchSpaceGroups,
   previewStepDeletion,
   reorderSequences,
@@ -25,6 +25,12 @@ import { buildNavGroups, flattenNavGroups, reindexSequences } from "../state/nav
 import type { AppEvent } from "../state/events";
 import type { RunResult } from "../state/builder/types";
 import type { AppState, SequenceSummary } from "../state/types";
+
+/** Engine `preview_step_deletion` when the sequence's entry STEP is gone from the graph. */
+function isMissingStepError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /No STEP node with attributive_label/i.test(message);
+}
 
 export function useSequenceNav(options: {
   state: AppState;
@@ -42,11 +48,12 @@ export function useSequenceNav(options: {
 
   // Sequence deletion offers two paths in SequenceDeleteConfirmModal: a "nav-only" removal of the
   // definition, or the full STEP delete cascade. We preview the cascade blast radius up front so
-  // the modal can show it if the user picks that option.
+  // the modal can show it if the user picks that option. `preview` is null when the entry STEP is
+  // missing — cascade isn't available, but the catalog row can still be removed from the nav.
   const [sequenceDelete, setSequenceDelete] = useState<{
     sequenceId: string;
     label: string;
-    preview: StepDeletePreview;
+    preview: StepDeletePreview | null;
   } | null>(null);
   const [deletingSequence, setDeletingSequence] = useState(false);
   const [sequenceDeleteError, setSequenceDeleteError] = useState<string | null>(null);
@@ -60,7 +67,7 @@ export function useSequenceNav(options: {
   useEffect(() => {
     if (!state.spaceId) return;
     dispatch({ type: "SEQUENCES_LOAD_STARTED" });
-    fetchSequences()
+    fetchNavSequences(state.spaceId)
       .then((sequences) => {
         dispatch({ type: "SEQUENCES_LOAD_SUCCEEDED", sequences });
         maybeRestoreSequence(sequences);
@@ -168,7 +175,8 @@ export function useSequenceNav(options: {
       }))
     ).catch(() => {
       // Re-sync from the server if the write failed so the UI doesn't drift.
-      fetchSequences()
+      if (!state.spaceId) return;
+      fetchNavSequences(state.spaceId)
         .then((sequences) => dispatch({ type: "SEQUENCES_LOAD_SUCCEEDED", sequences }))
         .catch(() => undefined);
     });
@@ -186,8 +194,9 @@ export function useSequenceNav(options: {
   // filter so the freshly registered attributive_label is included.
   async function handleSequenceCreated(sequenceId: string) {
     bumpSpaceLabelsVersion();
+    if (!state.spaceId) return;
     try {
-      const sequences = await fetchSequences();
+      const sequences = await fetchNavSequences(state.spaceId);
       dispatch({ type: "SEQUENCES_LOAD_SUCCEEDED", sequences });
       if (sequences.some((sequence) => sequence.id === sequenceId)) {
         dispatch({ type: "SEQUENCE_SELECTED", sequenceId });
@@ -202,8 +211,9 @@ export function useSequenceNav(options: {
   // dependent sequences, so they disappear from the nav without a full-page reload.
   async function handleNavRefresh() {
     bumpSpaceLabelsVersion();
+    if (!state.spaceId) return;
     try {
-      const sequences = await fetchSequences();
+      const sequences = await fetchNavSequences(state.spaceId);
       dispatch({ type: "SEQUENCES_LOAD_SUCCEEDED", sequences });
       reloadGroups();
     } catch {
@@ -272,20 +282,25 @@ export function useSequenceNav(options: {
   }
 
   // Delete a sequence by resolving its entry STEP's delete cascade (the work that already knows
-  // how to remove a sequence and its dependents). Preview first, then confirm in the modal.
+  // how to remove a sequence and its dependents). Preview first, then confirm in the modal. If
+  // the STEP is gone, still open the modal so the orphaned catalog row can be removed from nav.
   async function handleDeleteSequence(sequenceId: string) {
     const target = state.nav.sequences.find((sequence) => sequence.id === sequenceId);
     if (!target || !state.spaceId) return;
     const label = target.attributiveLabel.trim();
-    if (!label) {
-      showToast("This sequence has no resolvable step label, so it can't be deleted here.", "error");
+    setSequenceDeleteError(null);
+    if (!label || target.orphaned) {
+      setSequenceDelete({ sequenceId, label: target.label, preview: null });
       return;
     }
-    setSequenceDeleteError(null);
     try {
       const preview = await previewStepDeletion(state.spaceId, label);
       setSequenceDelete({ sequenceId, label: target.label, preview });
     } catch (error) {
+      if (isMissingStepError(error)) {
+        setSequenceDelete({ sequenceId, label: target.label, preview: null });
+        return;
+      }
       showToast(
         error instanceof Error ? error.message : "Failed to resolve the deletion impact.",
         "error"
@@ -295,6 +310,12 @@ export function useSequenceNav(options: {
 
   async function handleConfirmDeleteSequence(mode: SequenceDeleteMode) {
     if (!sequenceDelete || !state.spaceId) return;
+    if (mode === "cascade" && !sequenceDelete.preview) {
+      setSequenceDeleteError(
+        "This sequence's entry STEP is missing, so only a navigation removal is available."
+      );
+      return;
+    }
     setDeletingSequence(true);
     setSequenceDeleteError(null);
     try {
@@ -306,11 +327,10 @@ export function useSequenceNav(options: {
         await deleteSequenceDefinition(state.spaceId, sequenceDelete.sequenceId);
         message = `Sequence "${sequenceDelete.label}" was removed from the navigation.`;
       } else {
-        const result = await executeStepDeletion(
-          state.spaceId,
-          sequenceDelete.preview.attributive_label
-        );
-        sequenceDelete.preview.affected.sequences.forEach((sequence) => deletedIds.add(sequence.id));
+        const preview = sequenceDelete.preview;
+        if (!preview) return;
+        const result = await executeStepDeletion(state.spaceId, preview.attributive_label);
+        preview.affected.sequences.forEach((sequence) => deletedIds.add(sequence.id));
         message = result.purged
           ? `Sequence "${sequenceDelete.label}" and its dependents were deleted.`
           : `Sequence "${sequenceDelete.label}" was removed from this space.`;

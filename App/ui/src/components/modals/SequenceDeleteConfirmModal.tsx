@@ -7,8 +7,11 @@ export type SequenceDeleteMode = "nav" | "cascade";
 
 interface SequenceDeleteConfirmModalProps {
   sequenceLabel: string;
-  /** Cascade blast radius for the "delete everything" option (resolved from the entry STEP). */
-  preview: StepDeletePreview;
+  /**
+   * Cascade blast radius for the "delete everything" option (resolved from the entry STEP).
+   * Null when that STEP is missing from the graph — only a nav-only removal is available.
+   */
+  preview: StepDeletePreview | null;
   busy?: boolean;
   error?: string | null;
   onCancel: () => void;
@@ -49,8 +52,9 @@ export function SequenceDeleteConfirmModal({
 }: SequenceDeleteConfirmModalProps) {
   // Default to the least destructive option: only remove the definition from the nav.
   const [mode, setMode] = useState<SequenceDeleteMode>("nav");
-  const purge = preview.mode === "purge";
-  const rows = cascadeRows(preview);
+  const orphaned = preview == null;
+  const purge = preview?.mode === "purge";
+  const rows = preview ? cascadeRows(preview) : [];
 
   const confirmLabel =
     mode === "nav"
@@ -76,6 +80,14 @@ export function SequenceDeleteConfirmModal({
           Delete sequence <span className="builderMono">{sequenceLabel}</span>
         </h3>
 
+        {orphaned ? (
+          <p className="muted" data-testid="sequence-delete-orphan-hint" style={{ margin: "0 0 4px" }}>
+            This sequence&rsquo;s entry STEP is missing from the graph, so a cascade delete
+            isn&rsquo;t available. You can still remove the sequence definition from the
+            navigation.
+          </p>
+        ) : null}
+
         <div className="sequenceDeleteOptions">
           <label className={`sequenceDeleteOption${mode === "nav" ? " active" : ""}`}>
             <input
@@ -95,19 +107,26 @@ export function SequenceDeleteConfirmModal({
             </span>
           </label>
 
-          <label className={`sequenceDeleteOption${mode === "cascade" ? " active" : ""}`}>
+          <label
+            className={`sequenceDeleteOption${mode === "cascade" ? " active" : ""}${
+              orphaned ? " unavailable" : ""
+            }`}
+          >
             <input
               type="radio"
               name="sequence-delete-mode"
               value="cascade"
+              data-testid="sequence-delete-mode-cascade"
               checked={mode === "cascade"}
-              disabled={busy}
+              disabled={busy || orphaned}
               onChange={() => setMode("cascade")}
             />
             <span>
               <strong>Delete the sequence and everything it depends on</strong>
               <span className="sequenceDeleteOptionHint">
-                {purge ? (
+                {orphaned ? (
+                  <>Cascade is unavailable because the entry STEP no longer exists.</>
+                ) : purge ? (
                   <>
                     Permanently removes the entry step, its relationship patterns, and every
                     dependent sequence. This cannot be undone.
@@ -123,7 +142,7 @@ export function SequenceDeleteConfirmModal({
           </label>
         </div>
 
-        {mode === "cascade" && purge && rows.length ? (
+        {mode === "cascade" && preview && purge && rows.length ? (
           <div className="builderFormFieldset">
             <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
               The following will be deleted:
@@ -143,7 +162,7 @@ export function SequenceDeleteConfirmModal({
           </div>
         ) : null}
 
-        {mode === "cascade"
+        {mode === "cascade" && preview
           ? preview.warnings.map((warning, index) => (
               <p
                 key={`${warning.type}-${index}`}

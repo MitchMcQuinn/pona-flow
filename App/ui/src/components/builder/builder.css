@@ -560,6 +560,15 @@
   background: rgba(110, 168, 254, 0.08);
 }
 
+.sequenceDeleteOption.unavailable {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.sequenceDeleteOption.unavailable:hover {
+  border-color: var(--border);
+}
+
 .sequenceDeleteOption input[type="radio"] {
   margin-top: 3px;
 }

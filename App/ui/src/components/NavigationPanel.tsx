@@ -26,7 +26,7 @@ interface NavigationPanelProps {
   onCreateSequence: () => void;
   /** Open the selected sequence in the builder for editing (hydrated from builder_config). */
   onEditSequence: (sequenceId: string) => void;
-  /** Delete the selected sequence (routes through the STEP delete cascade + confirm modal). */
+  /** Delete the selected sequence (nav-only removal, or STEP cascade when the entry STEP exists). */
   onDeleteSequence: (sequenceId: string) => void;
   onCreateSpace: () => void;
   /** Whether the principal may create spaces (superadmin or granted capability). */
@@ -173,6 +173,7 @@ function SequenceList({
         const classNames = ["sequenceItem"];
         if (sequence.id === selectedSequenceId) classNames.push("active");
         if (sequence.suspended) classNames.push("suspended");
+        if (sequence.orphaned) classNames.push("orphaned");
         if (sequence.id === drag.draggingId) classNames.push("dragging");
         if (indicator === "before") classNames.push("dropBefore");
         if (indicator === "after") classNames.push("dropAfter");
@@ -199,9 +200,11 @@ function SequenceList({
               className="sequenceBtn"
               type="button"
               title={
-                sequence.suspended
-                  ? "Suspended: a schema change invalidated an INSTANCE step. Re-save the step to restore it."
-                  : undefined
+                sequence.orphaned
+                  ? "Orphaned: the entry STEP is missing from the graph. Remove this sequence from the navigation or recreate its step."
+                  : sequence.suspended
+                    ? "Suspended: a schema change invalidated an INSTANCE step. Re-save the step to restore it."
+                    : undefined
               }
               onClick={() => onSelectSequence(sequence.id)}
             >

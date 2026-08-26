@@ -807,19 +807,23 @@ button:focus-visible {
 }
 
 /* Suspended sequence: a SCHEMA change invalidated one of its INSTANCE steps. Highlighted red
-   and not runnable until the step is re-saved to match the new pattern. */
-.sequenceItem.suspended {
+   and not runnable until the step is re-saved to match the new pattern.
+   Orphaned sequence: the entry STEP is missing from the graph (dangling catalog row). */
+.sequenceItem.suspended,
+.sequenceItem.orphaned {
   border-color: #ef4444;
   background: linear-gradient(145deg, rgba(239, 68, 68, 0.16), rgba(239, 68, 68, 0.08));
   box-shadow: var(--shadow-out-sm), 0 0 0 1px rgba(239, 68, 68, 0.35);
 }
 
-.sequenceItem.suspended .sequenceBtnLabel {
+.sequenceItem.suspended .sequenceBtnLabel,
+.sequenceItem.orphaned .sequenceBtnLabel {
   color: #fca5a5;
 }
 
-/* Suspension wins over the active ring so the warning stays visible while selected. */
-.sequenceItem.suspended.active {
+/* Warning chrome wins over the active ring so it stays visible while selected. */
+.sequenceItem.suspended.active,
+.sequenceItem.orphaned.active {
   border-color: #ef4444;
   background: linear-gradient(145deg, rgba(239, 68, 68, 0.22), rgba(239, 68, 68, 0.1));
   box-shadow: var(--shadow-out-sm), 0 0 0 2px rgba(239, 68, 68, 0.5);

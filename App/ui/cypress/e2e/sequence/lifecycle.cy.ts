@@ -1,4 +1,5 @@
 import {
+  E2E_SPACE_ID,
   GOLDEN_INSTANCE_NAME,
   GOLDEN_READ_OPERATION,
   GOLDEN_SCHEMA_LABEL,
@@ -65,6 +66,28 @@ describe("sequence: lifecycle", () => {
 
   it("removes a sequence from the navigation only (least destructive delete)", () => {
     seedSequence();
+
+    cy.deleteSequenceInNav(GOLDEN_SEQUENCE_NAME, "nav");
+  });
+
+  it("highlights an orphaned sequence in red and removes it from the navigation", () => {
+    seedSequence();
+
+    cy.intercept("GET", "/api/graph/nodes-by-label*", (req) => {
+      if (req.url.includes("node_label=STEP")) {
+        req.reply({ statusCode: 200, body: { nodes: [] } });
+      } else {
+        req.continue();
+      }
+    }).as("emptySteps");
+
+    cy.visit("/");
+    cy.get(".appShell", { timeout: 20_000 }).should("be.visible");
+    cy.get("#space-selector", { timeout: 20_000 }).should("have.value", E2E_SPACE_ID);
+
+    cy.contains(".sequenceBtnLabel", GOLDEN_SEQUENCE_NAME, { timeout: 60_000 })
+      .closest(".sequenceItem")
+      .should("have.class", "orphaned");
 
     cy.deleteSequenceInNav(GOLDEN_SEQUENCE_NAME, "nav");
   });
