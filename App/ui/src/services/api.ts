@@ -109,6 +109,8 @@ export interface CreateSpaceInput {
   labels?: string[];
   /** Prose describing the space; surfaced to MCP clients as the server's instructions. */
   description?: string;
+  /** When true, the builder shows composed Cypher and SQLite previews. */
+  dev_mode?: boolean;
 }
 
 export interface CreateSpaceResult {
@@ -118,6 +120,7 @@ export interface CreateSpaceResult {
   labels?: string[];
   is_private?: boolean;
   description?: string;
+  dev_mode?: boolean;
   creation_date?: string;
 }
 
@@ -174,7 +177,8 @@ export async function updateSpace(
       name: input.name.trim(),
       endpoint: input.endpoint?.trim() || null,
       labels: input.labels ?? [],
-      description: input.description?.trim() ?? ""
+      description: input.description?.trim() ?? "",
+      dev_mode: Boolean(input.dev_mode)
     },
     "Failed to update space"
   );

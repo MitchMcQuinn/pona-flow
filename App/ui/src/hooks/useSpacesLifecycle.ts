@@ -152,7 +152,10 @@ export function useSpacesLifecycle(options: {
     };
   }, [state.spaceId, spaceLabelsVersion]);
 
-  async function reloadSpaces(selectId?: string | null) {
+  async function reloadSpaces(
+    selectId?: string | null,
+    options?: { preserveSelection?: boolean }
+  ) {
     const result = await fetchSpaces();
     setSpaces(result);
     if (result.length === 0) {
@@ -162,7 +165,14 @@ export function useSpacesLifecycle(options: {
     setCreateSpaceModal((prev) => (prev.required ? { open: false, required: false } : prev));
     const nextId =
       selectId && result.some((space) => space.id === selectId) ? selectId : result[0]?.id;
-    dispatch({ type: "SPACE_SELECTED", spaceId: nextId ?? null });
+    const next = nextId ?? null;
+    // Re-selecting the same space remounts the settings panel (SPACE_SELECTED
+    // closes it) and the fresh mount starts with dev mode off until the record
+    // refetch lands — which looks like the toggle snapping back after save.
+    if (options?.preserveSelection && next === state.spaceId) {
+      return result;
+    }
+    dispatch({ type: "SPACE_SELECTED", spaceId: next });
     return result;
   }
 
@@ -193,13 +203,19 @@ export function useSpacesLifecycle(options: {
     setCreateSpaceModal({ open: false, required: false });
   }
 
-  async function handleUpdateSpace(values: { name: string; endpoint?: string; labels?: string[] }) {
+  async function handleUpdateSpace(values: {
+    name: string;
+    endpoint?: string;
+    labels?: string[];
+    description?: string;
+    dev_mode?: boolean;
+  }) {
     if (!state.spaceId) return;
     setSavingSpaceEdit(true);
     setEditSpaceError(null);
     try {
       const updated = await updateSpace(state.spaceId, values);
-      await reloadSpaces(updated.id);
+      await reloadSpaces(updated.id, { preserveSelection: true });
       bumpSpaceLabelsVersion();
       dispatch({ type: "SPACE_PANEL_OPENED" });
     } catch (error: unknown) {

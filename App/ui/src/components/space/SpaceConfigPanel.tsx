@@ -11,11 +11,13 @@ import {
   sanitizeSpaceNameInput
 } from "../../utils/spaceName";
 import { AgentsPanel } from "../agents/AgentsPanel";
+import { Toggle } from "../builder/Toggle";
 import { CredentialsPanel } from "../credentials/CredentialsPanel";
 import { EmbeddingsPanel } from "../embeddings/EmbeddingsPanel";
 import { SpaceLabelsPicker } from "../modals/SpaceLabelsPicker";
 import { TemplatesPanel } from "../templates/TemplatesPanel";
 import { UsersPanel } from "../users/UsersPanel";
+import "../builder/builder.css";
 
 type SpaceConfigTab =
   | "settings"
@@ -133,6 +135,7 @@ export function SpaceConfigPanel({
   const [name, setName] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [description, setDescription] = useState("");
+  const [devMode, setDevMode] = useState(false);
   const [labels, setLabels] = useState<string[]>([]);
   const [recordLoading, setRecordLoading] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
@@ -144,24 +147,37 @@ export function SpaceConfigPanel({
 
   useEffect(() => {
     if (!spaceId) return;
+    let cancelled = false;
     setRecordLoading(true);
     setRecordError(null);
     fetchSpaceRecord(spaceId)
       .then((record) => {
+        if (cancelled) return;
         setName(record.name);
         setEndpoint(record.endpoint ?? "");
         setDescription(record.description ?? "");
+        setDevMode(Boolean(record.dev_mode));
         setLabels(record.sequence_labels ?? record.labels ?? []);
       })
       .catch((error: unknown) => {
+        if (cancelled) return;
         setRecordError(error instanceof Error ? error.message : "Failed to load space");
         setName(spaces.find((space) => space.id === spaceId)?.label ?? spaceId);
         setEndpoint("");
         setDescription("");
+        setDevMode(false);
         setLabels([]);
       })
-      .finally(() => setRecordLoading(false));
-  }, [spaceId, spaces]);
+      .finally(() => {
+        if (!cancelled) setRecordLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Reload when the selected space changes, not when the spaces list identity
+    // updates after save — that refetch was overwriting the just-saved toggle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spaceId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,7 +203,7 @@ export function SpaceConfigPanel({
 
   useEffect(() => {
     setLocalError(null);
-  }, [name, endpoint, description, labels]);
+  }, [name, endpoint, description, labels, devMode]);
 
   const trimmedName = name.trim();
   const normalizedName = useMemo(() => normalizeSpaceName(trimmedName), [trimmedName]);
@@ -227,7 +243,8 @@ export function SpaceConfigPanel({
       name: trimmedName,
       endpoint: endpoint.trim(),
       labels,
-      description: description.trim()
+      description: description.trim(),
+      dev_mode: devMode
     });
   }
 
@@ -353,6 +370,18 @@ export function SpaceConfigPanel({
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
+              </div>
+              <div className="builderRowFlags">
+                <Toggle
+                  checked={devMode}
+                  onChange={setDevMode}
+                  label="dev mode"
+                  id="space-dev-mode-toggle"
+                  disabled={!canManageSpace || savingSpace || recordLoading}
+                />
+                <span className="muted">
+                  Show composed Cypher and SQLite previews in the builder.
+                </span>
               </div>
               {!labelsLoading && sharedSequenceLabels.length > 0 ? (
                 <div className="builderRow">

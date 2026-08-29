@@ -5,7 +5,7 @@
 // instances for constraint violations. Side effects (fetch/compose/run) live in the
 // useUpdateInstanceGuard hook so this module stays unit-testable.
 import regexValidator from "../../services/regexValidator";
-import type { SchemaDefinition } from "../../services/connector";
+import type { SchemaDefinition, SchemaPropertyConstraint } from "../../services/connector";
 import { isAttributiveLabelParameter } from "@pona-flow/authoring";
 import { extractExactParameterRef } from "@pona-flow/authoring";
 import {
@@ -41,16 +41,22 @@ export interface GuardIssue {
 /** Per-attributive_label constraint lookup keyed by property name. */
 export type ConstraintsByLabel = Map<string, Map<string, SchematicProperties>>;
 
+/** Build a `propertyKey -> SchematicProperties` map from a schemata list. */
+export function schemataConstraintMap(
+  schemata: SchemaPropertyConstraint[] | null | undefined
+): Map<string, SchematicProperties> {
+  const out = new Map<string, SchematicProperties>();
+  for (const binding of propertiesFromSchemata(schemata ?? [])) {
+    if (binding.schematic_properties) out.set(binding.key, binding.schematic_properties);
+  }
+  return out;
+}
+
 /** Build a `propertyKey -> SchematicProperties` map from a schema definition. */
 export function schemaConstraintMap(
   def: SchemaDefinition | null | undefined
 ): Map<string, SchematicProperties> {
-  const out = new Map<string, SchematicProperties>();
-  if (!def) return out;
-  for (const binding of propertiesFromSchemata(def.schemata ?? [])) {
-    if (binding.schematic_properties) out.set(binding.key, binding.schematic_properties);
-  }
-  return out;
+  return schemataConstraintMap(def?.schemata);
 }
 
 /** NUL-joined `attributiveLabel + propertyKey` key for covered-property lookups. */

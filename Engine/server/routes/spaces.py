@@ -88,6 +88,16 @@ async def update_space(
         labels = [str(i).strip() for i in (body.get("labels") or []) if str(i).strip()]
     set_description = "description" in body
     description = str(body.get("description") or "") if set_description else None
+    set_dev_mode = "dev_mode" in body
+    dev_mode = False
+    if set_dev_mode:
+        raw_dev_mode = body.get("dev_mode")
+        if isinstance(raw_dev_mode, bool):
+            dev_mode = raw_dev_mode
+        elif raw_dev_mode in (0, 1):
+            dev_mode = bool(raw_dev_mode)
+        else:
+            raise bad_request("dev_mode must be a boolean")
     with value_400_domain_500():
         return spaces.update_space(
             space_id,
@@ -97,6 +107,8 @@ async def update_space(
             set_labels=set_labels,
             description=description,
             set_description=set_description,
+            dev_mode=dev_mode,
+            set_dev_mode=set_dev_mode,
         )
 
 

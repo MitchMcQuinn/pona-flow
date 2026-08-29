@@ -30,7 +30,7 @@ export function LivePreview({
   }, [createSequenceMode, sequenceName, sequenceGroupTitle, preview.composed.cypher, state.query]);
 
   return (
-    <div className="builderStepParams">
+    <div className="builderStepParams" data-testid="builder-query-preview">
       <button
         type="button"
         className={"builderStepParamsToggle" + (open ? " is-open" : "")}

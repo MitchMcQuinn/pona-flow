@@ -29,7 +29,13 @@ interface ConfigPanelProps {
   onEventDeleted: () => void;
   onEventCancel: () => void;
   spaces: Array<{ id: string; label: string }>;
-  onSpaceSaved: (values: { name: string; endpoint?: string; labels?: string[] }) => Promise<void>;
+  onSpaceSaved: (values: {
+    name: string;
+    endpoint?: string;
+    labels?: string[];
+    description?: string;
+    dev_mode?: boolean;
+  }) => Promise<void>;
   savingSpace: boolean;
   spaceSaveError: string | null;
   onDeleteSpace: () => void;

@@ -3,20 +3,26 @@ import connector from "../../../services/connector";
 import { useBuilder } from "../../../state/builder/BuilderContext";
 import {
   CREATE_GUARD_CHECK_KEY,
-  createInstanceLabels,
+  createInstanceGuardNodeLabels,
+  createInstanceGuardPrecedingLabels,
   summarizeCreateGuardIssues,
   validateCreateInstances
 } from "../../../state/builder/createInstanceGuard";
-import { schemaConstraintMap, type ConstraintsByLabel } from "../../../state/builder/updateInstanceGuard";
+import { relSchemaKey } from "../../../state/builder/createInstanceSync";
+import {
+  schemaConstraintMap,
+  schemataConstraintMap,
+  type ConstraintsByLabel
+} from "../../../state/builder/updateInstanceGuard";
 
 const GUARD_DEBOUNCE_MS = 400;
 
 /**
  * Debounced schema guard for create INSTANCE. On every MATCH/parameter change it fetches the
- * bound schema definitions and statically validates the operation's adopted properties against
- * the live schema, catching drift left behind when the SCHEMA changed after the operation was
- * saved. A violation registers a failing `cguard` check, which `checksAllClear` uses to block
- * Run until the operation is reconciled.
+ * bound schema definitions (nodes) and outgoing-edge contracts (relationships) and statically
+ * validates adopted properties against the live schema, catching drift left behind when the
+ * SCHEMA changed after the operation was saved. A violation registers a failing `cguard` check,
+ * which `checksAllClear` uses to block Run/save until the operation is reconciled.
  */
 export function useCreateInstanceGuard(): void {
   const { state, dispatch } = useBuilder();
@@ -52,22 +58,40 @@ export function useCreateInstanceGuard(): void {
     }, GUARD_DEBOUNCE_MS);
 
     async function runGuard() {
-      const labels = createInstanceLabels(query);
-      const constraintsByLabel: ConstraintsByLabel = new Map();
-      await Promise.all(
-        labels.map(async (label) => {
+      const nodeLabels = createInstanceGuardNodeLabels(query);
+      const precedingLabels = createInstanceGuardPrecedingLabels(query);
+      const nodeConstraints: ConstraintsByLabel = new Map();
+      const relConstraints: ConstraintsByLabel = new Map();
+      await Promise.all([
+        ...nodeLabels.map(async (label) => {
           try {
             const def = await connector.fetchSchemaDefinition({
               spaceId: spaceId ?? "",
               attributiveLabel: label
             });
-            constraintsByLabel.set(label, schemaConstraintMap(def));
+            nodeConstraints.set(label, schemaConstraintMap(def));
           } catch {
             // Unknown schema: treated as "no constraints" (no static issues raised).
           }
+        }),
+        ...precedingLabels.map(async (label) => {
+          try {
+            const edges = await connector.fetchSchemaOutgoing({
+              spaceId: spaceId ?? "",
+              attributiveLabel: label
+            });
+            for (const edge of edges) {
+              relConstraints.set(
+                relSchemaKey(label, edge.rel_attributive_label),
+                schemataConstraintMap(edge.rel_schemata)
+              );
+            }
+          } catch {
+            // Unknown outgoing edges: leave out so relationships are skipped.
+          }
         })
-      );
-      const issues = validateCreateInstances(query, constraintsByLabel);
+      ]);
+      const issues = validateCreateInstances(query, nodeConstraints, relConstraints);
       return issues.length > 0
         ? { status: "error" as const, message: summarizeCreateGuardIssues(issues) }
         : { status: "ok" as const, message: "schema constraints satisfied" };

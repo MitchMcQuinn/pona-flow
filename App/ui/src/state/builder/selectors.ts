@@ -14,6 +14,7 @@ import {
   queryUsesParameters,
   validateQuery
 } from "@pona-flow/authoring";
+import { CREATE_GUARD_CHECK_KEY } from "./createInstanceGuard";
 import type { BuilderState, ComposedQuery, QueryObject } from "./types";
 
 export { normalizeForCompose, primaryNodeLabel };
@@ -172,8 +173,8 @@ export const builderSelectors = {
     if (hasBodyJsonError) {
       warnings.push("STEP request body must be valid JSON.");
     }
-    // Update-INSTANCE schema guard: explain why Run is blocked (the block itself is
-    // enforced through checksAllClear) and surface the non-blocking blast-radius note.
+    // INSTANCE schema guards: explain why Run/save is blocked (the block itself is
+    // enforced through checksAllClear). uguardInfo is a non-blocking blast-radius note.
     const isUpdateInstance =
       state.query.operation === "update" && state.query.match[0]?.label === "INSTANCE";
     if (isUpdateInstance) {
@@ -184,6 +185,14 @@ export const builderSelectors = {
       const guardInfo = state.checks["uguardInfo"];
       if (guardInfo && guardInfo.status !== "idle" && guardInfo.message) {
         warnings.push(guardInfo.message);
+      }
+    }
+    const isCreateInstance =
+      state.query.operation === "create" && state.query.match[0]?.label === "INSTANCE";
+    if (isCreateInstance) {
+      const guard = state.checks[CREATE_GUARD_CHECK_KEY];
+      if (guard && guard.status === "error" && guard.message) {
+        warnings.push(guard.message);
       }
     }
     // Optional-hop blast-radius notes. Display-only for the same reason as uguardInfo:

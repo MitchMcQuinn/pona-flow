@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import type { EventSummary, SequenceSummary } from "../state/types";
 import {
   UNGROUPED_LABEL,
@@ -144,6 +145,200 @@ interface AccordionApi {
   expand: (title: string) => void;
 }
 
+const SEQUENCE_TOOLTIP_DELAY_MS = 200;
+const SEQUENCE_TOOLTIP_GAP = 8;
+const SEQUENCE_TOOLTIP_MAX_WIDTH = 280;
+
+function SequenceNameTooltip({
+  label,
+  anchorRef
+}: {
+  label: string;
+  anchorRef: React.RefObject<HTMLElement | null>;
+}) {
+  const tipRef = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  const [style, setStyle] = useState<CSSProperties>({
+    position: "fixed",
+    top: 0,
+    left: 0,
+    maxWidth: SEQUENCE_TOOLTIP_MAX_WIDTH,
+    zIndex: 1100
+  });
+
+  useLayoutEffect(() => {
+    function position() {
+      const anchor = anchorRef.current;
+      const tip = tipRef.current;
+      if (!anchor || !tip) return;
+      const rect = anchor.getBoundingClientRect();
+      const tipH = tip.offsetHeight;
+      const tipW = tip.offsetWidth;
+      let left = rect.right + SEQUENCE_TOOLTIP_GAP;
+      if (left + tipW > window.innerWidth - SEQUENCE_TOOLTIP_GAP) {
+        left = Math.max(SEQUENCE_TOOLTIP_GAP, rect.left - tipW - SEQUENCE_TOOLTIP_GAP);
+      }
+      let top = rect.top + (rect.height - tipH) / 2;
+      if (top < SEQUENCE_TOOLTIP_GAP) top = SEQUENCE_TOOLTIP_GAP;
+      if (top + tipH > window.innerHeight - SEQUENCE_TOOLTIP_GAP) {
+        top = window.innerHeight - tipH - SEQUENCE_TOOLTIP_GAP;
+      }
+      setStyle({
+        position: "fixed",
+        top,
+        left,
+        maxWidth: SEQUENCE_TOOLTIP_MAX_WIDTH,
+        zIndex: 1100
+      });
+      setReady(true);
+    }
+
+    position();
+    window.addEventListener("scroll", position, true);
+    window.addEventListener("resize", position);
+    return () => {
+      window.removeEventListener("scroll", position, true);
+      window.removeEventListener("resize", position);
+    };
+  }, [anchorRef, label]);
+
+  return createPortal(
+    <div
+      ref={tipRef}
+      className={`sequenceLabelTooltip${ready ? " isVisible" : ""}`}
+      role="tooltip"
+      data-testid="nav-sequence-tooltip"
+      style={style}
+    >
+      {label}
+    </div>,
+    document.body
+  );
+}
+
+function SequenceItem({
+  sequence,
+  selected,
+  onSelectSequence,
+  onEditSequence,
+  onDeleteSequence,
+  drag
+}: {
+  sequence: SequenceSummary;
+  selected: boolean;
+  onSelectSequence: (sequenceId: string) => void;
+  onEditSequence: (sequenceId: string) => void;
+  onDeleteSequence: (sequenceId: string) => void;
+  drag: DragApi;
+}) {
+  const itemRef = useRef<HTMLLIElement>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const hoverTimer = useRef<number | null>(null);
+  const [hovered, setHovered] = useState(false);
+  const [truncated, setTruncated] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = labelRef.current;
+    if (!el) return;
+    const update = () => {
+      setTruncated(el.scrollWidth - el.clientWidth > 1);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [sequence.label]);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+    };
+  }, []);
+
+  function onItemEnter() {
+    if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = window.setTimeout(() => setHovered(true), SEQUENCE_TOOLTIP_DELAY_MS);
+  }
+
+  function onItemLeave() {
+    if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+    setHovered(false);
+  }
+
+  const indicator = drag.itemDrop && drag.itemDrop.id === sequence.id ? drag.itemDrop.position : null;
+  const classNames = ["sequenceItem"];
+  if (selected) classNames.push("active");
+  if (sequence.suspended) classNames.push("suspended");
+  if (sequence.orphaned) classNames.push("orphaned");
+  if (sequence.id === drag.draggingId) classNames.push("dragging");
+  if (indicator === "before") classNames.push("dropBefore");
+  if (indicator === "after") classNames.push("dropAfter");
+
+  const showTooltip = hovered && truncated && sequence.id !== drag.draggingId;
+
+  return (
+    <li
+      ref={itemRef}
+      className={classNames.join(" ")}
+      data-testid="nav-sequence-item"
+      draggable
+      onMouseEnter={onItemEnter}
+      onMouseLeave={onItemLeave}
+      onDragStart={(e) => drag.onItemDragStart(sequence.id, e)}
+      onDragEnd={drag.onItemDragEnd}
+      onDragOver={(e) => drag.onItemDragOver(sequence.id, e)}
+      onDrop={(e) => drag.onItemDrop(sequence.id, e)}
+    >
+      <span
+        className="sequenceDragHandle"
+        aria-label="Drag to reorder"
+        title="Drag to reorder"
+        onMouseDown={drag.armItemHandle}
+      >
+        <DragHandleIcon />
+      </span>
+      <button
+        className="sequenceBtn"
+        type="button"
+        title={
+          sequence.orphaned
+            ? "Orphaned: the entry STEP is missing from the graph. Remove this sequence from the navigation or recreate its step."
+            : sequence.suspended
+              ? "Suspended: a schema change invalidated an INSTANCE step. Re-save the step to restore it."
+              : undefined
+        }
+        onClick={() => onSelectSequence(sequence.id)}
+      >
+        <span className="sequenceBtnLabel" ref={labelRef}>
+          {sequence.label}
+        </span>
+      </button>
+      <span className="inlineActions sequenceItemActions">
+        <button
+          className="tinyBtn tinyBtnIcon"
+          type="button"
+          aria-label={`Edit sequence ${sequence.label}`}
+          title="Edit sequence"
+          onClick={() => onEditSequence(sequence.id)}
+        >
+          <EditIcon />
+        </button>
+        <button
+          className="tinyBtn tinyBtnIcon danger"
+          type="button"
+          aria-label={`Delete sequence ${sequence.label}`}
+          title="Delete sequence"
+          onClick={() => onDeleteSequence(sequence.id)}
+        >
+          <DeleteIcon />
+        </button>
+      </span>
+      {showTooltip ? <SequenceNameTooltip label={sequence.label} anchorRef={itemRef} /> : null}
+    </li>
+  );
+}
+
 function SequenceList({
   groupTitle,
   sequences,
@@ -167,72 +362,17 @@ function SequenceList({
       onDragOver={drag.onContainerDragOver}
       onDrop={(e) => drag.onContainerDrop(groupTitle, e)}
     >
-      {sequences.map((sequence) => {
-        const indicator =
-          drag.itemDrop && drag.itemDrop.id === sequence.id ? drag.itemDrop.position : null;
-        const classNames = ["sequenceItem"];
-        if (sequence.id === selectedSequenceId) classNames.push("active");
-        if (sequence.suspended) classNames.push("suspended");
-        if (sequence.orphaned) classNames.push("orphaned");
-        if (sequence.id === drag.draggingId) classNames.push("dragging");
-        if (indicator === "before") classNames.push("dropBefore");
-        if (indicator === "after") classNames.push("dropAfter");
-        return (
-          <li
-            key={sequence.id}
-            className={classNames.join(" ")}
-            data-testid="nav-sequence-item"
-            draggable
-            onDragStart={(e) => drag.onItemDragStart(sequence.id, e)}
-            onDragEnd={drag.onItemDragEnd}
-            onDragOver={(e) => drag.onItemDragOver(sequence.id, e)}
-            onDrop={(e) => drag.onItemDrop(sequence.id, e)}
-          >
-            <span
-              className="sequenceDragHandle"
-              aria-label="Drag to reorder"
-              title="Drag to reorder"
-              onMouseDown={drag.armItemHandle}
-            >
-              <DragHandleIcon />
-            </span>
-            <button
-              className="sequenceBtn"
-              type="button"
-              title={
-                sequence.orphaned
-                  ? "Orphaned: the entry STEP is missing from the graph. Remove this sequence from the navigation or recreate its step."
-                  : sequence.suspended
-                    ? "Suspended: a schema change invalidated an INSTANCE step. Re-save the step to restore it."
-                    : undefined
-              }
-              onClick={() => onSelectSequence(sequence.id)}
-            >
-              <span className="sequenceBtnLabel">{sequence.label}</span>
-            </button>
-            <span className="inlineActions sequenceItemActions">
-              <button
-                className="tinyBtn tinyBtnIcon"
-                type="button"
-                aria-label={`Edit sequence ${sequence.label}`}
-                title="Edit sequence"
-                onClick={() => onEditSequence(sequence.id)}
-              >
-                <EditIcon />
-              </button>
-              <button
-                className="tinyBtn tinyBtnIcon danger"
-                type="button"
-                aria-label={`Delete sequence ${sequence.label}`}
-                title="Delete sequence"
-                onClick={() => onDeleteSequence(sequence.id)}
-              >
-                <DeleteIcon />
-              </button>
-            </span>
-          </li>
-        );
-      })}
+      {sequences.map((sequence) => (
+        <SequenceItem
+          key={sequence.id}
+          sequence={sequence}
+          selected={sequence.id === selectedSequenceId}
+          onSelectSequence={onSelectSequence}
+          onEditSequence={onEditSequence}
+          onDeleteSequence={onDeleteSequence}
+          drag={drag}
+        />
+      ))}
     </ul>
   );
 }

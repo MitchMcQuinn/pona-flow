@@ -71,6 +71,7 @@ def _row_to_space_keys(row: sqlite3.Row) -> dict[str, str]:
 def get_space_row(space_id: str) -> sqlite3.Row:
     """Load one row from catalog ``spaces``; raise if unknown id."""
     with catalog_db() as conn:
+        _ensure_spaces_dev_mode_column(conn)
         cur = conn.execute("SELECT * FROM spaces WHERE id = ?", (space_id,))
         row = cur.fetchone()
         if row is None:
@@ -521,9 +522,10 @@ def _space_is_private_from_row(row: sqlite3.Row) -> bool:
 
 
 def _space_dev_mode_from_row(row: sqlite3.Row) -> bool:
-    if "dev_mode" not in row.keys():
+    try:
+        return bool(row["dev_mode"])
+    except (KeyError, IndexError):
         return False
-    return bool(row["dev_mode"])
 
 
 def append_space_attributive_labels(
@@ -1009,6 +1011,7 @@ def create_space(
     with catalog_db() as conn:
         _ensure_spaces_groups_column(conn)
         _ensure_spaces_is_private_column(conn)
+        _ensure_spaces_dev_mode_column(conn)
         _ensure_spaces_description_column(conn)
         if _space_name_exists(conn, sid):
             raise ValueError(f"Space name already exists: {sid!r}")
@@ -1105,13 +1108,16 @@ def update_space(
     set_labels: bool = False,
     description: str | None = None,
     set_description: bool = False,
+    dev_mode: bool | None = None,
+    set_dev_mode: bool = False,
 ) -> dict[str, Any]:
     """
     Update a catalog ``spaces`` row (name, endpoint, and optionally labels).
 
     Renaming recomputes ``id`` and all connection env-key columns from the normalized
     name, matching :func:`create_space`. When ``set_labels`` is true, ``labels`` must
-    be shared sequences (queries.kind = 'sequence').
+    be shared sequences (queries.kind = 'sequence'). ``dev_mode`` is the builder flag
+    that surfaces composed Cypher and SQLite previews.
     """
     sid = (space_id or "").strip()
     if not sid:
@@ -1126,6 +1132,7 @@ def update_space(
     with catalog_db() as conn:
         _ensure_spaces_groups_column(conn)
         _ensure_spaces_is_private_column(conn)
+        _ensure_spaces_dev_mode_column(conn)
         _ensure_spaces_description_column(conn)
         cur = conn.execute("SELECT id FROM spaces WHERE id = ?", (sid,))
         if cur.fetchone() is None:
@@ -1144,54 +1151,42 @@ def update_space(
             new_id
         )
 
+        assignments = [
+            "id = ?",
+            "name = ?",
+            "endpoint = ?",
+            "neo4j_uri_key = ?",
+            "neo4j_user_key = ?",
+            "neo4j_password_key = ?",
+            "sqlite_database_path_key = ?",
+        ]
+        params: list[Any] = [
+            new_id,
+            new_id,
+            endpoint_val,
+            neo_uri_key,
+            neo_user_key,
+            neo_pass_key,
+            sqlite_path_key,
+        ]
         if set_labels:
-            conn.execute(
-                """
-                UPDATE spaces SET
-                    id = ?, name = ?, endpoint = ?, labels = ?,
-                    neo4j_uri_key = ?, neo4j_user_key = ?, neo4j_password_key = ?,
-                    sqlite_database_path_key = ?
-                WHERE id = ?
-                """,
-                (
-                    new_id,
-                    new_id,
-                    endpoint_val,
-                    labels_json,
-                    neo_uri_key,
-                    neo_user_key,
-                    neo_pass_key,
-                    sqlite_path_key,
-                    sid,
-                ),
-            )
-        else:
-            conn.execute(
-                """
-                UPDATE spaces SET
-                    id = ?, name = ?, endpoint = ?,
-                    neo4j_uri_key = ?, neo4j_user_key = ?, neo4j_password_key = ?,
-                    sqlite_database_path_key = ?
-                WHERE id = ?
-                """,
-                (
-                    new_id,
-                    new_id,
-                    endpoint_val,
-                    neo_uri_key,
-                    neo_user_key,
-                    neo_pass_key,
-                    sqlite_path_key,
-                    sid,
-                ),
-            )
+            assignments.append("labels = ?")
+            params.append(labels_json)
         description_val: str | None = None
         if set_description:
             description_val = (description or "").strip()
-            conn.execute(
-                "UPDATE spaces SET description = ? WHERE id = ?",
-                (description_val, new_id),
-            )
+            assignments.append("description = ?")
+            params.append(description_val)
+        dev_mode_val: bool | None = None
+        if set_dev_mode:
+            dev_mode_val = bool(dev_mode)
+            assignments.append("dev_mode = ?")
+            params.append(1 if dev_mode_val else 0)
+        params.append(sid)
+        conn.execute(
+            f"UPDATE spaces SET {', '.join(assignments)} WHERE id = ?",
+            params,
+        )
         conn.commit()
         result: dict[str, Any] = {
             "id": new_id,
@@ -1202,6 +1197,8 @@ def update_space(
             result["labels"] = label_list or []
         if set_description:
             result["description"] = description_val or ""
+        if set_dev_mode:
+            result["dev_mode"] = bool(dev_mode_val)
         return result
 
 
