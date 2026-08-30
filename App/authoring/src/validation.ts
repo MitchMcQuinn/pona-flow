@@ -12,6 +12,7 @@ import type {
 } from "./types.js";
 import { instanceKeyRequiresValue } from "./instanceRules.js";
 import { isEntityConfigUpdate, isLabelOnlyDelete } from "./matchMode.js";
+import { comparisonOperatorNeedsValue } from "./types.js";
 import {
   choiceConfigOf,
   validateAttributiveLabelValue,
@@ -456,6 +457,20 @@ export function validateQuery(query: QueryObject, _runtimeEnabled: boolean): str
     const aliasError = validateOptionalAlias(item.alias);
     if (aliasError) {
       warnings.push(`RETURN projection ${index + 1}: ${aliasError}`);
+    }
+    if (!item.boolean_mode) return;
+    // Without an alias the column is named after the whole comparison expression,
+    // which no downstream response_parameter mapping can address.
+    if (!(item.alias ?? "").trim()) {
+      warnings.push(`RETURN projection ${index + 1}: a boolean projection needs an alias.`);
+    }
+    if (!item.comparison_operator) {
+      warnings.push(`RETURN projection ${index + 1}: select a comparison operator.`);
+    } else if (
+      comparisonOperatorNeedsValue(item.comparison_operator) &&
+      !(item.comparison_value ?? "").trim()
+    ) {
+      warnings.push(`RETURN projection ${index + 1}: enter a value to compare against.`);
     }
   });
 

@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useBuilder } from "../../state/builder/BuilderContext";
 import connector from "../../services/connector";
-import { updateParameterAt } from "../../state/builder/queryHelpers";
+import {
+  addParameter,
+  removeParameterAt,
+  updateParameterAt
+} from "../../state/builder/queryHelpers";
 import { newSchematicProperties } from "../../state/builder/defaults";
 import {
   ATTRIBUTIVE_LABEL_VALUE_TYPE,
@@ -47,10 +51,15 @@ interface ParameterRowProps {
   locked: boolean;
   /** Additionally locks value_type + format (origin forces a fixed type). */
   typeLocked: boolean;
+  /** Hand-declared rather than discovered from a $name token: removable by hand. */
+  declared: boolean;
+  /** Another row already uses this name (only reachable between hand-declared rows). */
+  duplicateName: boolean;
   formatOptions: string[];
   /** create SCHEMA/STEP: attributive_label parameter defaults must be globally unique. */
   enforceAttributiveUniqueness: boolean;
   onOpenRegexModal: () => void;
+  onRemove: () => void;
 }
 
 function ParameterRow({
@@ -58,9 +67,12 @@ function ParameterRow({
   param,
   locked,
   typeLocked,
+  declared,
+  duplicateName,
   formatOptions,
   enforceAttributiveUniqueness,
-  onOpenRegexModal
+  onOpenRegexModal,
+  onRemove
 }: ParameterRowProps) {
   const { state, patchQuery } = useBuilder();
   const spaceId = state.spaceId ?? "";
@@ -132,6 +144,10 @@ function ParameterRow({
           {nameInvalid ? (
             <span className="builderCheckMsg duplicate">
               start with a letter or underscore; no leading digit
+            </span>
+          ) : duplicateName ? (
+            <span className="builderCheckMsg duplicate">
+              another parameter already uses this name
             </span>
           ) : null}
         </div>
@@ -261,13 +277,18 @@ function ParameterRow({
           labelFirst
           disabled={locked}
         />
+        {declared && !locked ? (
+          <button type="button" className="builderTinyBtn builderDanger" onClick={onRemove}>
+            Remove
+          </button>
+        ) : null}
       </div>
     </div>
   );
 }
 
 export function ParametersSection() {
-  const { state } = useBuilder();
+  const { state, patchQuery } = useBuilder();
   const params = state.query.parameters;
   const op = state.query.operation;
   const clauseLabel = state.query.match[0]?.label;
@@ -279,32 +300,53 @@ export function ParametersSection() {
   const formatOptions = state.regexPatterns.length ? state.regexPatterns.map((r) => r.name) : ["any"];
   const [showRegexModal, setShowRegexModal] = useState(false);
 
+  // Names carried by more than one row — only reachable once rows can be added by hand.
+  const nameCounts = new Map<string, number>();
+  params.forEach((p) => {
+    const name = String(p.name ?? "").trim();
+    if (name) nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+  });
+
   return (
     <section className="builderSection">
       <div className="builderHeadRow">
         <h3 style={{ margin: 0 }}>Parameters</h3>
+        <button
+          type="button"
+          className="builderTinyBtn builderAddBtn"
+          data-testid="builder-add-parameter-btn"
+          onClick={() => patchQuery(addParameter())}
+        >
+          + ADD PARAMETER
+        </button>
       </div>
 
       {params.length === 0 ? (
         <p className="builderCheckMsg">
           {schemaCreate
-            ? "No parameters yet. Reference parameters with $name in property name or default value fields."
-            : "No parameters found in value fields. Reference parameters with $name."}
+            ? "No parameters yet. Reference one with $name in a property name or default value field, or add one here."
+            : "No parameters found in value fields. Reference one with $name, or add one here to collect it at run time."}
         </p>
       ) : null}
 
-      {params.map((param, index) => (
-        <ParameterRow
-          key={index}
-          index={index}
-          param={param}
-          locked={lockedNames.has(String(param.name ?? "").trim())}
-          typeLocked={typeLockedNames.has(String(param.name ?? "").trim())}
-          formatOptions={formatOptions}
-          enforceAttributiveUniqueness={enforceAttributiveUniqueness}
-          onOpenRegexModal={() => setShowRegexModal(true)}
-        />
-      ))}
+      {params.map((param, index) => {
+        const name = String(param.name ?? "").trim();
+        return (
+          <ParameterRow
+            key={index}
+            index={index}
+            param={param}
+            locked={lockedNames.has(name)}
+            typeLocked={typeLockedNames.has(name)}
+            declared={param.declared === true}
+            duplicateName={(nameCounts.get(name) ?? 0) > 1}
+            formatOptions={formatOptions}
+            enforceAttributiveUniqueness={enforceAttributiveUniqueness}
+            onOpenRegexModal={() => setShowRegexModal(true)}
+            onRemove={() => patchQuery(removeParameterAt(index))}
+          />
+        );
+      })}
       {showRegexModal ? <RegexPatternModal onClose={() => setShowRegexModal(false)} /> : null}
     </section>
   );

@@ -56,6 +56,8 @@ export {
   LABELS_REQUIRING_UNIQUE_ATTRIBUTIVE_LABEL,
   WHERE_COMPARISON_OPERATORS,
   WHERE_VALUE_PICKER_OPERATORS,
+  WHERE_VALUELESS_OPERATORS,
+  comparisonOperatorNeedsValue,
   isWhereFilter,
   isWhereGroup,
   whereFilterUsesValuePicker,

@@ -35,6 +35,7 @@ from .execution_compose import (  # noqa: F401
     enumerate_sequence_operation_ids,
 )
 from .execution_run import (  # noqa: F401
+    _bind_query_return_columns,
     _bind_response_parameters,
     _call_runner,
     _classify_final_response,

@@ -86,6 +86,9 @@ export function ReturnSection() {
             attributive_label: undefined,
             property_key: undefined,
             entity_role: undefined,
+            boolean_mode: undefined,
+            comparison_operator: undefined,
+            comparison_value: undefined,
             expression: "",
             alias: undefined
           })

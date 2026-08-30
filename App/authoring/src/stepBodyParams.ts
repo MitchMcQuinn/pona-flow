@@ -81,6 +81,9 @@ export function validateStepBodyParameters(
   const referenced = new Set(findStepBodyParameterRefs(bodyRaw));
   parameters.forEach((p) => {
     if (!p.is_required) return;
+    // A hand-declared input is collected for the run as a whole (a later step, or a
+    // transition guard, reads it) and is not expected to appear in this step's body.
+    if (p.declared) return;
     const name = (p.name ?? "").trim();
     if (!name) return;
     if (!referenced.has(name)) {

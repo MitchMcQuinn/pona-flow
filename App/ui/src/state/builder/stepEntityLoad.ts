@@ -49,6 +49,9 @@ export function parametersFromEntityRows(
         data_type: "string",
         value: row.value ?? "",
         is_required: Boolean(row.is_required),
+        // The step was saved with these inputs, so reference sync must keep them even
+        // when the body no longer mentions one.
+        declared: true,
         schematic_properties: {
           ...newSchematicProperties(),
           value_type,

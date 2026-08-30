@@ -72,6 +72,10 @@ export {
 export { hopSplit, hopTailVariables, supportsHopSplit };
 export type { HopSplitMode, HopTailVariables } from "./render/path.js";
 
+// Cypher literal formatting, shared with @pona-flow/authoring so the expressions its
+// builder cards compile quote values exactly the way the composer's renderers do.
+export { formatLiteral };
+
 export type {
   Operation,
   GraphNodeLabel,

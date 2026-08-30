@@ -238,6 +238,15 @@ export interface ReturnItem {
   attributive_label?: string;
   property_key?: string;
   entity_role?: "node" | "relationship";
+  /**
+   * Builder-only hint: project the result of a comparison against the property
+   * instead of the property value itself. `expression` stays the sole compiled
+   * artifact — left unset when off so pre-existing configs re-save unchanged.
+   */
+  boolean_mode?: boolean;
+  comparison_operator?: WhereComparisonOperator;
+  /** Compared-against value: a literal (e.g. "30", "active") or an exact $parameter. */
+  comparison_value?: string;
 }
 
 export interface OrderByItem {
@@ -294,6 +303,12 @@ export interface Parameter {
   schematic_properties?: SchematicProperties;
   /** Author-written prose; surfaced to MCP agents as the inputSchema property description. */
   description?: string;
+  /**
+   * Builder-only: declared by hand rather than discovered from a `$name` token, so
+   * reference sync keeps it even while nothing in the query references it. Never
+   * serialized into a catalog/entity row; it round-trips through `builder_config`.
+   */
+  declared?: boolean;
 }
 
 export interface ReturnClause {

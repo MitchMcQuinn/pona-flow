@@ -14,11 +14,14 @@ import { VectorSearchSection } from "./VectorSearchSection";
 import { isEntityConfigUpdate, isLabelOnlyDelete } from "@pona-flow/authoring";
 
 export function QueryCard() {
-  const { state, patchQuery } = useBuilder();
+  const { state, patchQuery, createSequenceMode } = useBuilder();
   const { query } = state;
   const op = query.operation;
   const clauseLabel = query.match[0]?.label;
-  const showParameters = hasReferencedParameters(query);
+  // Always available while authoring an operation, so a parameter can be declared before
+  // anything references it. A sequence row's parameters are inert at run time (the engine
+  // collects inputs from the composed steps), so there the card stays reference-driven.
+  const showParameters = createSequenceMode ? hasReferencedParameters(query) : true;
   // Update SCHEMA/STEP only edits entity config payloads (SQLite); the graph-clause
   // cards (WHERE/SET/RETURN) don't apply.
   const entityConfigUpdate = isEntityConfigUpdate(op, clauseLabel);

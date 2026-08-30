@@ -803,7 +803,49 @@
         "alias": {
           "type": "string",
           "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
-          "description": "Optional AS alias for this projection."
+          "description": "Optional AS alias for this projection. Required when boolean_mode is true."
+        },
+        "path_variable": {
+          "type": "string",
+          "description": "Builder hint: the MATCH alias whose property this projection reads (read/update INSTANCE pickers)."
+        },
+        "attributive_label": {
+          "type": "string",
+          "description": "Builder hint: the attributive_label bound to path_variable when the projection was authored."
+        },
+        "property_key": {
+          "type": "string",
+          "description": "Builder hint: the projected property's key."
+        },
+        "entity_role": {
+          "type": "string",
+          "enum": ["node", "relationship"],
+          "description": "Builder hint: whether path_variable binds a node or a relationship."
+        },
+        "boolean_mode": {
+          "type": "boolean",
+          "description": "Builder hint: project the result of comparison_operator/comparison_value against the property instead of the property value. Compiles to coalesce(alias.prop OP value, false) so a missing property yields false rather than null; IS NULL / IS NOT NULL are already total and compile bare."
+        },
+        "comparison_operator": {
+          "type": "string",
+          "enum": [
+            "=",
+            "<>",
+            ">",
+            ">=",
+            "<",
+            "<=",
+            "CONTAINS",
+            "STARTS WITH",
+            "ENDS WITH",
+            "IS NULL",
+            "IS NOT NULL"
+          ],
+          "description": "Builder hint (boolean_mode): the comparison applied to the property."
+        },
+        "comparison_value": {
+          "type": "string",
+          "description": "Builder hint (boolean_mode): the compared-against value as typed — a literal or an exact $parameter reference. Omitted for IS NULL / IS NOT NULL."
         }
       }
     },

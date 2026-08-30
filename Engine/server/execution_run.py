@@ -10,7 +10,9 @@ state machine:
      that case the run pauses as "pending" and returns *all* of the step's fields
      to prompt (optional included), so the operator can review/override them.
   3. Execute the step (query against Neo4j, HTTP endpoint, or sandboxed code),
-     then bind any response_parameter values for downstream steps.
+     then bind values for downstream steps: a query step's scalar RETURN columns
+     fill in names not already resolved, and response_parameter mappings apply
+     afterwards so an explicit mapping can still overwrite one.
   4. Follow outgoing transitions whose condition_parameter is empty. When a
      condition_parameter is set, gate on it: with a condition_expected boolean,
      follow only when the parameter's strict boolean value matches it (so two
@@ -54,6 +56,11 @@ _OUTBOUND_USER_AGENT = "pona-flow/1.0 (+https://github.com/pona-flow)"
 # ``$name`` where name is identifier-shaped (excludes $100 / ${42} / $secret.X which
 # has a dot and is handled separately).
 _CODE_PARAM_REF_RE = re.compile(r"\$(?![0-9])(?!\{[0-9]+\})([A-Za-z_][A-Za-z0-9_]*)\b")
+
+# RETURN column aliases eligible for auto-binding (see _bind_query_return_columns).
+# An unaliased projection comes back keyed by its raw expression text
+# ("r.id IS NOT NULL"), which no downstream step could reference as ``$name``.
+_RETURN_COLUMN_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Input/output validation limits for code-execution steps.
 _CODE_PARAM_MAX_BYTES = 64 * 1024  # per substituted parameter value (encoded)
@@ -728,6 +735,43 @@ def _bind_response_parameters(
             resolved[param] = rp.get("default_value")
 
 
+def _bind_query_return_columns(
+    step: dict[str, Any], response: dict[str, Any], resolved: dict[str, Any]
+) -> None:
+    """Publish a query step's scalar RETURN columns as parameters for later steps.
+
+    A parameter-gated transition is evaluated against ``resolved``, so a boolean a
+    read step computed (``... AS hasExistingConnection``) has to land there before
+    the branch can see it. Binding is deliberately narrow:
+
+      - query steps only, since code/endpoint steps return a caller-shaped body
+        whose keys are not authored as parameter names;
+      - the first record only, matching the columns already surfaced on the response;
+      - scalars only, so the implicit ``RETURN *`` on a create step still feeds the
+        visualizer its node/relationship maps without pushing them into run state;
+      - nulls are skipped, so an OPTIONAL MATCH that missed cannot erase an input a
+        later step binds under the same name;
+      - names already resolved win, so caller input and earlier steps are never
+        overwritten by a column that happens to share their name.
+
+    ``response_parameters`` stays the way to *overwrite* a name on purpose, and runs
+    after this so an explicit mapping always takes precedence.
+    """
+    if not str(step.get("query_id") or "").strip():
+        return
+    records = response.get("records") or []
+    if not records or not isinstance(records[0], dict):
+        return
+    for key, value in records[0].items():
+        name = str(key).strip()
+        if name in resolved or not _RETURN_COLUMN_NAME_RE.match(name):
+            continue
+        # bool covers the branch case; None and collections fall through untouched.
+        if value is None or not isinstance(value, (bool, int, float, str)):
+            continue
+        resolved[name] = value
+
+
 def _record_columns(records: list[Any]) -> list[str]:
     columns: list[str] = []
     seen: set[str] = set()
@@ -1115,6 +1159,7 @@ def run_execution(
             executed_entry["kind"] = "local_llm"
             executed_entry["config_id"] = str(step.get("config_id") or "")
         executed.append(executed_entry)
+        _bind_query_return_columns(step, response, resolved)
         _bind_response_parameters(response, response_parameters, resolved)
 
         _enqueue_transitions(step, resolved, queue)

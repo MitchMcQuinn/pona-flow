@@ -1,6 +1,7 @@
-import { hopTailVariables } from "@pona-flow/composer";
+import { formatLiteral, hopTailVariables } from "@pona-flow/composer";
 import { isAttributiveLabelParameter } from "./normalizeField.js";
-import type { QueryObject, ReturnItem } from "./types.js";
+import { comparisonOperatorNeedsValue } from "./types.js";
+import type { QueryObject, ReturnItem, WhereComparisonOperator } from "./types.js";
 
 export interface ReadMatchPathBinding {
   variable: string;
@@ -198,6 +199,51 @@ export function readReturnExpression(pathVariable: string, propertyKey: string):
   return `${v}.${k}`;
 }
 
+/** Matches a value that is exactly a parameter reference, e.g. "$threshold". */
+const PARAM_REF_EXACT_RE = /^\$(?![0-9])[A-Za-z_][A-Za-z0-9_]*$/;
+
+// Coerce a raw comparison value to the closest scalar so literal formatting quotes
+// strings but leaves numbers/booleans/null bare (mirrors the WHERE filter logic).
+function parseComparisonValue(raw: string): unknown {
+  const t = raw.trim();
+  if (t === "true") return true;
+  if (t === "false") return false;
+  if (t === "null") return null;
+  if (/^-?\d+$/.test(t)) return Number.parseInt(t, 10);
+  if (/^-?\d*\.\d+$/.test(t)) return Number.parseFloat(t);
+  return t;
+}
+
+/** Render a raw comparison value as Cypher: a $parameter stays bare, else a literal. */
+function formatComparisonValue(raw: string): string {
+  const t = (raw ?? "").trim();
+  if (!t) return "";
+  if (PARAM_REF_EXACT_RE.test(t)) return t;
+  return formatLiteral(parseComparisonValue(t));
+}
+
+/**
+ * Compile a boolean projection: the comparison result instead of the property value.
+ *
+ * A comparison against a missing property is null in Cypher, not false, so the result
+ * is wrapped in coalesce(…, false) to keep the column a strict boolean (the same guard
+ * the "not_property" SET mode uses). IS NULL / IS NOT NULL are already total, so they
+ * are emitted bare. An incomplete row compiles to "" and is reported by validateQuery.
+ */
+export function readReturnBooleanExpression(
+  pathVariable: string,
+  propertyKey: string,
+  operator: WhereComparisonOperator | undefined,
+  rawValue: string
+): string {
+  const lhs = readReturnExpression(pathVariable, propertyKey);
+  if (!lhs || !operator) return "";
+  if (!comparisonOperatorNeedsValue(operator)) return `${lhs} ${operator}`;
+  const rhs = formatComparisonValue(rawValue);
+  if (!rhs) return "";
+  return `coalesce(${lhs} ${operator} ${rhs}, false)`;
+}
+
 export function bindingForVariable(
   bindings: ReadMatchPathBinding[],
   variable: string
@@ -223,7 +269,15 @@ export function parseReadReturnExpression(
 export function resolvedReadReturnFields(
   item: ReturnItem,
   bindings: ReadMatchPathBinding[]
-): { path_variable: string; property_key: string; attributive_label: string; entityRole: "node" | "relationship" } {
+): {
+  path_variable: string;
+  property_key: string;
+  attributive_label: string;
+  entityRole: "node" | "relationship";
+  boolean_mode: boolean;
+  comparison_operator: WhereComparisonOperator | undefined;
+  comparison_value: string;
+} {
   let path_variable = (item.path_variable || "").trim();
   let property_key = (item.property_key || "").trim();
   if (!path_variable || !property_key) {
@@ -238,22 +292,43 @@ export function resolvedReadReturnFields(
     path_variable,
     property_key,
     attributive_label: binding?.attributive_label ?? (item.attributive_label || "").trim(),
-    entityRole: binding?.entityRole ?? item.entity_role ?? "node"
+    entityRole: binding?.entityRole ?? item.entity_role ?? "node",
+    boolean_mode: item.boolean_mode === true,
+    comparison_operator: item.comparison_operator,
+    comparison_value: item.comparison_value ?? ""
   };
+}
+
+/** Comparison inputs a boolean projection compiles from. */
+export interface ReturnBooleanInputs {
+  booleanMode?: boolean;
+  operator?: WhereComparisonOperator;
+  /** Literal or exact $parameter; ignored by the valueless operators. */
+  value?: string;
 }
 
 export function readReturnItemPatch(
   bindings: ReadMatchPathBinding[],
   pathVariable: string,
-  propertyKey: string
+  propertyKey: string,
+  inputs: ReturnBooleanInputs = {}
 ): Partial<ReturnItem> {
   const binding = bindingForVariable(bindings, pathVariable);
-  const expression = readReturnExpression(pathVariable, propertyKey);
+  const booleanMode = inputs.booleanMode === true;
+  const operator = booleanMode ? inputs.operator : undefined;
+  const value = booleanMode ? (inputs.value ?? "") : "";
+  const expression = booleanMode
+    ? readReturnBooleanExpression(pathVariable, propertyKey, operator, value)
+    : readReturnExpression(pathVariable, propertyKey);
   return {
     path_variable: pathVariable.trim() || undefined,
     property_key: propertyKey.trim() || undefined,
     attributive_label: binding?.attributive_label,
     entity_role: binding?.entityRole,
+    // Off stays unset so projections saved before boolean mode re-save unchanged.
+    boolean_mode: booleanMode ? true : undefined,
+    comparison_operator: operator,
+    comparison_value: booleanMode && value ? value : undefined,
     expression
   };
 }

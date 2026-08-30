@@ -66,6 +66,20 @@ export const WHERE_COMPARISON_OPERATORS: import("@pona-flow/composer").WhereComp
   "IS NOT NULL",
 ];
 
+/** Operators that are complete on their own — they compare against no right-hand side. */
+export const WHERE_VALUELESS_OPERATORS: readonly import("@pona-flow/composer").WhereComparisonOperator[] = [
+  "IS NULL",
+  "IS NOT NULL",
+];
+
+/** True when the operator needs a right-hand side value to form a complete comparison. */
+export function comparisonOperatorNeedsValue(
+  operator: import("@pona-flow/composer").WhereComparisonOperator | undefined
+): boolean {
+  if (!operator) return false;
+  return !(WHERE_VALUELESS_OPERATORS as readonly string[]).includes(operator);
+}
+
 /** Operators whose value is chosen from graph-backed distinct values. */
 export const WHERE_VALUE_PICKER_OPERATORS: readonly import("@pona-flow/composer").WhereComparisonOperator[] = [
   "=",

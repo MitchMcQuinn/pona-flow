@@ -114,7 +114,13 @@ export function collectReferencedParameterNames(query: QueryObject): string[] {
             addRefsFromText(String(prop.value ?? ""), refs);
             if (prop.parameter && PARAMETER_NAME_RE.test(prop.parameter)) refs.add(prop.parameter);
           });
-          addRefsFromText(String(el.relationship.condition ?? ""), refs);
+          // A STEP transition guard names a value the *sequence* resolves at run time
+          // (from an earlier step's response), not an input to this operation — so it
+          // must not register as a parameter here. Mirrors buildStepTransitionQuery,
+          // which wires the same edge headlessly and declares none.
+          if (el.relationship.condition_type !== "parameter") {
+            addRefsFromText(String(el.relationship.condition ?? ""), refs);
+          }
           if (el.relationship.where) addRefsFromWhereItem(el.relationship.where, refs);
         }
       });
@@ -130,6 +136,8 @@ export function collectReferencedParameterNames(query: QueryObject): string[] {
     // the joined expression is complete; collect them directly so they register.
     addRefsFromText(String(item.path_variable ?? ""), refs);
     addRefsFromText(String(item.property_key ?? ""), refs);
+    // Same for a boolean projection's compared-against value.
+    addRefsFromText(String(item.comparison_value ?? ""), refs);
   });
   (query.order_by ?? []).forEach((item) => addRefsFromText(String(item.expression ?? ""), refs));
   if (query.skip && "parameter" in query.skip && PARAMETER_NAME_RE.test(query.skip.parameter)) {
@@ -331,11 +339,12 @@ export function collectParameterOriginMeta(query: QueryObject): Map<string, Para
     });
   });
 
-  // RETURN projection fields: schema (path_variable), property (property_key), and
-  // alias. A parameter in any of these is required + locked, but value_type stays
-  // editable (these are free-form identifiers, not a fixed type).
+  // RETURN projection fields: schema (path_variable), property (property_key), alias,
+  // and a boolean projection's compared-against value. A parameter in any of these is
+  // required + locked, but value_type stays editable — the identifiers are free-form,
+  // and the comparison value's type follows whatever property it is measured against.
   (query.return?.items ?? []).forEach((item) => {
-    [item.path_variable, item.property_key, item.alias].forEach((field) => {
+    [item.path_variable, item.property_key, item.alias, item.comparison_value].forEach((field) => {
       const ref = extractExactParameterRef(String(field ?? ""));
       if (ref) {
         out.set(ref, { format: undefined, is_required: true, locked: true });
@@ -400,12 +409,18 @@ export function collectValueTypeLockedParameterNames(query: QueryObject): Set<st
 /**
  * Keep query.parameters aligned with discovered $param references, applying the
  * forced metadata for origin-locked parameters (property defaults/keys, attributive_label).
+ *
+ * Hand-declared parameters (`declared`) survive even while nothing references them: they
+ * are inputs an author added deliberately — typically so a later step in a sequence can
+ * read a value collected at the entry step — and a blank-named one has to live long enough
+ * to be named.
  */
 export function syncParametersFromReferences(query: QueryObject): QueryObject {
   const refs = collectReferencedParameterNames(query);
   const originMeta = collectParameterOriginMeta(query);
 
   const existingByName = new Map(query.parameters.map((p) => [String(p.name ?? "").trim(), p]));
+  const referenced = new Set(refs);
   const next: Parameter[] = refs.map((name) => {
     const base = normalizeParameterForUi(name, existingByName.get(name));
     const meta = originMeta.get(name);
@@ -444,6 +459,13 @@ export function syncParametersFromReferences(query: QueryObject): QueryObject {
       is_required: meta.is_required,
       schematic_properties: { ...baseSchematic, is_required: meta.is_required }
     };
+  });
+
+  query.parameters.forEach((param) => {
+    if (!param.declared) return;
+    const name = String(param.name ?? "").trim();
+    if (name && referenced.has(name)) return;
+    next.push(normalizeParameterForUi(name, param));
   });
 
   const unchanged =

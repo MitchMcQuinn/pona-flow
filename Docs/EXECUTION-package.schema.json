@@ -82,7 +82,7 @@
           },
           "condition_parameter": {
             "type": "string",
-            "description": "Name of a parameter (resolved from an earlier step's response) that gates this transition. An empty string means the transition is unconditional. When condition_expected is omitted, the transition runs only when this parameter resolves to a truthy value. An unresolved parameter is treated as false."
+            "description": "Name of a parameter (resolved from an earlier step's response) that gates this transition. An empty string means the transition is unconditional. When condition_expected is omitted, the transition runs only when this parameter resolves to a truthy value. An unresolved parameter is treated as false. A query step's scalar RETURN columns are bound automatically under their alias, so a boolean projection (\"... AS hasExistingConnection\") can gate a branch without an explicit response_parameters mapping; a name already resolved is left alone, so an explicit mapping is still required to overwrite one."
           },
           "condition_expected": {
             "type": "boolean",

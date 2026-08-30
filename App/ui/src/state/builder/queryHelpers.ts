@@ -461,8 +461,13 @@ export function setSchemaVectorized(
 
 // ---- Parameters ----
 
+// Hand-declared: marked so reference sync keeps the row while it is still unnamed
+// and while nothing in the query references it.
 export function addParameter() {
-  return (q: QueryObject): QueryObject => ({ ...q, parameters: [...q.parameters, newParameter()] });
+  return (q: QueryObject): QueryObject => ({
+    ...q,
+    parameters: [...q.parameters, { ...newParameter(), declared: true }]
+  });
 }
 
 export function upsertParameter(param: Parameter) {
@@ -480,6 +485,12 @@ export function removeParameter(name: string) {
     ...q,
     parameters: q.parameters.filter((p) => p.name !== name)
   });
+}
+
+// Positional removal: hand-declared rows may share a (still blank) name, so removing
+// by name would take every one of them.
+export function removeParameterAt(index: number) {
+  return (q: QueryObject): QueryObject => ({ ...q, parameters: removeAt(q.parameters, index) });
 }
 
 export function updateParameterAt(index: number, patch: Partial<Parameter>) {
