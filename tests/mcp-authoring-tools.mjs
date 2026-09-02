@@ -94,6 +94,12 @@ assert.equal(
   "code-execution STEPs are archived; create_operation must not accept code_step"
 );
 
+const updateSequenceSchema = byName.get("update_sequence").inputSchema;
+assert.ok(
+  "name" in updateSequenceSchema.properties,
+  "update_sequence must accept a workspace title"
+);
+
 // --- Argument validation happens before anything reaches the network ---
 
 const missingName = await client.callTool({

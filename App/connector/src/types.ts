@@ -22,6 +22,8 @@ export interface QueryPackageRow {
   builder_config: Record<string, unknown>;
   /** Sequences: loop termination rule ({} for a plain DAG walk). */
   loop_config?: Record<string, unknown>;
+  description?: string;
+  group_title?: string;
 }
 
 export interface GraphNodeRow {

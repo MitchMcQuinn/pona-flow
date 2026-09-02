@@ -70,6 +70,7 @@ Builder (`components/builder/`):
 - `builder-picker-toggle`, `builder-picker-menu`
 - `builder-run-btn`, `builder-create-operation-btn`, `builder-save-operation-btn`
 - `builder-create-sequence-btn`
+- `builder-sequence-name`
 - `vector-search-section`, `vector-search-text`, `vector-search-k`,
   `vector-search-hint` (the toggles are the `#vector-search-toggle` and
   `#vector-search-all-labels-toggle` element ids, as elsewhere for `Toggle`).

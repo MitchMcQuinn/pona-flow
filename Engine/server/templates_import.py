@@ -204,8 +204,8 @@ def preview_import(space_id: str, template: dict[str, Any]) -> dict[str, Any]:
                 }
             )
 
-    # Sequence names (a sequence name becomes its wrapping STEP attributive_label, so it
-    # must be unique within the graph cohort).
+    # Sequence names (on create a sequence name becomes its wrapping STEP attributive_label,
+    # so it must be unique within the graph cohort).
     seen_seq: set[str] = set()
     for query in (template.get("sqlite") or {}).get("queries") or []:
         if (query.get("kind") or "") != "sequence":

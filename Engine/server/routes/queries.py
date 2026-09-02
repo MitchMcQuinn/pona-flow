@@ -63,9 +63,10 @@ async def queries_upsert(
         # becomes a runnable STEP once wrapped. Gate it like /api/execute-create so an agent
         # key that may only *run* sequences cannot author new ones.
         auth.require_flow(principal, space_id, "create", "STEP")
-        # A sequence's name becomes its STEP node's attributive_label, which must be unique
-        # within the underlying graph. Reject names already used by another sequence in any
-        # space that shares this space's graph.
+        # A sequence's catalog name is the workspace title. On create it also becomes
+        # the wrapping STEP attributive_label, so reject names already used by another
+        # sequence in any space that shares this space's graph. A later rename may
+        # diverge the title from the wrap when the new name is already a graph label.
         if kind == "sequence":
             conflict = spaces.sequence_name_conflict(
                 space_id, str(body.get("name") or ""), exclude_id=row_id

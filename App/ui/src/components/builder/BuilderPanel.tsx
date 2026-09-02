@@ -302,7 +302,7 @@ function CreateSequenceFields({
   nameTaken,
   groupValid,
   initialGroup = "",
-  nameLocked = false
+  editing = false
 }: {
   name: string;
   onName: (value: string) => void;
@@ -316,8 +316,8 @@ function CreateSequenceFields({
   groupValid: boolean;
   /** Pre-selected group when editing an existing sequence. */
   initialGroup?: string;
-  /** Lock the name (it is the sequence's unique STEP attributive_label) when editing. */
-  nameLocked?: boolean;
+  /** When editing, the name is a workspace title; the graph wrap follows only if free. */
+  editing?: boolean;
 }) {
   const [groupChoice, setGroupChoice] = useState<string>(() => initialGroup);
   const [newGroupTitle, setNewGroupTitle] = useState("");
@@ -342,12 +342,14 @@ function CreateSequenceFields({
         <input
           value={name}
           placeholder="Sequence name"
-          disabled={disabled || nameLocked}
+          data-testid="builder-sequence-name"
+          disabled={disabled}
           onChange={(e) => onName(e.target.value)}
         />
-        {nameLocked ? (
+        {editing ? (
           <span className="createSequenceHint">
-            The name is the sequence&rsquo;s unique label and can&rsquo;t be changed here.
+            Workspace title. The graph label updates only when this name is not already used
+            by another STEP or SCHEMA.
           </span>
         ) : null}
       </div>
@@ -420,6 +422,7 @@ function CreateSequenceActions({
   onSequenceCreated?: (sequenceId: string) => void;
 }) {
   const { state } = useBuilder();
+  const { showToast } = useToast();
   const editing = Boolean(state.editSequence);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -439,6 +442,17 @@ function CreateSequenceActions({
         editing && state.editSequence
           ? await updateSequencePackage(state, { id: state.editSequence.queryId, ...fields })
           : await saveSequencePackage(state, { id: await connector.generateQueryId(), ...fields });
+      if (
+        editing &&
+        result.wrapLabel &&
+        result.wrapLabel !== fields.name &&
+        result.wrapRetargeted === false
+      ) {
+        showToast(
+          `Title saved. Graph label remains ${result.wrapLabel} because the new name is already used.`,
+          "info"
+        );
+      }
       // Refresh the nav and open the sequence in place — no full-page reload, so the
       // active space, panel sizes, and builder context all stay put (no white flash).
       onSequenceCreated?.(result.id);
@@ -550,27 +564,31 @@ function BuilderBody({
     [baseWarnings, sequenceWarnings, loopComposeError]
   );
 
-  // A sequence's name becomes its STEP node's attributive_label, which must be unique within
-  // the underlying graph; block names already used by another sequence. (The server enforces
-  // this authoritatively across spaces sharing the graph; this is the proactive UI guard.)
+  // Display names stay unique among sequences (nav / MCP title). The server enforces this
+  // across spaces sharing the graph; this is the proactive UI guard. A name that collides
+  // with a STEP wrap is still allowed — the title saves and the wrap stays put.
   const takenSequenceNames = useMemo(
     () =>
       new Set(
         state.savedQueries
-          .filter((q) => q.kind === "sequence" && q.id !== state.query.id)
+          .filter(
+            (q) =>
+              q.kind === "sequence" &&
+              q.id !== state.query.id &&
+              q.id !== editingSequenceId
+          )
           .map((q) => q.name.trim().toLowerCase())
           .filter(Boolean)
       ),
-    [state.savedQueries, state.query.id]
+    [state.savedQueries, state.query.id, editingSequenceId]
   );
 
   const sequenceNameValid = sequenceName.trim().length > 0;
-  // When editing, the (locked) name is the sequence's own existing label, so the "already used"
-  // guard doesn't apply to it.
+  // Display names stay unique among sequences (nav / MCP title). The sequence's own
+  // current title is excluded via takenSequenceNames. A name that collides with a STEP
+  // wrap is still allowed — the title saves and the wrap stays put.
   const sequenceNameTaken =
-    !editingSequence &&
-    sequenceNameValid &&
-    takenSequenceNames.has(sequenceName.trim().toLowerCase());
+    sequenceNameValid && takenSequenceNames.has(sequenceName.trim().toLowerCase());
   const sequenceGroupValid = sequenceGroupTitle.trim().length > 0;
   const loopWarnings = useMemo(
     () => (createSequenceMode ? loopConfigWarnings(sequenceLoop) : []),
@@ -893,7 +911,7 @@ function BuilderBody({
             nameTaken={sequenceNameTaken}
             groupValid={sequenceGroupValid}
             initialGroup={editSeed?.groupTitle ?? ""}
-            nameLocked={editingSequence}
+            editing={editingSequence}
           />
         ) : null}
 

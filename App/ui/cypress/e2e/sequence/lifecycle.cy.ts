@@ -54,12 +54,35 @@ describe("sequence: lifecycle", () => {
     cy.selectSequenceInNav(GOLDEN_SEQUENCE_NAME);
     cy.editSequenceInNav(GOLDEN_SEQUENCE_NAME);
 
-    // Edit mode locks the name and offers a single "Save sequence" action.
+    cy.get('[data-testid="builder-sequence-name"]')
+      .should("be.enabled")
+      .clear()
+      .type(`${GOLDEN_SEQUENCE_NAME}_RENAMED`);
+
     cy.get('[data-testid="builder-create-sequence-btn"]')
       .should("contain.text", "Save sequence")
       .click();
 
-    cy.contains(".sequenceBtnLabel", GOLDEN_SEQUENCE_NAME, { timeout: 60_000 }).should(
+    cy.contains(".sequenceBtnLabel", `${GOLDEN_SEQUENCE_NAME}_RENAMED`, { timeout: 60_000 }).should(
+      "be.visible"
+    );
+  });
+
+  it("keeps a sequence title when the new name is already a STEP label", () => {
+    seedSequence();
+
+    cy.selectSequenceInNav(GOLDEN_SEQUENCE_NAME);
+    cy.editSequenceInNav(GOLDEN_SEQUENCE_NAME);
+
+    // READ_PERSON is the wrapping STEP of the golden read operation, so the graph
+    // identity cannot follow; the workspace title still saves.
+    cy.get('[data-testid="builder-sequence-name"]').should("be.enabled").clear().type(GOLDEN_READ_OPERATION);
+
+    cy.get('[data-testid="builder-create-sequence-btn"]')
+      .should("contain.text", "Save sequence")
+      .click();
+
+    cy.contains(".sequenceBtnLabel", GOLDEN_READ_OPERATION, { timeout: 60_000 }).should(
       "be.visible"
     );
   });

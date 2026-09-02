@@ -145,7 +145,7 @@ already taken.
 | `update_operation` | Recompiles and overwrites a package in place, keeping its id and its STEP wrapper. |
 | `create_step_transition` | Writes a `POINTS_TO` edge between two existing STEP nodes, optionally conditional. |
 | `create_sequence` | Saves a runnable sequence starting at an existing STEP node. |
-| `update_sequence` | Overwrites a sequence in place (entry step, traversal, parameters, description). |
+| `update_sequence` | Overwrites a sequence in place (title, entry step, traversal, parameters, description). The wrap STEP label follows a new title only when that name is free in the graph. |
 
 **Intent arguments, not raw QueryObjects.** A QueryObject nests clause → pattern → path →
 node → property → schematic properties, with interdependent fields. Asking a model to emit

@@ -207,8 +207,9 @@ export interface BuilderState {
   editOperation: { queryId: string } | null;
   /**
    * Set when the create-sequence builder is editing an existing sequence (hydrated from its saved
-   * `builder_config`). `queryId` is the sequence's catalog id, used to update the row in place; the
-   * name field is locked (it is the sequence's unique STEP attributive_label). Null when creating.
+   * `builder_config`). `queryId` is the sequence's catalog id, used to update the row in place.
+   * The name field is the workspace title and is editable; the wrapping STEP attributive_label
+   * follows only when that name is free in the graph. Null when creating.
    */
   editSequence: { queryId: string } | null;
   /**

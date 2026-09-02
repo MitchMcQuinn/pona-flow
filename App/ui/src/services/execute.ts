@@ -17,6 +17,7 @@ import {
   type AuthoringContext,
   type SaveOperationInput,
   type SequenceInput,
+  type SequencePackageResult,
 } from "@pona-flow/authoring";
 import type { BuilderState, RunResult } from "../state/builder/types";
 
@@ -65,13 +66,13 @@ export async function updateQueryOperation(state: BuilderState): Promise<{ id: s
 export async function saveSequencePackage(
   state: BuilderState,
   input: SequenceInput
-): Promise<{ id: string }> {
+): Promise<SequencePackageResult> {
   return authoringSaveSequencePackage(authoringContext(state), input);
 }
 
 export async function updateSequencePackage(
   state: BuilderState,
   input: SequenceInput
-): Promise<{ id: string }> {
+): Promise<SequencePackageResult> {
   return authoringUpdateSequencePackage(authoringContext(state), input);
 }

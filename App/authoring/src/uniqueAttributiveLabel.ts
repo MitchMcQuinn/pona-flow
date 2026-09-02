@@ -15,3 +15,22 @@ export function nextUniqueAttributiveLabel(
   }
   return base + String(n);
 }
+
+/**
+ * Whether a sequence title change should also SET the wrapping STEP node's attributive_label.
+ *
+ * The catalog name is the workspace title and always saves. The wrap label is graph identity
+ * and only follows when a wrap already exists, the title actually changed, and no other
+ * STEP/SCHEMA/POINTS_TO already holds that label.
+ */
+export function shouldRetargetSequenceWrap(opts: {
+  requestedName: string;
+  wrapEntityId: string;
+  currentWrapLabel: string;
+  labelTakenByOther: boolean;
+}): boolean {
+  const name = (opts.requestedName || "").trim();
+  if (!name || !(opts.wrapEntityId || "").trim()) return false;
+  if (name === (opts.currentWrapLabel || "").trim()) return false;
+  return !opts.labelTakenByOther;
+}

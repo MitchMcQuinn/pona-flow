@@ -249,12 +249,21 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
     {
       title: "Update sequence",
       description:
-        "Overwrite a saved sequence in place, keeping its id and name. Use this to change the " +
-        "entry step, the traversal mode, the parameters, the loop rule, or the description. " +
-        "Editing the steps themselves is done with create_step_transition and " +
-        "update_operation — the sequence only names where the run starts and when it stops.",
+        "Overwrite a saved sequence in place, keeping its id. Use this to change the " +
+        "workspace title, the entry step, the traversal mode, the parameters, the loop " +
+        "rule, or the description. The wrapping STEP label follows a new title only when " +
+        "that name is free in the graph; otherwise the title still saves. Editing the " +
+        "steps themselves is done with create_step_transition and update_operation — the " +
+        "sequence only names where the run starts and when it stops.",
       inputSchema: {
         sequence_id: z.string().describe("Catalog id from list_operations(kind='sequence')."),
+        name: z
+          .string()
+          .optional()
+          .describe(
+            "Workspace title (nav and MCP tool title). The wrapping STEP attributive_label " +
+              "is updated to match only when this name is not already used in the graph."
+          ),
         entry_step: z.string().optional().describe("New entry STEP attributive_label."),
         group_title: z.string().optional(),
         description: z.string().optional(),
@@ -319,14 +328,20 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
         };
         const saved = await updateSequencePackage(ctx, {
           id: args.sequence_id,
-          name: pkg.name,
-          groupTitle: args.group_title ?? "",
-          description: args.description,
+          name: args.name?.trim() || pkg.name,
+          groupTitle: args.group_title ?? pkg.group_title ?? "",
+          description: args.description ?? pkg.description,
           // Omitting `loop` keeps the saved rule — this is a full-row upsert, so an
           // update that only touched the description would otherwise clear it.
           loop: buildLoopConfig(args.loop ?? (pkg.loop_config as LoopIntent | undefined)),
         });
-        return { ok: true, sequence_id: saved.id };
+        return {
+          ok: true,
+          sequence_id: saved.id,
+          name: args.name?.trim() || pkg.name,
+          wrap_retargeted: saved.wrapRetargeted ?? false,
+          wrap_label: saved.wrapLabel || undefined,
+        };
       })
   );
 }

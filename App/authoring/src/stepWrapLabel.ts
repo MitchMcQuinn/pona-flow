@@ -1,6 +1,6 @@
 import { composer } from "@pona-flow/composer";
 import { connector } from "@pona-flow/connector";
-import { nextUniqueAttributiveLabel } from "./uniqueAttributiveLabel.js";
+import { nextUniqueAttributiveLabel, shouldRetargetSequenceWrap } from "./uniqueAttributiveLabel.js";
 
 /**
  * Resolve the attributive_label for an auto-wrapped STEP node. When the requested
@@ -72,5 +72,62 @@ export async function stepWrapEntityId(spaceId: string, operationId: string): Pr
     return (await connector.fetchStepWrapEntityId({ spaceId, operationId })).trim();
   } catch {
     return "";
+  }
+}
+
+export interface SequenceWrapRetargetResult {
+  retargeted: boolean;
+  wrapLabel: string;
+}
+
+/**
+ * Follow a sequence title change onto the wrapping STEP node when that label is free.
+ *
+ * Auto-wrapped one-step sequences have no sequence wrap (the MATCH points at the operation
+ * STEP), so this is a no-op for those — the catalog title still changes. A collision with
+ * another STEP/SCHEMA leaves the wrap label as-is rather than failing the title save.
+ */
+export async function maybeRetargetSequenceWrap(
+  spaceId: string,
+  sequenceId: string,
+  requestedName: string
+): Promise<SequenceWrapRetargetResult> {
+  const name = requestedName.trim();
+  const wrapId = await stepWrapEntityId(spaceId, sequenceId);
+  if (!wrapId || !name) {
+    return { retargeted: false, wrapLabel: "" };
+  }
+  let current = "";
+  try {
+    const nodes = await connector.fetchGraphNodesByLabel({ spaceId, nodeLabel: "STEP" });
+    current = (nodes.find((node) => node.id === wrapId)?.attributive_label || "").trim();
+  } catch {
+    return { retargeted: false, wrapLabel: "" };
+  }
+  let taken = true;
+  try {
+    taken = await connector.checkAttributiveLabelExists({
+      spaceId,
+      attributiveLabel: name,
+      excludeId: wrapId
+    });
+  } catch {
+    return { retargeted: false, wrapLabel: current };
+  }
+  if (
+    !shouldRetargetSequenceWrap({
+      requestedName: name,
+      wrapEntityId: wrapId,
+      currentWrapLabel: current,
+      labelTakenByOther: taken
+    })
+  ) {
+    return { retargeted: false, wrapLabel: current };
+  }
+  try {
+    await autoWrapInStep(spaceId, sequenceId, name);
+    return { retargeted: true, wrapLabel: name };
+  } catch {
+    return { retargeted: false, wrapLabel: current };
   }
 }

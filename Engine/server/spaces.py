@@ -327,8 +327,8 @@ def _space_graph_identity_from_row(row: sqlite3.Row) -> tuple[str, str]:
     """Resolved ``(neo4j_uri, neo4j_user)`` for a space row — its underlying-graph identity.
 
     Two spaces share an underlying graph when they resolve to the same Neo4j store, so their
-    STEP attributive_labels — and therefore sequence names, which become STEP labels via the
-    sequence auto-wrap — occupy a single namespace.
+    STEP attributive_labels — and therefore sequence wrap labels, which start as the
+    sequence title via the sequence auto-wrap — occupy a single namespace.
     """
     uri = config.env_value(row["neo4j_uri_key"], fallback_key=DEFAULT_NEO4J_URI_KEY)
     user = config.env_value(row["neo4j_user_key"], fallback_key=DEFAULT_NEO4J_USER_KEY)
@@ -367,12 +367,13 @@ def sequence_name_conflict(
     """Return the name of a colliding sequence in the same graph cohort, else ``None``.
 
     A new sequence's ``name`` becomes its wrapping STEP node's ``attributive_label``, so within
-    one underlying graph two sequences may not share a name. The cohort is every non-private
-    space resolving to the same Neo4j store as *space_id*; a stored sequence belongs to that
-    cohort when one of its STEP labels is registered on a cohort space (``spaces.labels``), or
-    when it carries no resolved labels yet — in which case it is treated as a conflict to avoid
-    a latent STEP-label clash. Comparison is case-insensitive; *exclude_id* skips a re-save of
-    the same row.
+    one underlying graph two sequences may not share a *create-time* name. Later renames may
+    keep a wrap label that no longer matches the workspace title when the new name is taken.
+    The cohort is every non-private space resolving to the same Neo4j store as *space_id*; a
+    stored sequence belongs to that cohort when one of its STEP labels is registered on a
+    cohort space (``spaces.labels``), or when it carries no resolved labels yet — in which
+    case it is treated as a conflict to avoid a latent STEP-label clash. Comparison is
+    case-insensitive; *exclude_id* skips a re-save of the same row.
     """
     target = (name or "").strip()
     if not target:
