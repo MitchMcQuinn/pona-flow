@@ -72,19 +72,19 @@ export interface StepResponseParameter {
   default_value?: string;
 }
 
-/** Custom STEP execution kind: HTTP request (default/legacy), sandboxed code, or local LLM. */
+/** Custom STEP execution kind: HTTP request (default/legacy), leftover code, or local LLM. */
 export type StepType = "http" | "code" | "local_llm";
 export type CodeLanguage = "python" | "javascript";
 
 export interface SequencialProperties {
   query_id?: string;
-  /** Omitted/"http" -> endpoint step (legacy payloads); "code" -> code-execution; "local_llm" -> named Ollama config. */
+  /** Omitted/"http" -> endpoint step (legacy payloads); "code" -> leftover archived kind; "local_llm" -> named Ollama config. */
   step_type?: StepType;
   endpoint?: string;
   method?: HttpMethod;
   headers?: Record<string, unknown>;
   body?: Record<string, unknown>;
-  /** Code execution: catalog `resources` row backing this step's script. */
+  /** Leftover code-execution STEP (archived): catalog resource UID. */
   resource_id?: string;
   resource_name?: string;
   resource_description?: string;
@@ -342,6 +342,53 @@ export interface VectorSearchConfig {
    * (it changes the statement shape), so a sequence cannot flip it per run.
    */
   all_labels?: boolean;
+}
+
+/**
+ * The termination rule for the one cycle in a sequence's STEP graph.
+ *
+ * The graph supplies the cycle (a POINTS_TO edge back to an earlier STEP); this
+ * supplies the rule that ends it, so the shape of the work and how long it runs are
+ * chosen separately. Persisted in the queries catalog's own `loop_config` column
+ * rather than inside `builder_config`, because the executor reads it — see
+ * Docs/EXECUTION-package.schema.json `loop`.
+ */
+export type LoopType = "dag" | "for" | "for_while" | "for_each";
+
+/** Operators a for/while test may use; mirrors ReturnItem.comparison_operator. */
+export type LoopComparisonOperator =
+  | "="
+  | "<>"
+  | "<"
+  | "<="
+  | ">"
+  | ">="
+  | "CONTAINS"
+  | "STARTS WITH"
+  | "ENDS WITH";
+
+export interface LoopCondition {
+  /** A sequence/step parameter, or a RETURN alias one of the steps publishes. */
+  parameter: string;
+  operator: LoopComparisonOperator;
+  value: string;
+}
+
+export interface LoopConfig {
+  /**
+   * "dag" never re-enters a step, so a back-edge simply ends the run — the default,
+   * and how every sequence authored before loops behaves. The other three iterate and
+   * require the graph to contain exactly one cycle.
+   */
+  type: LoopType;
+  /** for: how many passes. Zero skips the body entirely. */
+  count?: number;
+  /** for_while: tested before each pass, including the first. */
+  condition?: LoopCondition;
+  /** for_each: the RETURN alias whose rows are iterated, one pass per row. */
+  source?: string;
+  /** Hard cap on passes; exceeding it fails the run rather than spinning. */
+  max_iterations?: number;
 }
 
 export interface QueryObject {

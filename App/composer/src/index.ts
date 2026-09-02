@@ -116,6 +116,10 @@ export type {
   ReturnClause,
   QueryObject,
   VectorSearchConfig,
+  LoopType,
+  LoopComparisonOperator,
+  LoopCondition,
+  LoopConfig,
   ComposedQuery,
 } from "./types.js";
 

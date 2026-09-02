@@ -36,7 +36,6 @@ import {
   updateQueryDescription,
   upsertQuery,
 } from "./queries.js";
-import { fetchCodeResource, upsertCodeResource } from "./resources.js";
 import {
   fetchSchemaAffectedOperations,
   fetchSchemaDefinition,
@@ -51,8 +50,6 @@ import {
   fetchSpaces,
 } from "./spaces.js";
 import type {
-  CodeResourceMetadata,
-  CodeResourceWithCode,
   ExecuteCreateBody,
   ExecuteQueryBody,
   ExecuteQueryResponse,
@@ -64,7 +61,6 @@ import type {
   SpaceRow,
   StepDeletePreview,
   StepDeleteResult,
-  UpsertCodeResourceInput,
 } from "./types.js";
 
 // Single implementations shared with the UI's services/api.ts (adapter-level dedupe).
@@ -75,9 +71,6 @@ export type { ConnectorConfig } from "./http.js";
 
 export type {
   AffectedSequence,
-  CodeResourceLanguage,
-  CodeResourceMetadata,
-  CodeResourceWithCode,
   CypherStatementResult,
   DeleteSpaceRef,
   DeleteWarning,
@@ -102,7 +95,6 @@ export type {
   StepDeleteResult,
   StepOutgoingEdge,
   SuspensionChange,
-  UpsertCodeResourceInput,
 } from "./types.js";
 
 export interface ConnectorApi {
@@ -215,16 +207,6 @@ export interface ConnectorApi {
   ): Promise<string[]>;
   executeCreatePackage(body: ExecuteCreateBody, apiBase?: string): Promise<Record<string, unknown>>;
   executeQueryPackage(body: ExecuteQueryBody, apiBase?: string): Promise<ExecuteQueryResponse>;
-  upsertCodeResource(
-    spaceId: string,
-    input: UpsertCodeResourceInput,
-    apiBase?: string
-  ): Promise<CodeResourceMetadata>;
-  fetchCodeResource(
-    spaceId: string,
-    resourceId: string,
-    apiBase?: string
-  ): Promise<CodeResourceWithCode>;
   previewSchemaDeletion(
     opts: { spaceId: string; attributiveLabel: string },
     apiBase?: string
@@ -276,8 +258,6 @@ export const connector: ConnectorApi = {
   fetchGraphPropertyValues,
   executeCreatePackage,
   executeQueryPackage,
-  upsertCodeResource,
-  fetchCodeResource,
   previewSchemaDeletion,
   executeSchemaDeletion,
   previewStepDeletion,

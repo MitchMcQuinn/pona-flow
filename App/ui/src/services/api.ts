@@ -536,9 +536,38 @@ export interface ExecutionResponseParameter {
   default_value?: string;
 }
 
+/**
+ * The names one step publishes into run state — an operation-backed step's RETURN
+ * aliases, or the parameters an endpoint/code/LLM step's response mappings write.
+ * Compose-time introspection: it is what a loop condition or for-each source may
+ * reference, and what the builder's loop pickers offer.
+ */
+export interface ExecutionAvailableParameters {
+  step_id: string;
+  label?: string;
+  aliases: string[];
+}
+
+/**
+ * How the sequence's one cycle terminates. Absent for a plain DAG walk, where a
+ * transition back to an earlier step simply ends the run.
+ */
+export interface ExecutionLoop {
+  type: "for" | "for_while" | "for_each";
+  max_iterations: number;
+  back_edge: { from: string; to: string };
+  body: string[];
+  count?: number;
+  condition?: { parameter: string; operator: string; value: string };
+  source?: string;
+  source_step?: string;
+}
+
 export interface ExecutionPackage {
   steps: ExecutionStep[];
   response_parameters?: ExecutionResponseParameter[];
+  available_parameters?: ExecutionAvailableParameters[];
+  loop?: ExecutionLoop;
 }
 
 export interface ComposedSequence {

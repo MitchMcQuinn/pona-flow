@@ -15,8 +15,8 @@ Design constraints (see Docs/VECTORIZATION-VISION.md)
   gets **one** node index and **one** relationship index, which forces a single embedding
   model (and therefore a single dimension) per space.
 - **The engine owns the Ollama call.** Ollama listens on localhost, which the D7 SSRF
-  guard blocks for sequence endpoint STEPs. This module mirrors
-  ``execution_run._call_runner`` instead: a trusted engine-to-localhost client.
+  guard blocks for sequence endpoint STEPs. This module uses a trusted
+  engine-to-localhost client instead.
 - **Relationship work is INSTANCE-scoped.** ``POINTS_TO`` also carries STEP and SCHEMA
   pattern edges; every relationship statement here matches
   ``(:INSTANCE)-[:POINTS_TO]->(:INSTANCE)`` only, the same guard ``schema_currency`` uses.
@@ -196,7 +196,7 @@ def _call_ollama(
 ) -> dict[str, Any]:
     """POST to the local Ollama API and return its parsed JSON object.
 
-    Shaped after ``execution_run._call_runner``: explicit timeout, ``HTTPError`` body
+    Shaped after other engine-owned localhost clients: explicit timeout, ``HTTPError`` body
     parsed for a usable message, response size capped, every transport failure turned
     into one exception type the callers can report.
     """

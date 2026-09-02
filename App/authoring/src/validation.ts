@@ -301,32 +301,14 @@ function validateStepSequencialProperties(
     pushPatternWarning(warnings, patternIndex, patternCount, "STEP node requires a body.");
     return;
   }
-  // Code-execution STEP: validated on name + code (no endpoint/body). $param refs in
-  // the code text reuse the body-parameter validation.
+  // Leftover code-execution STEP: no longer authorable.
   if (sp.step_type === "code") {
-    if (!(sp.resource_name ?? "").trim()) {
-      pushPatternWarning(
-        warnings,
-        patternIndex,
-        patternCount,
-        "Code STEP node requires a name."
-      );
-    }
-    if (!(sp.code ?? "").trim()) {
-      pushPatternWarning(
-        warnings,
-        patternIndex,
-        patternCount,
-        "Code STEP node requires code."
-      );
-    } else {
-      validateStepBodyParameters(String(sp.code ?? ""), parameters).forEach((message) => {
-        pushPatternWarning(warnings, patternIndex, patternCount, message);
-      });
-    }
-    validateStepResponseParameters(sp.response_parameters).forEach((message) => {
-      pushPatternWarning(warnings, patternIndex, patternCount, message);
-    });
+    pushPatternWarning(
+      warnings,
+      patternIndex,
+      patternCount,
+      "Code-execution STEPs are no longer supported."
+    );
     return;
   }
   if (sp.step_type === "local_llm") {

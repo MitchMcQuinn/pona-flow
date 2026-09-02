@@ -9,7 +9,7 @@ state machine:
      any response_parameter mapping (i.e. it can only come from a human). In
      that case the run pauses as "pending" and returns *all* of the step's fields
      to prompt (optional included), so the operator can review/override them.
-  3. Execute the step (query against Neo4j, HTTP endpoint, or sandboxed code),
+  3. Execute the step (query against Neo4j, HTTP endpoint, or local LLM),
      then bind values for downstream steps: a query step's scalar RETURN columns
      fill in names not already resolved, and response_parameter mappings apply
      afterwards so an explicit mapping can still overwrite one.
@@ -18,8 +18,16 @@ state machine:
      follow only when the parameter's strict boolean value matches it (so two
      sibling edges branch on one parameter); otherwise fall back to truthy gating.
 
-Resume progress (remaining queue + resolved values + visited steps) is stored
-on the state row so a pending run continues from where it paused.
+A step runs at most once, so a transition pointing back to an earlier step simply
+terminates — unless the package carries a ``loop`` descriptor. Then the enclosed
+steps leave ``visited`` at each iteration boundary and the sequence's termination
+rule (for / for_while / for_each) decides between the back-edge and the exit edges.
+See ``execution_loop`` for the rules and the "looping sequences" section below for
+the routing.
+
+Resume progress (remaining queue + resolved values + visited steps, plus loop
+iteration state) is stored on the state row so a pending run continues from where
+it paused.
 """
 
 from __future__ import annotations
@@ -41,9 +49,9 @@ from . import config
 from . import credentials
 from . import cypher_utils
 from . import embeddings
+from . import execution_loop
 from . import graph
 from . import local_llms
-from . import resources
 from . import schema_currency
 
 # Credential reference token ``$secret.<NAME>`` (see cypher_utils.SECRET_REF_RE).
@@ -52,23 +60,10 @@ _SECRET_REF_RE = cypher_utils.SECRET_REF_RE
 # Explicit User-Agent for outbound endpoint calls (see _execute_endpoint_step).
 _OUTBOUND_USER_AGENT = "pona-flow/1.0 (+https://github.com/pona-flow)"
 
-# Code-step parameter token: same shape as the builder's STEP_BODY_PARAM_REF_RE —
-# ``$name`` where name is identifier-shaped (excludes $100 / ${42} / $secret.X which
-# has a dot and is handled separately).
-_CODE_PARAM_REF_RE = re.compile(r"\$(?![0-9])(?!\{[0-9]+\})([A-Za-z_][A-Za-z0-9_]*)\b")
-
 # RETURN column aliases eligible for auto-binding (see _bind_query_return_columns).
 # An unaliased projection comes back keyed by its raw expression text
 # ("r.id IS NOT NULL"), which no downstream step could reference as ``$name``.
 _RETURN_COLUMN_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-# Input/output validation limits for code-execution steps.
-_CODE_PARAM_MAX_BYTES = 64 * 1024  # per substituted parameter value (encoded)
-_CODE_JSON_MAX_DEPTH = 32
-_CODE_JSON_MAX_ARRAY = 10_000
-_CODE_OUTPUT_MAX_BYTES = 1024 * 1024  # cap on the runner's returned payload
-_CODE_EXEC_TIMEOUT_SECONDS = 30
-
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -402,247 +397,21 @@ def _execute_endpoint_step(
 
 
 # ---------------------------------------------------------------------------
-# Code-execution steps (sandbox runner)
+# Legacy code-execution STEPs (archived; see Docs/code-execution/)
 # ---------------------------------------------------------------------------
 #
-# The main app NEVER executes user code in-process. A code step ships
-# {language, code} to the separate low-privilege runner service (Engine/runner),
-# which runs it in a hardened, disposable Docker container and returns a JSON
-# envelope. Everything that enters or leaves the sandbox is validated here.
-
-
-def _validate_json_shape(value: Any, depth: int = 0) -> str | None:
-    """Enforce max depth / array length on values entering or leaving the sandbox."""
-    if depth > _CODE_JSON_MAX_DEPTH:
-        return f"JSON nesting exceeds the maximum depth of {_CODE_JSON_MAX_DEPTH}"
-    if isinstance(value, dict):
-        for key, item in value.items():
-            err = _validate_json_shape(item, depth + 1)
-            if err:
-                return err
-    elif isinstance(value, (list, tuple)):
-        if len(value) > _CODE_JSON_MAX_ARRAY:
-            return f"array exceeds the maximum length of {_CODE_JSON_MAX_ARRAY}"
-        for item in value:
-            err = _validate_json_shape(item, depth + 1)
-            if err:
-                return err
-    return None
-
-
-def _encode_code_literal(value: Any, language: str) -> str:
-    """Encode a parameter value as a literal in the target language.
-
-    Values are injected as data, never as code: ``repr`` (Python) and ``json.dumps``
-    (JavaScript) both produce quoted/escaped literals that cannot break out of the
-    expression position the ``$param`` token occupied.
-    """
-    if language == "python":
-        if isinstance(value, (dict, list, tuple)):
-            # Round-trip through JSON first so only JSON-shaped data is injected.
-            value = json.loads(json.dumps(value))
-        return repr(value)
-    return json.dumps(value)
-
-
-def _substitute_code_params(
-    code: str, resolved: dict[str, Any], language: str
-) -> tuple[str, str | None]:
-    """Replace ``$name`` tokens in code with literal parameter values.
-
-    Mirrors the body-field UX: known parameters are substituted, unknown tokens are
-    left untouched (they may be ordinary identifiers in the user's code). Returns
-    ``(code, error)``; error is set when a value fails input validation.
-    """
-    error: str | None = None
-
-    def _sub(match: "re.Match[str]") -> str:
-        nonlocal error
-        if error:
-            return match.group(0)
-        name = match.group(1)
-        if name == "secret" or name not in resolved:
-            return match.group(0)
-        value = resolved[name]
-        shape_err = _validate_json_shape(value)
-        if shape_err:
-            error = f"parameter ${name}: {shape_err}"
-            return match.group(0)
-        literal = _encode_code_literal(value, language)
-        if len(literal.encode("utf-8")) > _CODE_PARAM_MAX_BYTES:
-            error = (
-                f"parameter ${name} exceeds the {_CODE_PARAM_MAX_BYTES // 1024} KB limit"
-            )
-            return match.group(0)
-        return literal
-
-    return _CODE_PARAM_REF_RE.sub(_sub, code), error
-
-
-def _sanitize_code_error(message: str) -> str:
-    """Trim runner/sandbox error text before surfacing it to users.
-
-    Drops absolute host paths and caps the length so a hostile script cannot use the
-    error channel to exfiltrate large payloads or probe the host layout.
-    """
-    text = str(message or "").strip()
-    text = re.sub(r"/[\w./-]{8,}", "<path>", text)
-    if len(text) > 2000:
-        text = text[:2000] + "… (truncated)"
-    return text
-
-
-def _record_code_audit(
-    space_id: str, step_id: str, resource_id: str, outcome: str, duration_ms: int
-) -> None:
-    """Audit one code execution (never the code, parameters, output, or secrets)."""
-    try:
-        catalog.record_audit(
-            space_id,
-            [],
-            trigger="code",
-            detail={
-                "kind": "code_execution",
-                "step_id": step_id,
-                "resource_id": resource_id,
-                "outcome": outcome,
-                "duration_ms": duration_ms,
-            },
-        )
-    except Exception as audit_err:  # never let audit failures break a run
-        sys.stderr.write(f"code-exec audit error: {audit_err}\n")
-
-
-def _call_runner(payload: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
-    """POST an execution request to the sandbox runner and parse its envelope."""
-    token = config.runner_token()
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    request = urllib.request.Request(
-        f"{config.runner_url()}/execute",
-        data=json.dumps(payload).encode("utf-8"),
-        method="POST",
-        headers=headers,
-    )
-    try:
-        # Generous transport buffer over the sandbox wall-clock limit: the runner
-        # enforces the real timeout and kills the container itself.
-        with urllib.request.urlopen(request, timeout=timeout_seconds + 15) as resp:
-            raw = resp.read(_CODE_OUTPUT_MAX_BYTES + 1)
-    except urllib.error.HTTPError as e:
-        try:
-            raw = e.read(_CODE_OUTPUT_MAX_BYTES + 1)
-        except Exception:
-            raw = b""
-        try:
-            data = json.loads(raw.decode("utf-8")) if raw else {}
-        except json.JSONDecodeError:
-            data = {}
-        outcome = str(data.get("outcome") or "").strip() or (
-            "rate_limited" if e.code == 429 else "error"
-        )
-        message = str(data.get("error") or f"runner rejected the execution (HTTP {e.code})")
-        return {"ok": False, "outcome": outcome, "error": message}
-    except Exception as e:
-        return {
-            "ok": False,
-            "outcome": "unavailable",
-            "error": f"code execution runner is unavailable: {e}",
-        }
-    if len(raw) > _CODE_OUTPUT_MAX_BYTES:
-        return {
-            "ok": False,
-            "outcome": "output_limit",
-            "error": "runner response exceeded the output limit",
-        }
-    try:
-        data = json.loads(raw.decode("utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return {"ok": False, "outcome": "error", "error": "invalid runner response"}
-    return data if isinstance(data, dict) else {
-        "ok": False,
-        "outcome": "error",
-        "error": "invalid runner response",
-    }
+# Existing graph nodes may still carry payload kind "code". Do not fall through
+# to the HTTP runner (empty endpoint). The sandbox client lives in the archive.
 
 
 def _execute_code_step(
-    space_id: str, step: dict[str, Any], resolved: dict[str, Any]
+    _space_id: str, _step: dict[str, Any], _resolved: dict[str, Any]
 ) -> dict[str, Any]:
-    """Execute a code STEP in the sandbox runner and normalize its result.
-
-    The result is always JSON-wrapped: a JSON-object output is merged into the
-    response (so response_parameters paths work unchanged); any other output is
-    wrapped as ``{"result": <value>}``. ``$secret.<NAME>`` values are resolved
-    immediately before dispatch and never persisted or logged.
-    """
-    step_id = str(step.get("id") or "")
-    resource_id = str(step.get("resource_id") or "").strip()
-    if not config.code_exec_enabled():
-        _record_code_audit(space_id, step_id, resource_id, "disabled", 0)
-        return {"_ok": False, "_error": "Code execution is disabled on this instance."}
-    if not resource_id:
-        return {"_ok": False, "_error": "Code step has no resource_id configured."}
-
-    try:
-        resource = resources.load_for_execution(space_id, resource_id)
-    except (KeyError, ValueError, OSError) as e:
-        _record_code_audit(space_id, step_id, resource_id, "missing_resource", 0)
-        return {"_ok": False, "_error": _sanitize_code_error(str(e))}
-
-    language = str(resource.get("language") or "python")
-    code = str(resource.get("code") or "")
-    code, param_err = _substitute_code_params(code, resolved, language)
-    if param_err:
-        _record_code_audit(space_id, step_id, resource_id, "invalid_input", 0)
-        return {"_ok": False, "_error": f"Invalid code step input: {param_err}"}
-    # Secrets resolve exactly like endpoint headers/body: plain-text token replacement
-    # (embed inside quotes in your code). The resolved code text exists only for this
-    # request — it is never written to disk, state, or logs.
-    secret_cache: dict[str, str | None] = {}
-    code = _resolve_secrets(code, space_id, secret_cache)
-
-    started = datetime.now(timezone.utc)
-    envelope = _call_runner(
-        {
-            "language": language,
-            "code": code,
-            "timeout_seconds": _CODE_EXEC_TIMEOUT_SECONDS,
-            "space_id": (space_id or "").strip(),
-        },
-        _CODE_EXEC_TIMEOUT_SECONDS,
-    )
-    duration_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
-
-    ok = bool(envelope.get("ok"))
-    outcome = str(envelope.get("outcome") or ("ok" if ok else "error"))
-    _record_code_audit(space_id, step_id, resource_id, outcome, duration_ms)
-
-    if not ok:
-        error = _sanitize_code_error(str(envelope.get("error") or "code execution failed"))
-        return {"_ok": False, "_error": error, "_outcome": outcome}
-
-    result = envelope.get("result")
-    shape_err = _validate_json_shape(result)
-    if shape_err:
-        return {
-            "_ok": False,
-            "_error": f"Code step output rejected: {shape_err}",
-            "_outcome": "output_limit",
-        }
-
-    meta: dict[str, Any] = {"_ok": True, "_status": 200, "_outcome": outcome}
-    if isinstance(result, dict):
-        out = dict(result)
-        out.update(meta)
-        out["_raw_text"] = json.dumps(result)
-        return out
-    if isinstance(result, list):
-        return {**meta, "records": result, "result": result, "_raw_text": json.dumps(result)}
-    # Non-JSON-object output (string / number / null) is wrapped so the
-    # response-parameters system can still address it (property_path: $.result).
-    return {**meta, "result": result, "_raw_text": json.dumps({"result": result})}
+    """Refuse leftover code-execution STEPs; the sandbox runner is not shipped."""
+    return {
+        "_ok": False,
+        "_error": "Code-execution STEPs are not supported.",
+    }
 
 
 def _local_llm_overrides(resolved: dict[str, Any]) -> dict[str, Any]:
@@ -736,15 +505,18 @@ def _bind_response_parameters(
 
 
 def _bind_query_return_columns(
-    step: dict[str, Any], response: dict[str, Any], resolved: dict[str, Any]
-) -> None:
+    step: dict[str, Any],
+    response: dict[str, Any],
+    resolved: dict[str, Any],
+    overwrite: bool = False,
+) -> set[str]:
     """Publish a query step's scalar RETURN columns as parameters for later steps.
 
     A parameter-gated transition is evaluated against ``resolved``, so a boolean a
     read step computed (``... AS hasExistingConnection``) has to land there before
     the branch can see it. Binding is deliberately narrow:
 
-      - query steps only, since code/endpoint steps return a caller-shaped body
+      - query steps only, since endpoint/LLM steps return a caller-shaped body
         whose keys are not authored as parameter names;
       - the first record only, matching the columns already surfaced on the response;
       - scalars only, so the implicit ``RETURN *`` on a create step still feeds the
@@ -756,20 +528,34 @@ def _bind_query_return_columns(
 
     ``response_parameters`` stays the way to *overwrite* a name on purpose, and runs
     after this so an explicit mapping always takes precedence.
+
+    ``overwrite`` lifts only that last rule, and the executor sets it for steps inside a
+    loop body. Across iterations the body's own output is the freshest fact, so deferring
+    would be wrong in the one case that matters most: a ``for_while`` condition seeded by
+    the caller (the usual way to make the first pre-test pass) would keep the seed
+    forever, and the loop could never terminate.
+
+    Returns the names bound, so a looping run can drop them at the iteration boundary and
+    let the next pass re-bind (see ``_clear_iteration_state``).
     """
+    bound: set[str] = set()
     if not str(step.get("query_id") or "").strip():
-        return
+        return bound
     records = response.get("records") or []
     if not records or not isinstance(records[0], dict):
-        return
+        return bound
     for key, value in records[0].items():
         name = str(key).strip()
-        if name in resolved or not _RETURN_COLUMN_NAME_RE.match(name):
+        if not _RETURN_COLUMN_NAME_RE.match(name):
+            continue
+        if name in resolved and not overwrite:
             continue
         # bool covers the branch case; None and collections fall through untouched.
         if value is None or not isinstance(value, (bool, int, float, str)):
             continue
         resolved[name] = value
+        bound.add(name)
+    return bound
 
 
 def _record_columns(records: list[Any]) -> list[str]:
@@ -988,30 +774,33 @@ def _fill_blank_optional_query_params(
             resolved[pname] = ""
 
 
-def _mint_auto_ids(step: dict[str, Any], resolved: dict[str, Any]) -> bool:
+def _mint_auto_ids(step: dict[str, Any], resolved: dict[str, Any]) -> set[str]:
     """Mint create-INSTANCE graph ids (auto_generate parameters) once per run.
 
-    Returns True when anything was minted — the caller must persist progress
-    *before* the step executes so a crash/retry re-runs the step with the same ids
-    (MERGE stays idempotent) instead of minting duplicates. Within one run the
-    minted value stays in ``resolved``, so later steps binding the same parameter
+    Returns the names minted (empty when nothing was) — the caller must persist
+    progress *before* the step executes so a crash/retry re-runs the step with the
+    same ids (MERGE stays idempotent) instead of minting duplicates. Within one run
+    the minted value stays in ``resolved``, so later steps binding the same parameter
     address the same entity.
+
+    Inside a loop body the names are dropped at the iteration boundary, so each pass
+    mints fresh ids and creates a distinct entity rather than MERGE-ing repeatedly
+    onto the first one.
     """
-    minted = False
+    minted: set[str] = set()
     for p in step.get("parameters") or []:
         if not isinstance(p, dict) or not p.get("auto_generate"):
             continue
         pname = str(p.get("name") or "").strip()
         if pname and pname not in resolved:
             resolved[pname] = config.generate_entity_id()
-            minted = True
+            minted.add(pname)
     return minted
 
 
-def _enqueue_transitions(
-    step: dict[str, Any], resolved: dict[str, Any], queue: list[str]
-) -> None:
-    """Advance the executed step's outgoing transitions onto the queue."""
+def _passing_targets(step: dict[str, Any], resolved: dict[str, Any]) -> list[str]:
+    """The executed step's outgoing transition targets whose condition holds."""
+    targets: list[str] = []
     for transition in step.get("next") or []:
         if not isinstance(transition, dict):
             continue
@@ -1020,7 +809,7 @@ def _enqueue_transitions(
             continue
         condition_parameter = str(transition.get("condition_parameter") or "").strip()
         if not condition_parameter:
-            queue.append(target)
+            targets.append(target)
             continue
         value = resolved.get(condition_parameter)
         expected = transition.get("condition_expected")
@@ -1029,10 +818,190 @@ def _enqueue_transitions(
             # fires only when it matches the expected result, letting a sibling
             # relationship take the opposite branch.
             if _coerce_bool(value) == expected:
-                queue.append(target)
+                targets.append(target)
         elif _truthy(value):
             # Legacy gating (no expected result configured): follow when truthy.
-            queue.append(target)
+            targets.append(target)
+    return targets
+
+
+def _enqueue_transitions(
+    step: dict[str, Any], resolved: dict[str, Any], queue: list[str]
+) -> None:
+    """Advance the executed step's outgoing transitions onto the queue."""
+    queue.extend(_passing_targets(step, resolved))
+
+
+# --- looping sequences ---------------------------------------------------------------
+# The package's ``loop`` descriptor (built by execution_loop.analyze_loop) names the
+# one back-edge in the step graph plus the steps it encloses. Everything below routes
+# that back-edge against the sequence's termination rule; a package without a
+# descriptor never touches this path and keeps the historical single-pass walk.
+
+
+def _new_loop_state() -> dict[str, Any]:
+    """Fresh iteration bookkeeping for a looping run.
+
+    ``items`` stays None until a for-each source column is seen, which is what lets
+    an empty result set skip the body entirely (see _should_enter_loop_body).
+    ``inherited`` is the run state as it stood when the loop began, which bounds what
+    clearing is allowed to touch (see _clear_iteration_state).
+    """
+    return {
+        "iteration": 0,
+        "entered": False,
+        "items": None,
+        "item_index": 0,
+        "derived": [],
+        "inherited": [],
+    }
+
+
+def _capture_loop_items(
+    loop: dict[str, Any],
+    state: dict[str, Any],
+    step_id: str,
+    response: dict[str, Any],
+) -> None:
+    """Latch the row set a for-each loop iterates, from the step compose identified.
+
+    Latching an empty list matters as much as a full one: it is what tells the entry
+    guard the body has nothing to do. Only the first execution counts — if the source
+    sits inside the cycle, re-latching each pass would restart iteration forever.
+    """
+    if loop.get("type") != "for_each" or state.get("items") is not None:
+        return
+    if step_id != str(loop.get("source_step") or "").strip():
+        return
+    records = response.get("records") or []
+    state["items"] = [record for record in records if isinstance(record, dict)]
+
+
+def _bind_loop_item(
+    loop: dict[str, Any], state: dict[str, Any], resolved: dict[str, Any]
+) -> None:
+    """Bind the current for-each row's scalar columns under their aliases.
+
+    Overwrites on purpose: these are the iteration's values, and they are recorded as
+    derived so the next pass replaces them rather than inheriting them.
+    """
+    if loop.get("type") != "for_each":
+        return
+    items = state.get("items") or []
+    index = int(state.get("item_index") or 0)
+    if index >= len(items):
+        return
+    row = items[index]
+    if not isinstance(row, dict):
+        return
+    derived = state.setdefault("derived", [])
+    for key, value in row.items():
+        name = str(key).strip()
+        if not _RETURN_COLUMN_NAME_RE.match(name):
+            continue
+        if value is None or not isinstance(value, (bool, int, float, str)):
+            continue
+        resolved[name] = value
+        if name not in derived:
+            derived.append(name)
+
+
+def _should_enter_loop_body(
+    loop: dict[str, Any], state: dict[str, Any], resolved: dict[str, Any]
+) -> bool:
+    """Pre-test guard for the *first* pass through the body.
+
+    A for loop of zero, a condition that is already false, and an empty for-each row
+    set all skip the body without running it. The one case that cannot be decided up
+    front is a for-each whose source step sits *inside* the cycle: its rows are not
+    known until it runs, so the first pass goes ahead and the continue guard stops it.
+    """
+    loop_type = loop.get("type")
+    if loop_type == "for":
+        return int(loop.get("count") or 0) > 0
+    if loop_type == "for_while":
+        return execution_loop.condition_holds(loop.get("condition"), resolved)
+    if loop_type == "for_each":
+        items = state.get("items")
+        return items is None or len(items) > 0
+    return True
+
+
+def _should_continue_loop(
+    loop: dict[str, Any], state: dict[str, Any], resolved: dict[str, Any]
+) -> bool:
+    """Whether to traverse the back-edge for another pass."""
+    loop_type = loop.get("type")
+    if loop_type == "for":
+        return int(state.get("iteration") or 0) + 1 < int(loop.get("count") or 0)
+    if loop_type == "for_while":
+        return execution_loop.condition_holds(loop.get("condition"), resolved)
+    if loop_type == "for_each":
+        items = state.get("items") or []
+        return int(state.get("item_index") or 0) + 1 < len(items)
+    return False
+
+
+def _clear_iteration_state(
+    loop: dict[str, Any],
+    state: dict[str, Any],
+    resolved: dict[str, Any],
+    visited: set[str],
+) -> None:
+    """Reset per-pass state so the next iteration starts clean.
+
+    Derived names (a step's RETURN columns, minted ids, the current for-each row) are
+    dropped so they re-bind; caller input and anything accumulated outside the body
+    survives. A name the loop *inherited* is never dropped even when a body step also
+    binds it: the body overwrites it in place each pass, so clearing would only risk
+    leaving it unset for a step that runs before the one that re-binds it.
+
+    Body steps leave ``visited`` so they can run again, while steps outside stay
+    visited — that is what keeps a fan-in *before* or *after* the loop running exactly
+    once.
+    """
+    for name in state.get("derived") or []:
+        resolved.pop(name, None)
+    state["derived"] = []
+    for step_id in loop.get("body") or []:
+        visited.discard(str(step_id))
+
+
+def _progress_snapshot(
+    queue: list[str],
+    resolved: dict[str, Any],
+    visited: set[str],
+    loop_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """The resume payload stored on the state row.
+
+    ``loop`` is omitted for a non-looping run, so those progress rows keep exactly
+    the shape they have always had.
+    """
+    snapshot: dict[str, Any] = {
+        "queue": queue,
+        "resolved": resolved,
+        "visited": list(visited),
+    }
+    if loop_state is not None:
+        snapshot["loop"] = loop_state
+    return snapshot
+
+
+def _loop_exit_targets(
+    loop: dict[str, Any], steps_by_id: dict[str, Any], resolved: dict[str, Any]
+) -> list[str]:
+    """Where the run goes once the loop is done: the tail's non-back-edge targets.
+
+    Also used when the body is skipped entirely, so a zero-iteration loop continues
+    into the rest of the chain instead of ending the run.
+    """
+    back_edge = loop.get("back_edge") or {}
+    tail = steps_by_id.get(str(back_edge.get("from") or ""))
+    if not tail:
+        return []
+    entry = str(back_edge.get("to") or "")
+    return [target for target in _passing_targets(tail, resolved) if target != entry]
 
 
 def run_execution(
@@ -1074,10 +1043,17 @@ def run_execution(
         str(rp.get("parameter") or "").strip() for rp in response_parameters
     }
 
+    loop = package.get("loop") if isinstance(package.get("loop"), dict) else None
+    loop_entry = str(((loop or {}).get("back_edge") or {}).get("to") or "")
+    loop_tail = str(((loop or {}).get("back_edge") or {}).get("from") or "")
+    loop_body = {str(sid) for sid in (loop or {}).get("body") or []}
+    max_iterations = int((loop or {}).get("max_iterations") or 0)
+
     progress = row.get("progress") or {}
     resolved: dict[str, Any] = dict(progress.get("resolved") or {})
     _merge_caller_params(resolved, params)
     visited: set[str] = set(progress.get("visited") or [])
+    loop_state: dict[str, Any] = dict(progress.get("loop") or {}) or _new_loop_state()
     stored_queue = progress.get("queue")
 
     if stored_queue is None:
@@ -1106,12 +1082,29 @@ def run_execution(
     final_step: dict[str, Any] | None = None
     final_response: dict[str, Any] | None = None
 
+    loop_progress = loop_state if loop else None
+
     while queue:
         step_id = queue[0]
         step = steps_by_id.get(step_id)
         if step is None or step_id in visited:
             queue.pop(0)
             continue
+
+        # Pre-test the loop before its first pass. A for of zero, an already-false
+        # condition, or an empty for-each row set skips the body without running it
+        # (and without prompting for the entry step's inputs), continuing from the
+        # tail's exit edges instead.
+        if loop and step_id == loop_entry and not loop_state.get("entered"):
+            loop_state["entered"] = True
+            if not _should_enter_loop_body(loop, loop_state, resolved):
+                queue.pop(0)
+                queue.extend(_loop_exit_targets(loop, steps_by_id, resolved))
+                continue
+            # What the loop inherits: caller input plus anything the steps before it
+            # resolved. These are off-limits to iteration-boundary clearing.
+            loop_state["inherited"] = sorted(resolved)
+            _bind_loop_item(loop, loop_state, resolved)
 
         step_defaults = _collect_step_defaults(step)
 
@@ -1121,8 +1114,7 @@ def run_execution(
         )
         if unresolved:
             catalog.update_state_progress(
-                state_id,
-                {"queue": queue, "resolved": resolved, "visited": list(visited)},
+                state_id, _progress_snapshot(queue, resolved, visited, loop_progress)
             )
             catalog.update_state_status(state_id, "pending")
             return {
@@ -1136,10 +1128,10 @@ def run_execution(
         _apply_step_defaults(step_defaults, resolved)
         _fill_blank_optional_query_params(step, resolved, response_param_names)
 
-        if _mint_auto_ids(step, resolved):
+        minted = _mint_auto_ids(step, resolved)
+        if minted:
             catalog.update_state_progress(
-                state_id,
-                {"queue": queue, "resolved": resolved, "visited": list(visited)},
+                state_id, _progress_snapshot(queue, resolved, visited, loop_progress)
             )
 
         queue.pop(0)
@@ -1158,11 +1150,72 @@ def run_execution(
         elif str(step.get("kind") or "").strip() == "local_llm":
             executed_entry["kind"] = "local_llm"
             executed_entry["config_id"] = str(step.get("config_id") or "")
+        if loop and step_id in loop_body:
+            # A body step appears once per pass; stamp the pass so a repeated entry
+            # in the trace is readable.
+            executed_entry["iteration"] = int(loop_state.get("iteration") or 0)
         executed.append(executed_entry)
-        _bind_query_return_columns(step, response, resolved)
+        in_loop_body = bool(loop) and step_id in loop_body
+        bound = _bind_query_return_columns(
+            step, response, resolved, overwrite=in_loop_body
+        )
         _bind_response_parameters(response, response_parameters, resolved)
 
-        _enqueue_transitions(step, resolved, queue)
+        if loop:
+            _capture_loop_items(
+                loop,
+                loop_state,
+                step_id,
+                response if isinstance(response, dict) else {},
+            )
+            if in_loop_body:
+                # Only values a body step *introduced* are dropped at the boundary; a
+                # value bound before the loop (or by the caller) has to survive.
+                inherited = set(loop_state.get("inherited") or [])
+                derived = loop_state.setdefault("derived", [])
+                for name in sorted((bound | minted) - inherited):
+                    if name not in derived:
+                        derived.append(name)
+
+        if loop and step_id == loop_tail:
+            passing = _passing_targets(step, resolved)
+            # The back-edge's own condition still gates it, so an author can stop the
+            # loop with an edge guard as well as with the sequence's rule.
+            if loop_entry in passing and _should_continue_loop(
+                loop, loop_state, resolved
+            ):
+                next_iteration = int(loop_state.get("iteration") or 0) + 1
+                if next_iteration >= max_iterations:
+                    catalog.update_state_progress(
+                        state_id,
+                        _progress_snapshot(queue, resolved, visited, loop_progress),
+                    )
+                    catalog.update_state_status(state_id, "inactive")
+                    return {
+                        "status": "error",
+                        "state_id": state_id,
+                        "message": (
+                            f"Loop exceeded its limit of {max_iterations} iterations "
+                            "without terminating. Check the loop's exit condition, or "
+                            "raise the sequence's maximum iterations."
+                        ),
+                        "resolved": resolved,
+                        "executed": executed,
+                    }
+                _clear_iteration_state(loop, loop_state, resolved, visited)
+                loop_state["iteration"] = next_iteration
+                if loop.get("type") == "for_each":
+                    loop_state["item_index"] = (
+                        int(loop_state.get("item_index") or 0) + 1
+                    )
+                _bind_loop_item(loop, loop_state, resolved)
+                queue.append(loop_entry)
+            else:
+                queue.extend(
+                    target for target in passing if target != loop_entry
+                )
+        else:
+            _enqueue_transitions(step, resolved, queue)
 
     catalog.update_state_progress(state_id, None)
     catalog.update_state_status(state_id, "inactive")

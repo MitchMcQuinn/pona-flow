@@ -21,8 +21,70 @@ import { connector } from "@pona-flow/connector";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { resolveSpaceId, type McpConfig } from "../config.js";
-import { buildSequenceQuery, buildStepTransitionQuery } from "../intent.js";
+import {
+  buildLoopConfig,
+  buildSequenceQuery,
+  buildStepTransitionQuery,
+  type LoopIntent,
+} from "../intent.js";
 import { guard } from "../result.js";
+
+/**
+ * The `loop` argument shared by create_sequence and update_sequence.
+ *
+ * Worth spelling out for an agent, because the split is not obvious: the *cycle* is drawn
+ * with create_step_transition (an edge from a later STEP back to an earlier one), and this
+ * only decides when that cycle stops. Neither half works alone — a loop type with no
+ * back-edge is rejected at compose, and a back-edge with no loop type just ends the run.
+ */
+const loopSchema = z
+  .object({
+    type: z
+      .enum(["dag", "for", "for_while", "for_each"])
+      .describe(
+        "'dag' (default) runs each step once, so a back-edge ends the run. 'for' makes a " +
+          "fixed number of passes. 'for_while' tests a condition before each pass. " +
+          "'for_each' makes one pass per row of a result set. The three looping types " +
+          "require the STEP graph to contain exactly one cycle."
+      ),
+    count: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe("for: how many passes. Zero skips the looped steps entirely."),
+    condition: z
+      .object({
+        parameter: z
+          .string()
+          .describe(
+            "A sequence/step parameter, or a RETURN alias one of the steps projects " +
+              "(those are bound into run state automatically)."
+          ),
+        operator: z.enum(["=", "<>", "<", "<=", ">", ">=", "CONTAINS", "STARTS WITH", "ENDS WITH"]),
+        value: z.string(),
+      })
+      .optional()
+      .describe(
+        "for_while: tested before every pass including the first, so an already-false " +
+          "condition skips the looped steps. An unresolved parameter reads as false."
+      ),
+    source: z
+      .string()
+      .optional()
+      .describe(
+        "for_each: the RETURN alias whose rows are iterated. Each pass binds that row's " +
+          "columns under their aliases, so the looped steps see one row at a time. Put the " +
+          "step that projects it *outside* the cycle, or an empty result cannot skip the body."
+      ),
+    max_iterations: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe("Safety cap (default 1000). Exceeding it fails the run."),
+  })
+  .optional();
 
 /** Resolve a STEP node's graph id from its attributive_label, failing with a usable hint. */
 async function stepIdForLabel(spaceId: string, attributiveLabel: string): Promise<string> {
@@ -125,7 +187,9 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
         "runs the entry step and everything downstream of it via POINTS_TO, so build the STEP " +
         "chain with create_step_transition before calling this. The sequence becomes a " +
         "callable tool on the space's runtime MCP gateway, and its description is what an " +
-        "agent sees, so write it for a reader who does not know this graph.",
+        "agent sees, so write it for a reader who does not know this graph. " +
+        "Each step runs once unless `loop` selects a termination rule for a cycle in the " +
+        "chain — use that to repeat steps, e.g. once per row a read step returned.",
       inputSchema: {
         entry_step: z
           .string()
@@ -153,6 +217,7 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
           )
           .optional()
           .describe("Inputs collected before the run and bound as $name inside the steps."),
+        loop: loopSchema,
         space_id: z.string().optional(),
       },
     },
@@ -173,6 +238,7 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
           name: args.name,
           groupTitle: args.group_title,
           description: args.description,
+          loop: buildLoopConfig(args.loop),
         });
         return { ok: true, sequence_id: saved.id, entry_step: args.entry_step };
       })
@@ -184,9 +250,9 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
       title: "Update sequence",
       description:
         "Overwrite a saved sequence in place, keeping its id and name. Use this to change the " +
-        "entry step, the traversal mode, the parameters, or the description. Editing the steps " +
-        "themselves is done with create_step_transition and update_operation — the sequence " +
-        "only names where the run starts.",
+        "entry step, the traversal mode, the parameters, the loop rule, or the description. " +
+        "Editing the steps themselves is done with create_step_transition and " +
+        "update_operation — the sequence only names where the run starts and when it stops.",
       inputSchema: {
         sequence_id: z.string().describe("Catalog id from list_operations(kind='sequence')."),
         entry_step: z.string().optional().describe("New entry STEP attributive_label."),
@@ -203,6 +269,7 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
             })
           )
           .optional(),
+        loop: loopSchema,
         query: z
           .record(z.unknown())
           .optional()
@@ -255,6 +322,9 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
           name: pkg.name,
           groupTitle: args.group_title ?? "",
           description: args.description,
+          // Omitting `loop` keeps the saved rule — this is a full-row upsert, so an
+          // update that only touched the description would otherwise clear it.
+          loop: buildLoopConfig(args.loop ?? (pkg.loop_config as LoopIntent | undefined)),
         });
         return { ok: true, sequence_id: saved.id };
       })

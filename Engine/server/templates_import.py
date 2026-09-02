@@ -27,7 +27,7 @@ import json
 import re
 from typing import Any
 
-from . import catalog, config, credentials, graph, resources, spaces
+from . import catalog, config, credentials, graph, spaces
 
 # ID_<32 hex> — the project entity id format (see server.id_generator).
 _ID_RE = re.compile(r"ID_[0-9a-f]{32}")
@@ -318,12 +318,6 @@ def _collect_ids(template: dict[str, Any]) -> set[str]:
         for seq in event.get("recovery_sequences") or []:
             if isinstance(seq, str) and _ID_RE.fullmatch(seq):
                 ids.add(seq)
-    # Resource ids: registering them mints a fresh id and rewrites every reference
-    # (a code step's payload ``resource_id``) to match.
-    for resource in template.get("resources") or []:
-        rid = (resource.get("id") or "").strip()
-        if rid:
-            ids.add(rid)
     return ids
 
 
@@ -378,26 +372,6 @@ class _PlanBuilder:
 
     def _remap_label(self, label: str) -> str:
         return self.label_remap.get(label, label)
-
-    def _plan_resources(self) -> None:
-        """0) Code resources first: a code STEP's payload references resource_id, so the
-        row (and its file) must exist before entities/queries land. The id is regenerated."""
-        for resource in self.template.get("resources") or []:
-            old_id = (resource.get("id") or "").strip()
-            if not old_id:
-                continue
-            self.statements.append(
-                {
-                    "op": "resource",
-                    "row": {
-                        "id": self.id_remap.get(old_id, old_id),
-                        "name": (resource.get("name") or "").strip(),
-                        "language": (resource.get("language") or "").strip(),
-                        "description": resource.get("description") or "",
-                        "code": resource.get("code") or "",
-                    },
-                }
-            )
 
     def _plan_credentials(self) -> None:
         """0b) Credential slots (name + description only). Registered without a value so
@@ -556,6 +530,7 @@ class _PlanBuilder:
                         ),
                         "builder_config": json.dumps(query.get("builder_config") or {}),
                         "description": query.get("description") or "",
+                        "loop_config": json.dumps(query.get("loop_config") or {}),
                     },
                 }
             )
@@ -611,7 +586,6 @@ class _PlanBuilder:
             )
 
     def build(self) -> dict[str, Any]:
-        self._plan_resources()
         self._plan_credentials()
         self._plan_schema_and_step_nodes()
         self._plan_instance_nodes()
@@ -742,16 +716,7 @@ def _execute_statement(space_id: str, stmt: dict[str, Any]) -> None:
             triggerable=int(row.get("triggerable") if row.get("triggerable") is not None else 1),
             builder_config=row.get("builder_config"),
             description=row.get("description") or "",
-        )
-    elif op == "resource":
-        row = stmt.get("row") or {}
-        resources.upsert_resource(
-            space_id,
-            row.get("name") or "",
-            row.get("code") or "",
-            row.get("language") or "python",
-            description=row.get("description") or "",
-            resource_id=(row.get("id") or "").strip() or None,
+            loop_config=row.get("loop_config"),
         )
     elif op == "credential":
         row = stmt.get("row") or {}

@@ -14,14 +14,18 @@
 
 import {
   extractExactParameterRef,
+  isLoopType,
   newMatchClause,
   newQuery,
   newSchematicProperties,
   normalizeAttributiveLabel,
+  normalizeLoopConfig,
   normalizeSchemaPropertyKey,
   type ConditionType,
   type GraphNodeLabel,
   type LiteralOrParameter,
+  type LoopComparisonOperator,
+  type LoopConfig,
   type Operation,
   type Parameter,
   type PropertyBinding,
@@ -77,13 +81,6 @@ export interface StepHttpIntent {
   response_parameters?: Array<{ property_path: string; parameter: string; default_value?: string }>;
 }
 
-export interface StepCodeIntent {
-  resource_name: string;
-  language?: "python" | "javascript";
-  code: string;
-  response_parameters?: Array<{ property_path: string; parameter: string; default_value?: string }>;
-}
-
 export interface StepLocalLlmIntent {
   config_id: string;
   response_parameters?: Array<{ property_path: string; parameter: string; default_value?: string }>;
@@ -99,7 +96,6 @@ export interface OperationIntent {
   is_vectorized?: boolean;
   instance_properties?: InstancePropertyIntent[];
   http_step?: StepHttpIntent;
-  code_step?: StepCodeIntent;
   local_llm_step?: StepLocalLlmIntent;
   where?: WhereIntent[];
   return_items?: ReturnIntent[];
@@ -264,14 +260,6 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
         body: intent.http_step.body ?? {},
         response_parameters: intent.http_step.response_parameters ?? [],
       };
-    } else if (intent.code_step) {
-      element.node.sequencial_properties = {
-        step_type: "code",
-        resource_name: intent.code_step.resource_name,
-        language: intent.code_step.language ?? "python",
-        code: intent.code_step.code,
-        response_parameters: intent.code_step.response_parameters ?? [],
-      };
     } else if (intent.local_llm_step) {
       element.node.sequencial_properties = {
         step_type: "local_llm",
@@ -423,6 +411,44 @@ export interface SequenceIntent {
    */
   traversal?: "single" | "downstream";
   parameters?: ParameterIntent[];
+}
+
+/** Flat loop arguments as an MCP tool receives them (see {@link buildLoopConfig}). */
+export interface LoopIntent {
+  type?: string;
+  count?: number;
+  condition?: { parameter?: string; operator?: string; value?: string };
+  source?: string;
+  max_iterations?: number;
+}
+
+/**
+ * Loop arguments -> LoopConfig.
+ *
+ * Kept separate from {@link buildSequenceQuery} because a loop is not part of the read
+ * query: the cycle lives in POINTS_TO edges, and the rule that ends it is saved on the
+ * catalog row (`loop_config`). So this feeds `SequenceInput`, not the QueryObject.
+ *
+ * Returns undefined for a plain DAG, which is what leaves the row's column empty and the
+ * executor on its single-pass walk.
+ */
+export function buildLoopConfig(intent: LoopIntent | undefined): LoopConfig | undefined {
+  const type = (intent?.type || "dag").trim();
+  if (!isLoopType(type) || type === "dag") return undefined;
+  const loop: LoopConfig = { type };
+  if (typeof intent?.max_iterations === "number") loop.max_iterations = intent.max_iterations;
+  if (type === "for") {
+    loop.count = typeof intent?.count === "number" ? intent.count : 0;
+  } else if (type === "for_while") {
+    loop.condition = {
+      parameter: (intent?.condition?.parameter || "").trim(),
+      operator: (intent?.condition?.operator || "=") as LoopComparisonOperator,
+      value: intent?.condition?.value ?? ""
+    };
+  } else if (type === "for_each") {
+    loop.source = (intent?.source || "").trim();
+  }
+  return normalizeLoopConfig(loop);
 }
 
 /**

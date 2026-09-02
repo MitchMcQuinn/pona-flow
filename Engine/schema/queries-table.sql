@@ -23,6 +23,11 @@ CREATE TABLE IF NOT EXISTS queries (
     -- Declarative builder snapshot (QueryObject + runtime/positions) so a saved operation can be
     -- round-tripped back into the builder for editing; the composer is forward-only (no decompiler).
     builder_config TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(builder_config)),
+    -- Loop policy for a sequence: which termination rule applies to the one cycle in its STEP
+    -- graph. Read directly by the executor's composer (not via builder_config, which is an
+    -- authoring snapshot the engine deliberately does not depend on). Only ever set on
+    -- kind=sequence; '{}' or type='dag' means the historical single-pass walk.
+    loop_config TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(loop_config)),
     creation_date TEXT NOT NULL DEFAULT (datetime('now')),
     modified_date TEXT NOT NULL DEFAULT (datetime('now'))
 );

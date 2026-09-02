@@ -6,14 +6,13 @@ executing, so the transform is the riskiest part of the feature. This exercises 
 plan-building helpers and the selection-closure resolver (no Neo4j / SQLite needed; the
 resolver's data sources are stubbed):
 
-- _collect_ids gathers node/rel/entity/query/event/resource ids plus ids embedded in cypher
+- _collect_ids gathers node/rel/entity/query/event ids plus ids embedded in cypher
 - _build_remaps splits user renames into label vs regex maps
-- _materialize_plan regenerates ids, applies label/regex remaps, orders resource+credential
+- _materialize_plan regenerates ids, applies label/regex remaps, orders credential
   ops first, then SCHEMA -> STEP -> INSTANCE before relationships
-- _rewrite_text rewrites ids and quoted labels in raw statements (incl. a code step's
-  resource_id reference)
+- _rewrite_text rewrites ids and quoted labels in raw statements
 - resolve_selection walks a selected sequence to its steps, nested operation/sequence,
-  schema network (endpoint pull-in), regex formats, code resources, and credential slots
+  schema network (endpoint pull-in), regex formats, and credential slots
 
 Run: `python tests/template-plan-runner.py` from the repo root.
 """
@@ -46,8 +45,6 @@ ENTITY_ID = "ID_" + "e" * 32
 QUERY_ID = "ID_" + "f" * 32
 EVENT_ID = "ID_" + "0" * 32
 EMBEDDED_ID = "ID_" + "1" * 32
-RESOURCE_ID = "ID_" + "2" * 32
-CODE_ENTITY_ID = "ID_" + "3" * 32
 
 TEMPLATE = {
     "template_id": "ID_" + "9" * 32,
@@ -71,15 +68,6 @@ TEMPLATE = {
             }
         ],
     },
-    "resources": [
-        {
-            "id": RESOURCE_ID,
-            "name": "fetch_user",
-            "description": "calls an API",
-            "language": "python",
-            "code": "headers = {'Authorization': '$secret.API_KEY'}",
-        }
-    ],
     "credentials": [{"name": "API_KEY", "description": "third-party API key"}],
     "sqlite": {
         "entities": [
@@ -89,13 +77,6 @@ TEMPLATE = {
                 "common_label": "PERSON",
                 "parameters": "[]",
                 "payload": '{"schemata": []}',
-            },
-            {
-                "id": CODE_ENTITY_ID,
-                "node_label": "STEP",
-                "common_label": "CodeStep",
-                "parameters": "[]",
-                "payload": '{"kind": "code", "resource_id": "' + RESOURCE_ID + '"}',
             },
         ],
         "queries": [
@@ -155,7 +136,6 @@ for label, ident in [
     ("query", QUERY_ID),
     ("event", EVENT_ID),
     ("embedded cypher id", EMBEDDED_ID),
-    ("resource", RESOURCE_ID),
 ]:
     check(f"_collect_ids includes {label} id", ident in ids)
 
@@ -227,28 +207,14 @@ check("event sequence ref remapped", event_stmt["row"]["sequences"] == [id_remap
 check("created_labels collected", set(plan["created_labels"]) >= {"HUMAN", "DoThing", "KNOWS"})
 check("group titles collected", plan["group_titles"] == ["People"])
 
-# resource + credential ops run first (before any graph create), with the id regenerated.
+# credential ops run first (before any graph create).
 first_cypher = ops.index("cypher")
-check("resource op present", "resource" in ops)
 check("credential op present", "credential" in ops)
-check("resource op before cypher", ops.index("resource") < first_cypher)
 check("credential op before cypher", ops.index("credential") < first_cypher)
-
-resource_stmt = next(s for s in stmts if s["op"] == "resource")
-check("resource id regenerated", resource_stmt["row"]["id"] == id_remap[RESOURCE_ID])
-check("resource code preserved", "$secret.API_KEY" in resource_stmt["row"]["code"])
+check("resource op absent", "resource" not in ops)
 
 credential_stmt = next(s for s in stmts if s["op"] == "credential")
 check("credential slot name carried", credential_stmt["row"]["name"] == "API_KEY")
-
-code_entity_stmt = next(
-    s for s in stmts if s["op"] == "entity" and s["row"]["id"] == id_remap[CODE_ENTITY_ID]
-)
-check(
-    "code step payload resource_id rewritten",
-    id_remap[RESOURCE_ID] in str(code_entity_stmt["row"]["payload"])
-    and RESOURCE_ID not in str(code_entity_stmt["row"]["payload"]),
-)
 
 # --- resolve_selection (data sources stubbed) --------------------------------------------
 SEQ1, SEQ2, OP1 = "ID_seq1", "ID_seq2", "ID_op1"
@@ -261,10 +227,9 @@ FLOW = {
         {"id": S1, "attributive_label": "EntryStep", "payload": {}},
         {
             "id": S2,
-            "attributive_label": "CodeStep",
+            "attributive_label": "HttpStep",
             "payload": {
-                "kind": "code",
-                "resource_id": "ID_res1",
+                "endpoint": "https://api.example.com/hook",
                 "headers": "Authorization: $secret.API_KEY",
             },
         },
@@ -353,7 +318,6 @@ check(
     "resolver collects regex formats (schema + param)",
     {"email", "phone"} <= resolved["regex_names"],
 )
-check("resolver collects code resource", "ID_res1" in resolved["resource_ids"])
 check("resolver collects credential slot", "API_KEY" in resolved["credential_names"])
 
 print()

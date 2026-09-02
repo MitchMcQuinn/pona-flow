@@ -120,3 +120,15 @@ export function buildStepLabelOptions(
     .map(([value, { kind, suspended }]) => ({ value, kind, suspended }))
     .sort((a, b) => a.value.localeCompare(b.value));
 }
+
+/**
+ * Drop sequence-backed STEPs when building a sequence.
+ *
+ * A sequence cannot contain another sequence: the nested chain has its own entry point
+ * and its own loop policy, neither of which can be reconciled with the parent's. Compose
+ * rejects it outright, so keeping those labels out of the picker is what turns a hard
+ * failure at run time into an option that was never offered.
+ */
+export function excludeSequenceStepOptions(options: StepLabelOption[]): StepLabelOption[] {
+  return options.filter((option) => option.kind !== "sequence");
+}

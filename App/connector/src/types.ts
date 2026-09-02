@@ -20,6 +20,8 @@ export interface QueryPackageRow {
   parameters: unknown[];
   /** Declarative builder snapshot ({} when none was captured at save time). */
   builder_config: Record<string, unknown>;
+  /** Sequences: loop termination rule ({} for a plain DAG walk). */
+  loop_config?: Record<string, unknown>;
 }
 
 export interface GraphNodeRow {
@@ -36,7 +38,7 @@ export interface GraphNodeRow {
     method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     headers?: Record<string, unknown>;
     body?: Record<string, unknown>;
-    /** Code-execution STEP: backing catalog resources row (code fetched separately). */
+    /** Leftover code-execution STEP (archived); payload references a catalog resource id. */
     resource_id?: string;
     /** Local LLM STEP: catalog local_llm_configs row id. */
     local_llm_config_id?: string;
@@ -241,32 +243,12 @@ export interface QueriesUpsertPayload {
   parameters: unknown[];
   description?: string;
   builder_config?: unknown;
-}
-
-export type CodeResourceLanguage = "python" | "javascript";
-
-export interface CodeResourceMetadata {
-  id: string;
-  space_id: string;
-  name: string;
-  description: string;
-  language: CodeResourceLanguage;
-  path: string;
-  creation_date: string;
-  modified_date: string;
-}
-
-export interface CodeResourceWithCode extends CodeResourceMetadata {
-  code: string;
-}
-
-export interface UpsertCodeResourceInput {
-  /** Existing resource UID to update in place; omit to create a new resource. */
-  resourceId?: string;
-  name: string;
-  description?: string;
-  language: CodeResourceLanguage;
-  code: string;
+  /**
+   * Sequences: the termination rule for the one cycle in the STEP graph. Its own column
+   * rather than a builder_config field because the executor reads it directly. Omit for
+   * a plain DAG walk.
+   */
+  loop_config?: unknown;
 }
 
 export interface DeleteWarning {

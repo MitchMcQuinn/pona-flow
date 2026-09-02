@@ -231,8 +231,8 @@ __marimo__/
 App/data-db-editor.html
 App/js/data-db-editor.js
 
-# User-authored code resources for code-execution STEPs (mapped by the catalog
-# `resources` table; see Engine/server/resources.py). Never commit user code.
+# Historical on-disk scripts from archived code-execution STEPs (see
+# Docs/code-execution/). Never commit user code if this folder still exists.
 /resources/
 
 # Cypress E2E artifacts and local credentials

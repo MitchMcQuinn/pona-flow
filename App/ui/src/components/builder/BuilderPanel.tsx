@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import connector from "../../services/connector";
-import { fetchSpaceRecord } from "../../services/api";
+import {
+  composeSequence,
+  fetchSpaceRecord,
+  type ExecutionAvailableParameters
+} from "../../services/api";
 import regexValidator from "../../services/regexValidator";
 import {
   createResponseToRunResult,
@@ -15,7 +19,13 @@ import { runButtonLabel } from "./runButtonLabels";
 import { regenerateQueryIdAfterOperationSave } from "../../state/builder/afterOperationSave";
 import { BuilderProvider, useBuilder } from "../../state/builder/BuilderContext";
 import { builderSelectors } from "../../state/builder/selectors";
-import { sequenceEntryPointWarnings } from "@pona-flow/authoring";
+import {
+  DEFAULT_LOOP_CONFIG,
+  isLoopType,
+  loopConfigWarnings,
+  sequenceEntryPointWarnings
+} from "@pona-flow/authoring";
+import type { LoopComparisonOperator, LoopConfig } from "@pona-flow/authoring";
 import type { BuilderSeed, RunResult } from "../../state/builder/types";
 import {
   loadStepNodeIntoQuery,
@@ -31,6 +41,7 @@ import {
 } from "./modals/CreateOperationModal";
 import { Picker } from "./Picker";
 import { QueryCard } from "./QueryCard";
+import { SequenceLoopFields } from "./fields/SequenceLoopFields";
 import { useToast } from "../Toast";
 import "./builder.css";
 
@@ -51,6 +62,31 @@ function loadSavedQueries(dispatch: ReturnType<typeof useBuilder>["dispatch"]) {
       });
     })
     .catch(() => undefined);
+}
+
+/**
+ * Rehydrate a saved sequence's `loop_config` column into the editor's shape.
+ *
+ * The column is untyped JSON (and is `{}` for every sequence saved before loops), so an
+ * unrecognized type falls back to a plain DAG rather than leaving the selector blank.
+ */
+function readLoopConfig(raw: unknown): LoopConfig {
+  if (!raw || typeof raw !== "object") return DEFAULT_LOOP_CONFIG;
+  const stored = raw as Record<string, unknown>;
+  if (!isLoopType(stored.type)) return DEFAULT_LOOP_CONFIG;
+  const loop: LoopConfig = { type: stored.type };
+  if (typeof stored.count === "number") loop.count = stored.count;
+  if (typeof stored.source === "string") loop.source = stored.source;
+  if (typeof stored.max_iterations === "number") loop.max_iterations = stored.max_iterations;
+  if (stored.condition && typeof stored.condition === "object") {
+    const condition = stored.condition as Record<string, unknown>;
+    loop.condition = {
+      parameter: String(condition.parameter ?? ""),
+      operator: (condition.operator ?? "=") as LoopComparisonOperator,
+      value: String(condition.value ?? "")
+    };
+  }
+  return loop;
 }
 
 function refreshSpaceLabels(
@@ -372,12 +408,14 @@ function CreateSequenceActions({
   name,
   groupTitle,
   description,
+  loop,
   canCreate,
   onSequenceCreated
 }: {
   name: string;
   groupTitle: string;
   description: string;
+  loop: LoopConfig;
   canCreate: boolean;
   onSequenceCreated?: (sequenceId: string) => void;
 }) {
@@ -394,7 +432,8 @@ function CreateSequenceActions({
       const fields = {
         name: name.trim(),
         groupTitle: groupTitle.trim(),
-        description: description.trim()
+        description: description.trim(),
+        loop
       };
       const result =
         editing && state.editSequence
@@ -490,13 +529,26 @@ function BuilderBody({
     () => (createSequenceMode ? sequenceEntryPointWarnings(state.query) : []),
     [createSequenceMode, state.query]
   );
-  const warnings = useMemo(
-    () => [...baseWarnings, ...sequenceWarnings],
-    [baseWarnings, sequenceWarnings]
-  );
   const [sequenceName, setSequenceName] = useState(() => editSeed?.name ?? "");
   const [sequenceDescription, setSequenceDescription] = useState(() => editSeed?.description ?? "");
   const [sequenceGroupTitle, setSequenceGroupTitle] = useState(() => editSeed?.groupTitle ?? "");
+  const [sequenceLoop, setSequenceLoop] = useState<LoopConfig>(DEFAULT_LOOP_CONFIG);
+  // The loop pickers offer names the sequence's *steps* publish, which the builder's own
+  // QueryObject can't know: a sequence read query is one node plus `-[*]->`, so the chain
+  // it traverses only becomes visible once the server composes it.
+  const [loopAliases, setLoopAliases] = useState<ExecutionAvailableParameters[]>([]);
+  // Cycle count, unknown aliases, and the nesting ban are all graph-level facts only
+  // compose can check, so its error is surfaced as a builder warning.
+  const [loopComposeError, setLoopComposeError] = useState<string | null>(null);
+
+  const warnings = useMemo(
+    () => [
+      ...baseWarnings,
+      ...sequenceWarnings,
+      ...(loopComposeError ? [loopComposeError] : [])
+    ],
+    [baseWarnings, sequenceWarnings, loopComposeError]
+  );
 
   // A sequence's name becomes its STEP node's attributive_label, which must be unique within
   // the underlying graph; block names already used by another sequence. (The server enforces
@@ -520,11 +572,16 @@ function BuilderBody({
     sequenceNameValid &&
     takenSequenceNames.has(sequenceName.trim().toLowerCase());
   const sequenceGroupValid = sequenceGroupTitle.trim().length > 0;
+  const loopWarnings = useMemo(
+    () => (createSequenceMode ? loopConfigWarnings(sequenceLoop) : []),
+    [createSequenceMode, sequenceLoop]
+  );
   const canCreateSequence =
     sequenceNameValid &&
     !sequenceNameTaken &&
     sequenceGroupValid &&
-    sequenceWarnings.length === 0;
+    sequenceWarnings.length === 0 &&
+    loopWarnings.length === 0;
 
   // Entering create-sequence mode starts a fresh read/STEP query. Skipped for an edit session,
   // where the saved sequence's builder_config is hydrated instead (see the edit effect below).
@@ -535,6 +592,9 @@ function BuilderBody({
     setSequenceName("");
     setSequenceDescription("");
     setSequenceGroupTitle("");
+    setSequenceLoop(DEFAULT_LOOP_CONFIG);
+    setLoopAliases([]);
+    setLoopComposeError(null);
   }, [createSequenceMode, dispatch]);
 
   // Edit session: hydrate the builder from the saved sequence's builder_config (its QueryObject
@@ -548,6 +608,7 @@ function BuilderBody({
       .fetchQueryPackage(editSeed.sequenceId)
       .then((pkg) => {
         if (cancelled) return;
+        setSequenceLoop(readLoopConfig(pkg.loop_config));
         const config = pkg.builder_config;
         if (isHydratableBuilderConfig(config)) {
           dispatch({
@@ -573,6 +634,33 @@ function BuilderBody({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editSeedNonce]);
+
+  // Compose the saved sequence to learn what its steps publish, which is the only source
+  // for the loop pickers. Compose also reports the graph-level loop checks (exactly one
+  // cycle, known aliases, no nesting) — but against the *saved* config, so editing the
+  // type here can't be pre-validated; saving reopens the sequence, which re-runs this.
+  useEffect(() => {
+    const sequenceId = editSeed?.sequenceId;
+    const spaceId = state.spaceId;
+    if (!sequenceId || !spaceId) return;
+    let cancelled = false;
+    composeSequence(sequenceId, spaceId)
+      .then((composed) => {
+        if (cancelled) return;
+        setLoopAliases(composed.package.available_parameters ?? []);
+        setLoopComposeError(null);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setLoopAliases([]);
+        setLoopComposeError(
+          error instanceof Error ? error.message : "Failed to compose this sequence."
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editSeed?.sequenceId, state.spaceId]);
 
   useEffect(() => {
     if (prevCreateSequenceMode.current && !createSequenceMode) {
@@ -809,6 +897,17 @@ function BuilderBody({
           />
         ) : null}
 
+        {createSequenceMode ? (
+          <SequenceLoopFields
+            loop={sequenceLoop}
+            onLoop={setSequenceLoop}
+            disabled={false}
+            availableParameters={loopAliases}
+            unsaved={!editingSequence}
+            warnings={loopWarnings}
+          />
+        ) : null}
+
         <QueryCard />
 
         {createSequenceMode ? null : <AdvancedOptions />}
@@ -838,6 +937,7 @@ function BuilderBody({
           name={sequenceName}
           groupTitle={sequenceGroupTitle}
           description={sequenceDescription}
+          loop={sequenceLoop}
           canCreate={canCreateSequence}
           onSequenceCreated={onSequenceCreated}
         />

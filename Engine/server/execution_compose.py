@@ -23,6 +23,7 @@ from typing import Any, Iterator
 
 from . import catalog
 from . import cypher_utils
+from . import execution_loop
 from . import graph
 from . import local_llms
 from . import spaces
@@ -304,7 +305,9 @@ def _build_step(
     node_id: str,
     entity: dict[str, Any],
     adjacency: dict[str, list[dict[str, Any]]],
+    fetch_query: Any = None,
 ) -> dict[str, Any]:
+    fetch_query = fetch_query or catalog.fetch_query_for_compose
     payload = entity.get("payload") or {}
     query_id = str(payload.get("query_id") or "").strip()
     kind = str(payload.get("kind") or "").strip()
@@ -319,7 +322,7 @@ def _build_step(
         body = {}
 
     if query_id:
-        referenced = catalog.fetch_query_for_compose(query_id)
+        referenced = fetch_query(query_id)
         # Nested sequences carry their parameters on their own steps; an operation
         # contributes its parameter definitions to this step.
         if referenced and referenced.get("kind") != "sequence":
@@ -352,8 +355,8 @@ def _build_step(
         "next": transitions,
     }
     if kind == "code":
-        # Code-execution step: reference the script by resource UID only — the code
-        # text is loaded from disk at run time, never embedded in the package.
+        # Leftover code-execution STEP (feature archived). Keep kind so the
+        # executor can refuse it instead of treating it as an empty HTTP call.
         step["kind"] = "code"
         step["resource_id"] = resource_id
     elif kind == "local_llm":
@@ -363,6 +366,73 @@ def _build_step(
         # when the STEP entity was saved before those parameters were declared.
         step["parameters"] = _ensure_local_llm_params(parameters)
     return step
+
+
+def _step_return_aliases(payload: dict[str, Any], fetch_query: Any) -> list[str]:
+    """
+    Names a step publishes into run state, in binding order.
+
+    For an operation-backed step those are its scalar RETURN aliases (the executor
+    binds them automatically); for an endpoint/code/LLM step they are the parameters
+    its ``response_parameters`` mappings write. Together this is the vocabulary a
+    loop condition or for-each source may draw on.
+    """
+    names: list[str] = []
+    seen: set[str] = set()
+
+    def add(name: Any) -> None:
+        text = str(name or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            names.append(text)
+
+    query_id = str(payload.get("query_id") or "").strip()
+    if query_id:
+        referenced = fetch_query(query_id)
+        if referenced and referenced.get("kind") != "sequence":
+            for alias in cypher_utils.return_aliases(referenced.get("cypher") or []):
+                add(alias)
+    for rp in payload.get("response_parameters") or []:
+        if isinstance(rp, dict):
+            add(rp.get("parameter"))
+    return names
+
+
+def _loop_referenceable_names(
+    seq: dict[str, Any],
+    steps: dict[str, dict[str, Any]],
+    available_parameters: list[dict[str, Any]],
+) -> set[str]:
+    """Every name a loop condition may test: inputs plus published outputs."""
+    names: set[str] = set()
+    for param in seq.get("parameters") or []:
+        if isinstance(param, dict):
+            names.add(str(param.get("name") or "").strip())
+    for step in steps.values():
+        for param in step.get("parameters") or []:
+            if isinstance(param, dict):
+                names.add(str(param.get("name") or "").strip())
+    for entry in available_parameters:
+        for alias in entry.get("aliases") or []:
+            names.add(str(alias or "").strip())
+    names.discard("")
+    return names
+
+
+def _alias_source_steps(available_parameters: list[dict[str, Any]]) -> dict[str, str]:
+    """Map each published name to the first step that publishes it.
+
+    First wins because compose order is run order: when two steps project the same
+    alias, a for-each should iterate the rows of the one that runs first.
+    """
+    out: dict[str, str] = {}
+    for entry in available_parameters:
+        step_id = str(entry.get("step_id") or "").strip()
+        for alias in entry.get("aliases") or []:
+            name = str(alias or "").strip()
+            if name and name not in out:
+                out[name] = step_id
+    return out
 
 
 class _StepWalk:
@@ -453,27 +523,37 @@ def compose_execution_package(space_id: str, sequence_query_id: str) -> dict[str
     steps: dict[str, dict[str, Any]] = {}
     response_parameters: list[dict[str, Any]] = []
     seen_response: set[tuple[str, str]] = set()
+    available_parameters: list[dict[str, Any]] = []
+    query_cache: dict[str, dict[str, Any] | None] = {}
 
-    def enqueue_sequence(query_id: str) -> None:
+    def fetch_query(query_id: str) -> dict[str, Any] | None:
+        """Catalog lookup memoized for the life of this compose."""
+        qid = (query_id or "").strip()
+        if not qid:
+            return None
+        if qid not in query_cache:
+            query_cache[qid] = catalog.fetch_query_for_compose(qid)
+        return query_cache[qid]
+
+    def reject_nested_sequence(query_id: str, label: str) -> None:
+        """A STEP whose operation is another sequence is not runnable.
+
+        Nesting used to be flattened into this package, but a nested chain has its
+        own entry point and (now) its own loop policy, which cannot be reconciled
+        with the parent's single cycle. Authoring hides sequence-backed STEPs from
+        the picker; this is the backstop for a graph edited elsewhere.
+        """
         qid = (query_id or "").strip()
         if not qid or qid in walk.visited_sequences:
             return
-        referenced = catalog.fetch_query_for_compose(qid)
+        referenced = fetch_query(qid)
         if not referenced or referenced.get("kind") != "sequence":
             return
-        # Runtime policy applies to nested sequences too: a disabled sequence must not
-        # be runnable just because an enabled sequence references it.
-        if not int(referenced.get("runtime_enabled", 1)):
-            raise PermissionError(
-                f"Nested sequence {qid!r} is not runtime-enabled and cannot be run."
-            )
-        if int(referenced.get("suspended", 0)):
-            raise PermissionError(
-                f"Nested sequence {qid!r} is suspended and cannot be run until its INSTANCE "
-                "step is re-saved to match the new SCHEMA pattern."
-            )
-        walk.visited_sequences.add(qid)
-        walk.enqueue_initial(referenced.get("cypher") or [])
+        raise ValueError(
+            f"Step {label or qid!r} runs the sequence {referenced.get('name') or qid!r}. "
+            "Nested sequences are not supported — point this step at an operation, or "
+            "inline that sequence's steps into this one."
+        )
 
     walk.enqueue_initial(seq.get("cypher") or [])
 
@@ -482,9 +562,21 @@ def compose_execution_package(space_id: str, sequence_query_id: str) -> dict[str
     traverse = _cypher_traverses_downstream(seq.get("cypher") or [])
 
     for node_id, entity in walk.steps():
-        steps[node_id] = _build_step(node_id, entity, walk.adjacency)
+        steps[node_id] = _build_step(node_id, entity, walk.adjacency, fetch_query)
 
         payload = entity.get("payload") or {}
+        # Names this step can publish into run state, so a loop condition or a
+        # for-each source can be checked at compose time and offered in the builder.
+        aliases = _step_return_aliases(payload, fetch_query)
+        if aliases:
+            available_parameters.append(
+                {
+                    "step_id": node_id,
+                    "label": str(entity.get("attributive_label") or ""),
+                    "aliases": aliases,
+                }
+            )
+
         for rp in payload.get("response_parameters") or []:
             if not isinstance(rp, dict):
                 continue
@@ -506,8 +598,11 @@ def compose_execution_package(space_id: str, sequence_query_id: str) -> dict[str
             # Continue along the chain.
             walk.enqueue_targets(node_id)
 
-            # A step whose operation is itself a sequence expands that sequence.
-            enqueue_sequence(str(payload.get("query_id") or ""))
+        # A step whose operation is itself a sequence is rejected outright.
+        reject_nested_sequence(
+            str(payload.get("query_id") or ""),
+            str(entity.get("attributive_label") or ""),
+        )
 
     # Transitions are read from the shared global graph, so drop any that point at steps outside
     # this sequence's scope — otherwise a single-step sequence would advance into another
@@ -523,6 +618,25 @@ def compose_execution_package(space_id: str, sequence_query_id: str) -> dict[str
     package: dict[str, Any] = {"steps": list(steps.values())}
     if response_parameters:
         package["response_parameters"] = response_parameters
+    if available_parameters:
+        package["available_parameters"] = available_parameters
+
+    # The graph supplies the cycle; loop_config supplies the rule that ends it. A
+    # `dag` sequence yields no descriptor, so the executor keeps its single-pass walk.
+    loop_config = seq.get("loop_config") if seq.get("kind") == "sequence" else None
+    alias_steps = _alias_source_steps(available_parameters)
+    problems = execution_loop.validate_loop_config(
+        execution_loop.normalize_loop_config(loop_config),
+        _loop_referenceable_names(seq, steps, available_parameters),
+        iterable=set(alias_steps),
+    )
+    if problems:
+        raise ValueError(" ".join(problems))
+    loop = execution_loop.analyze_loop(
+        steps, loop_config, next(iter(steps), None), alias_steps
+    )
+    if loop:
+        package["loop"] = loop
     return package
 
 

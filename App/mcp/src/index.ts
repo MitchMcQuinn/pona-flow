@@ -29,7 +29,7 @@ SCHEMAs, INSTANCEs, STEP nodes, and sequences that the engine then runs.
 Vocabulary:
 - SCHEMA: a property contract (which keys exist, their types, which are required or unique).
 - INSTANCE: one record satisfying a SCHEMA.
-- STEP: an executable unit — a saved operation, an HTTP call, or a code script.
+- STEP: an executable unit — a saved operation, an HTTP call, or a Local LLM call.
 - POINTS_TO: an edge between two STEP nodes; optionally conditional, which is how branching works.
 - Sequence: a saved, runnable entry point naming the STEP the run starts at.
 

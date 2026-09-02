@@ -49,6 +49,12 @@ async def queries_upsert(
     builder_config_json = (
         json.dumps(builder_config_raw) if builder_config_raw is not None else None
     )
+    # Sequence loop policy (see queries.loop_config). Unlike builder_config this is read by
+    # the executor's composer, so it is stored as its own column rather than a snapshot field.
+    loop_config_raw = body.get("loop_config")
+    loop_config_json = (
+        json.dumps(loop_config_raw) if loop_config_raw is not None else None
+    )
     space_id = str(body.get("space_id") or "").strip()
     group_title = str(body.get("group_title") or "").strip()
     kind = str(body.get("kind") or "user").strip().lower()
@@ -88,6 +94,7 @@ async def queries_upsert(
             triggerable=catalog.queries_catalog_triggerable_int(body),
             builder_config=builder_config_json,
             description=str(body.get("description") or ""),
+            loop_config=loop_config_json,
         )
         if space_id and group_title:
             spaces.append_space_group(space_id, group_title)

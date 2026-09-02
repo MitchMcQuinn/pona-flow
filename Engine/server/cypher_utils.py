@@ -33,6 +33,19 @@ STEP_TRAVERSAL_RE = re.compile(r"-\s*\[")
 # at run time.
 SECRET_REF_RE = re.compile(r"\$secret\.([A-Za-z_][A-Za-z0-9_]*)")
 
+# --- RETURN column naming (see return_aliases) ---------------------------------------
+# A statement can hold several RETURN clauses (UNION), and each is bounded by the
+# clause keywords that may legally follow it.
+_RETURN_HEAD_RE = re.compile(r"\bRETURN\b(?:\s+DISTINCT\b)?", re.IGNORECASE)
+_RETURN_TAIL_RE = re.compile(r"\b(?:ORDER\s+BY|SKIP|LIMIT|UNION)\b", re.IGNORECASE)
+# ``AS name`` — only identifier-shaped aliases, since a backtick-quoted one could never
+# be referenced as ``$name`` by a downstream step.
+_AS_ALIAS_RE = re.compile(r"\bAS\s+([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
+_BARE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Quoted literals are blanked before scanning so an ``AS`` (or comma) inside a string
+# cannot be mistaken for syntax.
+_QUOTED_LITERAL_RE = re.compile(r"'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"")
+
 
 def labels_in_cypher_array(raw_cypher: str | None) -> set[str]:
     """All ``attributive_label`` values bound across a query's ``cypher`` JSON array."""
@@ -66,6 +79,74 @@ def cypher_traverses_downstream(cypher: Any) -> bool:
     if not isinstance(cypher, list):
         return False
     return any(STEP_TRAVERSAL_RE.search(str(stmt or "")) for stmt in cypher)
+
+
+def _blank_quoted_literals(text: str) -> str:
+    """Replace quoted literals with same-length blanks, preserving offsets."""
+    return _QUOTED_LITERAL_RE.sub(lambda m: " " * len(m.group(0)), text)
+
+
+def _split_top_level(segment: str) -> list[str]:
+    """Split a RETURN body on commas that are not nested in brackets."""
+    parts: list[str] = []
+    depth = 0
+    start = 0
+    for index, char in enumerate(segment):
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth = max(0, depth - 1)
+        elif char == "," and depth == 0:
+            parts.append(segment[start:index])
+            start = index + 1
+    parts.append(segment[start:])
+    return parts
+
+
+def return_aliases(cypher: Any) -> list[str]:
+    """
+    Identifier-shaped column names a query's RETURN clauses project, in order.
+
+    These are the names a step can publish into run state: the executor binds a query
+    step's scalar RETURN columns under their alias (see
+    ``execution_run._bind_query_return_columns``), so this is what an author may
+    reference from a loop condition or a for-each source.
+
+    Only aliased projections (``count(x) AS total``) and bare identifier projections
+    (``RETURN n``) are reported — an unaliased expression comes back keyed by its raw
+    text ("r.id IS NOT NULL"), which no downstream step could name. ``RETURN *``
+    contributes nothing, since its columns are only knowable at run time.
+    """
+    if isinstance(cypher, str):
+        statements: list[Any] = [cypher]
+    elif isinstance(cypher, list):
+        statements = list(cypher)
+    else:
+        return []
+
+    aliases: list[str] = []
+    seen: set[str] = set()
+    for stmt in statements:
+        text = _blank_quoted_literals(str(stmt or ""))
+        for head in _RETURN_HEAD_RE.finditer(text):
+            body_start = head.end()
+            tail = _RETURN_TAIL_RE.search(text, body_start)
+            body = text[body_start : tail.start() if tail else len(text)]
+            for projection in _split_top_level(body):
+                trimmed = projection.strip()
+                if not trimmed or trimmed == "*":
+                    continue
+                # The last alias wins: `substring(a AS x) AS y` names the column y.
+                alias_matches = _AS_ALIAS_RE.findall(trimmed)
+                name = (
+                    alias_matches[-1]
+                    if alias_matches
+                    else (trimmed if _BARE_IDENTIFIER_RE.match(trimmed) else "")
+                )
+                if name and name not in seen:
+                    seen.add(name)
+                    aliases.append(name)
+    return aliases
 
 
 def escape_identifier(name: str) -> str:

@@ -137,37 +137,11 @@ def delete_env_value(key: str) -> None:
     os.environ.pop(name, None)
 
 
-def code_exec_enabled() -> bool:
-    """Admin kill switch for code-execution steps (``PONA_FLOW_CODE_EXEC_ENABLED``).
-
-    Defaults to enabled; set to ``0``/``false`` to refuse all code executions without
-    a deploy. Read fresh from the environment so it can be flipped at runtime.
-    """
-    raw = (os.environ.get("PONA_FLOW_CODE_EXEC_ENABLED") or "").strip().lower()
-    return raw not in ("0", "false", "no", "off")
-
-
-def runner_url() -> str:
-    """Base URL of the sandbox runner service (``PONA_FLOW_RUNNER_URL``).
-
-    The runner is a separate low-privilege process (see Engine/runner) that owns all
-    Docker access; the main app only ever talks to it over localhost HTTP.
-    """
-    return (
-        os.environ.get("PONA_FLOW_RUNNER_URL") or "http://127.0.0.1:8766"
-    ).strip().rstrip("/")
-
-
-def runner_token() -> str:
-    """Shared secret for authenticating to the sandbox runner (``PONA_FLOW_RUNNER_TOKEN``)."""
-    return (os.environ.get("PONA_FLOW_RUNNER_TOKEN") or "").strip()
-
-
 def ollama_url() -> str:
     """Base URL of the local Ollama service (``PONA_FLOW_OLLAMA_URL``).
 
-    Ollama is a trusted engine-owned localhost service (like the sandbox runner): the
-    server calls it directly for embeddings, and sequence STEPs never reach it.
+    Ollama is a trusted engine-owned localhost service: the server calls it
+    directly for embeddings, and sequence STEPs never reach it.
     """
     return (
         os.environ.get("PONA_FLOW_OLLAMA_URL") or "http://127.0.0.1:11434"

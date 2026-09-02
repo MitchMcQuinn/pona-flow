@@ -366,7 +366,8 @@ def fetch_query_package(query_id: str) -> dict[str, Any] | None:
     with catalog_connection() as conn:
         _ensure_queries_policy_columns(conn)
         cur = conn.execute(
-            "SELECT id, name, cypher, sqlite, parameters, builder_config, description FROM queries WHERE id = ?",
+            "SELECT id, name, cypher, sqlite, parameters, builder_config, description, loop_config "
+            "FROM queries WHERE id = ?",
             (qid,),
         )
         row = cur.fetchone()
@@ -381,27 +382,29 @@ def fetch_query_package(query_id: str) -> dict[str, Any] | None:
                 "parameters": json.loads(row[4] or "[]"),
                 "builder_config": json.loads(row[5] or "{}"),
                 "description": row[6] or "",
+                "loop_config": json.loads(row[7] or "{}"),
             }
         except json.JSONDecodeError:
             return None
 
 
 def fetch_query_for_compose(query_id: str) -> dict[str, Any] | None:
-    """Load a query row's kind/operation/cypher/parameters for execution composition."""
+    """Load a query row's kind/operation/cypher/parameters/loop_config for composition."""
     qid = (query_id or "").strip()
     if not qid:
         return None
     with catalog_connection() as conn:
         _ensure_queries_policy_columns(conn)
         cur = conn.execute(
-            "SELECT id, name, kind, operation, cypher, parameters, runtime_enabled, triggerable, suspended "
-            "FROM queries WHERE id = ?",
+            "SELECT id, name, kind, operation, cypher, parameters, runtime_enabled, triggerable, "
+            "suspended, loop_config FROM queries WHERE id = ?",
             (qid,),
         )
         row = cur.fetchone()
         if row is None:
             return None
         try:
+            loop_config = json.loads(row[9] or "{}")
             return {
                 "id": row[0],
                 "name": row[1],
@@ -412,6 +415,7 @@ def fetch_query_for_compose(query_id: str) -> dict[str, Any] | None:
                 "runtime_enabled": int(row[6] if row[6] is not None else 1),
                 "triggerable": int(row[7] if row[7] is not None else 1),
                 "suspended": int(row[8] if row[8] is not None else 0),
+                "loop_config": loop_config if isinstance(loop_config, dict) else {},
             }
         except json.JSONDecodeError:
             return None
@@ -768,8 +772,8 @@ def record_audit(
 
     ``principal_id`` is the principal that triggered the run (user or agent); it is
     left NULL for scheduler-fired event/recovery runs, which have no acting principal.
-    ``detail`` is optional JSON context (e.g. code-execution outcome metadata); it
-    must never contain code, parameters, outputs, or secrets.
+    ``detail`` is optional JSON context; it must never contain parameters, outputs,
+    or secrets.
     """
     audit_id = config.generate_entity_id()
     trigger_val = (
@@ -819,7 +823,7 @@ def list_audit_log(space_id: str | None = None, limit: int = 200) -> list[dict[s
         join_clause = (
             "LEFT JOIN users u ON u.id = a.principal_id" if has_users else ""
         )
-        # Legacy catalogs may predate the detail column (added for code executions).
+        # Legacy catalogs may predate the detail column.
         has_detail = any(
             r[1] == "detail"
             for r in conn.execute("PRAGMA table_info(audit_log)").fetchall()
@@ -868,13 +872,14 @@ def _entity_sqlite_for_catalog(sqlite: list[str]) -> list[str]:
     return [str(s) for s in sqlite if str(s).strip() and not _is_queries_catalog_upsert_sql(str(s))]
 
 
-def _builder_config_for_catalog(builder_config: str | None) -> str:
-    """Normalize a builder_config payload to a valid JSON-object string for storage.
+def _json_object_for_catalog(value: str | None) -> str:
+    """Normalize a JSON-object column payload to a storable string.
 
     Accepts an already-serialized JSON string from the upsert handler; falls back to ``{}``
-    when missing or not valid JSON so the table's json_valid CHECK constraint holds.
+    when missing or not valid JSON so the table's json_valid CHECK constraint holds. Used
+    for both ``builder_config`` and ``loop_config``.
     """
-    raw = (builder_config or "").strip()
+    raw = (value or "").strip()
     if not raw:
         return "{}"
     try:
@@ -896,6 +901,7 @@ _QUERIES_POLICY_COLUMNS = (
     ("description", "TEXT NOT NULL DEFAULT ''"),
     ("sort_order", "INTEGER"),
     ("builder_config", "TEXT NOT NULL DEFAULT '{}'"),
+    ("loop_config", "TEXT NOT NULL DEFAULT '{}'"),
 )
 
 # Catalog DB paths whose queries-policy columns are known current (per process).
@@ -962,6 +968,7 @@ def upsert_queries_catalog_row(
     triggerable: int = 1,
     builder_config: str | None = None,
     description: str | None = None,
+    loop_config: str | None = None,
 ) -> dict[str, Any]:
     """Insert or update a row in the catalog queries table (data.db)."""
     rid = (row_id or "").strip()
@@ -985,16 +992,17 @@ def upsert_queries_catalog_row(
         runtime_enabled_int = 1 if runtime_enabled else 0
         author_selectable_int = 1 if author_selectable else 0
         triggerable_int = 1 if triggerable else 0
-        builder_config_json = _builder_config_for_catalog(builder_config)
+        builder_config_json = _json_object_for_catalog(builder_config)
+        loop_config_json = _json_object_for_catalog(loop_config)
         description_val = (description or "").strip()
         cur = conn.execute(
             """
             INSERT INTO queries (
               id, name, kind, operation, runtime_enabled, author_selectable,
               triggerable, group_title, cypher, sqlite, parameters, builder_config,
-              description, creation_date, modified_date
+              description, loop_config, creation_date, modified_date
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             ON CONFLICT(id) DO UPDATE SET
               name = excluded.name,
               kind = excluded.kind,
@@ -1008,6 +1016,7 @@ def upsert_queries_catalog_row(
               parameters = excluded.parameters,
               builder_config = excluded.builder_config,
               description = excluded.description,
+              loop_config = excluded.loop_config,
               modified_date = datetime('now')
             """,
             (
@@ -1024,6 +1033,7 @@ def upsert_queries_catalog_row(
                 parameters_json,
                 builder_config_json,
                 description_val,
+                loop_config_json,
             ),
         )
         conn.commit()

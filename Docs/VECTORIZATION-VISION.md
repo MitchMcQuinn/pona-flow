@@ -73,8 +73,7 @@ different product. The goal above does not need it.
 database is another process, a sync problem, and a per-space collection story
 you already have. Ollama is the only extra local process.
 
-**The engine calls Ollama**, the same way it calls the [code
-runner](../Engine/runner/README.md): a server-side client to `127.0.0.1`.
+**The engine calls Ollama** as a server-side client to `127.0.0.1`.
 Authors must not reach Ollama through HTTP STEPs. D7 blocks loopback on
 sequence endpoints; punching that hole for “call Chroma” would be worse.
 
@@ -297,8 +296,8 @@ INSTANCE-to-INSTANCE `:POINTS_TO` vector index per space.
 
 ### 7.2 Who calls Ollama
 
-The engine, via a server-side client (runner pattern). Not HTTP STEPs, not
-code STEPs, not a user sequence.
+The engine, via a server-side localhost client. Not HTTP STEPs, not
+a user sequence.
 
 ### 7.3 How you search
 
@@ -431,7 +430,7 @@ Not a task list — a map of where this would land.
 | Space record / API | `Engine/server/spaces.py`, `Engine/server/routes/spaces.py` |
 | Schema flags + validation | `App/authoring/src/schemaRules.ts`, `App/connector/src/types.ts`, `Engine/server/schema_update.py` |
 | Reserved property names | `App/authoring/src/schemaRules.ts` (`isReservedSchemaPropertyKey`) |
-| Ollama client + reindex/search | new engine module (runner-style localhost client) + space routes |
+| Ollama client + reindex/search | new engine module (engine-owned localhost client) + space routes |
 | Write-path stale marker (v1) / inline embed (v1.1) | `Engine/server/packages.py`, `Engine/server/routes/execution.py` |
 | Currency pattern to follow (not overload) | `Engine/server/schema_currency.py` — including INSTANCE-only `POINTS_TO` match |
 | Scheduled reindex | `Engine/server/scheduler.py` calling the reindex endpoint |

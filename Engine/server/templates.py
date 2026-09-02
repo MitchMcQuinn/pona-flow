@@ -21,7 +21,6 @@ from . import catalog  # noqa: F401  (re-exported for tests that patch module at
 from . import config  # noqa: F401
 from . import credentials  # noqa: F401
 from . import graph  # noqa: F401
-from . import resources  # noqa: F401
 from . import spaces  # noqa: F401
 from .templates_export import (  # noqa: F401
     SCHEMA_VERSION,

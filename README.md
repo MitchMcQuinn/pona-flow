@@ -87,11 +87,9 @@ The dev server is a local HTTP process for browser-based tools under `App/`. It 
 | [`Engine/server/sequence_service.py`](Engine/server/sequence_service.py) | Transport-agnostic run primitive (`run_sequence_once`, `list_runnable_sequences`) shared by the webhook and MCP gateway. |
 | [`Engine/server/agent_keys.py`](Engine/server/agent_keys.py) | Agent API keys: mint/verify/revoke (`stg_` tokens, stored as SHA-256 hashes) for non-Clerk principals. |
 | [`Engine/server/mcp_gateway.py`](Engine/server/mcp_gateway.py) | Per-space Model Context Protocol server (Streamable HTTP); exposes sequences as agent-callable tools. |
-| [`Engine/server/execution_run.py`](Engine/server/execution_run.py) | Sequence executor: walk STEPs, pause for required parameters, run a query / HTTP call / sandboxed script, bind response parameters. |
+| [`Engine/server/execution_run.py`](Engine/server/execution_run.py) | Sequence executor: walk STEPs, pause for required parameters, run a query / HTTP call / local LLM, bind response parameters. |
 | [`Engine/server/embeddings.py`](Engine/server/embeddings.py) | Local vector search: Ollama embeddings, Neo4j vector indexes, reindex, and `resolve_search_params` before a vector-search Cypher statement runs. |
 | [`Engine/server/app.py`](Engine/server/app.py) | FastAPI routing, authenticated JSON API, static files under `/App/`. |
-
-Code-execution STEPs are **not** run inside this process. The engine POSTs `{language, code, timeout_seconds, space_id}` to a separate sandbox runner (`Engine/runner/`, default `127.0.0.1:8766`). See [Engine/runner/README.md](Engine/runner/README.md).
 
 Each module file includes a longer module docstring describing logic and how it fits the project.
 
@@ -156,19 +154,19 @@ At the highest level of abstraction pona flow implements a minimalist ontology c
 
 A **sequence** is a saved, runnable entry point that names the STEP the run starts at. At run time the executor walks outgoing `POINTS_TO` edges. An edge may be unconditional, or gated on a parameter (optionally compared to an expected boolean, which is how two sibling edges branch).
 
-Saving a catalog operation auto-wraps it in a STEP node. A STEP that does not wrap an operation is a custom step: an outbound HTTP call, or a sandboxed script. Build order matters — operations (and their wrapping STEPs) first, then transitions, then the sequence. A sequence created before its STEPs exist matches nothing and runs as a no-op.
+Saving a catalog operation auto-wraps it in a STEP node. A STEP that does not wrap an operation is a custom step: an outbound HTTP call, or a Local LLM call. Build order matters — operations (and their wrapping STEPs) first, then transitions, then the sequence. A sequence created before its STEPs exist matches nothing and runs as a no-op.
 
 ### STEPs
 
-Every STEP is one of three kinds. The executor (`Engine/server/execution_run.py`) picks the runner from the step payload: a `query_id` runs a saved operation; `kind: "code"` runs a script; an `endpoint` URL runs an HTTP request.
+Every STEP is one of three kinds. The executor (`Engine/server/execution_run.py`) picks the runner from the step payload: a `query_id` runs a saved operation; `kind: "local_llm"` runs a saved Ollama config; an `endpoint` URL runs an HTTP request.
 
 | Kind | How it is authored | What runs |
 | --- | --- | --- |
 | **Saved operation** | QUERY builder (create / read / update / delete on STEP, SCHEMA, or INSTANCE). Save wraps a STEP that stores the catalog `query_id`. | The stored Cypher (and any SQLite) against the space's Neo4j / per-space SQLite. Parameters declared on the catalog row are supplied by the sequence; required ones pause the run as `pending` until a human or an upstream step fills them. |
-| **HTTP (custom endpoint)** | STEP create with an endpoint URL, method, headers, and JSON body. Body fields may contain `$parameter` tokens; headers and body may contain `$secret.NAME` tokens resolved from the space credential store at request time. | An outbound HTTP request. Loopback, link-local, and other non-public addresses are blocked (D7) — HTTP STEPs cannot call Ollama, the runner, or the engine itself. |
-| **Code (sandboxed)** | STEP create with `step_type: "code"`, a language (`python` or `javascript`), and a script stored as a catalog resource. `$parameter` tokens in the script are substituted before the run. | The engine never executes the script. It POSTs the payload to the sandbox runner, which starts a disposable Docker container (`--network none`, non-root, memory/CPU/PID caps, 30s wall clock). JSON output can be mapped into downstream parameters via `response_parameters`. Setup: [Engine/runner/README.md](Engine/runner/README.md). |
+| **HTTP (custom endpoint)** | STEP create with an endpoint URL, method, headers, and JSON body. Body fields may contain `$parameter` tokens; headers and body may contain `$secret.NAME` tokens resolved from the space credential store at request time. | An outbound HTTP request. Loopback, link-local, and other non-public addresses are blocked (D7) — HTTP STEPs cannot call Ollama or the engine itself. |
+| **Local LLM** | STEP create with `step_type: "local_llm"` and a saved Ollama config id. The sequence parameter `prompt` is required at run time. | The engine calls local Ollama with the saved config (and optional per-run overrides). JSON output can be mapped into downstream parameters via `response_parameters`. |
 
-`response_parameters` on an HTTP or code STEP map a JSON path in the result onto a parameter name so a later STEP (or a condition on a `POINTS_TO` edge) can use it. That is how an HTTP or code step can populate `$searchTerm` for a downstream vector-search read.
+`response_parameters` on an HTTP or Local LLM STEP map a JSON path in the result onto a parameter name so a later STEP (or a condition on a `POINTS_TO` edge) can use it. That is how an HTTP or Local LLM step can populate `$searchTerm` for a downstream vector-search read.
 
 Sequences are run from the dashboard, from `POST /api/spaces/{space_id}/sequences/{sequence_id}/run`, or as MCP tools. All three share `Engine/server/sequence_service.py`.
 

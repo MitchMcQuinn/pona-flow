@@ -3,7 +3,7 @@
  *
  * An "operation" is a saved catalog package (one read/create/update/delete against the
  * graph) that the engine wraps in a STEP node so it can be composed into a sequence.
- * Saving one is a multi-call choreography — code resources, catalog row, STEP wrap,
+ * Saving one is a multi-call choreography — catalog row, STEP wrap,
  * optional sequence — which lives in @pona-flow/authoring and is shared with the React
  * builder, so an agent-authored operation opens in the visual builder unchanged.
  */
@@ -38,8 +38,8 @@ const intentSchema = {
   node_label: z
     .enum(["STEP", "SCHEMA", "INSTANCE"])
     .describe(
-      "Primary node label. SCHEMA defines a property contract, INSTANCE is data satisfying " +
-        "one, STEP is an executable unit (a custom endpoint or code)."
+        "Primary node label. SCHEMA defines a property contract, INSTANCE is data satisfying " +
+        "one, STEP is an executable unit (a custom endpoint or Local LLM call)."
     ),
   attributive_label: z
     .string()
@@ -137,18 +137,7 @@ const intentSchema = {
     })
     .optional()
     .describe(
-      "Creates a custom-endpoint STEP node. Mutually exclusive with code_step and local_llm_step."
-    ),
-  code_step: z
-    .object({
-      resource_name: z.string().describe("Name of the catalog resource holding the script."),
-      language: z.enum(["python", "javascript"]).optional(),
-      code: z.string(),
-      response_parameters: z.array(responseParameterSchema).optional(),
-    })
-    .optional()
-    .describe(
-      "Creates a code-execution STEP node. Mutually exclusive with http_step and local_llm_step."
+      "Creates a custom-endpoint STEP node. Mutually exclusive with local_llm_step."
     ),
   local_llm_step: z
     .object({
@@ -163,7 +152,7 @@ const intentSchema = {
         "optional parameters that override the saved config for that run: `system_prompt`, " +
         "`response_format` (text|json_schema), `json_schema` (JSON text), `temperature`, " +
         "`top_p`, `top_k`, `min_p`, `repeat_penalty`, `num_ctx`, `num_predict`, `seed`, `stop`. " +
-        "Mutually exclusive with http_step and code_step."
+        "Mutually exclusive with http_step."
     ),
   where: z
     .array(

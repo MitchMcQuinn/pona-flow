@@ -395,9 +395,8 @@ def list_graph_nodes_by_label(space_id: str, node_label: str) -> list[dict[str, 
                 if query_id:
                     node["sequencial_properties"] = {"query_id": query_id}
                 elif str(payload.get("kind") or "").strip() == "code":
-                    # Code-execution STEP: the payload references the script by
-                    # resource UID only; the builder fetches the code text (plus
-                    # name/description/language) from the resources API on edit.
+                    # Leftover code-execution STEP (feature archived). Keep
+                    # step_type so the builder can show an unsupported notice.
                     node["sequencial_properties"] = {
                         "step_type": "code",
                         "resource_id": str(payload.get("resource_id") or ""),

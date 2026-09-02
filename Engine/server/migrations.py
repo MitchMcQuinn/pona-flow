@@ -37,7 +37,6 @@ _CATALOG_DDL_FILES = (
     "audit-log-table.sql",
     "agent-keys-table.sql",
     "space-credentials-table.sql",
-    "resources-table.sql",
     "template-imports-table.sql",
     "local-llm-configs-table.sql",
 )
@@ -51,7 +50,7 @@ def _apply_sql_file(conn: sqlite3.Connection, filename: str) -> None:
 
 
 def _ensure_audit_log_detail_column(conn: sqlite3.Connection) -> None:
-    """Additive migration: optional JSON ``detail`` column (code-execution outcomes)."""
+    """Additive migration: optional JSON ``detail`` column on audit_log."""
     sqlite_util.ensure_column(conn, "audit_log", "detail", "TEXT")
 
 

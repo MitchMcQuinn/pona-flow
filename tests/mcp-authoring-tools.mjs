@@ -82,6 +82,16 @@ assert.deepEqual(
   ["name", "node_label", "operation"],
   "only the arguments with no sensible default are required"
 );
+assert.ok("http_step" in createSchema.properties, "create_operation accepts http_step");
+assert.ok(
+  "local_llm_step" in createSchema.properties,
+  "create_operation accepts local_llm_step"
+);
+assert.equal(
+  "code_step" in createSchema.properties,
+  false,
+  "code-execution STEPs are archived; create_operation must not accept code_step"
+);
 
 // --- Argument validation happens before anything reaches the network ---
 
@@ -113,6 +123,12 @@ assert.match(INSTRUCTIONS, /create_sequence/);
 assert.ok(
   INSTRUCTIONS.indexOf("1. create_operation") < INSTRUCTIONS.indexOf("3. create_sequence"),
   "the instructions must present the stages in dependency order"
+);
+assert.match(INSTRUCTIONS, /HTTP call, or a Local LLM call/);
+assert.equal(
+  /code_step|code-execution|sandboxed code/i.test(INSTRUCTIONS),
+  false,
+  "authoring MCP instructions must not advertise code-execution STEPs"
 );
 
 // --- Intent -> QueryObject -> Cypher ---

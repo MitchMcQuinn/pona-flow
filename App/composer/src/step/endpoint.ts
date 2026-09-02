@@ -24,7 +24,7 @@ export function isStepCustomEndpoint(
   return !sp || sp.query_id === undefined;
 }
 
-/** True for a custom STEP that runs sandboxed code instead of an HTTP request. */
+/** True for a leftover custom STEP that was sandboxed code (feature archived). */
 export function isStepCodeExecution(
   sp: SequencialProperties | null | undefined
 ): boolean {
@@ -44,9 +44,7 @@ export function stepEntityPayload(sp: SequencialProperties | null | undefined): 
   }
   const response_parameters = normalizeStepResponseParameters(sp?.response_parameters);
   if (isStepCodeExecution(sp)) {
-    // Code steps reference their script by resource UID only — the code text lives
-    // in the gitignored resources folder (saved via the resources API), never in the
-    // entity payload / EXECUTION package.
+    // Leftover code STEPs keep their resource UID so they are not rewritten as HTTP.
     const payload: Record<string, unknown> = {
       kind: "code",
       resource_id: sp?.resource_id || ""

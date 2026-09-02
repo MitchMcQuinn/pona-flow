@@ -5,9 +5,9 @@ The Templates tab in space settings lets an operator snapshot a space to a porta
 JSON file. Export is *selection-driven*: the operator picks sequences, operations,
 schemas (with a per-schema instance toggle), and events, and :func:`resolve_selection`
 walks the full transitive dependency closure (nested sequences/operations, STEP hops,
-the connected SCHEMA network, referenced regex formats, code resources, and credential
+the connected SCHEMA network, referenced regex formats, and credential
 name slots) before :func:`build_export` assembles the template (graph patterns + SQLite
-``entities``/``queries``/``regex``/``events`` + ``resources`` + credential ``slots``).
+``entities``/``queries``/``regex``/``events`` + credential ``slots``).
 Credential values and event signing secrets are never exported.
 
 The import half lives in ``templates_import``; ``templates`` re-exports both.
@@ -19,7 +19,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from . import catalog, config, credentials, cypher_utils, graph, resources, spaces
+from . import catalog, config, credentials, cypher_utils, graph, spaces
 
 SCHEMA_VERSION = 2
 
@@ -113,9 +113,8 @@ def resolve_selection(space_id: str, selection: dict[str, Any] | None) -> dict[s
       (cypher + builder_config);
     - the connected SCHEMA network (relationship patterns pull in both endpoint schemas);
     - regex format names from included schemas and query/step parameters;
-    - INSTANCE nodes/edges for schemas the user opted into;
-    - code resources referenced by ``kind:"code"`` steps; and
-    - credential name slots (``$secret.NAME``) referenced by steps and resource code.
+    - INSTANCE nodes/edges for schemas the user opted into; and
+    - credential name slots (``$secret.NAME``) referenced by steps.
 
     Returns the collected id/label sets used by :func:`build_export`.
     """
@@ -136,7 +135,6 @@ def resolve_selection(space_id: str, selection: dict[str, Any] | None) -> dict[s
     step_node_ids: set[str] = set()
     step_rel_ids: set[str] = set()
     query_ids: set[str] = set()
-    resource_ids: set[str] = set()
     credential_names: set[str] = set()
     visited_sequences: set[str] = set()
 
@@ -146,11 +144,6 @@ def resolve_selection(space_id: str, selection: dict[str, Any] | None) -> dict[s
 
     def visit_step(node: dict[str, Any]) -> None:
         payload = node.get("payload") if isinstance(node.get("payload"), dict) else {}
-        # Code steps reference an off-graph resource (row + gitignored file).
-        if str(payload.get("kind") or "").strip() == "code":
-            rid = str(payload.get("resource_id") or "").strip()
-            if rid:
-                resource_ids.add(rid)
         # Step headers/body may carry $secret.NAME slots.
         scan_secrets(payload.get("headers"))
         scan_secrets(payload.get("body"))
@@ -270,7 +263,6 @@ def resolve_selection(space_id: str, selection: dict[str, Any] | None) -> dict[s
         "schema_id_to_label": schema_id_to_label,
         "schema_rels": schema_rels,
         "regex_names": regex_names,
-        "resource_ids": resource_ids,
         "credential_names": credential_names,
         "event_ids": list(sel["events"]),
     }
@@ -393,7 +385,8 @@ def _fetch_query_rows(query_ids: set[str]) -> list[dict[str, Any]]:
                 cur = conn.execute(
                     "SELECT id, name, kind, operation, runtime_enabled, author_selectable, "
                     "triggerable, group_title, cypher, sqlite, parameters, builder_config, "
-                    f"description FROM queries WHERE kind != 'system' AND id IN ({placeholders}) "
+                    "description, loop_config FROM queries "
+                    f"WHERE kind != 'system' AND id IN ({placeholders}) "
                     "ORDER BY name, id",
                     chunk,
                 )
@@ -413,31 +406,12 @@ def _fetch_query_rows(query_ids: set[str]) -> list[dict[str, Any]]:
                             "parameters": json.loads(row[10] or "[]"),
                             "builder_config": json.loads(row[11] or "{}"),
                             "description": row[12] or "",
+                            "loop_config": json.loads(row[13] or "{}"),
                         }
                     )
             return rows
         except json.JSONDecodeError:
             return []
-
-
-def _export_resources(space_id: str, resource_ids: set[str]) -> list[dict[str, Any]]:
-    """Resolve code resources (row + code text) for the resolved resource ids."""
-    out: list[dict[str, Any]] = []
-    for rid in sorted(r for r in resource_ids if r):
-        try:
-            res = resources.get_resource(space_id, rid)
-        except Exception:
-            continue
-        out.append(
-            {
-                "id": res.get("id") or rid,
-                "name": res.get("name") or "",
-                "description": res.get("description") or "",
-                "language": res.get("language") or "",
-                "code": res.get("code") or "",
-            }
-        )
-    return out
 
 
 def _export_credentials(space_id: str, names: set[str]) -> list[dict[str, Any]]:
@@ -552,12 +526,8 @@ def build_export(space_id: str, selection: dict[str, Any] | None = None) -> dict
             event_rows.append(event)
     event_rows = _blank_event_secrets(event_rows)
 
-    # --- code resources + credential slots ---
-    resource_rows = _export_resources(sid, resolved["resource_ids"])
+    # --- credential slots ---
     credential_names = set(resolved["credential_names"])
-    for res in resource_rows:
-        for match in _SECRET_REF_RE.finditer(str(res.get("code") or "")):
-            credential_names.add(match.group(1))
     credential_rows = _export_credentials(sid, credential_names)
 
     summary = {
@@ -570,7 +540,7 @@ def build_export(space_id: str, selection: dict[str, Any] | None = None) -> dict
         "sequences": sum(1 for q in query_rows if (q.get("kind") or "") == "sequence"),
         "regex": len(regex_rows),
         "events": len(event_rows),
-        "resources": len(resource_rows),
+        "resources": 0,
         "credential_slots": len(credential_rows),
     }
 
@@ -588,6 +558,5 @@ def build_export(space_id: str, selection: dict[str, Any] | None = None) -> dict
             "regex": regex_rows,
             "events": event_rows,
         },
-        "resources": resource_rows,
         "credentials": credential_rows,
     }

@@ -612,39 +612,57 @@ decision is *when to exit the loop*.
 cycle; loops are simulated in application code or scheduled re-runs, with state smeared
 across rows. Reasoning about termination is hard when the loop isn't represented.
 
-**The context-graph approach.** A loop is simply an edge that points back to an earlier
-`STEP`, with an exit edge guarded by a condition. The executor tracks visited steps and
-resolved parameters on the state row, so a run can pause (e.g., waiting for human input)
-and resume exactly where it left off:
+**The context-graph approach.** A loop is an edge that points back to an earlier `STEP`.
+The graph supplies the cycle; the sequence supplies the rule that ends it. Those are two
+separate settings on purpose — the shape of the work is drawn once, and how long it runs
+is chosen without redrawing it.
 
-```773:793:Engine/server/execution.py
-        unresolved = [
-            p
-            for p in (step.get("parameters") or [])
-            if isinstance(p, dict)
-            and p.get("is_required")
-            and str(p.get("name") or "").strip() not in resolved
-            and str(p.get("name") or "").strip() not in response_param_names
-        ]
-        if unresolved:
-            catalog.update_state_progress(
-                state_id,
-                {"queue": queue, "resolved": resolved, "visited": list(visited)},
-            )
-            catalog.update_state_status(state_id, "pending")
-            return {
-                "status": "pending",
-                "state_id": state_id,
-                "step_id": step_id,
-                "parameters": unresolved,
-                "resolved": resolved,
-            }
+A sequence picks one of four types (`queries.loop_config`):
+
+| Type | Termination |
+|------|-------------|
+| `dag` | Never re-enters a step, so a back-edge simply ends the run. The default, and how every sequence authored before loops behaves. |
+| `for` | A fixed number of passes. |
+| `for_while` | A condition tested before each pass, against whatever the steps have resolved so far. |
+| `for_each` | One pass per row of a result set a step returned. |
+
+The three looping types require exactly one cycle, and the back-edge is found
+structurally rather than marked by the author (`execution_loop.analyze_loop`). While
+iterating, the executor follows only that edge; once the rule says stop, only the tail's
+other outgoing edges. So a step placed after the loop fires once, at the end, without the
+author writing a condition to keep it from firing on every pass.
+
+At each iteration boundary the enclosed steps leave the visited set so they run again,
+and the values they derived — a step's RETURN columns, its auto-minted entity ids, the
+current for-each row — are dropped so the next pass re-binds them. That last part is what
+makes iteration mean anything: without it a loop's exit condition would freeze at its
+first value, and a create step would MERGE onto the same node every pass instead of
+making a new one. Caller input and anything accumulated outside the cycle survive, so a
+human answer given on the first pass is not asked for again.
+
+Because visited steps, resolved parameters, and the iteration cursor all live on the
+state row, a loop can pause mid-iteration (e.g. waiting for human input) and resume on
+the pass it stopped on:
+
+```1187:1192:Engine/server/execution_run.py
+def _progress_snapshot(
+    queue: list[str],
+    resolved: dict[str, Any],
+    visited: set[str],
+    loop_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
 ```
+
+Every looping run is bounded by `max_iterations`, so a condition that never goes false
+aborts with an error instead of spinning against the graph.
 
 - **AMS example:** A review loop that cycles "request changes → revise → re-review" and
   exits on an `approved` parameter — the cycle is two edges, not a cron job.
 - **Agentic example:** A reasoning loop that retries a tool until a success flag flips,
   with the loop boundary and exit condition both visible in the graph.
+- **PKM example:** A `for_each` over the statements a read step returned, connecting each
+  subject/predicate/object entity to a notebook — one pass per row, with fresh ids per
+  pass.
 
 ---
 

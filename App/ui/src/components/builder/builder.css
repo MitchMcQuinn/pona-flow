@@ -445,6 +445,13 @@
   font-size: 11px;
 }
 
+/* Loop-config problems the builder can see on its own (incomplete condition, bad count). */
+.createSequenceLoopWarnings {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  list-style: disc;
+}
+
 .createSequenceNewGroup {
   display: flex;
   align-items: stretch;

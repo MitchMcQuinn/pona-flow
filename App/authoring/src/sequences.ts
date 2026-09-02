@@ -9,16 +9,23 @@
 import { composer } from "@pona-flow/composer";
 import { connector } from "@pona-flow/connector";
 import { oneStepSequenceBuilderConfig, serializeBuilderConfig } from "./builderConfig.js";
+import { normalizeLoopConfig } from "./loopRules.js";
 import { normalizeForCompose } from "./normalize.js";
 import { cypherStatementsForExecution, type QueriesCatalogPayload } from "./packages.js";
 import { autoWrapInStep, resolveStepWrapAttributiveLabel } from "./stepWrapLabel.js";
-import type { AuthoringContext } from "./types.js";
+import type { AuthoringContext, LoopConfig } from "./types.js";
 
 export interface SequenceInput {
   id: string;
   name: string;
   groupTitle: string;
   description?: string;
+  /**
+   * Termination rule for the one cycle in the sequence's STEP graph. Omitted (or
+   * `type: "dag"`) leaves the executor on its single-pass walk, so a back-edge
+   * simply ends the run.
+   */
+  loop?: LoopConfig;
 }
 
 /**
@@ -88,7 +95,8 @@ export async function saveSequencePackage(
     description: input.description?.trim() || undefined,
     // Declarative builder snapshot so the sequence can be round-tripped back into the
     // create-sequence builder for visual editing (the composer is forward-only).
-    builder_config: serializeBuilderConfig(ctx, true)
+    builder_config: serializeBuilderConfig(ctx, true),
+    loop_config: normalizeLoopConfig(input.loop)
   };
   const { id: sequenceId } = await connector.upsertQuery(payload);
   await autoWrapInStep(ctx.spaceId, sequenceId, payload.name);
@@ -125,7 +133,8 @@ export async function updateSequencePackage(
     sqlite: [],
     parameters: composer.queryParametersForQueriesCatalog(query),
     description: input.description?.trim() || undefined,
-    builder_config: serializeBuilderConfig(ctx, true)
+    builder_config: serializeBuilderConfig(ctx, true),
+    loop_config: normalizeLoopConfig(input.loop)
   };
   return connector.upsertQuery(payload);
 }

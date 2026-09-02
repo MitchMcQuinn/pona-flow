@@ -102,16 +102,16 @@
           },
           "query_id": {
             "type": "string",
-            "description": "Query id this step executes. Empty string when the step runs a custom endpoint or code resource instead."
+            "description": "Query id this step executes. Empty string when the step runs a custom endpoint or Local LLM config instead."
           },
           "kind": {
             "type": "string",
-            "enum": ["code"],
-            "description": "Set to \"code\" when the step executes a sandboxed code resource (via the runner service) instead of a query or HTTP endpoint. Omitted for query/endpoint steps."
+            "enum": ["local_llm"],
+            "description": "Set to \"local_llm\" when the step runs a saved Ollama config instead of a query or HTTP endpoint. Omitted for query/endpoint steps."
           },
-          "resource_id": {
+          "config_id": {
             "type": "string",
-            "description": "Catalog resources-table UID of the script this code step executes. Only present when kind is \"code\"; the code text itself is loaded from disk at run time and never embedded in the package."
+            "description": "Catalog local_llm_configs row id. Only present when kind is \"local_llm\"."
           },
           "endpoint": {
             "type": "string",
@@ -141,6 +141,101 @@
             "items": { "$ref": "#/$defs/stepTransition" }
           }
         }
+      },
+      "availableParameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step_id", "aliases"],
+        "description": "The names one step publishes into run state. Compose-time introspection: it is what a loop condition or for-each source may reference, and what the builder offers in its picker.",
+        "properties": {
+          "step_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The step that publishes these names."
+          },
+          "label": {
+            "type": "string",
+            "description": "The step's attributive_label, for display."
+          },
+          "aliases": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+            "description": "Identifier-shaped names this step binds: an operation-backed step's RETURN aliases, or the parameters an endpoint/LLM step's response_parameters mappings write."
+          }
+        }
+      },
+      "loopCondition": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["parameter", "operator", "value"],
+        "description": "A for/while test, evaluated against run state before each pass.",
+        "properties": {
+          "parameter": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name to test — a sequence/step parameter, or a RETURN alias a step publishes."
+          },
+          "operator": {
+            "type": "string",
+            "enum": ["=", "<>", "<", "<=", ">", ">=", "CONTAINS", "STARTS WITH", "ENDS WITH"],
+            "description": "Comparison to apply. Mirrors QUERY-package.schema.json returnItem.comparison_operator so a loop test offers the same vocabulary as a boolean RETURN projection."
+          },
+          "value": {
+            "type": "string",
+            "description": "Right-hand side. Typed by the operands at run time: a boolean on the left compares as a boolean, two numeric-looking operands compare numerically, anything else compares as text. An unresolved parameter reads as the empty string, so a missing value ends the loop rather than spinning."
+          }
+        }
+      },
+      "loop": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "max_iterations", "back_edge", "body"],
+        "description": "How this run's one cycle terminates. Absent for a plain DAG walk, where a transition back to an earlier step simply ends (a step runs at most once). Present only when the sequence selected a loop type AND its steps contain exactly one cycle.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["for", "for_while", "for_each"],
+            "description": "The termination rule. \"dag\" never appears here — it produces no descriptor at all."
+          },
+          "max_iterations": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Hard cap on passes through the body. Exceeding it aborts the run with status \"error\" rather than spinning against the graph."
+          },
+          "back_edge": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from", "to"],
+            "description": "The transition that closes the cycle, found structurally rather than authored. While iterating, the executor follows only this edge; once the loop ends, only the source step's other outgoing edges.",
+            "properties": {
+              "from": { "type": "string", "minLength": 1, "description": "The step the back-edge leaves — the cycle's tail, where the termination rule is evaluated." },
+              "to": { "type": "string", "minLength": 1, "description": "The step the back-edge returns to — the cycle's entry, where the pre-test runs before the first pass." }
+            }
+          },
+          "body": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Every step enclosed by the cycle: reachable from the entry and able to reach the tail. These leave the visited set at each iteration boundary so they run again; steps outside stay visited, which is what keeps a fan-in before or after the loop running exactly once."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "for: how many passes to make. Zero skips the body entirely."
+          },
+          "condition": {
+            "$ref": "#/$defs/loopCondition",
+            "description": "for_while: the pre-test. Checked before the first pass too, so a condition that is already false skips the body."
+          },
+          "source": {
+            "type": "string",
+            "description": "for_each: the RETURN alias whose result set is iterated, one pass per row."
+          },
+          "source_step": {
+            "type": "string",
+            "description": "for_each: the step that projects source, resolved at compose time. Named explicitly because an empty result set has no row to recognize the alias in — without it the executor could not tell \"the source returned nothing\" (skip the body) from \"this step is not the source\"."
+          }
+        }
       }
     },
     "properties": {
@@ -154,6 +249,12 @@
         "type": "array",
         "description": "Sequence-level response mappings shared across steps. When a step runs, values at each property_path are bound to the named parameter for downstream steps; default_value applies when the path is missing.",
         "items": { "$ref": "#/$defs/stepResponseParameter" }
-      }
+      },
+      "available_parameters": {
+        "type": "array",
+        "description": "Per-step catalogue of the names the sequence's steps publish into run state. Consumed by the builder's loop pickers and by compose-time validation of a loop config; the executor does not read it.",
+        "items": { "$ref": "#/$defs/availableParameters" }
+      },
+      "loop": { "$ref": "#/$defs/loop" }
     }
   }

@@ -24,8 +24,7 @@ Install these before cloning (or as you hit each step):
 | **Neo4j** | Local DB reachable at `bolt://localhost:7687` (Neo4j Desktop is the usual path). Remember the password you set when creating the DB. |
 | **Clerk** (optional for day one) | Free Clerk development app if you want real sign-in. You can also bypass auth locally (see Auth below). |
 
-Optional later: Docker (for the code runner images under `Engine/runner/`);
-Ollama (for local vector search — [VECTORIZATION-SETUP.md](VECTORIZATION-SETUP.md)).
+Optional later: Ollama (for local vector search — [VECTORIZATION-SETUP.md](VECTORIZATION-SETUP.md)).
 
 ---
 
@@ -306,11 +305,6 @@ Needs Clerk test credentials (not auth bypass). See [App/ui/cypress/README.md](.
 - Copy `App/ui/cypress.env.example` → `App/ui/cypress.env.json`
 - Set `CLERK_SECRET_KEY` in project `.env`
 - Use `npm run dev:e2e` in `App/ui` (loads `.env.e2e`) so Clerk stays on localhost
-
-### Code runner (`Engine/runner/`)
-
-Separate process / Docker images for sandboxed step execution. Not required for UI + API
-first boot. See [Engine/runner/README.md](../Engine/runner/README.md).
 
 ---
 

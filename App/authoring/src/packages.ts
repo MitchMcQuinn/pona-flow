@@ -20,7 +20,7 @@ import type { ExecuteCreateBody } from "@pona-flow/connector";
 import { collectCreateAttributiveLabels, collectCreateEntityIds } from "./attributiveLabels.js";
 import { serializeBuilderConfig } from "./builderConfig.js";
 import { normalizeForCompose, primaryNodeLabel } from "./normalize.js";
-import type { AuthoringContext, BuilderConfig, QueryObject } from "./types.js";
+import type { AuthoringContext, BuilderConfig, LoopConfig, QueryObject } from "./types.js";
 import { catalogRuntimeEnabled, isStepCreateQuery } from "./validation.js";
 
 // --- Cypher statement splitting ---
@@ -242,6 +242,12 @@ export interface QueriesCatalogPayload {
   description?: string;
   /** Declarative builder snapshot for round-trip editing; set for operations, omitted for sequences. */
   builder_config?: BuilderConfig;
+  /**
+   * Sequences only: the termination rule for the one cycle in the STEP graph. Its own
+   * column rather than a builder_config field because the executor reads it. Omitted
+   * for a plain DAG walk.
+   */
+  loop_config?: LoopConfig;
 }
 
 export function buildQueriesCatalogPayload(

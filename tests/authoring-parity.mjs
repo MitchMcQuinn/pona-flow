@@ -146,7 +146,6 @@ const shared = [
   "cypherStatementsForExecution",
   "entitySqliteStatements",
   "resaveOperationFromConfig",
-  "persistCodeResources",
   "runReadCypher",
   "createResponseToRunResult",
 ];

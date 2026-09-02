@@ -1,11 +1,11 @@
 /**
  * Operation persistence and direct execution.
  *
- * Saving an operation is not one write: code resources are uploaded, the catalog row is
- * upserted, a STEP node is auto-wrapped around it, and optionally a one-step sequence is
- * created. There is no transaction spanning the catalog database, the per-space SQLite
- * mirror, and Neo4j, so the ordering here is load-bearing — each step is idempotent and
- * assumes the previous one succeeded.
+ * Saving an operation is not one write: the catalog row is upserted, a STEP node is
+ * auto-wrapped around it, and optionally a one-step sequence is created. There is no
+ * transaction spanning the catalog database, the per-space SQLite mirror, and Neo4j,
+ * so the ordering here is load-bearing — each step is idempotent and assumes the
+ * previous one succeeded.
  */
 
 import { composer } from "@pona-flow/composer";
@@ -38,80 +38,6 @@ export interface SaveOperationInput {
   addAsSequence?: boolean;
   groupTitle?: string;
   description?: string;
-}
-
-/**
- * Persist code-execution STEP scripts to the resources API before composing, so the
- * entity payload references a saved resource UID (the code never enters the payload).
- *
- * The resource id is stable per STEP node (existing resource_id, else the node's
- * entity id), which makes retries idempotent — a failed run that already saved the
- * resource updates it in place on the next attempt instead of creating a duplicate.
- * Returns a context copy with resource_ids filled in for the composer.
- */
-export async function persistCodeResources<T extends AuthoringContext>(ctx: T): Promise<T> {
-  const spaceId = ctx.spaceId ?? "";
-  const query = ctx.query;
-  if (!spaceId) return ctx;
-  const editable =
-    query.operation === "create"
-      ? (node: { node_source?: string; alias_mode?: string }) =>
-          node.node_source === "new" && node.alias_mode !== "reference"
-      : query.operation === "update"
-        ? () => true
-        : () => false;
-
-  let changed = false;
-  const match = [];
-  for (const clause of query.match) {
-    if (clause.label !== "STEP") {
-      match.push(clause);
-      continue;
-    }
-    const patterns = [];
-    for (const pattern of clause.patterns) {
-      const path = [];
-      for (const el of pattern.path) {
-        if (el.kind !== "node") {
-          path.push(el);
-          continue;
-        }
-        const sp = el.node.sequencial_properties;
-        if (!sp || sp.query_id || sp.step_type !== "code" || !editable(el.node)) {
-          path.push(el);
-          continue;
-        }
-        const name = (sp.resource_name ?? "").trim();
-        const code = sp.code ?? "";
-        if (!name || !code.trim()) {
-          throw new Error("A code STEP node requires a name and code before running.");
-        }
-        const stableId =
-          (sp.resource_id ?? "").trim() ||
-          String(el.node.id_binding?.value ?? "").trim() ||
-          undefined;
-        const saved = await connector.upsertCodeResource(spaceId, {
-          resourceId: stableId,
-          name,
-          description: sp.resource_description ?? "",
-          language: sp.language === "javascript" ? "javascript" : "python",
-          code
-        });
-        changed = true;
-        path.push({
-          ...el,
-          node: {
-            ...el.node,
-            sequencial_properties: { ...sp, resource_id: saved.id }
-          }
-        });
-      }
-      patterns.push({ ...pattern, path });
-    }
-    match.push({ ...clause, patterns });
-  }
-  if (!changed) return ctx;
-  return { ...ctx, query: { ...query, match } };
 }
 
 /**
@@ -154,8 +80,7 @@ export async function updateQueryOperation(ctx: AuthoringContext): Promise<{ id:
   if (!ctx.spaceId) {
     throw new Error("Select a space before saving an operation.");
   }
-  const prepared = await persistCodeResources(ctx);
-  const catalog = buildQueriesCatalogPayload(prepared, prepared.runtimeEnabled);
+  const catalog = buildQueriesCatalogPayload(ctx, ctx.runtimeEnabled);
   return connector.upsertQuery(catalog);
 }
 
@@ -171,13 +96,12 @@ export async function saveQueryOperation(
   if (!ctx.spaceId) {
     throw new Error("Select a space before creating an operation.");
   }
-  const prepared = await persistCodeResources(ctx);
-  const spaceId = prepared.spaceId;
-  const ownEntityId = await stepWrapEntityId(spaceId, prepared.query.id);
+  const spaceId = ctx.spaceId;
+  const ownEntityId = await stepWrapEntityId(spaceId, ctx.query.id);
   const wrapName = spaceId
     ? await resolveStepWrapAttributiveLabel(spaceId, input.name, ownEntityId || undefined)
     : input.name.trim();
-  const catalog = buildQueriesCatalogPayload(prepared, input.runtimeEnabled, {
+  const catalog = buildQueriesCatalogPayload(ctx, input.runtimeEnabled, {
     name: wrapName,
     description: input.description
   });
@@ -221,12 +145,9 @@ export async function runCreate(ctx: AuthoringContext): Promise<Record<string, u
   if (!GRAPH_NODE_LABELS.includes(ctx.query.match[0]?.label)) {
     throw new Error("A primary node label is required.");
   }
-  // Code STEP scripts are saved as resources first so the payload carries only a UID.
-  const prepared = await persistCodeResources(ctx);
-  // One-time runs execute graph/entity effects only; catalog save is handled by Create operation.
-  const body = buildCreateBodyWithOptions(prepared, { includeQueriesCatalog: false });
+  const body = buildCreateBodyWithOptions(ctx, { includeQueriesCatalog: false });
   body.cypher_params = await withMintedIdParams(
-    normalizeForCompose(prepared.query),
+    normalizeForCompose(ctx.query),
     body.cypher_params ?? {}
   );
   return connector.executeCreatePackage(body);
@@ -299,13 +220,11 @@ export async function runReadCypher(
 }
 
 export async function runQuery(ctx: AuthoringContext): Promise<RunResult> {
-  // Update STEP flow: re-save an edited code resource before composing the entity UPDATE.
-  const prepared = ctx.query.operation === "update" ? await persistCodeResources(ctx) : ctx;
-  const query = normalizeForCompose(prepared.query);
+  const query = normalizeForCompose(ctx.query);
   const composed = composer.composeQuery(query);
 
   const data = await connector.executeQueryPackage({
-    space_id: prepared.spaceId ?? "",
+    space_id: ctx.spaceId ?? "",
     operation: query.operation,
     node_label: primaryNodeLabel(query),
     cypher: cypherStatementsForExecution(composed.cypher),

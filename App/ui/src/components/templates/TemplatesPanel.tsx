@@ -41,7 +41,6 @@ const SUMMARY_ROWS: Array<{ key: keyof TemplateSummary; label: string }> = [
   { key: "relationships", label: "Relationships" },
   { key: "regex", label: "Regex formats" },
   { key: "events", label: "Events / schedules" },
-  { key: "resources", label: "Code resources" },
   { key: "credential_slots", label: "Credential slots" }
 ];
 
@@ -242,7 +241,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
       </div>
       <p className="muted rbacSectionHint">
         Pick the sequences, operations, schemas, and events you want to share. Everything they
-        depend on (nested queries, STEP graph, connected schemas, regex formats, code resources,
+        depend on (nested queries, STEP graph, connected schemas, regex formats,
         and credential slots) is pulled in automatically when you resolve the selection.
       </p>
       {loadError ? <p className="errorText">{loadError}</p> : null}

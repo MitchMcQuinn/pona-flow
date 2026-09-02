@@ -17,7 +17,6 @@ FILTER="${1:-}"
 
 # Tests that talk to Docker, Neo4j, or a running dev server.
 EXTERNAL_TESTS=(
-  runner-sandbox-docker.py
   diag-affected-ids.py
   diag-instance-currency.py
   connector-api-path.mjs

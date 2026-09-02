@@ -95,8 +95,6 @@ export function collectReferencedParameterNames(query: QueryObject): string[] {
             addRefsFromText(String(el.node.sequencial_properties?.endpoint ?? ""), refs);
             const body = el.node.sequencial_properties?.body;
             if (body !== undefined) addRefsFromText(JSON.stringify(body), refs);
-            // Code-execution STEP: $param tokens in the script behave like body refs.
-            addRefsFromText(String(el.node.sequencial_properties?.code ?? ""), refs);
             // Local LLM STEP: the engine always reads the sequence parameter `prompt`,
             // plus the optional parameters that override the saved config for a run.
             if (el.node.sequencial_properties?.step_type === "local_llm") {

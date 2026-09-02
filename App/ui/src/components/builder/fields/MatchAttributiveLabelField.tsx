@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   buildStepLabelOptions,
+  excludeSequenceStepOptions,
   intersectGraphLabelsWithCatalog
 } from "../../../state/builder/attributiveLabelOptions";
 import { useBuilder } from "../../../state/builder/BuilderContext";
@@ -52,12 +53,14 @@ export function MatchAttributiveLabelField({
         // annotate each with its resolved kind to disambiguate. Other node labels
         // (SCHEMA/INSTANCE) have no kind, so show their plain attributive_label.
         if (fetchLabel === "STEP") {
-          const stepOptions = buildStepLabelOptions(
+          let stepOptions = buildStepLabelOptions(
             rows,
             state.spaceLabels,
             state.savedQueries,
             requireSpaceCatalog
           );
+          // Nested sequences are not runnable, so don't offer them while building one.
+          if (createSequenceMode) stepOptions = excludeSequenceStepOptions(stepOptions);
           setOptions(
             stepOptions.map((opt) => ({
               value: opt.value,
@@ -85,6 +88,7 @@ export function MatchAttributiveLabelField({
     spaceId,
     fetchLabel,
     requireSpaceCatalog,
+    createSequenceMode,
     state.spaceLabels,
     state.savedQueries,
     state.dataVersion

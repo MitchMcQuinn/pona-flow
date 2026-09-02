@@ -9,8 +9,8 @@ config; at run time the engine calls Ollama ``/api/generate`` with those setting
 the sequence's ``prompt`` parameter. A run may also override any saved setting for
 that call through the optional sequence parameters in :data:`OVERRIDE_KEYS`.
 
-Ollama is reached only from this module (and embeddings), the same way code STEPs use
-the sandbox runner. Endpoint STEPs cannot call loopback (D7).
+Ollama is reached only from this module (and embeddings), as a trusted
+engine-owned localhost client. Endpoint STEPs cannot call loopback (D7).
 """
 
 from __future__ import annotations

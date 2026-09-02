@@ -27,7 +27,6 @@ export {
   createResponseToRunResult,
   cypherStatementsForExecution,
   entitySqliteStatements,
-  persistCodeResources,
   resaveOperationFromConfig,
   runReadCypher,
   type QueriesCatalogPayload,
