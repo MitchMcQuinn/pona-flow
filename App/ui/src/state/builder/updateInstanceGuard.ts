@@ -253,6 +253,7 @@ export function buildMatchReadQuery(
     order_by: undefined,
     skip: undefined,
     limit: { value: GUARD_READ_LIMIT },
+    unwind: undefined,
     return: {
       // Variable-length aliases bind relationship *lists*, not entities — the graph
       // inspection below expects entity projections, so they are skipped (they can't

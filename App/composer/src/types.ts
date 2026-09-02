@@ -317,6 +317,28 @@ export interface ReturnClause {
 }
 
 /**
+ * Stack several in-scope expressions into rows under one column (`UNWIND [a, b] AS alias`).
+ *
+ * MATCH aliases stay unique (subject vs object). This is how a read feeds `for_each`
+ * with one pass per id without giving two nodes the same Cypher variable. Incomplete
+ * clauses (fewer than two expressions, or no alias) are not composed.
+ */
+export interface UnwindItem {
+  expression: string;
+  /** Builder hint: the MATCH alias whose property this value reads. */
+  path_variable?: string;
+  attributive_label?: string;
+  property_key?: string;
+  entity_role?: "node" | "relationship";
+}
+
+export interface UnwindClause {
+  /** Column name each stacked value is bound as (`AS alias`). */
+  alias: string;
+  items: UnwindItem[];
+}
+
+/**
  * READ INSTANCE nearest-neighbour search over a space's Neo4j vector index.
  *
  * When enabled, the composer emits ``CALL db.index.vector.queryNodes`` instead of a
@@ -401,6 +423,11 @@ export interface QueryObject {
   delete?: DeleteClause;
   where?: WhereGroup;
   return?: ReturnClause;
+  /**
+   * Optional UNWIND before RETURN on a read. Stacks `items` into rows named `alias`.
+   * Ignored for create/update/delete, vector search, and STEP/SCHEMA traversal reads.
+   */
+  unwind?: UnwindClause;
   order_by?: OrderByItem[];
   skip?: LiteralOrParameter;
   limit?: LiteralOrParameter;

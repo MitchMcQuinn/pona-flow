@@ -1,4 +1,4 @@
-/** RETURN, ORDER BY, SKIP, LIMIT, and DELETE clause rendering. */
+/** RETURN, ORDER BY, SKIP, LIMIT, DELETE, and UNWIND clause rendering. */
 
 import { renderLiteralOrParameter } from "../literals.js";
 import type { DeleteClause, QueryObject } from "../types.js";
@@ -7,9 +7,42 @@ function hideDuplicatesForQuery(query: QueryObject): boolean {
   return query.hide_duplicates === true || !!(query.return && query.return.distinct);
 }
 
+/** A complete UNWIND clause ready to emit, or null when it should be ignored. */
+export function completeUnwind(
+  query: QueryObject
+): { alias: string; expressions: string[] } | null {
+  if ((query.operation || "read") !== "read") return null;
+  const unwind = query.unwind;
+  if (!unwind) return null;
+  const alias = String(unwind.alias || "").trim();
+  const expressions = (unwind.items || [])
+    .map((item) => String(item?.expression || "").trim())
+    .filter(Boolean);
+  if (!alias || expressions.length < 2) return null;
+  return { alias, expressions };
+}
+
+export function renderUnwindLine(query: QueryObject): string | null {
+  const unwind = completeUnwind(query);
+  if (!unwind) return null;
+  return `UNWIND [${unwind.expressions.join(", ")}] AS ${unwind.alias}`;
+}
+
+function returnProjectsAlias(
+  items: { expression?: string; alias?: string }[],
+  alias: string
+): boolean {
+  return items.some((item) => {
+    const asName = String(item.alias || "").trim();
+    const expr = String(item.expression || "").trim();
+    return asName === alias || expr === alias;
+  });
+}
+
 export function renderReturnLine(query: QueryObject): string | null {
   const items = (query.return && query.return.items) || [];
   const operation = query.operation || "read";
+  const unwind = completeUnwind(query);
   let ret = "RETURN";
   if (hideDuplicatesForQuery(query)) ret += " DISTINCT";
   const projections = items
@@ -21,7 +54,11 @@ export function renderReturnLine(query: QueryObject): string | null {
     })
     .filter(Boolean);
   if (!projections.length) {
+    if (unwind) return `${ret} ${unwind.alias}`;
     return operation === "read" ? `${ret} *` : null;
+  }
+  if (unwind && !returnProjectsAlias(items, unwind.alias)) {
+    projections.unshift(unwind.alias);
   }
   return `${ret} ${projections.join(", ")}`;
 }

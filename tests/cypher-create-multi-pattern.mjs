@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import composer from "./helpers/composer.mjs";
 
 const MATCH_TAIL_LINE =
-  /^(WHERE|RETURN|WITH|ORDER BY|SKIP|LIMIT|SET|DELETE|DETACH DELETE)\s/i;
+  /^(WHERE|UNWIND|RETURN|WITH|ORDER BY|SKIP|LIMIT|SET|DELETE|DETACH DELETE)\s/i;
 
 function splitCypherLines(cypherText) {
   const chunks = (cypherText || "").split(/\s*;\s*\n/);

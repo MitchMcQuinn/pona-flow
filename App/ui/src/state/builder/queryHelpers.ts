@@ -10,6 +10,7 @@ import {
   newPropertyBinding,
   newRelationshipPattern,
   newReturnItem,
+  newUnwindItem,
   newSchemaProperty,
   newSchematicProperties
 } from "./defaults";
@@ -28,6 +29,7 @@ import type {
   ReturnItem,
   SchematicProperties,
   SetItem,
+  UnwindItem,
   VectorSearchConfig,
   WhereGroup,
   WhereItem
@@ -533,6 +535,49 @@ export function setReturnDistinct(distinct: boolean) {
   return (q: QueryObject): QueryObject => ({
     ...q,
     return: { distinct, items: q.return?.items ?? [] }
+  });
+}
+
+function unwindClause(
+  q: QueryObject,
+  patch: { alias?: string; items?: UnwindItem[] }
+): QueryObject["unwind"] {
+  const alias = patch.alias !== undefined ? patch.alias : q.unwind?.alias ?? "";
+  const items = patch.items !== undefined ? patch.items : q.unwind?.items ?? [];
+  if (!alias.trim() && items.length === 0) return undefined;
+  return { alias, items };
+}
+
+export function addUnwindItem() {
+  return (q: QueryObject): QueryObject => ({
+    ...q,
+    unwind: unwindClause(q, { items: [...(q.unwind?.items ?? []), newUnwindItem()] })
+  });
+}
+
+export function updateUnwindItem(index: number, patch: Partial<UnwindItem>) {
+  return (q: QueryObject): QueryObject => {
+    const items = q.unwind?.items ?? [];
+    return {
+      ...q,
+      unwind: unwindClause(q, {
+        items: replaceAt(items, index, { ...items[index], ...patch })
+      })
+    };
+  };
+}
+
+export function removeUnwindItem(index: number) {
+  return (q: QueryObject): QueryObject => ({
+    ...q,
+    unwind: unwindClause(q, { items: removeAt(q.unwind?.items ?? [], index) })
+  });
+}
+
+export function setUnwindAlias(alias: string) {
+  return (q: QueryObject): QueryObject => ({
+    ...q,
+    unwind: unwindClause(q, { alias })
   });
 }
 

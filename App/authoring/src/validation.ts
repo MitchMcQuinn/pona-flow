@@ -367,7 +367,7 @@ function expressionReferencesVariable(expression: string, variable: string): boo
 }
 
 // Must-not-exist tail variables only exist inside the NOT EXISTS subquery, so the
-// outer RETURN / ORDER BY / SET / DELETE cannot reference them — Neo4j rejects the
+// outer RETURN / ORDER BY / UNWIND / SET / DELETE cannot reference them — Neo4j rejects the
 // statement with an "unbound variable" error.
 function validateAbsentTailReferences(query: QueryObject, warnings: string[]): void {
   const negated = hopTailVariables(query).absent;
@@ -384,6 +384,14 @@ function validateAbsentTailReferences(query: QueryObject, warnings: string[]): v
     if (hit) {
       warnings.push(
         `RETURN projection ${index + 1}: "${hit}" is inside a must-not-exist pattern and cannot be returned.`
+      );
+    }
+  });
+  (query.unwind?.items ?? []).forEach((item, index) => {
+    const hit = referencedVariable(item.expression ?? "", item.path_variable);
+    if (hit) {
+      warnings.push(
+        `UNWIND value ${index + 1}: "${hit}" is inside a must-not-exist pattern and cannot be stacked.`
       );
     }
   });
@@ -455,6 +463,35 @@ export function validateQuery(query: QueryObject, _runtimeEnabled: boolean): str
       warnings.push(`RETURN projection ${index + 1}: enter a value to compare against.`);
     }
   });
+
+  const unwind = query.unwind;
+  if (unwind) {
+    const alias = (unwind.alias ?? "").trim();
+    const expressions = (unwind.items ?? [])
+      .map((item) => (item.expression ?? "").trim())
+      .filter(Boolean);
+    const aliasError = validateOptionalAlias(alias);
+    const started = Boolean(alias || expressions.length || (unwind.items ?? []).length);
+    if (op !== "read") {
+      if (started) {
+        warnings.push("UNWIND is only used on read operations.");
+      }
+    } else if (aliasError) {
+      warnings.push(`UNWIND alias: ${aliasError}`);
+    } else if (started) {
+      if (expressions.length < 2) {
+        warnings.push("UNWIND needs at least two values to stack into rows.");
+      }
+      if (!alias && expressions.length >= 2) {
+        warnings.push("UNWIND needs an alias for the stacked column.");
+      }
+      (unwind.items ?? []).forEach((item, index) => {
+        if (!(item.expression ?? "").trim() && (item.path_variable || item.property_key)) {
+          warnings.push(`UNWIND value ${index + 1}: select a property.`);
+        }
+      });
+    }
+  }
 
   // SCHEMA/STEP updates edit entity config payloads (SQLite-only) and have no SET
   // clause; only INSTANCE updates run a graph MATCH…SET that requires a SET expression.

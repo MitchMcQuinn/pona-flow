@@ -137,6 +137,11 @@ export function collectReferencedParameterNames(query: QueryObject): string[] {
     // Same for a boolean projection's compared-against value.
     addRefsFromText(String(item.comparison_value ?? ""), refs);
   });
+  (query.unwind?.items ?? []).forEach((item) => {
+    addRefsFromText(String(item.expression ?? ""), refs);
+    addRefsFromText(String(item.path_variable ?? ""), refs);
+    addRefsFromText(String(item.property_key ?? ""), refs);
+  });
   (query.order_by ?? []).forEach((item) => addRefsFromText(String(item.expression ?? ""), refs));
   if (query.skip && "parameter" in query.skip && PARAMETER_NAME_RE.test(query.skip.parameter)) {
     refs.add(query.skip.parameter);

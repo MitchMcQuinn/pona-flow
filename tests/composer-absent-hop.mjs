@@ -279,6 +279,24 @@ assert.ok(
   "ORDER BY items referencing negated-tail variables are rejected"
 );
 
+const unwindsNegatedVariable = {
+  ...singleAbsent,
+  unwind: {
+    alias: "entityId",
+    items: [
+      { expression: "GROUP.id", path_variable: "GROUP" },
+      { expression: "TASK.title", path_variable: "TASK" }
+    ]
+  }
+};
+
+assert.ok(
+  validateQuery(unwindsNegatedVariable, false).some((w) =>
+    w.includes('"TASK" is inside a must-not-exist pattern')
+  ),
+  "UNWIND values referencing negated-tail variables are rejected"
+);
+
 const returnsAnchor = {
   ...singleAbsent,
   return: { items: [{ expression: "GROUP", path_variable: "GROUP" }] }

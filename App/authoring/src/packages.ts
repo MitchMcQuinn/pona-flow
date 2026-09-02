@@ -40,8 +40,9 @@ function splitCypherLines(cypherText: string): string[] {
 
 // Clauses that belong on the same Cypher statement as a preceding MATCH block (read/update/delete).
 // OPTIONAL MATCH may follow the block's WHERE (optional hops compose after the base filter).
+// UNWIND stacks expressions into rows and must stay attached or the aliases go unbound.
 const MATCH_TAIL_LINE =
-  /^(WHERE|RETURN|WITH|ORDER BY|SKIP|LIMIT|SET|DELETE|DETACH DELETE|OPTIONAL\s+MATCH)\s/i;
+  /^(WHERE|UNWIND|RETURN|WITH|ORDER BY|SKIP|LIMIT|SET|DELETE|DETACH DELETE|OPTIONAL\s+MATCH)\s/i;
 
 // MATCH and OPTIONAL MATCH lines (optional hops / optional clauses) glue into one statement.
 const MATCH_LINE = /^(OPTIONAL\s+)?MATCH\s/i;

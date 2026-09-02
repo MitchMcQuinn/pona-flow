@@ -83,6 +83,7 @@ assert.deepEqual(
   "only the arguments with no sensible default are required"
 );
 assert.ok("http_step" in createSchema.properties, "create_operation accepts http_step");
+assert.ok("unwind" in createSchema.properties, "create_operation accepts unwind");
 assert.ok(
   "local_llm_step" in createSchema.properties,
   "create_operation accepts local_llm_step"
@@ -177,6 +178,22 @@ const readCypher = composer.composeQuery(readQuery).cypher;
 assert.match(readCypher, /MATCH/);
 assert.match(readCypher, /\$email/);
 assert.match(readCypher, /LIMIT 10/);
+
+const unwindQuery = buildOperationQuery(
+  {
+    name: "Stack statement ends",
+    operation: "read",
+    node_label: "INSTANCE",
+    attributive_label: "ENTITY",
+    unwind: { alias: "entityId", expressions: ["SUBJECT.id", "OBJECT.id"] },
+  },
+  { queryId: "q2b", entityIds: [] }
+);
+assert.equal(unwindQuery.unwind.alias, "entityId");
+assert.equal(unwindQuery.unwind.items.length, 2);
+const unwindCypher = composer.composeQuery(unwindQuery).cypher;
+assert.match(unwindCypher, /UNWIND \[SUBJECT\.id, OBJECT\.id\] AS entityId/);
+assert.match(unwindCypher, /RETURN entityId/);
 
 // A transition MATCHes both endpoints by graph id, then MERGEs the edge between them —
 // this is what stops it from creating two empty STEP nodes instead of wiring the real ones.

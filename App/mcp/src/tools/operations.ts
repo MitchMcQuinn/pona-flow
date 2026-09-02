@@ -182,6 +182,24 @@ const intentSchema = {
     .array(z.object({ expression: z.string(), alias: z.string().optional() }))
     .optional()
     .describe("Projection for a read, e.g. { expression: 'n1.name' }."),
+  unwind: z
+    .object({
+      alias: z
+        .string()
+        .describe("Column name each stacked value is bound as, e.g. entityId."),
+      expressions: z
+        .array(z.string())
+        .min(2)
+        .describe(
+          "In-scope Cypher expressions to stack into rows, e.g. ['SUBJECT.id', 'OBJECT.id']. " +
+            "MATCH node aliases stay unique; this is how two different nodes share a result column."
+        ),
+    })
+    .optional()
+    .describe(
+      "READ: UNWIND [expr, …] AS alias before RETURN. A for_each loop iterates the alias. " +
+        "Not combined with vector search."
+    ),
   set_expressions: z
     .array(z.string())
     .optional()

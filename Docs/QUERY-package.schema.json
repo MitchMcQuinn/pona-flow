@@ -849,6 +849,56 @@
         }
       }
     },
+    "unwindItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expression"],
+      "description": "One value stacked into rows by UNWIND. MATCH aliases stay unique; this is how two different nodes' properties share a result column.",
+      "properties": {
+        "expression": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Cypher expression in scope after MATCH (e.g. subject.id, object.id)."
+        },
+        "path_variable": {
+          "type": "string",
+          "description": "Builder hint: the MATCH alias whose property this value reads (read INSTANCE pickers)."
+        },
+        "attributive_label": {
+          "type": "string",
+          "description": "Builder hint: the attributive_label bound to path_variable when the value was authored."
+        },
+        "property_key": {
+          "type": "string",
+          "description": "Builder hint: the stacked property's key."
+        },
+        "entity_role": {
+          "type": "string",
+          "enum": ["node", "relationship"],
+          "description": "Builder hint: whether path_variable binds a node or a relationship."
+        }
+      }
+    },
+    "unwindClause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alias", "items"],
+      "description": "UNWIND [item, …] AS alias, emitted before RETURN on a read. Incomplete clauses (fewer than two expressions, or no alias) are not composed. Ignored for create/update/delete, vector search, and STEP/SCHEMA traversal reads.",
+      "properties": {
+        "alias": {
+          "type": "string",
+          "pattern": "^$|^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Column name each stacked value is bound as. A for_each loop iterates this alias. Empty while authoring; required to emit."
+        },
+        "items": {
+          "type": "array",
+          "description": "Values to stack. At least two non-empty expressions are required before the composer emits UNWIND; fewer are treated as incomplete and omitted.",
+          "items": {
+            "$ref": "#/$defs/unwindItem"
+          }
+        }
+      }
+    },
     "orderByItem": {
       "type": "object",
       "additionalProperties": false,
@@ -1016,6 +1066,10 @@
               }
             }
           }
+        },
+        "unwind": {
+          "$ref": "#/$defs/unwindClause",
+          "description": "Optional UNWIND before RETURN on a read. Stacks several in-scope expressions into rows under one alias so a for_each loop can run once per value. MATCH node aliases stay unique."
         },
         "order_by": {
           "type": "array",

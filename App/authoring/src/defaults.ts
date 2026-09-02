@@ -18,6 +18,7 @@ import type {
   QueryObject,
   RelationshipPattern,
   ReturnItem,
+  UnwindItem,
   SchematicProperties,
   WhereFilter,
   WhereGroup,
@@ -93,6 +94,10 @@ export function newParameter(): Parameter {
 }
 
 export function newReturnItem(): ReturnItem {
+  return { expression: "" };
+}
+
+export function newUnwindItem(): UnwindItem {
   return { expression: "" };
 }
 

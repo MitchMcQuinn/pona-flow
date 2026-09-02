@@ -22,6 +22,7 @@ export {
   newQuery,
   newRelationshipPattern,
   newReturnItem,
+  newUnwindItem,
   newSchemaProperty,
   newSchematicProperties,
   newWhereFilter,

@@ -56,7 +56,7 @@ async function api(path, init = {}) {
 // --- Cypher statement splitting (mirrors App/ui/src/services/execute.ts) ------
 
 const MATCH_TAIL_LINE =
-  /^(WHERE|RETURN|WITH|ORDER BY|SKIP|LIMIT|SET|DELETE|DETACH DELETE|OPTIONAL\s+MATCH)\s/i;
+  /^(WHERE|UNWIND|RETURN|WITH|ORDER BY|SKIP|LIMIT|SET|DELETE|DETACH DELETE|OPTIONAL\s+MATCH)\s/i;
 const MATCH_LINE = /^(OPTIONAL\s+)?MATCH\s/i;
 
 function splitCypherLines(cypherText) {

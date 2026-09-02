@@ -107,6 +107,8 @@ export type {
   WhereGroup,
   WhereItem,
   ReturnItem,
+  UnwindItem,
+  UnwindClause,
   OrderByItem,
   SetValueMode,
   SetItem,

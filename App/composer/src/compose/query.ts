@@ -3,7 +3,7 @@
 import { composeInstanceIndexCypher } from "../entity/instance.js";
 import { appendCreateReturnStar, joinComposedCypherLines } from "../render/join.js";
 import { renderMatchClauses } from "../render/match.js";
-import { renderDeleteLine, renderOrderSkipLimit, renderReturnLine } from "../render/return.js";
+import { renderDeleteLine, renderOrderSkipLimit, renderReturnLine, renderUnwindLine } from "../render/return.js";
 import { composeReadDefaultNetworkLines, composeReadTraversalLines } from "../render/traversal.js";
 import { composeVectorSearchLines } from "../render/vectorSearch.js";
 import { renderWhereLine } from "../render/where.js";
@@ -99,6 +99,11 @@ export function composeQuery(query: QueryObject | null | undefined): ComposedQue
   if (operation === "delete") {
     const deleteLine = renderDeleteLine(query.delete);
     if (deleteLine) lines.push(deleteLine);
+  }
+
+  if (operation === "read") {
+    const unwindLine = renderUnwindLine(query);
+    if (unwindLine) lines.push(unwindLine);
   }
 
   if (operation !== "create") {

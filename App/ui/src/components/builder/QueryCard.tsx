@@ -9,6 +9,7 @@ import { MatchSection } from "./match/MatchSection";
 import { OperationSelect } from "./OperationSelect";
 import { ParametersSection } from "./ParametersSection";
 import { ReturnSection } from "./ReturnSection";
+import { UnwindSection } from "./UnwindSection";
 import { SetSection } from "./SetSection";
 import { VectorSearchSection } from "./VectorSearchSection";
 import { isEntityConfigUpdate, isLabelOnlyDelete } from "@pona-flow/authoring";
@@ -57,6 +58,7 @@ export function QueryCard() {
       <div className="builderFormTransition" key={`${op}-${clauseLabel ?? ""}-sections`}>
         {op === "read" && clauseLabel === "INSTANCE" ? <VectorSearchSection /> : null}
         {op === "read" && !vectorSearch ? <ReturnSection /> : null}
+        {op === "read" && clauseLabel === "INSTANCE" && !vectorSearch ? <UnwindSection /> : null}
         {op === "update" && !entityConfigUpdate ? (
           <>
             <SetSection />

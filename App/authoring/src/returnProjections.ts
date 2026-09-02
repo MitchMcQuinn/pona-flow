@@ -1,7 +1,7 @@
 import { formatLiteral, hopTailVariables } from "@pona-flow/composer";
 import { isAttributiveLabelParameter } from "./normalizeField.js";
 import { comparisonOperatorNeedsValue } from "./types.js";
-import type { QueryObject, ReturnItem, WhereComparisonOperator } from "./types.js";
+import type { QueryObject, ReturnItem, UnwindItem, WhereComparisonOperator } from "./types.js";
 
 export interface ReadMatchPathBinding {
   variable: string;
@@ -330,5 +330,21 @@ export function readReturnItemPatch(
     comparison_operator: operator,
     comparison_value: booleanMode && value ? value : undefined,
     expression
+  };
+}
+
+/** Compile an UNWIND value from the same schema/property pickers RETURN uses. */
+export function unwindItemPatch(
+  bindings: ReadMatchPathBinding[],
+  pathVariable: string,
+  propertyKey: string
+): UnwindItem {
+  const patch = readReturnItemPatch(bindings, pathVariable, propertyKey);
+  return {
+    expression: patch.expression ?? "",
+    path_variable: patch.path_variable,
+    property_key: patch.property_key,
+    attributive_label: patch.attributive_label,
+    entity_role: patch.entity_role
   };
 }

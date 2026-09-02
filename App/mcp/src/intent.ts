@@ -66,6 +66,13 @@ export interface ReturnIntent {
   alias?: string;
 }
 
+export interface UnwindIntent {
+  /** Column name each stacked value is bound as. */
+  alias: string;
+  /** In-scope Cypher expressions to stack, e.g. ["SUBJECT.id", "OBJECT.id"]. At least two. */
+  expressions: string[];
+}
+
 export interface ParameterIntent {
   name: string;
   value_type?: string;
@@ -99,6 +106,11 @@ export interface OperationIntent {
   local_llm_step?: StepLocalLlmIntent;
   where?: WhereIntent[];
   return_items?: ReturnIntent[];
+  /**
+   * READ: stack several MATCH-scoped expressions into rows under one alias
+   * (`UNWIND [a, b] AS alias`). MATCH node aliases stay unique. Feeds for_each.
+   */
+  unwind?: UnwindIntent;
   set_expressions?: string[];
   delete_targets?: string[];
   parameters?: ParameterIntent[];
@@ -286,6 +298,16 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
       })),
     };
     if (typeof intent.limit === "number") query.limit = { value: intent.limit };
+    const unwindExpressions = (intent.unwind?.expressions || [])
+      .map((expression) => String(expression || "").trim())
+      .filter(Boolean);
+    const unwindAlias = (intent.unwind?.alias || "").trim();
+    if (unwindAlias && unwindExpressions.length >= 2) {
+      query.unwind = {
+        alias: unwindAlias,
+        items: unwindExpressions.map((expression) => ({ expression })),
+      };
+    }
     // Vector search owns ordering and k, so it is not combined with limit/return items.
     if (intent.vector_search?.enabled) {
       query.vector_search = {

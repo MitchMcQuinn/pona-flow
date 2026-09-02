@@ -125,9 +125,13 @@ export function ReturnSection() {
 
       {ret.items.length === 0 ? (
         <p className="builderCheckMsg">
-          {boundReadReturn
-            ? "Empty RETURN emits `RETURN *`. Add projections to return specific properties."
-            : "Empty RETURN emits `RETURN *`."}
+          {state.query.unwind?.alias?.trim() &&
+          (state.query.unwind?.items ?? []).filter((item) => (item.expression ?? "").trim()).length >=
+            2
+            ? `Empty RETURN emits \`RETURN ${state.query.unwind.alias.trim()}\` (the UNWIND column).`
+            : boundReadReturn
+              ? "Empty RETURN emits `RETURN *`. Add projections to return specific properties."
+              : "Empty RETURN emits `RETURN *`."}
         </p>
       ) : null}
 
