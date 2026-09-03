@@ -6,18 +6,13 @@ matched by ``attributive_label``, so removing a STEP that a sequence references 
 leave that sequence pointing at a node that no longer exists. This module resolves the
 full blast radius of a STEP delete and cascades it across the three pattern stores:
 
-- Neo4j (per-space, shared by all public spaces): STEP nodes + POINTS_TO relationships.
+- Neo4j (the space's resolved store): STEP nodes + POINTS_TO relationships.
 - ``entities`` (per-space SQLite mirror): one row per node/relationship.
 - ``queries`` (catalog ``data.db``): the dependent sequences (kind = 'sequence').
 
-Like the SCHEMA cascade, public spaces are filtered views over a shared graph, so a delete
-resolves to either:
-
-- **purge** — physically remove the STEP, its relationship patterns, and every dependent
-  sequence / orphaned state package (when no *other* space references the affected labels), or
-- **unlink** — leave the patterns intact and only remove the affected labels from the active
-  space's ``labels`` array (when other spaces still reference them), with a non-blocking
-  warning naming those shared spaces.
+A delete always **purges** — physically removing the STEP, its relationship patterns, and
+every dependent sequence / orphaned state package — then strips the affected labels from
+every space's nav index.
 
 Split into a read-only :func:`preview_step_deletion` and :func:`execute_step_deletion`,
 which only mutates when ``confirm=True``.
@@ -40,7 +35,7 @@ from .schema_delete import (
 
 def _resolve_graph_targets(space_id: str, attributive_label: str) -> dict[str, Any]:
     """
-    Collect graph-side ids/labels for a STEP delete from the (shared) per-space Neo4j db.
+    Collect graph-side ids/labels for a STEP delete from the space's Neo4j store.
 
     Returns the STEP node ids for this label, the ids of POINTS_TO relationships touching
     those nodes, and the attributive_labels of those relationship patterns.
@@ -78,7 +73,7 @@ def _resolve_graph_targets(space_id: str, attributive_label: str) -> dict[str, A
 
 
 def _sequence_entry_label(raw_cypher: str | None) -> str:
-    """The entry (first) STEP attributive_label of a sequence query, used for nav unlink."""
+    """The entry (first) STEP attributive_label of a sequence query, used for nav index cleanup."""
     labels = spaces._parse_sequence_cypher_labels(raw_cypher)
     return labels[0] if labels else ""
 
@@ -122,16 +117,9 @@ def resolve_step_deletion(space_id: str, attributive_label: str) -> dict[str, An
             if entry:
                 sequence_entry_labels.add(entry)
 
-    # Removing these labels from a space's filtered view hides the step and its dependent
+    # Removing these labels from spaces' nav indexes hides the step and its dependent
     # sequences (a sequence's nav label is its entry STEP's attributive_label).
-    unlink_labels = affected_labels | sequence_entry_labels
-
-    is_private = spaces.space_is_private(sid)
-    if is_private:
-        shared_spaces: list[dict[str, str]] = []
-    else:
-        shared_spaces = spaces.spaces_referencing_labels(unlink_labels, exclude_id=sid)
-    mode = "unlink" if shared_spaces else "purge"
+    strip_labels = affected_labels | sequence_entry_labels
 
     # State packages that reference an affected sequence id or the step label.
     ref_tokens = affected_sequence_ids | {al}
@@ -144,8 +132,6 @@ def resolve_step_deletion(space_id: str, attributive_label: str) -> dict[str, An
     return {
         "space_id": sid,
         "attributive_label": al,
-        "is_private": is_private,
-        "mode": mode,
         "affected_labels": sorted(affected_labels, key=str.casefold),
         "relationship_labels": targets["relationship_labels"],
         "step_node_ids": targets["step_node_ids"],
@@ -153,28 +139,12 @@ def resolve_step_deletion(space_id: str, attributive_label: str) -> dict[str, An
         "affected_sequences": affected_sequences,
         "affected_sequence_ids": sorted(affected_sequence_ids),
         "affected_state": affected_state,
-        "shared_spaces": shared_spaces,
-        "unlink_labels": sorted(unlink_labels, key=str.casefold),
+        "strip_labels": sorted(strip_labels, key=str.casefold),
     }
 
 
-def _build_warnings(resolution: dict[str, Any]) -> list[dict[str, Any]]:
-    warnings: list[dict[str, Any]] = []
-    shared = resolution["shared_spaces"]
-    if shared:
-        names = ", ".join(s["name"] for s in shared)
-        warnings.append(
-            {
-                "type": "shared_spaces",
-                "blocking": False,
-                "message": (
-                    "The sequences affected by this deletion will remain active within "
-                    f"shared spaces: {names}"
-                ),
-                "spaces": shared,
-            }
-        )
-    return warnings
+def _build_warnings(_resolution: dict[str, Any]) -> list[dict[str, Any]]:
+    return []
 
 
 def preview_step_deletion(space_id: str, attributive_label: str) -> dict[str, Any]:
@@ -183,27 +153,24 @@ def preview_step_deletion(space_id: str, attributive_label: str) -> dict[str, An
     return {
         "space_id": resolution["space_id"],
         "attributive_label": resolution["attributive_label"],
-        "mode": resolution["mode"],
         "requires_confirmation": True,
         "summary": {
             "relationship_patterns": len(resolution["relationship_labels"]),
             "sequences": len(resolution["affected_sequences"]),
             "execution_packages": len(resolution["affected_state"]),
-            "shared_spaces": len(resolution["shared_spaces"]),
         },
         "affected": {
             "labels": resolution["affected_labels"],
             "relationship_labels": resolution["relationship_labels"],
             "sequences": resolution["affected_sequences"],
             "execution_packages": resolution["affected_state"],
-            "shared_spaces": resolution["shared_spaces"],
         },
         "warnings": _build_warnings(resolution),
     }
 
 
 def _delete_graph_nodes(space_id: str, attributive_label: str) -> dict[str, int]:
-    """DETACH DELETE the STEP nodes from the shared graph (idempotent)."""
+    """DETACH DELETE the STEP nodes from the space's graph (idempotent)."""
     out = graph.run_cypher_for_space(
         space_id,
         "MATCH (n:STEP {attributive_label: $al}) DETACH DELETE n",
@@ -220,11 +187,10 @@ def execute_step_deletion(
     Apply the STEP delete cascade. Requires ``confirm=True`` (callers should show the
     preview first).
 
-    - **unlink** mode: only removes the affected labels from the active space's ``labels``
-      array; shared spaces keep the step and its sequences.
-    - **purge** mode: removes the STEP, its relationship patterns, dependent sequences, and
-      orphaned state packages from Neo4j, ``entities``, and the catalog. Ordered graph →
-      entities → catalog; every step is idempotent so a partial failure can be retried.
+    Always purges: removes the STEP, its relationship patterns, dependent sequences, and
+    orphaned state packages from Neo4j, ``entities``, and the catalog, then strips the
+    affected labels from every space's nav index. Ordered graph → entities → catalog →
+    labels; every step is idempotent so a partial failure can be retried.
     """
     if not confirm:
         raise ValueError("confirm must be true to execute a step deletion")
@@ -236,20 +202,9 @@ def execute_step_deletion(
     result: dict[str, Any] = {
         "space_id": sid,
         "attributive_label": al,
-        "mode": resolution["mode"],
         "warnings": _build_warnings(resolution),
     }
 
-    # Always unlink the active space's filtered view from the affected labels.
-    unlinked = spaces.remove_space_attributive_labels(sid, resolution["unlink_labels"])
-    result["unlinked_labels"] = unlinked["removed"]
-
-    if resolution["mode"] == "unlink":
-        result["purged"] = False
-        return result
-
-    # purge: physically delete from the shared stores. Graph first (most likely to fail
-    # when Neo4j is unavailable), then the SQLite mirrors.
     result["graph"] = _delete_graph_nodes(sid, al)
     result["entities_deleted"] = delete_entities_rows(
         sid, resolution["step_node_ids"] + resolution["step_rel_ids"]
@@ -258,5 +213,7 @@ def execute_step_deletion(
         resolution["affected_sequence_ids"],
         [s["id"] for s in resolution["affected_state"]],
     )
+    stripped = spaces.remove_attributive_labels_from_all_spaces(resolution["strip_labels"])
+    result["unlinked_labels"] = stripped.get(sid, [])
     result["purged"] = True
     return result

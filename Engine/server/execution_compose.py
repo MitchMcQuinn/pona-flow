@@ -606,9 +606,10 @@ def compose_execution_package(space_id: str, sequence_query_id: str) -> dict[str
             str(entity.get("attributive_label") or ""),
         )
 
-    # Transitions are read from the shared global graph, so drop any that point at steps outside
-    # this sequence's scope — otherwise a single-step sequence would advance into another
-    # sequence's steps that aren't part of this package.
+    # Transitions may exist between STEPs that belong to other sequences on the same
+    # graph, so drop any that point at steps outside this sequence's scope — otherwise a
+    # single-step sequence would advance into another sequence's steps that aren't part
+    # of this package.
     in_scope = set(steps.keys())
     for step in steps.values():
         step["next"] = [

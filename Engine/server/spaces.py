@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import config, cypher_utils, sqlite_util
+from . import config, sqlite_util
 
 _SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schema"
 _ENTITIES_TABLE_SQL = _SCHEMA_DIR / "entities-table.sql"
@@ -189,19 +189,6 @@ def format_space_labels_column(labels: list[str]) -> str:
     return json.dumps({"labels": labels}, separators=(",", ":"))
 
 
-def normalize_space_label_list(labels: Iterable[str] | None) -> list[str]:
-    """De-dupe and trim label strings preserving first-seen order."""
-    seen: set[str] = set()
-    out: list[str] = []
-    for raw in labels or []:
-        label = str(raw).strip()
-        if not label or label in seen:
-            continue
-        seen.add(label)
-        out.append(label)
-    return out
-
-
 # A sequence read query matches its initial STEP node by attributive_label, e.g.
 #   MATCH (alias:STEP { attributive_label: 'STEP_LABEL' }) RETURN *
 _SEQUENCE_STEP_LABEL_RE = re.compile(
@@ -229,21 +216,6 @@ def _parse_sequence_cypher_labels(raw_cypher: str | None) -> list[str]:
     return out
 
 
-def _sequence_attributive_labels_from_conn(conn: sqlite3.Connection) -> set[str]:
-    """attributive_labels associated with sequence queries (``kind = 'sequence'``)."""
-    cur = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'queries'"
-    )
-    if cur.fetchone() is None:
-        return set()
-    cur = conn.execute("SELECT cypher FROM queries WHERE kind = 'sequence'")
-    labels: set[str] = set()
-    for row in cur.fetchall():
-        for label in _parse_sequence_cypher_labels(row[0]):
-            labels.add(label)
-    return labels
-
-
 def _sequence_rows_from_conn(
     conn: sqlite3.Connection,
 ) -> list[tuple[str, str, list[str]]]:
@@ -266,255 +238,36 @@ def _sequence_rows_from_conn(
     return out
 
 
-def _public_space_labels_from_conn(conn: sqlite3.Connection) -> list[str]:
-    """Union of ``spaces.labels`` entries from public (is_private = 0) spaces."""
-    _ensure_spaces_is_private_column(conn)
-    cur = conn.execute("SELECT labels FROM spaces WHERE COALESCE(is_private, 0) = 0")
-    seen: set[str] = set()
-    out: list[str] = []
-    for row in cur.fetchall():
-        for label in parse_space_labels_column(row[0]):
-            if label in seen:
-                continue
-            seen.add(label)
-            out.append(label)
-    return out
-
-
-def _private_space_labels_from_conn(conn: sqlite3.Connection) -> set[str]:
-    """Set of attributive_labels associated with any private (is_private = 1) space.
-
-    Private spaces exist in isolation, so any label they own is withheld from the
-    shared pool even when a public space also carries the same label.
-    """
-    _ensure_spaces_is_private_column(conn)
-    cur = conn.execute("SELECT labels FROM spaces WHERE COALESCE(is_private, 0) = 1")
-    labels: set[str] = set()
-    for row in cur.fetchall():
-        for label in parse_space_labels_column(row[0]):
-            labels.add(label)
-    return labels
-
-
-def _shared_sequence_labels_from_conn(conn: sqlite3.Connection) -> list[str]:
-    """
-    attributive_labels from non-private spaces that are associated with a sequence query.
-
-    Public spaces are filtered views over the shared attributive_labels (sequences being
-    the main filtering mechanism), so the shared pool is the labels registered on public
-    spaces (``spaces.labels`` where ``is_private = 0``) that are referenced by a sequence
-    query (``queries.kind = 'sequence'``). Any label owned by a private space is excluded
-    entirely. The result is sorted case-insensitively.
-    """
-    sequence_labels = _sequence_attributive_labels_from_conn(conn)
-    if not sequence_labels:
-        return []
-    private_labels = _private_space_labels_from_conn(conn)
-    out = [
-        label
-        for label in _public_space_labels_from_conn(conn)
-        if label in sequence_labels and label not in private_labels
-    ]
-    return sorted(out, key=str.casefold)
-
-
-def fetch_shared_sequence_labels() -> list[str]:
-    """Shared-sequence labels available to assign when creating/editing a space."""
-    with catalog_db() as conn:
-        return _shared_sequence_labels_from_conn(conn)
-
-
-def _space_graph_identity_from_row(row: sqlite3.Row) -> tuple[str, str]:
-    """Resolved ``(neo4j_uri, neo4j_user)`` for a space row — its underlying-graph identity.
-
-    Two spaces share an underlying graph when they resolve to the same Neo4j store, so their
-    STEP attributive_labels — and therefore sequence wrap labels, which start as the
-    sequence title via the sequence auto-wrap — occupy a single namespace.
-    """
-    uri = config.env_value(row["neo4j_uri_key"], fallback_key=DEFAULT_NEO4J_URI_KEY)
-    user = config.env_value(row["neo4j_user_key"], fallback_key=DEFAULT_NEO4J_USER_KEY)
-    return ((uri or "").strip().casefold(), (user or "").strip())
-
-
-def space_ids_sharing_graph(space_id: str) -> list[str]:
-    """Ids of non-private spaces (including *space_id*) resolving to the same Neo4j graph.
-
-    A private space is an isolated store, so it shares its graph with no other space and the
-    returned cohort is just the space itself.
-    """
-    sid = (space_id or "").strip()
-    if not sid:
-        return []
-    with catalog_db() as conn:
-        _ensure_spaces_is_private_column(conn)
-        rows = conn.execute("SELECT * FROM spaces").fetchall()
-    target = next((r for r in rows if (r["id"] or "").strip() == sid), None)
-    if target is None or _space_is_private_from_row(target):
-        return [sid]
-    target_identity = _space_graph_identity_from_row(target)
-    cohort = [
-        (row["id"] or "").strip()
-        for row in rows
-        if (row["id"] or "").strip()
-        and not _space_is_private_from_row(row)
-        and _space_graph_identity_from_row(row) == target_identity
-    ]
-    return cohort or [sid]
-
-
 def sequence_name_conflict(
     space_id: str, name: str, exclude_id: str | None = None
 ) -> str | None:
-    """Return the name of a colliding sequence in the same graph cohort, else ``None``.
+    """Return the name of a colliding sequence in this space, else ``None``.
 
-    A new sequence's ``name`` becomes its wrapping STEP node's ``attributive_label``, so within
-    one underlying graph two sequences may not share a *create-time* name. Later renames may
-    keep a wrap label that no longer matches the workspace title when the new name is taken.
-    The cohort is every non-private space resolving to the same Neo4j store as *space_id*; a
-    stored sequence belongs to that cohort when one of its STEP labels is registered on a
-    cohort space (``spaces.labels``), or when it carries no resolved labels yet — in which
-    case it is treated as a conflict to avoid a latent STEP-label clash. Comparison is
-    case-insensitive; *exclude_id* skips a re-save of the same row.
+    A new sequence's ``name`` becomes its wrapping STEP node's ``attributive_label``, so
+    two sequences in the same space may not share a *create-time* name. A stored sequence
+    belongs to this space when one of its STEP labels is registered on ``spaces.labels``.
+    Comparison is case-insensitive; *exclude_id* skips a re-save of the same row.
+    Graph-global wrap uniqueness is enforced separately at package execute time.
     """
     target = (name or "").strip()
-    if not target:
-        return None
-    cohort = set(space_ids_sharing_graph(space_id))
-    if not cohort:
+    sid = (space_id or "").strip()
+    if not target or not sid:
         return None
     skip = (exclude_id or "").strip()
     with catalog_db() as conn:
-        cohort_labels: set[str] = set()
-        for row in conn.execute("SELECT id, labels FROM spaces").fetchall():
-            if (row[0] or "").strip() in cohort:
-                cohort_labels.update(parse_space_labels_column(row[1]))
+        cur = conn.execute("SELECT labels FROM spaces WHERE id = ?", (sid,))
+        row = cur.fetchone()
+        space_labels = set(parse_space_labels_column(row[0] if row else None))
+        if not space_labels:
+            return None
         for seq_id, seq_name, step_labels in _sequence_rows_from_conn(conn):
             if seq_id == skip:
                 continue
             if seq_name.casefold() != target.casefold():
                 continue
-            if not step_labels or any(label in cohort_labels for label in step_labels):
+            if any(label in space_labels for label in step_labels):
                 return seq_name
         return None
-
-
-def validate_space_labels_selection(
-    conn: sqlite3.Connection, labels: Iterable[str] | None
-) -> list[str]:
-    """
-    Normalize *labels* and ensure each entry is a shared-sequence label.
-    """
-    normalized = normalize_space_label_list(labels)
-    if not normalized:
-        return []
-    allowed = set(_shared_sequence_labels_from_conn(conn))
-    invalid = [label for label in normalized if label not in allowed]
-    if invalid:
-        joined = ", ".join(invalid)
-        raise ValueError(
-            "Labels must be shared sequences from non-private spaces "
-            f"(queries.kind = 'sequence'): {joined}"
-        )
-    return normalized
-
-
-# Any ``attributive_label: 'X'`` binding inside a Cypher statement (node, relationship,
-# SCHEMA, INSTANCE — all forms). Used to harvest the SCHEMA/INSTANCE labels a STEP's query
-# references when expanding a sequence's inherited-label closure.
-_ATTR_LABEL_RE = cypher_utils.ATTR_LABEL_RE
-
-
-def _reference_public_space_id(
-    conn: sqlite3.Connection, exclude_id: str | None = None
-) -> str | None:
-    """
-    Id of any existing non-private space, used purely to resolve a connection to the
-    shared graph when expanding a sequence-label closure (all public spaces resolve to
-    the same default Neo4j/SQLite store).
-    """
-    _ensure_spaces_is_private_column(conn)
-    skip = (exclude_id or "").strip()
-    cur = conn.execute(
-        "SELECT id FROM spaces WHERE COALESCE(is_private, 0) = 0 ORDER BY creation_date ASC"
-    )
-    for row in cur.fetchall():
-        sid = (row[0] or "").strip()
-        if sid and sid != skip:
-            return sid
-    return None
-
-
-def expand_sequence_label_closure(
-    conn: sqlite3.Connection, selected_labels: Iterable[str]
-) -> list[str]:
-    """
-    Expand selected shared-sequence labels to the full set of associated labels.
-
-    A space that inherits a sequence must also inherit every label that sequence depends
-    on, otherwise patterns it shows (e.g. a SCHEMA reached through the sequence's STEPs)
-    are invisible to it and the SCHEMA-delete cascade's shared-space detection misses it.
-    The closure walks the shared STEP workflow graph from each selected STEP label and
-    adds: every STEP node/relationship label in that connected component, plus every
-    ``attributive_label`` referenced by the Cypher of the queries those STEPs run
-    (SCHEMA / INSTANCE / relationship patterns).
-
-    Graph access uses a reference public space (all public spaces share one store). If no
-    reference space exists or the graph is unreachable, the original selection is returned
-    unchanged.
-    """
-    closure = {
-        (raw or "").strip() for raw in selected_labels if (raw or "").strip()
-    }
-    if not closure:
-        return []
-
-    reference_space = _reference_public_space_id(conn)
-    if not reference_space:
-        return sorted(closure, key=str.casefold)
-
-    try:
-        from . import catalog, graph
-
-        flow = graph._build_step_flow_graph(reference_space)
-    except Exception:
-        # Neo4j unavailable / driver missing: keep the explicit selection rather than fail
-        # space creation. The closure can be backfilled later.
-        return sorted(closure, key=str.casefold)
-
-    seed_ids = [
-        node["id"]
-        for node in flow.get("nodes") or []
-        if node.get("attributive_label") in closure and node.get("id")
-    ]
-    if not seed_ids:
-        return sorted(closure, key=str.casefold)
-
-    component = graph._step_flow_connected_component(flow, seed_ids)
-
-    query_ids: set[str] = set()
-    for node in component.get("nodes") or []:
-        label = (node.get("attributive_label") or "").strip()
-        if label:
-            closure.add(label)
-        query_id = str((node.get("payload") or {}).get("query_id") or "").strip()
-        if query_id:
-            query_ids.add(query_id)
-    for rel in component.get("relationships") or []:
-        label = (rel.get("attributive_label") or "").strip()
-        if label:
-            closure.add(label)
-
-    for query_id in query_ids:
-        package = catalog.fetch_query_package(query_id)
-        if not package:
-            continue
-        for statement in package.get("cypher") or []:
-            for match in _ATTR_LABEL_RE.finditer(str(statement or "")):
-                referenced = match.group(1).strip()
-                if referenced:
-                    closure.add(referenced)
-
-    return sorted(closure, key=str.casefold)
 
 
 def _space_is_private_from_row(row: sqlite3.Row) -> bool:
@@ -794,9 +547,8 @@ def remove_space_attributive_labels(
     """
     Remove attributive_label strings from catalog ``spaces.labels`` for *space_id*.
 
-    Used by the SCHEMA delete flow to unlink a space's filtered view from labels that
-    are being deleted (or that remain physically present but should leave this space).
-    Returns the labels actually removed and the resulting list.
+    Used by the SCHEMA/STEP delete flow to drop purged labels from this space's
+    nav index. Returns the labels actually removed and the resulting list.
     """
     sid = (space_id or "").strip()
     if not sid:
@@ -828,37 +580,41 @@ def remove_space_attributive_labels(
         return {"removed": removed, "labels": remaining}
 
 
-def spaces_referencing_labels(
-    attributive_labels: Iterable[str], exclude_id: str | None = None
-) -> list[dict[str, str]]:
-    """
-    Non-private spaces (other than *exclude_id*) whose ``spaces.labels`` contains any
-    of *attributive_labels*.
+def remove_attributive_labels_from_all_spaces(
+    attributive_labels: Iterable[str],
+) -> dict[str, list[str]]:
+    """Remove attributive_label strings from every space's ``labels`` array.
 
-    Private spaces are isolated stores, so they are never reported as sharing labels
-    with another space (mirrors ``_private_space_labels_from_conn`` semantics).
+    Used after a SCHEMA/STEP purge so leftover overlapping indexes do not show
+    ghost nav items. Returns ``{space_id: [removed, ...]}`` for spaces that
+    actually lost labels.
     """
     targets = {
         (raw or "").strip() for raw in attributive_labels if (raw or "").strip()
     }
     if not targets:
-        return []
+        return {}
 
-    skip = (exclude_id or "").strip()
     with catalog_db() as conn:
-        _ensure_spaces_is_private_column(conn)
-        cur = conn.execute(
-            "SELECT id, name, labels FROM spaces WHERE COALESCE(is_private, 0) = 0"
-        )
-        out: list[dict[str, str]] = []
+        cur = conn.execute("SELECT id, labels FROM spaces")
+        stripped: dict[str, list[str]] = {}
         for row in cur.fetchall():
             sid = (row[0] or "").strip()
-            if not sid or sid == skip:
+            if not sid:
                 continue
-            labels = set(parse_space_labels_column(row[2]))
-            if labels & targets:
-                out.append({"id": sid, "name": str(row[1] or sid)})
-        return sorted(out, key=lambda s: s["name"].casefold())
+            existing = parse_space_labels_column(row[1])
+            remaining = [label for label in existing if label not in targets]
+            removed = [label for label in existing if label in targets]
+            if not removed:
+                continue
+            conn.execute(
+                "UPDATE spaces SET labels = ? WHERE id = ?",
+                (format_space_labels_column(remaining), sid),
+            )
+            stripped[sid] = removed
+        if stripped:
+            conn.commit()
+        return stripped
 
 
 def set_space_groups(space_id: str, groups: Iterable[str]) -> dict[str, Any]:
@@ -905,12 +661,6 @@ def fetch_space_groups(space_id: str) -> list[str]:
         if row is None:
             raise ValueError(f"Unknown space id: {sid!r}")
         return parse_space_groups_column(row[0])
-
-
-def space_is_private(space_id: str) -> bool:
-    """True when the space is flagged private (isolated store, not part of shared pool)."""
-    row = get_space_row(space_id)
-    return _space_is_private_from_row(row)
 
 
 def fetch_space_labels(space_id: str) -> list[str]:
@@ -1004,15 +754,15 @@ def _space_name_exists(conn: sqlite3.Connection, name: str) -> bool:
 def create_space(
     name: str,
     endpoint: str | None = None,
-    labels: Iterable[str] | None = None,
     description: str | None = None,
 ) -> dict[str, Any]:
     """
     Insert a new catalog ``spaces`` row.
 
     ``id`` matches the normalized ``name``. Connection env-key column values use the
-    normalized prefix (uppercase, spaces as underscores); ``keys`` / ``groups`` start
-    empty. ``labels`` must be shared sequences (queries.kind = 'sequence') when provided.
+    normalized prefix (uppercase, spaces as underscores); ``keys`` / ``groups`` /
+    ``labels`` start empty. Labels are registered later when this space creates or
+    imports graph elements.
     """
     validate_space_name_input(name)
     sid = normalize_space_name(name)
@@ -1024,6 +774,7 @@ def create_space(
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     keys_json = json.dumps({"keys": []}, separators=(",", ":"))
     groups_json = format_space_groups_column([])
+    labels_json = format_space_labels_column([])
 
     with catalog_db() as conn:
         _ensure_spaces_groups_column(conn)
@@ -1034,11 +785,6 @@ def create_space(
         if _space_name_exists(conn, sid):
             raise ValueError(f"Space name already exists: {sid!r}")
 
-        label_list = validate_space_labels_selection(conn, labels)
-        # Inherit the full dependency closure (STEP chain + referenced SCHEMA/INSTANCE
-        # labels) for each selected sequence, not just the sequence's own STEP label.
-        label_list = expand_sequence_label_closure(conn, label_list)
-        labels_json = format_space_labels_column(label_list)
         neo_uri_key, neo_user_key, neo_pass_key, sqlite_path_key = space_connection_env_keys(
             sid
         )
@@ -1072,7 +818,7 @@ def create_space(
             "id": sid,
             "name": sid,
             "endpoint": endpoint_val,
-            "labels": label_list,
+            "labels": [],
             "is_private": False,
             "description": description_val,
             "creation_date": now,
@@ -1080,25 +826,18 @@ def create_space(
 
 
 def fetch_space_record(space_id: str) -> dict[str, Any]:
-    """
-    Return id, name, endpoint, labels, sequence_labels, is_private, and UI flags.
+    """Return id, name, endpoint, labels, is_private, and UI flags.
 
-    ``labels`` is the full stored view (sequence labels plus the inherited STEP/SCHEMA
-    closure). ``sequence_labels`` is the user-selectable subset (the labels that are the
-    initial STEP of a sequence) — the edit modal pre-selects these so a re-save round-trips
-    through the closure expansion instead of trying to re-validate derived labels.
+    ``labels`` is this space's local nav index (attributive_labels created or imported
+    here). ``is_private`` is kept in the payload for compatibility; it is no longer
+    used to gate sharing.
     """
     row = get_space_row(space_id)
-    labels = parse_space_labels_column(row["labels"])
-    with catalog_db() as conn:
-        sequence_universe = _sequence_attributive_labels_from_conn(conn)
-    sequence_labels = [label for label in labels if label in sequence_universe]
     return {
         "id": row["id"],
         "name": row["name"],
         "endpoint": _space_endpoint_from_row(row),
-        "labels": labels,
-        "sequence_labels": sequence_labels,
+        "labels": parse_space_labels_column(row["labels"]),
         "is_private": _space_is_private_from_row(row),
         "dev_mode": _space_dev_mode_from_row(row),
         "hide_empty_sequence_groups": _space_hide_empty_groups_from_row(row),
@@ -1122,9 +861,7 @@ def update_space(
     space_id: str,
     name: str,
     endpoint: str | None = None,
-    labels: Iterable[str] | None = None,
     *,
-    set_labels: bool = False,
     description: str | None = None,
     set_description: bool = False,
     dev_mode: bool | None = None,
@@ -1133,13 +870,12 @@ def update_space(
     set_hide_empty_sequence_groups: bool = False,
 ) -> dict[str, Any]:
     """
-    Update a catalog ``spaces`` row (name, endpoint, and optionally labels).
+    Update a catalog ``spaces`` row (name, endpoint, and settings flags).
 
     Renaming recomputes ``id`` and all connection env-key columns from the normalized
-    name, matching :func:`create_space`. When ``set_labels`` is true, ``labels`` must
-    be shared sequences (queries.kind = 'sequence'). ``dev_mode`` is the builder flag
-    that surfaces composed Cypher and SQLite previews. ``hide_empty_sequence_groups``
-    hides named nav groups that currently hold no sequences.
+    name, matching :func:`create_space`. ``dev_mode`` is the builder flag that surfaces
+    composed Cypher and SQLite previews. ``hide_empty_sequence_groups`` hides named nav
+    groups that currently hold no sequences. Labels are not a settings field.
     """
     sid = (space_id or "").strip()
     if not sid:
@@ -1163,13 +899,6 @@ def update_space(
         if _space_name_taken(conn, new_id, exclude_id=sid):
             raise ValueError(f"Space name already exists: {new_id!r}")
 
-        label_list: list[str] | None = None
-        labels_json: str | None = None
-        if set_labels:
-            label_list = validate_space_labels_selection(conn, labels)
-            label_list = expand_sequence_label_closure(conn, label_list)
-            labels_json = format_space_labels_column(label_list)
-
         neo_uri_key, neo_user_key, neo_pass_key, sqlite_path_key = space_connection_env_keys(
             new_id
         )
@@ -1192,9 +921,6 @@ def update_space(
             neo_pass_key,
             sqlite_path_key,
         ]
-        if set_labels:
-            assignments.append("labels = ?")
-            params.append(labels_json)
         description_val: str | None = None
         if set_description:
             description_val = (description or "").strip()
@@ -1221,8 +947,6 @@ def update_space(
             "name": new_id,
             "endpoint": endpoint_val,
         }
-        if set_labels:
-            result["labels"] = label_list or []
         if set_description:
             result["description"] = description_val or ""
         if set_dev_mode:

@@ -74,7 +74,6 @@ export type { ConnectorConfig } from "./http.js";
 export type {
   AffectedSequence,
   CypherStatementResult,
-  DeleteSpaceRef,
   DeleteWarning,
   ExecuteCreateBody,
   ExecuteQueryBody,

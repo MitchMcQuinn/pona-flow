@@ -2,8 +2,7 @@
 Diagnostic test for attributive_label reference scanning (Engine/server/cypher_utils.py).
 
 ``ATTR_LABEL_RE`` decides which SCHEMAs an operation references. That answer drives the
-SCHEMA delete blast radius, drift suspension, a sequence's inherited-label closure, and
-template export. Vector-search Cypher filters with ``attributive_label = 'X'`` rather
+SCHEMA delete blast radius, drift suspension, and template export. Vector-search Cypher filters with ``attributive_label = 'X'`` rather
 than the map form ``{ attributive_label: 'X' }``, so the scan matches both.
 
 This guards the widened pattern against the false positives the original was written to

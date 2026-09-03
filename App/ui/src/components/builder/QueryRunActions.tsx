@@ -129,9 +129,7 @@ export function QueryRunActions({
       const labels = await connector.fetchSpaceLabels(state.spaceId);
       dispatch({ type: "SET_SPACE_LABELS", labels });
       showToast(
-        result.purged
-          ? `Schema "${result.attributive_label}" and its dependents were deleted.`
-          : `Schema "${result.attributive_label}" was removed from this space.`
+        `Schema "${result.attributive_label}" and its dependents were deleted.`
       );
       dispatch({ type: "DATA_CHANGED" });
       dispatch({ type: "RESET_BUILDER" });
@@ -179,9 +177,7 @@ export function QueryRunActions({
       const labels = await connector.fetchSpaceLabels(state.spaceId);
       dispatch({ type: "SET_SPACE_LABELS", labels });
       showToast(
-        result.purged
-          ? `Step "${result.attributive_label}" and its dependent sequences were deleted.`
-          : `Step "${result.attributive_label}" was removed from this space.`
+        `Step "${result.attributive_label}" and its dependent sequences were deleted.`
       );
       dispatch({ type: "DATA_CHANGED" });
       dispatch({ type: "RESET_BUILDER" });

@@ -89,9 +89,7 @@ A space is your working environment — like opening a new project folder.
 
 1. Enter a **name** for your space (letters, numbers, and spaces only — e.g. `Marketing` or
    `Client Alpha`).
-2. Optionally choose **shared sequences** — pre-built workflows you're allowed to use in
-   this space (if any are available on your instance).
-3. Click **Create**.
+2. Click **Create**.
 
 You become the **owner** of that space automatically. Anyone else who needs access will need
 to be added as a member (see "Working with your team" below).
@@ -156,8 +154,7 @@ environment (e.g. one space per client or per internal team).
 
 ### Edit a space
 
-Open the space menu and choose **edit** to change its name, optional webhook endpoint, or
-which shared sequences it can use.
+Open the space menu and choose **edit** to change its name or optional webhook endpoint.
 
 ### Build a new workflow
 
@@ -165,8 +162,8 @@ which shared sequences it can use.
 2. Open the **builder** on the right (or use "Back to builder" in the top bar).
 3. Design a query or sequence and save it to the catalog.
 
-Building workflows has a learning curve. Many teams start with **shared sequences** provided
-on the instance and customize over time.
+Building workflows has a learning curve. Start with a new sequence in the builder and
+customize over time.
 
 ### Connect external data (Neo4j)
 

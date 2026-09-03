@@ -107,7 +107,6 @@ export async function fetchSpaces(): Promise<Array<{ id: string; label: string }
 export interface CreateSpaceInput {
   name: string;
   endpoint?: string;
-  labels?: string[];
   /** Prose describing the space; surfaced to MCP clients as the server's instructions. */
   description?: string;
   /** When true, the builder shows composed Cypher and SQLite previews. */
@@ -128,22 +127,12 @@ export interface CreateSpaceResult {
   creation_date?: string;
 }
 
-export async function fetchSharedSequenceLabels(): Promise<string[]> {
-  const data = await getJson<{ labels?: string[] }>(
-    "/api/spaces/shared-sequence-labels",
-    "Failed to load shared sequences",
-    { cache: "no-store" }
-  );
-  return Array.isArray(data.labels) ? data.labels : [];
-}
-
 export async function createSpace(input: CreateSpaceInput): Promise<CreateSpaceResult> {
   return postJson<CreateSpaceResult>(
     "/api/spaces/create",
     {
       name: input.name.trim(),
       endpoint: input.endpoint?.trim() || null,
-      labels: input.labels ?? [],
       description: input.description?.trim() ?? ""
     },
     "Failed to create space"
@@ -155,8 +144,6 @@ export interface SpaceRecord {
   name: string;
   endpoint?: string | null;
   labels?: string[];
-  /** User-selectable sequence labels (subset of labels); excludes the inherited closure. */
-  sequence_labels?: string[];
   is_private?: boolean;
   dev_mode?: boolean;
   hide_empty_sequence_groups?: boolean;
@@ -181,7 +168,6 @@ export async function updateSpace(
       space_id: spaceId,
       name: input.name.trim(),
       endpoint: input.endpoint?.trim() || null,
-      labels: input.labels ?? [],
       description: input.description?.trim() ?? "",
       dev_mode: Boolean(input.dev_mode),
       hide_empty_sequence_groups: Boolean(input.hide_empty_sequence_groups)
@@ -205,24 +191,17 @@ export interface SchemaDeleteRef {
   operation?: string;
 }
 
-export interface SchemaDeleteSpaceRef {
-  id: string;
-  name: string;
-}
-
 export interface SchemaDeleteWarning {
   type: string;
   blocking: boolean;
   requires_confirmation?: boolean;
   message: string;
-  spaces?: SchemaDeleteSpaceRef[];
   schemas?: string[];
 }
 
 export interface SchemaDeletePreview {
   space_id: string;
   attributive_label: string;
-  mode: "purge" | "unlink";
   requires_confirmation: boolean;
   summary: {
     instances: number;
@@ -232,7 +211,6 @@ export interface SchemaDeletePreview {
     steps: number;
     execution_packages: number;
     dependent_schemas: number;
-    shared_spaces: number;
   };
   affected: {
     labels: string[];
@@ -242,7 +220,6 @@ export interface SchemaDeletePreview {
     step_labels: string[];
     execution_packages: Array<{ id: string; status: string }>;
     dependent_schemas: string[];
-    shared_spaces: SchemaDeleteSpaceRef[];
   };
   warnings: SchemaDeleteWarning[];
 }
@@ -250,7 +227,6 @@ export interface SchemaDeletePreview {
 export interface SchemaDeleteResult {
   space_id: string;
   attributive_label: string;
-  mode: "purge" | "unlink";
   purged: boolean;
   unlinked_labels: string[];
   warnings: SchemaDeleteWarning[];
@@ -286,20 +262,17 @@ export async function executeSchemaDeletion(
 export interface StepDeletePreview {
   space_id: string;
   attributive_label: string;
-  mode: "purge" | "unlink";
   requires_confirmation: boolean;
   summary: {
     relationship_patterns: number;
     sequences: number;
     execution_packages: number;
-    shared_spaces: number;
   };
   affected: {
     labels: string[];
     relationship_labels: string[];
     sequences: SchemaDeleteRef[];
     execution_packages: Array<{ id: string; status: string }>;
-    shared_spaces: SchemaDeleteSpaceRef[];
   };
   warnings: SchemaDeleteWarning[];
 }
@@ -307,7 +280,6 @@ export interface StepDeletePreview {
 export interface StepDeleteResult {
   space_id: string;
   attributive_label: string;
-  mode: "purge" | "unlink";
   purged: boolean;
   unlinked_labels: string[];
   warnings: SchemaDeleteWarning[];

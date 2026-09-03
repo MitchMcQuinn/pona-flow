@@ -72,8 +72,6 @@ try:
     spaces.update_space(
         "DEMO",
         "DEMO",
-        labels=[],
-        set_labels=True,
         description="",
         set_description=True,
         set_dev_mode=True,

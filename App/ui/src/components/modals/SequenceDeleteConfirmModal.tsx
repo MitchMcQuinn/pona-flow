@@ -53,7 +53,6 @@ export function SequenceDeleteConfirmModal({
   // Default to the least destructive option: only remove the definition from the nav.
   const [mode, setMode] = useState<SequenceDeleteMode>("nav");
   const orphaned = preview == null;
-  const purge = preview?.mode === "purge";
   const rows = preview ? cascadeRows(preview) : [];
 
   const confirmLabel =
@@ -62,12 +61,8 @@ export function SequenceDeleteConfirmModal({
         ? "Removing…"
         : "Remove from navigation"
       : busy
-        ? purge
-          ? "Deleting…"
-          : "Removing…"
-        : purge
-          ? "Delete sequence & cascade"
-          : "Remove from this space";
+        ? "Deleting…"
+        : "Delete sequence & cascade";
 
   return (
     <ModalBackdrop onClick={busy ? undefined : onCancel}>
@@ -126,15 +121,10 @@ export function SequenceDeleteConfirmModal({
               <span className="sequenceDeleteOptionHint">
                 {orphaned ? (
                   <>Cascade is unavailable because the entry STEP no longer exists.</>
-                ) : purge ? (
+                ) : (
                   <>
                     Permanently removes the entry step, its relationship patterns, and every
                     dependent sequence. This cannot be undone.
-                  </>
-                ) : (
-                  <>
-                    This step is shared with other spaces, so the patterns stay intact — it is
-                    only removed from this space&rsquo;s view.
                   </>
                 )}
               </span>
@@ -142,7 +132,7 @@ export function SequenceDeleteConfirmModal({
           </label>
         </div>
 
-        {mode === "cascade" && preview && purge && rows.length ? (
+        {mode === "cascade" && preview && rows.length ? (
           <div className="builderFormFieldset">
             <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
               The following will be deleted:
@@ -187,7 +177,7 @@ export function SequenceDeleteConfirmModal({
           </button>
           <button
             type="button"
-            className={mode === "cascade" && purge ? "btnDanger" : "btnPrimary"}
+            className={mode === "cascade" ? "btnDanger" : "btnPrimary"}
             data-testid="modal-confirm-btn"
             disabled={busy}
             onClick={() => onConfirm(mode)}

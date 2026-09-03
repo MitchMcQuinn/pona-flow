@@ -4,7 +4,7 @@ Diagnostic test for the SCHEMA delete cascade's pure helpers.
 Covers the parts that don't need a live Neo4j/SQLite store:
 - ``_labels_in_cypher_array`` precise (exact) attributive_label detection, ensuring it does
   NOT false-positive on labels embedded inside other labels or string literals.
-- ``_build_warnings`` shared-space (non-blocking) and dependent-schema (confirm) messages.
+- ``_build_warnings`` dependent-schema (confirm) messages.
 
 Run: ``python tests/schema-delete-reference-scan.py`` from the repo root.
 """
@@ -69,25 +69,11 @@ check(
 
 resolution = {
     "attributive_label": "Person",
-    "shared_spaces": [
-        {"id": "MARKETING", "name": "Marketing"},
-        {"id": "SALES", "name": "Sales"},
-    ],
     "dependent_schemas": ["Order", "Invoice"],
 }
 warnings = schema_delete._build_warnings(resolution)
 by_type = {w["type"]: w for w in warnings}
 
-check("emits shared_spaces warning", "shared_spaces" in by_type)
-check(
-    "shared_spaces warning is non-blocking",
-    by_type.get("shared_spaces", {}).get("blocking") is False,
-)
-check(
-    "shared_spaces warning lists space names",
-    "Marketing" in by_type["shared_spaces"]["message"]
-    and "Sales" in by_type["shared_spaces"]["message"],
-)
 check("emits dependent_schemas warning", "dependent_schemas" in by_type)
 check(
     "dependent_schemas warning requests confirmation",
@@ -99,11 +85,10 @@ check(
     and "Invoice" in by_type["dependent_schemas"]["message"],
 )
 
-# No warnings when nothing is shared or dependent.
 empty = schema_delete._build_warnings(
-    {"attributive_label": "Person", "shared_spaces": [], "dependent_schemas": []}
+    {"attributive_label": "Person", "dependent_schemas": []}
 )
-check("no warnings when not shared and no dependents", empty == [])
+check("no warnings when no dependents", empty == [])
 
 print()
 if failures:

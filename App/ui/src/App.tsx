@@ -106,9 +106,9 @@ export default function App() {
   );
   const showConfig = useMemo(() => selectors.hasConfigContent(state), [state]);
 
-  // The nav is a filtered view over the shared attributive_labels: a sequence only
-  // appears when its attributive_label was selected for (or created in) the active space.
-  // Non-sequence rows (operations/system) are not nav items and pass through untouched.
+  // The nav only shows sequences whose attributive_label was created or imported
+  // in the active space. Non-sequence rows (operations/system) are not nav items
+  // and pass through untouched.
   const navSequences = useMemo(() => {
     const allowed = new Set(activeSpaceLabels);
     return state.nav.sequences.filter(

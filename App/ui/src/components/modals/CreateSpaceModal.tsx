@@ -1,23 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchSharedSequenceLabels } from "../../services/api";
 import {
   isValidSpaceNameInput,
   normalizeSpaceName,
   sanitizeSpaceNameInput
 } from "../../utils/spaceName";
-import { SpaceLabelsPicker } from "./SpaceLabelsPicker";
 import { ModalBackdrop } from "./ModalBackdrop";
 import "../builder/builder.css";
 
 export interface CreateSpaceFormValues {
   name: string;
   endpoint: string;
-  labels: string[];
 }
 
 export type SpaceModalMode = "create" | "edit";
-
-const EMPTY_LABELS: string[] = [];
 
 interface CreateSpaceModalProps {
   mode?: SpaceModalMode;
@@ -27,7 +22,6 @@ interface CreateSpaceModalProps {
   required?: boolean;
   initialName?: string;
   initialEndpoint?: string;
-  initialLabels?: string[];
   /** Exclude this space id from duplicate-name checks (edit mode). */
   excludeSpaceId?: string;
   existingNames: string[];
@@ -43,7 +37,6 @@ export function CreateSpaceModal({
   required = false,
   initialName = "",
   initialEndpoint = "",
-  initialLabels = EMPTY_LABELS,
   excludeSpaceId,
   existingNames,
   saving = false,
@@ -53,37 +46,13 @@ export function CreateSpaceModal({
 }: CreateSpaceModalProps) {
   const [name, setName] = useState(initialName);
   const [endpoint, setEndpoint] = useState(initialEndpoint);
-  const [labels, setLabels] = useState<string[]>(initialLabels);
-  const [sharedSequenceLabels, setSharedSequenceLabels] = useState<string[]>([]);
-  const [labelsLoading, setLabelsLoading] = useState(true);
   const [localError, setLocalError] = useState<string | null>(null);
-
-  const initialLabelsKey = initialLabels.join("\x1e");
 
   useEffect(() => {
     setName(initialName);
     setEndpoint(initialEndpoint);
-    setLabels(initialLabels);
     setLocalError(null);
-  }, [initialName, initialEndpoint, initialLabelsKey, mode, spaceId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLabelsLoading(true);
-    fetchSharedSequenceLabels()
-      .then((options) => {
-        if (!cancelled) setSharedSequenceLabels(options);
-      })
-      .catch(() => {
-        if (!cancelled) setSharedSequenceLabels([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLabelsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, spaceId]);
+  }, [initialName, initialEndpoint, mode, spaceId]);
 
   const trimmedName = name.trim();
   const normalizedName = useMemo(() => normalizeSpaceName(trimmedName), [trimmedName]);
@@ -103,7 +72,7 @@ export function CreateSpaceModal({
 
   useEffect(() => {
     setLocalError(null);
-  }, [name, endpoint, labels]);
+  }, [name, endpoint]);
 
   function save() {
     if (!trimmedName) {
@@ -118,12 +87,11 @@ export function CreateSpaceModal({
       setLocalError("A space with this name already exists.");
       return;
     }
-    onSubmit({ name: trimmedName, endpoint: endpoint.trim(), labels });
+    onSubmit({ name: trimmedName, endpoint: endpoint.trim() });
   }
 
   const displayError = localError || error;
   const isEdit = mode === "edit";
-  const showSharedSequences = !labelsLoading && sharedSequenceLabels.length > 0;
 
   return (
     <ModalBackdrop onClick={required || saving ? undefined : onCancel}>
@@ -172,21 +140,6 @@ export function CreateSpaceModal({
               />
             </div>
           </div>
-
-          {showSharedSequences ? (
-            <div className="builderRow">
-              <div className="builderField">
-                <label>shared sequences (optional)</label>
-                <SpaceLabelsPicker
-                  options={sharedSequenceLabels}
-                  selected={labels}
-                  onChange={setLabels}
-                  disabled={saving}
-                  loading={labelsLoading}
-                />
-              </div>
-            </div>
-          ) : null}
 
           {displayError ? <p className="builderCheckMsg error">{displayError}</p> : null}
           {duplicate && !displayError ? (

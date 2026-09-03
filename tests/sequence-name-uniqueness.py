@@ -1,13 +1,14 @@
 """
 Diagnostic test for sequence-name and group-title uniqueness (spaces module).
 
-A sequence's name becomes its wrapping STEP node's attributive_label, which must be unique
-within an underlying graph. Spaces resolving to the same Neo4j store form one namespace; a
-private space is isolated. Group titles must be unique (case-insensitive) within a space.
+A sequence's name becomes its wrapping STEP node's attributive_label. Two sequences in
+the same space may not share a create-time name. A stored sequence belongs to a space
+when one of its STEP labels is registered on that space's ``labels``. Group titles must
+be unique (case-insensitive) within a space.
 
-This test stands up a real temporary catalog DB and monkeypatches connection/env resolution
-so spaces.sequence_name_conflict, spaces.space_ids_sharing_graph, spaces.canonical_group_title,
-spaces.append_space_group, and spaces.set_space_groups run for real without Neo4j.
+This test stands up a real temporary catalog DB and monkeypatches connection resolution
+so spaces.sequence_name_conflict, spaces.canonical_group_title, spaces.append_space_group,
+and spaces.set_space_groups run for real without Neo4j.
 
 Run: `python tests/sequence-name-uniqueness.py` from the repo root.
 """
@@ -36,18 +37,6 @@ DB_PATH = Path(_tmp.name)
 
 config.catalog_sqlite_path = lambda: DB_PATH  # type: ignore
 
-# Two public spaces (A, B) resolve to the same Neo4j store; a private space (P) is isolated.
-ENV = {
-    "A_NEO4J_URI": "bolt://shared",
-    "B_NEO4J_URI": "bolt://shared",
-    "P_NEO4J_URI": "bolt://private",
-    "NEO4J_URI": "bolt://default",
-    "NEO4J_USER": "neo4j",
-}
-config.env_value = lambda key, fallback_key=None: ENV.get(  # type: ignore
-    key, ENV.get(fallback_key or "", "")
-)
-
 
 def seed() -> None:
     conn = config.connect_sqlite(DB_PATH)
@@ -56,7 +45,7 @@ def seed() -> None:
             """
             CREATE TABLE spaces (
               id TEXT PRIMARY KEY, name TEXT, labels TEXT, groups TEXT,
-              neo4j_uri_key TEXT, neo4j_user_key TEXT, is_private INTEGER DEFAULT 0
+              neo4j_uri_key TEXT, neo4j_user_key TEXT
             );
             CREATE TABLE queries (
               id TEXT PRIMARY KEY, name TEXT, kind TEXT, cypher TEXT
@@ -64,10 +53,10 @@ def seed() -> None:
             """
         )
 
-        def space(sid, labels, private=0):
+        def space(sid, labels):
             conn.execute(
                 "INSERT INTO spaces (id, name, labels, groups, neo4j_uri_key, "
-                "neo4j_user_key, is_private) VALUES (?,?,?,?,?,?,?)",
+                "neo4j_user_key) VALUES (?,?,?,?,?,?)",
                 (
                     sid,
                     sid,
@@ -75,13 +64,11 @@ def seed() -> None:
                     spaces.format_space_groups_column([]),
                     f"{sid}_NEO4J_URI",
                     f"{sid}_NEO4J_USER",
-                    private,
                 ),
             )
 
         space("A", ["Alpha"])
         space("B", ["Beta"])
-        space("P", ["Priv"], private=1)
 
         def sequence(qid, name, step_label):
             conn.execute(
@@ -94,9 +81,8 @@ def seed() -> None:
                 ),
             )
 
-        # Existing sequences. "Alpha" lives in public space A; "Priv" lives in private space P.
         sequence("q-alpha", "Alpha", "Alpha")
-        sequence("q-priv", "Priv", "Priv")
+        sequence("q-beta", "Beta", "Beta")
         conn.commit()
     finally:
         conn.close()
@@ -104,37 +90,44 @@ def seed() -> None:
 
 seed()
 
-# --- space_ids_sharing_graph -------------------------------------------------------------
-check("public spaces with same store share a graph", set(spaces.space_ids_sharing_graph("A")) == {"A", "B"})
-check("private space is its own cohort", spaces.space_ids_sharing_graph("P") == ["P"])
-check("unknown space -> itself", spaces.space_ids_sharing_graph("ZZZ") == ["ZZZ"])
-
 # --- sequence_name_conflict --------------------------------------------------------------
 check(
-    "duplicate name in same public graph conflicts",
-    spaces.sequence_name_conflict("B", "Alpha") == "Alpha",
+    "duplicate name in the same space conflicts",
+    spaces.sequence_name_conflict("A", "Alpha") == "Alpha",
 )
 check(
     "duplicate name is case-insensitive",
-    spaces.sequence_name_conflict("B", "alpha") == "Alpha",
+    spaces.sequence_name_conflict("A", "alpha") == "Alpha",
 )
 check(
-    "fresh name in same graph is allowed",
-    spaces.sequence_name_conflict("B", "Gamma") is None,
+    "fresh name in the same space is allowed",
+    spaces.sequence_name_conflict("A", "Gamma") is None,
 )
 check(
     "re-saving the same sequence is allowed (exclude_id)",
     spaces.sequence_name_conflict("A", "Alpha", exclude_id="q-alpha") is None,
 )
 check(
-    "private-space sequence name does not leak to public graph",
-    spaces.sequence_name_conflict("A", "Priv") is None,
+    "another space's sequence name does not conflict",
+    spaces.sequence_name_conflict("A", "Beta") is None,
 )
 check(
-    "public-space sequence name does not leak into private graph",
-    spaces.sequence_name_conflict("P", "Alpha") is None,
+    "name used only in space B does not block space A",
+    spaces.sequence_name_conflict("B", "Alpha") is None,
 )
 check("empty name never conflicts", spaces.sequence_name_conflict("A", "  ") is None)
+check(
+    "unknown space has no labels so no conflict",
+    spaces.sequence_name_conflict("ZZZ", "Alpha") is None,
+)
+
+# --- remove_attributive_labels_from_all_spaces ------------------------------------------
+stripped = spaces.remove_attributive_labels_from_all_spaces(["Alpha"])
+check("purge strip hits every space that listed the label", stripped == {"A": ["Alpha"]})
+check("space A labels empty after strip", spaces.fetch_space_labels("A") == [])
+check("space B labels untouched", spaces.fetch_space_labels("B") == ["Beta"])
+# Restore A's label for the group-title checks below.
+spaces.append_space_attributive_labels("A", ["Alpha"])
 
 # --- group titles: unique (case-insensitive) within a space ------------------------------
 spaces.append_space_group("A", "Reports")

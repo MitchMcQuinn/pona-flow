@@ -261,16 +261,10 @@ export interface DeleteWarning {
   message: string;
 }
 
-export interface DeleteSpaceRef {
-  id: string;
-  name: string;
-}
-
 /** Shared shape of the SCHEMA / STEP delete-cascade dry run. */
 interface DeletePreviewBase {
   space_id: string;
   attributive_label: string;
-  mode: "purge" | "unlink";
   requires_confirmation?: boolean;
   warnings: DeleteWarning[];
 }
@@ -279,7 +273,6 @@ interface DeletePreviewBase {
 interface DeleteResultBase {
   space_id: string;
   attributive_label: string;
-  mode: "purge" | "unlink";
   purged: boolean;
   unlinked_labels: string[];
   warnings: DeleteWarning[];

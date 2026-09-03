@@ -43,10 +43,9 @@ export function SchemaDeleteConfirmModal({
   onCancel,
   onConfirm
 }: SchemaDeleteConfirmModalProps) {
-  const purge = preview.mode === "purge";
   const rows = summaryRows(preview);
-  const confirmLabel = purge ? "Delete schema & cascade" : "Remove from this space";
-  const busyLabel = purge ? "Deleting…" : "Removing…";
+  const confirmLabel = "Delete schema & cascade";
+  const busyLabel = "Deleting…";
 
   return (
     <ModalBackdrop onClick={busy ? undefined : onCancel}>
@@ -60,21 +59,11 @@ export function SchemaDeleteConfirmModal({
         </h3>
 
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          {purge ? (
-            <>
-              No other space references this schema, so it will be{" "}
-              <strong>permanently deleted</strong> along with everything that depends on it
-              (below). This cannot be undone.
-            </>
-          ) : (
-            <>
-              This schema is shared with other spaces, so the patterns stay intact. It will
-              only be <strong>removed from this space&rsquo;s view</strong>.
-            </>
-          )}
+          This schema will be <strong>permanently deleted</strong> along with everything
+          that depends on it (below). This cannot be undone.
         </p>
 
-        {purge && rows.length ? (
+        {rows.length ? (
           <div className="builderFormFieldset">
             <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
               The following will be deleted:
@@ -99,7 +88,7 @@ export function SchemaDeleteConfirmModal({
           </div>
         ) : null}
 
-        {purge && !rows.length ? (
+        {!rows.length ? (
           <p className="muted" style={{ fontSize: 13 }}>
             Only the schema node itself will be removed; nothing else references it.
           </p>
@@ -128,7 +117,7 @@ export function SchemaDeleteConfirmModal({
           </button>
           <button
             type="button"
-            className={purge ? "btnDanger" : "btnPrimary"}
+            className="btnDanger"
             data-testid="modal-confirm-btn"
             disabled={busy}
             onClick={onConfirm}

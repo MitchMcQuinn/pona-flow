@@ -3,19 +3,13 @@ SCHEMA pattern delete cascade — resolution, preview, and execution.
 
 Deleting a SCHEMA must avoid leaving the three pattern stores out of sync:
 
-- Neo4j (per-space, shared by all public spaces): STEP/SCHEMA/INSTANCE nodes + POINTS_TO.
+- Neo4j (the space's resolved store): STEP/SCHEMA/INSTANCE nodes + POINTS_TO.
 - ``entities`` (per-space SQLite mirror): one row per node/relationship.
 - ``queries`` (catalog ``data.db``): composed Cypher/SQLite/parameter arrays.
 
-Public spaces are filtered views over a shared graph (differentiated by ``spaces.labels``),
-so a delete is resolved against that shared store and then either:
-
-- **purge** — physically remove the schema, its instances, its relationship patterns, and
-  every query/sequence/STEP/state package that references them (when no *other* space still
-  references the affected labels), or
-- **unlink** — leave the patterns physically intact and only remove the affected labels from
-  the active space's ``labels`` array (when other spaces still reference them), emitting a
-  non-blocking warning naming those shared spaces.
+A delete always **purges** — physically removing the schema, its instances, its
+relationship patterns, and every query/sequence/STEP/state package that references
+them — then strips the affected labels from every space's nav index.
 
 The flow is split into a read-only :func:`preview_schema_deletion` (dry run) and
 :func:`execute_schema_deletion` which only mutates when ``confirm=True``.
@@ -45,7 +39,7 @@ def _graph_single_column(space_id: str, cypher: str, params: dict[str, Any], key
 
 def _resolve_graph_targets(space_id: str, attributive_label: str) -> dict[str, Any]:
     """
-    Collect graph-side ids/labels for a SCHEMA delete from the (shared) per-space Neo4j db.
+    Collect graph-side ids/labels for a SCHEMA delete from the space's Neo4j store.
 
     Returns schema node ids, the SCHEMA relationship patterns touching it (id + label),
     instance node ids, instance relationship ids, and the labels of schemas that depend on
@@ -244,13 +238,6 @@ def resolve_schema_deletion(space_id: str, attributive_label: str) -> dict[str, 
 
     all_affected_labels = affected_labels | affected_step_labels
 
-    is_private = spaces.space_is_private(sid)
-    if is_private:
-        shared_spaces: list[dict[str, str]] = []
-    else:
-        shared_spaces = spaces.spaces_referencing_labels(all_affected_labels, exclude_id=sid)
-    mode = "unlink" if shared_spaces else "purge"
-
     # State packages that reference an affected query/sequence id or step label.
     ref_tokens = affected_query_ids | affected_sequence_ids | affected_step_labels
     affected_state: list[dict[str, str]] = []
@@ -263,8 +250,6 @@ def resolve_schema_deletion(space_id: str, attributive_label: str) -> dict[str, 
     return {
         "space_id": sid,
         "attributive_label": al,
-        "is_private": is_private,
-        "mode": mode,
         "affected_labels": sorted(affected_labels, key=str.casefold),
         "relationship_labels": targets["relationship_labels"],
         "schema_node_ids": targets["schema_node_ids"],
@@ -279,27 +264,12 @@ def resolve_schema_deletion(space_id: str, attributive_label: str) -> dict[str, 
         "affected_sequences": affected_sequences,
         "affected_sequence_ids": sorted(affected_sequence_ids),
         "affected_state": affected_state,
-        "shared_spaces": shared_spaces,
-        "unlink_labels": sorted(all_affected_labels, key=str.casefold),
+        "strip_labels": sorted(all_affected_labels, key=str.casefold),
     }
 
 
 def _build_warnings(resolution: dict[str, Any]) -> list[dict[str, Any]]:
     warnings: list[dict[str, Any]] = []
-    shared = resolution["shared_spaces"]
-    if shared:
-        names = ", ".join(s["name"] for s in shared)
-        warnings.append(
-            {
-                "type": "shared_spaces",
-                "blocking": False,
-                "message": (
-                    "The queries affected by this deletion will remain active within "
-                    f"shared spaces: {names}"
-                ),
-                "spaces": shared,
-            }
-        )
     dependents = resolution["dependent_schemas"]
     if dependents:
         joined = ", ".join(dependents)
@@ -325,7 +295,6 @@ def preview_schema_deletion(space_id: str, attributive_label: str) -> dict[str, 
     return {
         "space_id": resolution["space_id"],
         "attributive_label": resolution["attributive_label"],
-        "mode": resolution["mode"],
         "requires_confirmation": True,
         "summary": {
             "instances": len(resolution["instance_ids"]),
@@ -335,7 +304,6 @@ def preview_schema_deletion(space_id: str, attributive_label: str) -> dict[str, 
             "steps": len(resolution["affected_step_ids"]),
             "execution_packages": len(resolution["affected_state"]),
             "dependent_schemas": len(resolution["dependent_schemas"]),
-            "shared_spaces": len(resolution["shared_spaces"]),
         },
         "affected": {
             "labels": resolution["affected_labels"],
@@ -345,14 +313,13 @@ def preview_schema_deletion(space_id: str, attributive_label: str) -> dict[str, 
             "step_labels": resolution["affected_step_labels"],
             "execution_packages": resolution["affected_state"],
             "dependent_schemas": resolution["dependent_schemas"],
-            "shared_spaces": resolution["shared_spaces"],
         },
         "warnings": warnings,
     }
 
 
 def _delete_graph_nodes(space_id: str, attributive_label: str) -> dict[str, int]:
-    """DETACH DELETE the schema and its instances from the shared graph (idempotent)."""
+    """DETACH DELETE the schema and its instances from the space's graph (idempotent)."""
     al = attributive_label
     deleted = 0
     for cypher in (
@@ -422,12 +389,11 @@ def execute_schema_deletion(
     Apply the SCHEMA delete cascade. Requires ``confirm=True`` (callers should show the
     preview first).
 
-    - **unlink** mode: only removes the affected labels from the active space's
-      ``labels`` array; shared spaces keep the patterns/queries.
-    - **purge** mode: removes the schema, instances, relationship patterns, referencing
-      queries/sequences, and orphaned state packages from Neo4j, ``entities``, and the
-      catalog. Steps are ordered graph → entities → catalog; every step is idempotent so
-      a partial failure can be retried by re-running.
+    Always purges: removes the schema, instances, relationship patterns, referencing
+    queries/sequences, and orphaned state packages from Neo4j, ``entities``, and the
+    catalog, then strips the affected labels from every space's nav index. Steps are
+    ordered graph → entities → catalog → labels; every step is idempotent so a partial
+    failure can be retried by re-running.
     """
     if not confirm:
         raise ValueError("confirm must be true to execute a schema deletion")
@@ -439,20 +405,9 @@ def execute_schema_deletion(
     result: dict[str, Any] = {
         "space_id": sid,
         "attributive_label": al,
-        "mode": resolution["mode"],
         "warnings": _build_warnings(resolution),
     }
 
-    # Always unlink the active space's filtered view from the affected labels.
-    unlinked = spaces.remove_space_attributive_labels(sid, resolution["unlink_labels"])
-    result["unlinked_labels"] = unlinked["removed"]
-
-    if resolution["mode"] == "unlink":
-        result["purged"] = False
-        return result
-
-    # purge: physically delete from the shared stores. Graph first (most likely to fail
-    # when Neo4j is unavailable), then the SQLite mirrors.
     result["graph"] = _delete_graph_nodes(sid, al)
     result["entities_deleted"] = delete_entities_rows(
         sid,
@@ -465,5 +420,7 @@ def execute_schema_deletion(
         resolution["affected_query_ids"] + resolution["affected_sequence_ids"],
         [s["id"] for s in resolution["affected_state"]],
     )
+    stripped = spaces.remove_attributive_labels_from_all_spaces(resolution["strip_labels"])
+    result["unlinked_labels"] = stripped.get(sid, [])
     result["purged"] = True
     return result

@@ -45,14 +45,9 @@ async def create_space(
     endpoint = None
     if body.get("endpoint") is not None:
         endpoint = str(body.get("endpoint")).strip() or None
-    labels: list[str] | None = None
-    if body.get("labels") is not None:
-        if not isinstance(body.get("labels"), list):
-            raise bad_request("labels must be an array")
-        labels = [str(i).strip() for i in body["labels"] if str(i).strip()]
     description = str(body.get("description") or "") if body.get("description") is not None else None
     with value_400_domain_500():
-        result = spaces.create_space(name, endpoint, labels, description=description)
+        result = spaces.create_space(name, endpoint, description=description)
     # Seed the space's default roles (Admin/Member); the creator becomes the owner
     # and is assigned the Admin role.
     new_id = str(result.get("id") or "").strip()
@@ -80,12 +75,6 @@ async def update_space(
     endpoint = None
     if body.get("endpoint") is not None:
         endpoint = str(body.get("endpoint")).strip() or None
-    set_labels = "labels" in body
-    labels: list[str] | None = None
-    if set_labels:
-        if body.get("labels") is not None and not isinstance(body.get("labels"), list):
-            raise bad_request("labels must be an array")
-        labels = [str(i).strip() for i in (body.get("labels") or []) if str(i).strip()]
     set_description = "description" in body
     description = str(body.get("description") or "") if set_description else None
     set_dev_mode = "dev_mode" in body
@@ -113,8 +102,6 @@ async def update_space(
             space_id,
             name,
             endpoint,
-            labels,
-            set_labels=set_labels,
             description=description,
             set_description=set_description,
             dev_mode=dev_mode,
@@ -157,12 +144,6 @@ def space_connections(
     auth.require_space_access(principal, sid)
     with domain_500():
         return spaces.space_connections_payload(sid)
-
-
-@router.get("/api/spaces/shared-sequence-labels")
-def shared_sequence_labels(_p: Principal = Depends(auth.current_principal)):
-    with domain_500():
-        return {"labels": spaces.fetch_shared_sequence_labels()}
 
 
 @router.get("/api/space/labels")

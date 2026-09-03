@@ -360,11 +360,9 @@ export function useSequenceNav(options: {
       } else {
         const preview = sequenceDelete.preview;
         if (!preview) return;
-        const result = await executeStepDeletion(state.spaceId, preview.attributive_label);
+        await executeStepDeletion(state.spaceId, preview.attributive_label);
         preview.affected.sequences.forEach((sequence) => deletedIds.add(sequence.id));
-        message = result.purged
-          ? `Sequence "${sequenceDelete.label}" and its dependents were deleted.`
-          : `Sequence "${sequenceDelete.label}" was removed from this space.`;
+        message = `Sequence "${sequenceDelete.label}" and its dependents were deleted.`;
       }
       if (state.nav.selectedSequenceId && deletedIds.has(state.nav.selectedSequenceId)) {
         dispatch({ type: "OPEN_BUILDER" });

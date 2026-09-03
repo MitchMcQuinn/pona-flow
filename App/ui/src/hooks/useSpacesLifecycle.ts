@@ -47,7 +47,7 @@ export function useSpacesLifecycle(options: {
   } | null>(null);
   const [deleteSpaceError, setDeleteSpaceError] = useState<string | null>(null);
   const [deletingSpace, setDeletingSpace] = useState(false);
-  // Shared-sequence labels selected for the active space; the nav only shows sequences
+  // Labels created or imported in the active space; the nav only shows sequences
   // whose attributive_label is in this set. Bumping spaceLabelsVersion refetches after
   // a create/edit that keeps the same space id selected.
   const [activeSpaceLabels, setActiveSpaceLabels] = useState<string[]>([]);
@@ -183,7 +183,7 @@ export function useSpacesLifecycle(options: {
     return result;
   }
 
-  async function handleCreateSpace(values: { name: string; endpoint: string; labels: string[] }) {
+  async function handleCreateSpace(values: { name: string; endpoint: string }) {
     setCreatingSpace(true);
     setCreateSpaceError(null);
     try {
@@ -213,7 +213,6 @@ export function useSpacesLifecycle(options: {
   async function handleUpdateSpace(values: {
     name: string;
     endpoint?: string;
-    labels?: string[];
     description?: string;
     dev_mode?: boolean;
     hide_empty_sequence_groups?: boolean;

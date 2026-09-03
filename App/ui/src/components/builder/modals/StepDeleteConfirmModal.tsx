@@ -40,10 +40,9 @@ export function StepDeleteConfirmModal({
   onCancel,
   onConfirm
 }: StepDeleteConfirmModalProps) {
-  const purge = preview.mode === "purge";
   const rows = summaryRows(preview);
-  const confirmLabel = purge ? "Delete step & cascade" : "Remove from this space";
-  const busyLabel = purge ? "Deleting…" : "Removing…";
+  const confirmLabel = "Delete step & cascade";
+  const busyLabel = "Deleting…";
 
   return (
     <ModalBackdrop onClick={busy ? undefined : onCancel}>
@@ -57,20 +56,11 @@ export function StepDeleteConfirmModal({
         </h3>
 
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          {purge ? (
-            <>
-              This step will be <strong>permanently deleted</strong> along with every
-              sequence that depends on it (below). This cannot be undone.
-            </>
-          ) : (
-            <>
-              This step is shared with other spaces, so the patterns stay intact. It will
-              only be <strong>removed from this space&rsquo;s view</strong>.
-            </>
-          )}
+          This step will be <strong>permanently deleted</strong> along with every sequence
+          that depends on it (below). This cannot be undone.
         </p>
 
-        {purge && rows.length ? (
+        {rows.length ? (
           <div className="builderFormFieldset">
             <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
               The following will be deleted:
@@ -90,7 +80,7 @@ export function StepDeleteConfirmModal({
           </div>
         ) : null}
 
-        {purge && !rows.length ? (
+        {!rows.length ? (
           <p className="muted" style={{ fontSize: 13 }}>
             Only the step itself will be removed; no sequences depend on it.
           </p>
@@ -119,7 +109,7 @@ export function StepDeleteConfirmModal({
           </button>
           <button
             type="button"
-            className={purge ? "btnDanger" : "btnPrimary"}
+            className="btnDanger"
             data-testid="modal-confirm-btn"
             disabled={busy}
             onClick={onConfirm}

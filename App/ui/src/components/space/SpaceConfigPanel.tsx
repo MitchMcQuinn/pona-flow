@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  fetchSharedSequenceLabels,
   fetchSpaceRecord,
   type CreateSpaceInput
 } from "../../services/api";
@@ -14,7 +13,6 @@ import { AgentsPanel } from "../agents/AgentsPanel";
 import { Toggle } from "../builder/Toggle";
 import { CredentialsPanel } from "../credentials/CredentialsPanel";
 import { EmbeddingsPanel } from "../embeddings/EmbeddingsPanel";
-import { SpaceLabelsPicker } from "../modals/SpaceLabelsPicker";
 import { TemplatesPanel } from "../templates/TemplatesPanel";
 import { UsersPanel } from "../users/UsersPanel";
 import { LocalLlmsPanel } from "../localLlms/LocalLlmsPanel";
@@ -139,12 +137,9 @@ export function SpaceConfigPanel({
   const [description, setDescription] = useState("");
   const [devMode, setDevMode] = useState(false);
   const [hideEmptyGroups, setHideEmptyGroups] = useState(false);
-  const [labels, setLabels] = useState<string[]>([]);
   const [recordLoading, setRecordLoading] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [sharedSequenceLabels, setSharedSequenceLabels] = useState<string[]>([]);
-  const [labelsLoading, setLabelsLoading] = useState(false);
 
   const canManageSpace = Boolean(permissions?.manageSpace || me?.isSuperadmin);
 
@@ -161,7 +156,6 @@ export function SpaceConfigPanel({
         setDescription(record.description ?? "");
         setDevMode(Boolean(record.dev_mode));
         setHideEmptyGroups(Boolean(record.hide_empty_sequence_groups));
-        setLabels(record.sequence_labels ?? record.labels ?? []);
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -171,7 +165,6 @@ export function SpaceConfigPanel({
         setDescription("");
         setDevMode(false);
         setHideEmptyGroups(false);
-        setLabels([]);
       })
       .finally(() => {
         if (!cancelled) setRecordLoading(false);
@@ -185,30 +178,12 @@ export function SpaceConfigPanel({
   }, [spaceId]);
 
   useEffect(() => {
-    let cancelled = false;
-    setLabelsLoading(true);
-    fetchSharedSequenceLabels()
-      .then((options) => {
-        if (!cancelled) setSharedSequenceLabels(options);
-      })
-      .catch(() => {
-        if (!cancelled) setSharedSequenceLabels([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLabelsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [spaceId]);
-
-  useEffect(() => {
     if (tab === "audit") onLoadAuditLog();
   }, [tab, onLoadAuditLog]);
 
   useEffect(() => {
     setLocalError(null);
-  }, [name, endpoint, description, labels, devMode, hideEmptyGroups]);
+  }, [name, endpoint, description, devMode, hideEmptyGroups]);
 
   const trimmedName = name.trim();
   const normalizedName = useMemo(() => normalizeSpaceName(trimmedName), [trimmedName]);
@@ -247,7 +222,6 @@ export function SpaceConfigPanel({
     await onSaveSpace({
       name: trimmedName,
       endpoint: endpoint.trim(),
-      labels,
       description: description.trim(),
       dev_mode: devMode,
       hide_empty_sequence_groups: hideEmptyGroups
@@ -412,20 +386,6 @@ export function SpaceConfigPanel({
                   while you drag a sequence so you can still drop into them.
                 </span>
               </div>
-              {!labelsLoading && sharedSequenceLabels.length > 0 ? (
-                <div className="builderRow">
-                  <div className="builderField">
-                    <label>shared sequences (optional)</label>
-                    <SpaceLabelsPicker
-                      options={sharedSequenceLabels}
-                      selected={labels}
-                      onChange={setLabels}
-                      disabled={!canManageSpace || savingSpace || recordLoading}
-                      loading={labelsLoading}
-                    />
-                  </div>
-                </div>
-              ) : null}
             </div>
             <div className="buttonRow">
               <button
