@@ -252,16 +252,18 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
         "Overwrite a saved sequence in place, keeping its id. Use this to change the " +
         "workspace title, the entry step, the traversal mode, the parameters, the loop " +
         "rule, or the description. The wrapping STEP label follows a new title only when " +
-        "that name is free in the graph; otherwise the title still saves. Editing the " +
-        "steps themselves is done with create_step_transition and update_operation — the " +
-        "sequence only names where the run starts and when it stops.",
+        "that name is free in the graph; otherwise the title still saves. A one-step " +
+        "sequence shares its title with the wrapped operation — renaming either updates " +
+        "both. Editing the steps themselves is done with create_step_transition and " +
+        "update_operation — the sequence only names where the run starts and when it stops.",
       inputSchema: {
         sequence_id: z.string().describe("Catalog id from list_operations(kind='sequence')."),
         name: z
           .string()
           .optional()
           .describe(
-            "Workspace title (nav and MCP tool title). The wrapping STEP attributive_label " +
+            "Workspace title (nav and MCP tool title). For a one-step sequence this is " +
+              "also the wrapped operation's name. The wrapping STEP attributive_label " +
               "is updated to match only when this name is not already used in the graph."
           ),
         entry_step: z.string().optional().describe("New entry STEP attributive_label."),
@@ -349,13 +351,14 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
 const STEP_ATTR_LABEL_RE = /:STEP\s*\{[^}]*?attributive_label\s*:\s*['"]([^'"]+)['"]/i;
 
 /** The sequence's entry STEP, from its builder snapshot or, failing that, its saved Cypher. */
-function entryStepFrom(query: QueryObject | undefined, cypher: string[] | undefined): string {
+function entryStepFrom(query: QueryObject | undefined, cypher: string[] | string | undefined): string {
   const fromSnapshot = query?.match?.[0]?.patterns?.[0]?.path?.[0];
   if (fromSnapshot?.kind === "node") {
     const label = (fromSnapshot.node.attributive_label || "").trim();
     if (label) return label;
   }
-  for (const statement of cypher || []) {
+  const statements = typeof cypher === "string" ? [cypher] : cypher || [];
+  for (const statement of statements) {
     const match = STEP_ATTR_LABEL_RE.exec(String(statement ?? ""));
     if (match) return match[1].trim();
   }

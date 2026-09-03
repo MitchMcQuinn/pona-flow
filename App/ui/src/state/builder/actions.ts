@@ -31,6 +31,7 @@ export type BuilderAction =
         kind: string;
         runtimeEnabled: boolean;
         suspended: boolean;
+        cypher?: unknown;
       }>;
     }
   | { type: "SET_SPACE_LABELS"; labels: string[] }
@@ -54,6 +55,8 @@ export type BuilderAction =
       query: QueryObject;
       runtimeEnabled: boolean;
       matchPositions?: MatchNodePositions;
+      originalName?: string;
+      wrapLabel?: string;
     }
   | { type: "EXIT_EDIT_OPERATION" }
   // Edit-relationship mode: open the update-STEP flow locked to a single POINTS_TO relationship

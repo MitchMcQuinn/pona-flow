@@ -279,7 +279,14 @@ function SequenceItem({
   if (indicator === "before") classNames.push("dropBefore");
   if (indicator === "after") classNames.push("dropAfter");
 
-  const showTooltip = hovered && truncated && sequence.id !== drag.draggingId;
+  const warning = sequence.orphaned
+    ? "Orphaned: the entry STEP is missing from the graph. Remove this sequence from the navigation or recreate its step."
+    : sequence.suspended
+      ? "Suspended: a schema change invalidated an INSTANCE step. Re-save the step to restore it."
+      : null;
+  const showTooltip =
+    hovered && sequence.id !== drag.draggingId && (Boolean(warning) || truncated);
+  const tooltipLabel = warning || sequence.label;
 
   return (
     <li
@@ -287,6 +294,9 @@ function SequenceItem({
       className={classNames.join(" ")}
       data-testid="nav-sequence-item"
       data-single-step={sequence.singleStep ? "true" : "false"}
+      data-orphaned={sequence.orphaned ? "true" : "false"}
+      data-suspended={sequence.suspended ? "true" : "false"}
+      title={warning ?? undefined}
       draggable
       onMouseEnter={onItemEnter}
       onMouseLeave={onItemLeave}
@@ -343,7 +353,7 @@ function SequenceItem({
           <DeleteIcon />
         </button>
       </span>
-      {showTooltip ? <SequenceNameTooltip label={sequence.label} anchorRef={itemRef} /> : null}
+      {showTooltip ? <SequenceNameTooltip label={tooltipLabel} anchorRef={itemRef} /> : null}
     </li>
   );
 }

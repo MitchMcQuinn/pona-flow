@@ -15,7 +15,8 @@ import { cypherStatementsForExecution, type QueriesCatalogPayload } from "./pack
 import {
   autoWrapInStep,
   maybeRetargetSequenceWrap,
-  resolveStepWrapAttributiveLabel
+  resolveStepWrapAttributiveLabel,
+  syncOneStepSequenceSharedTitle
 } from "./stepWrapLabel.js";
 import type { AuthoringContext, LoopConfig } from "./types.js";
 
@@ -127,6 +128,9 @@ export async function saveSequencePackage(
  * wrapping STEP attributive_label follows that title only when the name is free in the
  * graph; otherwise the wrap stays put so MATCH Cypher and nested identity stay valid.
  * The sequence's own MATCH is never rewritten from the title — it still names the entry STEP.
+ *
+ * One-step sequences share that title with the wrapped operation: renaming either writes
+ * both catalog rows. Multi-step sequences are unchanged (own wrap, MATCH not rewritten).
  */
 export async function updateSequencePackage(
   ctx: AuthoringContext,
@@ -157,6 +161,19 @@ export async function updateSequencePackage(
     loop_config: normalizeLoopConfig(input.loop)
   };
   const { id: sequenceId } = await connector.upsertQuery(payload);
+  const shared = await syncOneStepSequenceSharedTitle(
+    ctx.spaceId,
+    sequenceId,
+    payload.cypher,
+    title
+  );
+  if (shared) {
+    return {
+      id: sequenceId,
+      wrapRetargeted: shared.retargeted,
+      wrapLabel: shared.wrapLabel
+    };
+  }
   const wrap = await maybeRetargetSequenceWrap(ctx.spaceId, sequenceId, title);
   return {
     id: sequenceId,

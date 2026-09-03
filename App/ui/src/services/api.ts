@@ -90,7 +90,7 @@ type QueriesResponse = {
     group_title?: string | null;
     sort_order?: number | null;
     parameters?: Array<{ name?: string }>;
-    cypher?: string[];
+    cypher?: string[] | string;
     description?: string;
     single_step?: boolean;
   }>;
@@ -401,9 +401,15 @@ export async function executeOperationDeletion(
 //   MATCH (alias:STEP { attributive_label: 'STEP_LABEL' }) RETURN *
 const STEP_ATTR_LABEL_RE = /:STEP\s*\{[^}]*?attributive_label\s*:\s*['"]([^'"]+)['"]/i;
 
-function parseSequenceAttributiveLabel(cypher: string[] | undefined): string {
-  for (const statement of cypher || []) {
-    const match = STEP_ATTR_LABEL_RE.exec(String(statement ?? ""));
+function statementsOf(cypher: string[] | string | undefined): string[] {
+  if (typeof cypher === "string") return cypher.trim() ? [cypher] : [];
+  if (!Array.isArray(cypher)) return [];
+  return cypher.map((statement) => String(statement ?? ""));
+}
+
+function parseSequenceAttributiveLabel(cypher: string[] | string | undefined): string {
+  for (const statement of statementsOf(cypher)) {
+    const match = STEP_ATTR_LABEL_RE.exec(statement);
     if (match) return match[1].trim();
   }
   return "";
@@ -411,22 +417,32 @@ function parseSequenceAttributiveLabel(cypher: string[] | undefined): string {
 
 export async function fetchSequences(): Promise<SequenceSummary[]> {
   const data = await getJson<QueriesResponse>("/api/queries", "Failed to load sequences");
-  return (data.queries || []).map((query, index) => ({
-    id: query.id || `sequence-${index + 1}`,
-    label: query.name || query.id || `Sequence ${index + 1}`,
-    kind:
+  return (data.queries || []).map((query, index) => {
+    const kind =
       query.kind === "system" || query.kind === "sequence" || query.kind === "operation"
         ? query.kind
-        : "operation",
-    attributiveLabel: parseSequenceAttributiveLabel(query.cypher),
-    runtimeEnabled: Boolean(query.runtime_enabled),
-    suspended: Boolean(query.suspended),
-    orphaned: false,
-    groupTitle: query.group_title?.trim() || null,
-    sortOrder: typeof query.sort_order === "number" ? query.sort_order : null,
-    description: typeof query.description === "string" ? query.description : "",
-    singleStep: Boolean(query.single_step)
-  }));
+        : "operation";
+    const parsedLabel = parseSequenceAttributiveLabel(query.cypher);
+    // One-step wraps are named after the wrapping STEP. If Cypher parsing misses
+    // (string vs array), fall back to the catalog name so a just-created wrap is
+    // not treated as having no entry STEP.
+    const attributiveLabel =
+      parsedLabel ||
+      (kind === "sequence" && Boolean(query.single_step) ? String(query.name || "").trim() : "");
+    return {
+      id: query.id || `sequence-${index + 1}`,
+      label: query.name || query.id || `Sequence ${index + 1}`,
+      kind,
+      attributiveLabel,
+      runtimeEnabled: Boolean(query.runtime_enabled),
+      suspended: Boolean(query.suspended),
+      orphaned: false,
+      groupTitle: query.group_title?.trim() || null,
+      sortOrder: typeof query.sort_order === "number" ? query.sort_order : null,
+      description: typeof query.description === "string" ? query.description : "",
+      singleStep: Boolean(query.single_step)
+    };
+  });
 }
 
 /** attributive_labels of STEP nodes that currently exist in the space's graph. */
@@ -458,7 +474,11 @@ export function markOrphanedSequences(
   return sequences.map((sequence) => {
     if (sequence.kind !== "sequence") return { ...sequence, orphaned: false };
     const label = sequence.attributiveLabel.trim();
-    return { ...sequence, orphaned: !label || !stepLabels.has(label) };
+    // An empty label means the MATCH could not be parsed — that is not the same as
+    // "the STEP is missing from the graph", and treating it as orphaned paints
+    // freshly wrapped one-step sequences red.
+    if (!label) return { ...sequence, orphaned: false };
+    return { ...sequence, orphaned: !stepLabels.has(label) };
   });
 }
 
@@ -553,9 +573,7 @@ export async function runSequenceQuery(
 ): Promise<RunResult | null> {
   const data = await getJson<QueriesResponse>("/api/queries", "Failed to load sequence query");
   const query = (data.queries || []).find((entry) => entry.id === sequenceId);
-  const cypher = (query?.cypher || []).filter(
-    (statement) => typeof statement === "string" && statement.trim()
-  );
+  const cypher = statementsOf(query?.cypher).filter((statement) => statement.trim());
   if (!query || cypher.length === 0) {
     return null;
   }

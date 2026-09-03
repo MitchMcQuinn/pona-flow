@@ -347,10 +347,17 @@ export function registerOperationTools(server: McpServer, config: McpConfig): vo
         "preserving the operation id and the graph ids of the entities it creates. " +
         "The catalog name always saves. The wrapping STEP label follows only when the new " +
         "name is free in the graph and no multi-step sequence MATCHES the current wrap label. " +
-        "The paired one-step sequence title always follows the new name.",
+        "The paired one-step sequence title is the same workspace name and always follows.",
       inputSchema: {
         operation_id: z.string().describe("Catalog id from list_operations."),
-        name: z.string().optional(),
+        name: z
+          .string()
+          .optional()
+          .describe(
+            "Workspace title, shared with the paired one-step sequence. The wrapping STEP " +
+              "attributive_label follows only when this name is free and no multi-step " +
+              "sequence MATCHES the current wrap."
+          ),
         description: z.string().optional(),
         group_title: z.string().optional(),
         runtime_enabled: z.boolean().optional(),

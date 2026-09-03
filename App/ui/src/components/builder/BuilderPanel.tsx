@@ -21,8 +21,12 @@ import { BuilderProvider, useBuilder } from "../../state/builder/BuilderContext"
 import { builderSelectors } from "../../state/builder/selectors";
 import {
   DEFAULT_LOOP_CONFIG,
+  catalogNamesTakenForOperationRename,
+  isHydratableBuilderConfig,
   isLoopType,
   loopConfigWarnings,
+  normalizeAttributiveLabel,
+  sanitizeAttributiveLabelInput,
   sequenceEntryPointWarnings
 } from "@pona-flow/authoring";
 import type { LoopComparisonOperator, LoopConfig } from "@pona-flow/authoring";
@@ -31,7 +35,6 @@ import {
   loadStepNodeIntoQuery,
   loadStepRelationshipIntoQuery
 } from "../../state/builder/stepEntityLoad";
-import { isHydratableBuilderConfig } from "@pona-flow/authoring";
 import { AdvancedOptions } from "./AdvancedOptions";
 import { LivePreview } from "./LivePreview";
 import {
@@ -57,7 +60,8 @@ function loadSavedQueries(dispatch: ReturnType<typeof useBuilder>["dispatch"]) {
           operation: r.operation,
           kind: r.kind,
           runtimeEnabled: Boolean(r.runtime_enabled),
-          suspended: Boolean(r.suspended)
+          suspended: Boolean(r.suspended),
+          cypher: r.cypher
         }))
       });
     })
@@ -538,29 +542,6 @@ function BuilderBody({
   const editingSequenceId = state.editSequence?.queryId ?? null;
   const editingOperation = Boolean(state.editOperation);
   const editingOperationId = state.editOperation?.queryId ?? null;
-  const lastEditOpId = useRef<string | null>(null);
-  const pairedOperationTitle = useRef("");
-  const pairedSequenceIds = useRef<Set<string>>(new Set());
-  if (state.editOperation) {
-    if (lastEditOpId.current !== state.editOperation.queryId) {
-      lastEditOpId.current = state.editOperation.queryId;
-      pairedOperationTitle.current = state.query.name.trim().toLowerCase();
-      pairedSequenceIds.current = new Set();
-    }
-    if (pairedSequenceIds.current.size === 0 && pairedOperationTitle.current) {
-      for (const row of state.savedQueries) {
-        if (
-          row.kind === "sequence" &&
-          row.name.trim().toLowerCase() === pairedOperationTitle.current
-        ) {
-          pairedSequenceIds.current.add(row.id);
-        }
-      }
-    }
-  } else {
-    lastEditOpId.current = null;
-    pairedSequenceIds.current = new Set();
-  }
   const [sequenceIdCopied, setSequenceIdCopied] = useState(false);
 
   const copySequenceId = useCallback(async () => {
@@ -639,16 +620,12 @@ function BuilderBody({
 
   const takenCatalogNames = useMemo(
     () =>
-      new Set(
-        state.savedQueries
-          .filter((q) => {
-            if (q.id === editingOperationId) return false;
-            if (pairedSequenceIds.current.has(q.id)) return false;
-            return q.kind === "sequence" || q.kind === "operation";
-          })
-          .map((q) => q.name.trim().toLowerCase())
-          .filter(Boolean)
-      ),
+      catalogNamesTakenForOperationRename({
+        rows: state.savedQueries,
+        operationId: editingOperationId ?? "",
+        wrapLabel: state.editOperation?.wrapLabel ?? "",
+        originalName: state.editOperation?.originalName ?? ""
+      }),
     [state.savedQueries, editingOperationId, state.editOperation]
   );
   const operationNameValid = state.query.name.trim().length > 0;
@@ -789,7 +766,9 @@ function BuilderBody({
               queryId,
               query: { ...config.query, id: queryId, name: pkg.name || config.query.name },
               runtimeEnabled: config.runtimeEnabled ?? true,
-              matchPositions: config.matchPositions
+              matchPositions: config.matchPositions,
+              originalName: (pkg.name || config.query.name || "").trim(),
+              wrapLabel: seed.attributiveLabel
             });
           } else {
             showToast(
@@ -986,7 +965,7 @@ function BuilderBody({
         {editingOperation ? (
           <div className="builderField">
             <div className="createSequenceLabelRow">
-              <label>query name</label>
+              <label>Operation name</label>
               {!operationNameValid ? (
                 <span className="createSequenceRequired">Required</span>
               ) : operationNameTaken ? (
@@ -997,12 +976,17 @@ function BuilderBody({
               value={state.query.name}
               placeholder="Operation name"
               data-testid="builder-operation-name"
-              onChange={(e) => dispatch({ type: "SET_NAME", name: e.target.value })}
+              onChange={(e) =>
+                dispatch({ type: "SET_NAME", name: sanitizeAttributiveLabelInput(e.target.value) })
+              }
+              onBlur={(e) =>
+                dispatch({ type: "SET_NAME", name: normalizeAttributiveLabel(e.target.value) })
+              }
             />
             <span className="createSequenceHint">
-              Workspace title. The graph label updates only when this name is not already used
-              by another STEP or SCHEMA, and no multi-step sequence still matches the current
-              wrap.
+              Workspace title shared with the one-step sequence in the nav. The graph label
+              updates only when this name is not already used by another STEP or SCHEMA, and no
+              multi-step sequence still matches the current wrap.
             </span>
           </div>
         ) : null}

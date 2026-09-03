@@ -180,6 +180,7 @@ export interface BuilderState {
     runtimeEnabled: boolean;
     /** A SCHEMA change invalidated this query; not runnable until re-saved. */
     suspended: boolean;
+    cypher?: unknown;
   }>;
   spaceLabels: string[];
   spaceGroups: string[];
@@ -203,8 +204,10 @@ export interface BuilderState {
    * Set when the builder is editing an existing saved operation (loaded from a query-backed STEP).
    * In this mode the operation/label selects are locked and the bottom actions show a single
    * "Save operation" button that updates the catalog row in place. Null in normal authoring.
+   * `originalName` / `wrapLabel` identify the paired one-step sequence so uniqueness does
+   * not treat the shared title as already taken.
    */
-  editOperation: { queryId: string } | null;
+  editOperation: { queryId: string; originalName: string; wrapLabel: string } | null;
   /**
    * Set when the create-sequence builder is editing an existing sequence (hydrated from its saved
    * `builder_config`). `queryId` is the sequence's catalog id, used to update the row in place.

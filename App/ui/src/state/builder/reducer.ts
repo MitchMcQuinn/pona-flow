@@ -166,7 +166,11 @@ export function builderReducer(state: BuilderState, action: BuilderAction): Buil
         query: action.query,
         runtimeEnabled: action.runtimeEnabled,
         matchPositions: action.matchPositions ?? {},
-        editOperation: { queryId: action.queryId },
+        editOperation: {
+          queryId: action.queryId,
+          originalName: (action.originalName ?? action.query.name ?? "").trim(),
+          wrapLabel: (action.wrapLabel ?? "").trim()
+        },
         editSequence: null,
         lockedStepRelationship: false,
         checks: {},

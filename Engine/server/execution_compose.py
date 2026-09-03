@@ -30,6 +30,7 @@ from . import spaces
 
 # A sequence read query matches its initial STEP node by attributive_label, e.g.
 #   MATCH (alias:STEP { attributive_label: 'STEP_LABEL' }) RETURN *
+# Also accept a single stored string (legacy / non-array cypher column).
 _STEP_ATTR_LABEL_RE = re.compile(
     r":STEP\s*\{[^}]*?attributive_label\s*:\s*['\"]([^'\"]+)['\"]",
     re.IGNORECASE,
@@ -51,9 +52,10 @@ _VALUE_TYPES = (
 _cypher_traverses_downstream = cypher_utils.cypher_traverses_downstream
 
 
-def _parse_initial_step_label(cypher: list[Any]) -> str | None:
+def _parse_initial_step_label(cypher: Any) -> str | None:
     """Return the attributive_label of the first STEP node matched in a query package."""
-    for stmt in cypher or []:
+    statements = cypher if isinstance(cypher, list) else [cypher] if isinstance(cypher, str) else []
+    for stmt in statements:
         match = _STEP_ATTR_LABEL_RE.search(str(stmt or ""))
         if match:
             return match.group(1).strip()

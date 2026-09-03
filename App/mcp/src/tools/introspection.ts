@@ -222,8 +222,9 @@ export function registerIntrospectionTools(server: McpServer, config: McpConfig)
 //   MATCH (alias:STEP { attributive_label: 'STEP_LABEL' }) RETURN *
 const STEP_ATTR_LABEL_RE = /:STEP\s*\{[^}]*?attributive_label\s*:\s*['"]([^'"]+)['"]/i;
 
-function parseSequenceEntryLabel(cypher: string[] | undefined): string {
-  for (const statement of cypher || []) {
+function parseSequenceEntryLabel(cypher: string[] | string | undefined): string {
+  const statements = typeof cypher === "string" ? [cypher] : cypher || [];
+  for (const statement of statements) {
     const match = STEP_ATTR_LABEL_RE.exec(String(statement ?? ""));
     if (match) return match[1].trim();
   }

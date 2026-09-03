@@ -110,8 +110,13 @@ describe("sequence: lifecycle", () => {
     cy.get("#space-selector", { timeout: 20_000 }).should("have.value", E2E_SPACE_ID);
 
     cy.contains(".sequenceBtnLabel", GOLDEN_SEQUENCE_NAME, { timeout: 60_000 })
-      .closest(".sequenceItem")
-      .should("have.class", "orphaned");
+      .closest('[data-testid="nav-sequence-item"]')
+      .should("have.class", "orphaned")
+      .and("have.attr", "data-orphaned", "true")
+      .trigger("mouseenter");
+    cy.get('[data-testid="nav-sequence-tooltip"]', { timeout: 5_000 })
+      .should("be.visible")
+      .and("contain.text", "Orphaned");
 
     cy.deleteSequenceInNav(GOLDEN_SEQUENCE_NAME, "nav");
   });
@@ -124,10 +129,22 @@ describe("sequence: lifecycle", () => {
     cy.saveBuilderOperation(GOLDEN_READ_OPERATION);
 
     cy.get('[data-testid="nav-single-step-heading"]', { timeout: 60_000 }).should("be.visible");
+    cy.contains(
+      '[data-testid="nav-sequence-item"][data-single-step="true"] .sequenceBtnLabel',
+      GOLDEN_READ_OPERATION
+    )
+      .closest('[data-testid="nav-sequence-item"]')
+      .should("not.have.class", "orphaned")
+      .and("not.have.class", "suspended");
     cy.selectSingleStepInNav(GOLDEN_READ_OPERATION);
 
     cy.editSingleStepInNav(GOLDEN_READ_OPERATION);
-    cy.get('[data-testid="builder-operation-name"]').should("have.value", GOLDEN_READ_OPERATION);
+    cy.get('[data-testid="builder-operation-name"]')
+      .should("have.value", GOLDEN_READ_OPERATION)
+      .parents(".builderField")
+      .first()
+      .should("not.contain.text", "Already used");
+    cy.get('[data-testid="builder-save-operation-btn"]').should("not.be.disabled");
 
     cy.get('[data-testid="builder-operation-name"]').clear().type("READ_PERSON_RENAMED");
     cy.get('[data-testid="builder-save-operation-btn"]').should("not.be.disabled").click();

@@ -56,7 +56,11 @@ export function nextRelVariable(): string {
 
 export function localId(prefix = "q"): string {
   idCounter += 1;
-  return `${prefix}-${Date.now().toString(36)}-${idCounter}`;
+  const rand =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID().replace(/-/g, "").slice(0, 8)
+      : Math.random().toString(36).slice(2, 10);
+  return `${prefix}-${Date.now().toString(36)}-${idCounter}-${rand}`;
 }
 
 export function newNodePattern(): NodePattern {

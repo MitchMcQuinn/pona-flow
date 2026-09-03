@@ -28,6 +28,15 @@ export function isHydratableBuilderConfig(
   return Boolean(query) && typeof query === "object";
 }
 
+/** Copy a catalog title onto a stored builder snapshot's ``query.name``. */
+export function withCatalogQueryName(config: unknown, name: string): unknown {
+  if (!isHydratableBuilderConfig(config)) return config;
+  return {
+    ...config,
+    query: { ...config.query, name }
+  };
+}
+
 /**
  * Synthesize the builder snapshot for a one-step sequence that wraps a single STEP node by
  * its `attributive_label`. Auto-wrapped sequences (see `autoWrapInSequence`) compose their read

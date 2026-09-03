@@ -1,9 +1,14 @@
 import { composer } from "@pona-flow/composer";
 import { connector } from "@pona-flow/connector";
-import { oneStepSequenceBuilderConfig } from "./builderConfig.js";
+import {
+  isHydratableBuilderConfig,
+  oneStepSequenceBuilderConfig,
+  withCatalogQueryName
+} from "./builderConfig.js";
 import {
   cypherTraversesDownstream,
-  sequenceReferencesStepLabel
+  pairedOneStepSequences,
+  sequenceStepLabels
 } from "./sequenceCypher.js";
 import { nextUniqueAttributiveLabel, shouldRetargetOperationWrap, shouldRetargetSequenceWrap } from "./uniqueAttributiveLabel.js";
 
@@ -137,6 +142,86 @@ export async function maybeRetargetSequenceWrap(
   }
 }
 
+async function operationIdForStepLabel(
+  spaceId: string,
+  attributiveLabel: string
+): Promise<string> {
+  const label = attributiveLabel.trim();
+  if (!spaceId || !label) return "";
+  try {
+    const nodes = await connector.fetchGraphNodesByLabel({ spaceId, nodeLabel: "STEP" });
+    const matches = nodes.filter((node) => (node.attributive_label || "").trim() === label);
+    const row =
+      matches.find((node) => (node.sequencial_properties?.query_id || "").trim()) ?? matches[0];
+    return (row?.sequencial_properties?.query_id || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+async function syncPairedOperationTitle(opts: {
+  spaceId: string;
+  operationId: string;
+  title: string;
+}): Promise<void> {
+  const pkg = await connector.fetchQueryPackage(opts.operationId);
+  const rows = await connector.fetchSavedQueries();
+  const meta = rows.find((row) => row.id === opts.operationId);
+  const snapshot = pkg.builder_config;
+  const operation = (
+    meta?.operation ||
+    (isHydratableBuilderConfig(snapshot) ? snapshot.query.operation : "") ||
+    "read"
+  ).trim();
+  await connector.upsertQuery({
+    id: opts.operationId,
+    name: opts.title,
+    kind: "operation",
+    operation,
+    runtime_enabled: meta ? Boolean(meta.runtime_enabled) : true,
+    author_selectable: true,
+    group_title: pkg.group_title || undefined,
+    space_id: opts.spaceId,
+    cypher: Array.isArray(pkg.cypher) ? pkg.cypher : [],
+    sqlite: Array.isArray(pkg.sqlite) ? pkg.sqlite : [],
+    parameters: pkg.parameters ?? [],
+    description: pkg.description,
+    builder_config: withCatalogQueryName(snapshot, opts.title)
+  });
+}
+
+/**
+ * When a one-step sequence title changes, write the same title onto the wrapped
+ * operation and run the operation wrap retarget (which also rewrites this sequence's
+ * MATCH if the STEP label moves). Returns null when this sequence is not a one-step
+ * operation wrap, so the caller can fall through to sequence-wrap retarget.
+ */
+export async function syncOneStepSequenceSharedTitle(
+  spaceId: string,
+  sequenceId: string,
+  sequenceCypher: unknown,
+  title: string
+): Promise<SequenceWrapRetargetResult | null> {
+  const name = title.trim();
+  if (!name || cypherTraversesDownstream(sequenceCypher)) return null;
+  const entryLabel = sequenceStepLabels(sequenceCypher)[0] || "";
+  const operationId = await operationIdForStepLabel(spaceId, entryLabel);
+  if (!operationId || operationId === sequenceId) return null;
+  try {
+    const rows = await connector.fetchSavedQueries();
+    const meta = rows.find((row) => row.id === operationId);
+    if (meta && meta.kind !== "operation") return null;
+  } catch {
+    return null;
+  }
+  try {
+    await syncPairedOperationTitle({ spaceId, operationId, title: name });
+  } catch {
+    // Title sync is best-effort; the sequence catalog row already saved.
+  }
+  return maybeRetargetOperationWrap(spaceId, operationId, name);
+}
+
 async function syncPairedOneStepSequence(opts: {
   spaceId: string;
   sequenceId: string;
@@ -198,17 +283,12 @@ export async function maybeRetargetOperationWrap(
   }
   const matchLabel = current;
   const rows = await connector.fetchSavedQueries();
-  const paired = rows.filter(
-    (row) =>
-      row.kind === "sequence" &&
-      !cypherTraversesDownstream(row.cypher) &&
-      sequenceReferencesStepLabel(row.cypher, matchLabel)
-  );
+  const paired = pairedOneStepSequences(rows, matchLabel);
   const multiStepReferencesWrap = rows.some(
     (row) =>
       row.kind === "sequence" &&
       cypherTraversesDownstream(row.cypher) &&
-      sequenceReferencesStepLabel(row.cypher, matchLabel)
+      sequenceStepLabels(row.cypher).includes(matchLabel)
   );
   let taken = true;
   if (wrapId && name) {

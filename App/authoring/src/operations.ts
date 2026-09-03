@@ -23,8 +23,7 @@ import { autoWrapInSequence, type SequencePackageResult } from "./sequences.js";
 import {
   autoWrapInStep,
   maybeRetargetOperationWrap,
-  resolveStepWrapAttributiveLabel,
-  stepWrapEntityId
+  resolveStepWrapAttributiveLabel
 } from "./stepWrapLabel.js";
 import {
   GRAPH_NODE_LABELS,
@@ -82,8 +81,9 @@ export async function resaveOperationFromConfig(
  *
  * The catalog ``name`` is the workspace title and always saves. The wrapping STEP
  * attributive_label follows only when that name is free in the graph and no multi-step
- * sequence MATCHES the current wrap label. The paired one-step sequence title always
- * syncs to the new name; its MATCH Cypher is rewritten only when the wrap retargets.
+ * sequence MATCHES the current wrap label. The paired one-step sequence title is the
+ * same workspace name and always syncs; its MATCH Cypher is rewritten only when the
+ * wrap retargets.
  */
 export async function updateQueryOperation(ctx: AuthoringContext): Promise<SequencePackageResult> {
   if (!ctx.spaceId) {
@@ -127,16 +127,21 @@ export async function saveQueryOperation(
     throw new Error("Select a space before creating an operation.");
   }
   const spaceId = ctx.spaceId;
-  const ownEntityId = await stepWrapEntityId(spaceId, ctx.query.id);
-  const wrapName = spaceId
-    ? await resolveStepWrapAttributiveLabel(spaceId, input.name, ownEntityId || undefined)
-    : input.name.trim();
-  const catalog = buildQueriesCatalogPayload(ctx, input.runtimeEnabled, {
-    name: wrapName,
-    description: input.description
-  });
-  const { id: operationId } = await connector.upsertQuery(catalog);
-  await autoWrapInStep(spaceId, operationId, catalog.name);
+  // Always mint a catalog id on create. Reusing the builder's `query.id` overwrites
+  // the previous operation (ON CONFLICT) and retargets its wrap STEP, which orphans
+  // the one-step sequence that was just filed in the nav.
+  const operationId = await connector.generateQueryId();
+  const wrapName = await resolveStepWrapAttributiveLabel(spaceId, input.name);
+  const catalog = buildQueriesCatalogPayload(
+    { ...ctx, query: { ...ctx.query, id: operationId } },
+    input.runtimeEnabled,
+    {
+      name: wrapName,
+      description: input.description
+    }
+  );
+  const { id: savedId } = await connector.upsertQuery(catalog);
+  await autoWrapInStep(spaceId, savedId, catalog.name);
   const addAsSequence = input.addAsSequence !== false;
   if (addAsSequence) {
     const wrapped = await autoWrapInSequence(
@@ -145,9 +150,9 @@ export async function saveQueryOperation(
       input.groupTitle,
       input.description
     );
-    return { id: operationId, sequenceId: wrapped.id || undefined };
+    return { id: savedId, sequenceId: wrapped.id || undefined };
   }
-  return { id: operationId };
+  return { id: savedId };
 }
 
 /**
