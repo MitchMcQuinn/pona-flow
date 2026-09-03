@@ -132,3 +132,19 @@ export function buildStepLabelOptions(
 export function excludeSequenceStepOptions(options: StepLabelOption[]): StepLabelOption[] {
   return options.filter((option) => option.kind !== "sequence");
 }
+
+/**
+ * Picker display text for a STEP attributive_label. Kind annotations (operation /
+ * endpoint / sequence) disambiguate overlapping labels in the match builder.
+ * Sequence authoring already excludes nested sequences, so the kind suffix is omitted
+ * there; a suspended backing query is still called out.
+ */
+export function formatStepOptionLabel(
+  option: StepLabelOption,
+  annotateKind: boolean
+): string {
+  if (!annotateKind) {
+    return option.suspended ? `${option.value}  (suspended)` : option.value;
+  }
+  return `${option.value}  (${option.kind}${option.suspended ? " · suspended" : ""})`;
+}

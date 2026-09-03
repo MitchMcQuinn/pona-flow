@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   buildStepLabelOptions,
   excludeSequenceStepOptions,
+  formatStepOptionLabel,
   intersectGraphLabelsWithCatalog
 } from "../../../state/builder/attributiveLabelOptions";
 import { useBuilder } from "../../../state/builder/BuilderContext";
@@ -49,9 +50,9 @@ export function MatchAttributiveLabelField({
       .then((rows) => {
         if (cancelled) return;
         setGraphUnavailable(false);
-        // STEP labels can collide across raw endpoints, operations, and sequences, so
-        // annotate each with its resolved kind to disambiguate. Other node labels
-        // (SCHEMA/INSTANCE) have no kind, so show their plain attributive_label.
+        // STEP labels can collide across raw endpoints, operations, and sequences.
+        // Sequence authoring excludes nested sequences, so the picker shows the
+        // attributive_label alone. Other match flows still annotate kind.
         if (fetchLabel === "STEP") {
           let stepOptions = buildStepLabelOptions(
             rows,
@@ -59,12 +60,11 @@ export function MatchAttributiveLabelField({
             state.savedQueries,
             requireSpaceCatalog
           );
-          // Nested sequences are not runnable, so don't offer them while building one.
           if (createSequenceMode) stepOptions = excludeSequenceStepOptions(stepOptions);
           setOptions(
             stepOptions.map((opt) => ({
               value: opt.value,
-              label: `${opt.value}  (${opt.kind}${opt.suspended ? " · suspended" : ""})`
+              label: formatStepOptionLabel(opt, !createSequenceMode)
             }))
           );
           return;

@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 const { isRunnableEndpointStepCreate } = await import(
   "../App/authoring/src/matchMode.ts"
 );
-const { buildStepLabelOptions } = await import(
+const { buildStepLabelOptions, formatStepOptionLabel } = await import(
   "../App/ui/src/state/builder/attributiveLabelOptions.ts"
 );
 
@@ -107,6 +107,22 @@ const filtered = buildStepLabelOptions(rows, ["SEND_TO_TEST_FLOW"], savedQueries
 assert.deepEqual(
   filtered.map((o) => o.value),
   ["SEND_TO_TEST_FLOW"]
+);
+
+assert.equal(
+  formatStepOptionLabel({ value: "DO_OPERATION", kind: "operation" }, true),
+  "DO_OPERATION  (operation)",
+  "match-builder STEP picker still annotates kind"
+);
+assert.equal(
+  formatStepOptionLabel({ value: "DO_OPERATION", kind: "operation" }, false),
+  "DO_OPERATION",
+  "sequence authoring omits the operation kind suffix"
+);
+assert.equal(
+  formatStepOptionLabel({ value: "DO_OPERATION", kind: "operation", suspended: true }, false),
+  "DO_OPERATION  (suspended)",
+  "sequence authoring still flags a suspended backing query"
 );
 
 console.log("endpoint-step-runnable: ok");
