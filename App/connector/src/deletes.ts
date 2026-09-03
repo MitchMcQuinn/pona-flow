@@ -9,6 +9,8 @@
 
 import { requestJson } from "./http.js";
 import type {
+  OperationDeletePreview,
+  OperationDeleteResult,
   SchemaDeletePreview,
   SchemaDeleteResult,
   StepDeletePreview,
@@ -72,5 +74,40 @@ export async function executeStepDeletion(
     },
     apiBase,
     errorLabel: "deleting step",
+  });
+}
+
+/** Dry-run deleting an operation + one-step wrap (suspends multi-step dependents). */
+export async function previewOperationDeletion(
+  opts: { spaceId: string; operationId?: string; sequenceId?: string },
+  apiBase?: string
+): Promise<OperationDeletePreview> {
+  return requestJson<OperationDeletePreview>("/api/operation/delete/preview", {
+    method: "POST",
+    body: {
+      space_id: opts.spaceId,
+      operation_id: opts.operationId || "",
+      sequence_id: opts.sequenceId || "",
+    },
+    apiBase,
+    errorLabel: "previewing operation deletion",
+  });
+}
+
+/** Delete an operation, its wrap STEP, and one-step sequences; suspend multi-step dependents. */
+export async function executeOperationDeletion(
+  opts: { spaceId: string; operationId?: string; sequenceId?: string },
+  apiBase?: string
+): Promise<OperationDeleteResult> {
+  return requestJson<OperationDeleteResult>("/api/operation/delete", {
+    method: "POST",
+    body: {
+      space_id: opts.spaceId,
+      operation_id: opts.operationId || "",
+      sequence_id: opts.sequenceId || "",
+      confirm: true,
+    },
+    apiBase,
+    errorLabel: "deleting operation",
   });
 }

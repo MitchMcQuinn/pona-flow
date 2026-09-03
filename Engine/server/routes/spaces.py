@@ -98,6 +98,16 @@ async def update_space(
             dev_mode = bool(raw_dev_mode)
         else:
             raise bad_request("dev_mode must be a boolean")
+    set_hide_empty = "hide_empty_sequence_groups" in body
+    hide_empty = False
+    if set_hide_empty:
+        raw_hide_empty = body.get("hide_empty_sequence_groups")
+        if isinstance(raw_hide_empty, bool):
+            hide_empty = raw_hide_empty
+        elif raw_hide_empty in (0, 1):
+            hide_empty = bool(raw_hide_empty)
+        else:
+            raise bad_request("hide_empty_sequence_groups must be a boolean")
     with value_400_domain_500():
         return spaces.update_space(
             space_id,
@@ -109,6 +119,8 @@ async def update_space(
             set_description=set_description,
             dev_mode=dev_mode,
             set_dev_mode=set_dev_mode,
+            hide_empty_sequence_groups=hide_empty,
+            set_hide_empty_sequence_groups=set_hide_empty,
         )
 
 

@@ -41,10 +41,32 @@ Cypress.Commands.add(
 );
 
 Cypress.Commands.add("selectSequenceInNav", (sequenceLabel: string) => {
-  cy.contains(".sequenceBtnLabel", sequenceLabel).click();
-  cy.contains(".sequenceBtnLabel", sequenceLabel)
+  cy.contains(
+    '[data-testid="nav-sequence-item"][data-single-step="false"] .sequenceBtnLabel',
+    sequenceLabel
+  ).click();
+  cy.contains(
+    '[data-testid="nav-sequence-item"][data-single-step="false"] .sequenceBtnLabel',
+    sequenceLabel
+  )
     .closest(".sequenceItem")
     .should("have.class", "active");
+});
+
+Cypress.Commands.add("selectSingleStepInNav", (sequenceLabel: string) => {
+  cy.contains(
+    '[data-testid="nav-sequence-item"][data-single-step="true"] .sequenceBtnLabel',
+    sequenceLabel
+  ).click();
+  cy.contains(
+    '[data-testid="nav-sequence-item"][data-single-step="true"] .sequenceBtnLabel',
+    sequenceLabel
+  )
+    .closest(".sequenceItem")
+    .should("have.class", "active");
+  cy.contains("h2", "Parameters", { timeout: 20_000 }).should("be.visible");
+  cy.get('[data-testid="topbar-run-btn"]').should("be.visible");
+  cy.get("main.layoutResizable").should("have.class", "layoutVizHidden");
 });
 
 Cypress.Commands.add("runSelectedSequence", () => {

@@ -81,3 +81,8 @@ export function flattenNavGroups(groups: NavGroup[]): SequenceSummary[] {
 export function reindexSequences(sequences: SequenceSummary[]): SequenceSummary[] {
   return sequences.map((sequence, index) => ({ ...sequence, sortOrder: index }));
 }
+
+/** True when a nav row is a one-step (synthetic) sequence wrap around a single STEP. */
+export function isSingleStepSequence(sequence: SequenceSummary): boolean {
+  return sequence.kind === "sequence" && Boolean(sequence.singleStep);
+}

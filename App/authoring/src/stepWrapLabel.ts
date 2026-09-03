@@ -1,6 +1,11 @@
 import { composer } from "@pona-flow/composer";
 import { connector } from "@pona-flow/connector";
-import { nextUniqueAttributiveLabel, shouldRetargetSequenceWrap } from "./uniqueAttributiveLabel.js";
+import { oneStepSequenceBuilderConfig } from "./builderConfig.js";
+import {
+  cypherTraversesDownstream,
+  sequenceReferencesStepLabel
+} from "./sequenceCypher.js";
+import { nextUniqueAttributiveLabel, shouldRetargetOperationWrap, shouldRetargetSequenceWrap } from "./uniqueAttributiveLabel.js";
 
 /**
  * Resolve the attributive_label for an auto-wrapped STEP node. When the requested
@@ -130,4 +135,122 @@ export async function maybeRetargetSequenceWrap(
   } catch {
     return { retargeted: false, wrapLabel: current };
   }
+}
+
+async function syncPairedOneStepSequence(opts: {
+  spaceId: string;
+  sequenceId: string;
+  title: string;
+  wrapLabel: string;
+  rewriteMatch: boolean;
+}): Promise<void> {
+  const pkg = await connector.fetchQueryPackage(opts.sequenceId);
+  const cypher = opts.rewriteMatch
+    ? [composer.composeOneStepSequenceCypher({ name: opts.wrapLabel })].filter(
+        (stmt): stmt is string => Boolean(stmt)
+      )
+    : pkg.cypher;
+  const builder_config = opts.rewriteMatch
+    ? oneStepSequenceBuilderConfig(opts.sequenceId, opts.wrapLabel)
+    : pkg.builder_config;
+  await connector.upsertQuery({
+    id: opts.sequenceId,
+    name: opts.title,
+    kind: "sequence",
+    operation: "read",
+    runtime_enabled: true,
+    author_selectable: true,
+    triggerable: true,
+    group_title: pkg.group_title || undefined,
+    space_id: opts.spaceId,
+    cypher,
+    sqlite: pkg.sqlite ?? [],
+    parameters: pkg.parameters ?? [],
+    description: pkg.description,
+    builder_config,
+    loop_config: pkg.loop_config
+  });
+}
+
+/**
+ * Follow an operation title change onto the wrapping STEP when that label is free
+ * and no multi-step sequence MATCHES the current wrap label.
+ *
+ * The paired one-step sequence catalog title always follows the new name. If the wrap
+ * retargets, that one-step MATCH / builder_config is rewritten to the new label.
+ * Multi-step sequences are never rewritten.
+ */
+export async function maybeRetargetOperationWrap(
+  spaceId: string,
+  operationId: string,
+  requestedName: string
+): Promise<SequenceWrapRetargetResult> {
+  const name = requestedName.trim();
+  const wrapId = await stepWrapEntityId(spaceId, operationId);
+  let current = "";
+  if (wrapId) {
+    try {
+      const nodes = await connector.fetchGraphNodesByLabel({ spaceId, nodeLabel: "STEP" });
+      current = (nodes.find((node) => node.id === wrapId)?.attributive_label || "").trim();
+    } catch {
+      current = "";
+    }
+  }
+  const matchLabel = current;
+  const rows = await connector.fetchSavedQueries();
+  const paired = rows.filter(
+    (row) =>
+      row.kind === "sequence" &&
+      !cypherTraversesDownstream(row.cypher) &&
+      sequenceReferencesStepLabel(row.cypher, matchLabel)
+  );
+  const multiStepReferencesWrap = rows.some(
+    (row) =>
+      row.kind === "sequence" &&
+      cypherTraversesDownstream(row.cypher) &&
+      sequenceReferencesStepLabel(row.cypher, matchLabel)
+  );
+  let taken = true;
+  if (wrapId && name) {
+    try {
+      taken = await connector.checkAttributiveLabelExists({
+        spaceId,
+        attributiveLabel: name,
+        excludeId: wrapId
+      });
+    } catch {
+      taken = true;
+    }
+  }
+  const retarget = shouldRetargetOperationWrap({
+    requestedName: name,
+    wrapEntityId: wrapId,
+    currentWrapLabel: current,
+    labelTakenByOther: taken,
+    multiStepReferencesWrap
+  });
+  let wrapLabel = current;
+  if (retarget) {
+    try {
+      await autoWrapInStep(spaceId, operationId, name);
+      wrapLabel = name;
+    } catch {
+      wrapLabel = current;
+    }
+  }
+  const rewriteMatch = Boolean(retarget && wrapLabel === name);
+  for (const seq of paired) {
+    try {
+      await syncPairedOneStepSequence({
+        spaceId,
+        sequenceId: seq.id,
+        title: name,
+        wrapLabel: rewriteMatch ? name : matchLabel,
+        rewriteMatch
+      });
+    } catch {
+      // Title/cypher sync is best-effort; the operation catalog row already saved.
+    }
+  }
+  return { retargeted: rewriteMatch, wrapLabel };
 }

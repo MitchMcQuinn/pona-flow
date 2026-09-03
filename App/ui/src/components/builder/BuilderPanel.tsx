@@ -101,7 +101,15 @@ function refreshSpaceLabels(
 
 // Bottom actions while editing a saved operation (loaded from a query-backed STEP): a single
 // "Save operation" button that recompiles the edited query and updates the catalog row in place.
-function EditOperationActions({ onNavRefresh }: { onNavRefresh?: () => void }) {
+function EditOperationActions({
+  onNavRefresh,
+  nameValid,
+  nameTaken
+}: {
+  onNavRefresh?: () => void;
+  nameValid: boolean;
+  nameTaken: boolean;
+}) {
   const { state, dispatch } = useBuilder();
   const { showToast } = useToast();
   const [busy, setBusy] = useState(false);
@@ -111,7 +119,7 @@ function EditOperationActions({ onNavRefresh }: { onNavRefresh?: () => void }) {
     setBusy(true);
     dispatch({ type: "SET_STATUS", message: "Saving operation…", kind: "info" });
     try {
-      await updateQueryOperation(state);
+      const result = await updateQueryOperation(state);
       loadSavedQueries(dispatch);
       dispatch({ type: "DATA_CHANGED" });
       // Re-saving an INSTANCE operation against the current SCHEMA can lift the suspension on it
@@ -119,7 +127,19 @@ function EditOperationActions({ onNavRefresh }: { onNavRefresh?: () => void }) {
       // clears immediately, without requiring a manual reload.
       onNavRefresh?.();
       dispatch({ type: "SET_STATUS", message: "Operation saved", kind: "ok" });
-      showToast("Operation updated.");
+      const title = state.query.name.trim();
+      if (
+        result.wrapLabel &&
+        result.wrapLabel !== title &&
+        result.wrapRetargeted === false
+      ) {
+        showToast(
+          `Title saved. Graph label remains ${result.wrapLabel} because the new name is already used or a multi-step sequence still matches it.`,
+          "info"
+        );
+      } else {
+        showToast("Operation updated.");
+      }
     } catch (error) {
       dispatch({
         type: "SET_STATUS",
@@ -138,7 +158,7 @@ function EditOperationActions({ onNavRefresh }: { onNavRefresh?: () => void }) {
           type="button"
           className="btnPrimary"
           data-testid="builder-save-operation-btn"
-          disabled={!canSave || busy}
+          disabled={!canSave || busy || !nameValid || nameTaken}
           onClick={onSave}
         >
           {busy ? "Saving…" : "Save operation"}
@@ -213,22 +233,24 @@ function MutationRunActions({
     setSavingOp(true);
     dispatch({ type: "SET_STATUS", message: "Saving operation…", kind: "info" });
     try {
-      const result = await saveQueryOperation(state, values);
+      const result = await saveQueryOperation(state, {
+        name: values.name,
+        groupTitle: values.groupTitle,
+        description: values.description,
+        runtimeEnabled: true,
+        addAsSequence: true
+      });
       loadSavedQueries(dispatch);
       if (state.spaceId) {
         refreshSpaceLabels(state.spaceId, dispatch);
       }
       dispatch({ type: "DATA_CHANGED" });
       regenerateQueryIdAfterOperationSave(dispatch);
-      if (values.addAsSequence && result.sequenceId) {
+      if (result.sequenceId) {
         onSequenceCreated?.(result.sequenceId);
       }
       setShowCreateModal(false);
-      showToast(
-        values.addAsSequence
-          ? "Operation saved to catalog as a one-step sequence."
-          : "Operation saved to catalog."
-      );
+      showToast("Operation saved to catalog as a one-step sequence.");
     } catch (error) {
       dispatch({
         type: "SET_STATUS",
@@ -276,7 +298,6 @@ function MutationRunActions({
         <CreateOperationModal
           saving={savingOp}
           initialName={state.query.name}
-          initialRuntimeEnabled={state.runtimeEnabled}
           existingGroups={state.spaceGroups}
           takenSequenceNames={state.savedQueries
             .filter((q) => q.kind === "sequence" && q.id !== state.query.id)
@@ -515,6 +536,31 @@ function BuilderBody({
   const editSessionRef = useRef(Boolean(editSeed));
   const editingSequence = Boolean(state.editSequence);
   const editingSequenceId = state.editSequence?.queryId ?? null;
+  const editingOperation = Boolean(state.editOperation);
+  const editingOperationId = state.editOperation?.queryId ?? null;
+  const lastEditOpId = useRef<string | null>(null);
+  const pairedOperationTitle = useRef("");
+  const pairedSequenceIds = useRef<Set<string>>(new Set());
+  if (state.editOperation) {
+    if (lastEditOpId.current !== state.editOperation.queryId) {
+      lastEditOpId.current = state.editOperation.queryId;
+      pairedOperationTitle.current = state.query.name.trim().toLowerCase();
+      pairedSequenceIds.current = new Set();
+    }
+    if (pairedSequenceIds.current.size === 0 && pairedOperationTitle.current) {
+      for (const row of state.savedQueries) {
+        if (
+          row.kind === "sequence" &&
+          row.name.trim().toLowerCase() === pairedOperationTitle.current
+        ) {
+          pairedSequenceIds.current.add(row.id);
+        }
+      }
+    }
+  } else {
+    lastEditOpId.current = null;
+    pairedSequenceIds.current = new Set();
+  }
   const [sequenceIdCopied, setSequenceIdCopied] = useState(false);
 
   const copySequenceId = useCallback(async () => {
@@ -590,6 +636,26 @@ function BuilderBody({
   const sequenceNameTaken =
     sequenceNameValid && takenSequenceNames.has(sequenceName.trim().toLowerCase());
   const sequenceGroupValid = sequenceGroupTitle.trim().length > 0;
+
+  const takenCatalogNames = useMemo(
+    () =>
+      new Set(
+        state.savedQueries
+          .filter((q) => {
+            if (q.id === editingOperationId) return false;
+            if (pairedSequenceIds.current.has(q.id)) return false;
+            return q.kind === "sequence" || q.kind === "operation";
+          })
+          .map((q) => q.name.trim().toLowerCase())
+          .filter(Boolean)
+      ),
+    [state.savedQueries, editingOperationId, state.editOperation]
+  );
+  const operationNameValid = state.query.name.trim().length > 0;
+  const operationNameTaken =
+    editingOperation &&
+    operationNameValid &&
+    takenCatalogNames.has(state.query.name.trim().toLowerCase());
   const loopWarnings = useMemo(
     () => (createSequenceMode ? loopConfigWarnings(sequenceLoop) : []),
     [createSequenceMode, sequenceLoop]
@@ -721,7 +787,7 @@ function BuilderBody({
             dispatch({
               type: "ENTER_EDIT_OPERATION",
               queryId,
-              query: config.query,
+              query: { ...config.query, id: queryId, name: pkg.name || config.query.name },
               runtimeEnabled: config.runtimeEnabled ?? true,
               matchPositions: config.matchPositions
             });
@@ -885,7 +951,9 @@ function BuilderBody({
               ? editingSequence
                 ? "Edit sequence"
                 : "Create a sequence"
-              : "Builder"}
+              : editingOperation
+                ? "Edit operation"
+                : "Builder"}
           </strong>
           {editingSequence && editingSequenceId ? (
             <button
@@ -913,6 +981,30 @@ function BuilderBody({
             initialGroup={editSeed?.groupTitle ?? ""}
             editing={editingSequence}
           />
+        ) : null}
+
+        {editingOperation ? (
+          <div className="builderField">
+            <div className="createSequenceLabelRow">
+              <label>query name</label>
+              {!operationNameValid ? (
+                <span className="createSequenceRequired">Required</span>
+              ) : operationNameTaken ? (
+                <span className="createSequenceRequired">Already used</span>
+              ) : null}
+            </div>
+            <input
+              value={state.query.name}
+              placeholder="Operation name"
+              data-testid="builder-operation-name"
+              onChange={(e) => dispatch({ type: "SET_NAME", name: e.target.value })}
+            />
+            <span className="createSequenceHint">
+              Workspace title. The graph label updates only when this name is not already used
+              by another STEP or SCHEMA, and no multi-step sequence still matches the current
+              wrap.
+            </span>
+          </div>
         ) : null}
 
         {createSequenceMode ? (
@@ -960,7 +1052,11 @@ function BuilderBody({
           onSequenceCreated={onSequenceCreated}
         />
       ) : state.editOperation ? (
-        <EditOperationActions onNavRefresh={onNavRefresh} />
+        <EditOperationActions
+          onNavRefresh={onNavRefresh}
+          nameValid={operationNameValid}
+          nameTaken={Boolean(operationNameTaken)}
+        />
       ) : (
         <>
           <MutationRunActions onResult={onResult} onSequenceCreated={onSequenceCreated} />

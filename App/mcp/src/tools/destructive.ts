@@ -110,8 +110,9 @@ export function registerDestructiveTools(server: McpServer, config: McpConfig): 
       description:
         "Remove a saved catalog package. A sequence is unlinked from the navigation, leaving " +
         "its STEP nodes intact so other sequences that share them keep working. An operation " +
-        "is inseparable from the STEP node wrapping it, so deleting one runs the STEP cascade " +
-        "— which is why the preview matters. Two-phase in both cases.",
+        "deletes its wrapping STEP and one-step sequence wrap; multi-step sequences that " +
+        "MATCH that STEP are suspended (not deleted) until they are resaved. Two-phase in " +
+        "both cases.",
       inputSchema: {
         operation_id: z.string().describe("Catalog id from list_operations."),
         ...confirmArg,
@@ -149,27 +150,26 @@ export function registerDestructiveTools(server: McpServer, config: McpConfig): 
           return { ok: true, confirmed: true, result };
         }
 
-        // An operation's wrapping STEP carries its catalog name as the attributive_label.
-        const label = row.name;
+        // An operation's wrapping STEP is deleted with it. Multi-step sequences that MATCH
+        // the wrap stay in the catalog but are suspended.
         if (!confirm_token) {
-          const preview = await connector.previewStepDeletion({
+          const preview = await connector.previewOperationDeletion({
             spaceId,
-            attributiveLabel: label,
+            operationId: operation_id,
           });
           return {
             ok: true,
             confirmed: false,
-            cascades_through_step: label,
             preview,
             confirm_token: issueConfirmation("delete_operation", spaceId, operation_id),
           };
         }
         redeemConfirmation(confirm_token, "delete_operation", spaceId, operation_id);
-        const result = await connector.executeStepDeletion({
+        const result = await connector.executeOperationDeletion({
           spaceId,
-          attributiveLabel: label,
+          operationId: operation_id,
         });
-        return { ok: true, confirmed: true, cascades_through_step: label, result };
+        return { ok: true, confirmed: true, result };
       })
   );
 

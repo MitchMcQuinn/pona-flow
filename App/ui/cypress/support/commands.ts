@@ -67,8 +67,8 @@ declare global {
         property: string;
         paramName: string;
       }): Chainable<void>;
-      /** Save the current builder query as a catalog operation (auto-wraps a STEP). */
-      saveBuilderOperation(operationName: string): Chainable<void>;
+      /** Save the current builder query as a one-step sequence (auto-wraps a STEP). */
+      saveBuilderOperation(operationName: string, groupTitle?: string): Chainable<void>;
       /** Open the nav sequence creator (read/STEP builder). */
       openSequenceCreator(): Chainable<void>;
       /** Build and save a one-step sequence that matches an existing STEP label. */
@@ -79,6 +79,8 @@ declare global {
       }): Chainable<void>;
       /** Select a sequence in the left navigation panel. */
       selectSequenceInNav(sequenceLabel: string): Chainable<void>;
+      /** Select a one-step sequence: params/run view, no results panel. */
+      selectSingleStepInNav(sequenceLabel: string): Chainable<void>;
       /** Run the currently selected sequence from the top bar. */
       runSelectedSequence(): Chainable<void>;
 
@@ -101,11 +103,15 @@ declare global {
       // --- nav (commands/nav.ts) ---
       /** Open the selected sequence in the builder for visual editing. */
       editSequenceInNav(sequenceLabel: string): Chainable<void>;
+      /** Open a one-step sequence's wrapped operation in the operation editor. */
+      editSingleStepInNav(sequenceLabel: string): Chainable<void>;
       /** Delete a sequence from the nav ("nav" = remove only, "cascade" = full delete). */
       deleteSequenceInNav(
         sequenceLabel: string,
         mode?: SequenceDeleteMode
       ): Chainable<void>;
+      /** Delete a one-step sequence wrap (operation + STEP; suspends multi-step dependents). */
+      deleteSingleStepInNav(sequenceLabel: string): Chainable<void>;
       /** Create a navigation group via the inline add-group control. */
       addNavGroup(title: string): Chainable<void>;
       /** Open the space configuration panel from the navigation gear. */

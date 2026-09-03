@@ -307,7 +307,13 @@ export function QueryRunActions({
     setSavingOp(true);
     dispatch({ type: "SET_STATUS", message: "Saving operation…", kind: "info" });
     try {
-      const result = await saveQueryOperation(state, values);
+      const result = await saveQueryOperation(state, {
+        name: values.name,
+        groupTitle: values.groupTitle,
+        description: values.description,
+        runtimeEnabled: true,
+        addAsSequence: true
+      });
       onQueriesReload();
       if (state.spaceId) {
         const labels = await connector.fetchSpaceLabels(state.spaceId);
@@ -315,15 +321,11 @@ export function QueryRunActions({
       }
       dispatch({ type: "DATA_CHANGED" });
       regenerateQueryIdAfterOperationSave(dispatch);
-      if (values.addAsSequence && result.sequenceId) {
+      if (result.sequenceId) {
         onSequenceCreated?.(result.sequenceId);
       }
       setShowCreateModal(false);
-      showToast(
-        values.addAsSequence
-          ? "Operation saved to catalog as a one-step sequence."
-          : "Operation saved to catalog."
-      );
+      showToast("Operation saved to catalog as a one-step sequence.");
     } catch (error) {
       dispatch({
         type: "SET_STATUS",
@@ -377,6 +379,10 @@ export function QueryRunActions({
         <CreateOperationModal
           saving={savingOp}
           existingGroups={state.spaceGroups}
+          takenSequenceNames={state.savedQueries
+            .filter((q) => q.kind === "sequence" && q.id !== state.query.id)
+            .map((q) => q.name.trim().toLowerCase())
+            .filter(Boolean)}
           onCancel={() => !savingOp && setShowCreateModal(false)}
           onSave={onCreateOperationSave}
         />

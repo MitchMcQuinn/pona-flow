@@ -276,7 +276,10 @@ export function registerOperationTools(server: McpServer, config: McpConfig): vo
         add_as_sequence: z
           .boolean()
           .optional()
-          .describe("Also wrap the STEP node in a runnable one-step sequence."),
+          .describe(
+            "Wrap the STEP node in a runnable one-step sequence. Defaults to true; the " +
+              "visual builder always wraps. Pass false to save a STEP-only building block."
+          ),
         execute: z
           .boolean()
           .optional()
@@ -307,7 +310,7 @@ export function registerOperationTools(server: McpServer, config: McpConfig): vo
         const saved = await saveQueryOperation(ctx, {
           name: args.name,
           runtimeEnabled: ctx.runtimeEnabled,
-          addAsSequence: args.add_as_sequence,
+          addAsSequence: args.add_as_sequence !== false,
           groupTitle: args.group_title,
           description: args.description,
         });
@@ -342,7 +345,9 @@ export function registerOperationTools(server: McpServer, config: McpConfig): vo
         "starting point, so omitted intent arguments keep their current values only when you " +
         "pass `query`; supplying intent arguments rebuilds the package from scratch while " +
         "preserving the operation id and the graph ids of the entities it creates. " +
-        "The wrapping STEP node and any sequences referencing it are untouched.",
+        "The catalog name always saves. The wrapping STEP label follows only when the new " +
+        "name is free in the graph and no multi-step sequence MATCHES the current wrap label. " +
+        "The paired one-step sequence title always follows the new name.",
       inputSchema: {
         operation_id: z.string().describe("Catalog id from list_operations."),
         name: z.string().optional(),
@@ -390,7 +395,7 @@ export function registerOperationTools(server: McpServer, config: McpConfig): vo
           query = { ...(base as QueryObject) };
         }
         query.id = operationId;
-        if (args.name) query.name = args.name.trim();
+        query.name = (args.name ?? pkg.name ?? query.name ?? "").trim();
 
         const ctx: AuthoringContext = {
           spaceId,
@@ -408,7 +413,12 @@ export function registerOperationTools(server: McpServer, config: McpConfig): vo
             description: args.description,
           });
         }
-        return { ok: true, operation_id: result.id };
+        return {
+          ok: true,
+          operation_id: result.id,
+          wrap_retargeted: result.wrapRetargeted ?? false,
+          wrap_label: result.wrapLabel || "",
+        };
       })
   );
 }

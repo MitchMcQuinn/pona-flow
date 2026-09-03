@@ -141,8 +141,8 @@ already taken.
 
 | Tool | Effect |
 |---|---|
-| `create_operation` | Saves a package to the catalog and auto-wraps it in a STEP node. `execute=true` also runs it. |
-| `update_operation` | Recompiles and overwrites a package in place, keeping its id and its STEP wrapper. |
+| `create_operation` | Saves a package to the catalog, auto-wraps it in a STEP node, and (by default) a one-step sequence. The visual builder always wraps; agents can pass `add_as_sequence=false`. `execute=true` also runs it. |
+| `update_operation` | Recompiles and overwrites a package in place. The catalog name always saves; the wrap STEP label follows only when the name is free and no multi-step sequence MATCHES the current wrap. Returns `wrap_retargeted` / `wrap_label`. |
 | `create_step_transition` | Writes a `POINTS_TO` edge between two existing STEP nodes, optionally conditional. |
 | `create_sequence` | Saves a runnable sequence starting at an existing STEP node. |
 | `update_sequence` | Overwrites a sequence in place (title, entry step, traversal, parameters, description). The wrap STEP label follows a new title only when that name is free in the graph. |
@@ -157,8 +157,10 @@ hatch for shapes the flat arguments cannot express, such as multi-hop paths — 
 
 **Naming is normalized, not rejected.** Attributive labels and property keys are UPPER_SNAKE.
 An agent writing `email address` gets `EMAIL_ADDRESS` rather than a validation error, which
-mirrors the builder rewriting the field as you type. Operation *names* are free text; the
-wrapping STEP takes the name verbatim, with a numeric suffix if it collides.
+mirrors the builder rewriting the field as you type. Operation *names* are free text. On create,
+the wrapping STEP takes the name verbatim, with a numeric suffix if it collides. On update, the
+catalog title always saves; the wrap label follows only when that name is free and no multi-step
+sequence MATCHES the current wrap.
 
 **Saving is not running.** A create package *describes* nodes; it materializes them only when
 it runs. Pass `execute=true` to `create_operation` when the SCHEMA or INSTANCE should exist
@@ -171,7 +173,7 @@ package.
 |---|---|
 | `delete_step` | The STEP node, its edges, the operation it wraps, and every sequence through it. |
 | `delete_schema` | The SCHEMA, its instances, and the operations bound to it. |
-| `delete_operation` | A sequence unlinks from the nav; an operation runs the STEP cascade above. |
+| `delete_operation` | A sequence unlinks from the nav. An operation deletes its wrap STEP and one-step sequence; multi-step sequences that MATCH that STEP are suspended, not deleted. |
 
 Each refuses to write on its first call. It returns the `/preview` blast radius and a
 `confirm_token`; only a second call carrying that token performs the deletion. Tokens are

@@ -33,6 +33,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from . import config
+from . import cypher_utils
 from . import spaces
 from . import sqlite_util
 
@@ -340,11 +341,12 @@ def fetch_saved_queries() -> list[dict[str, Any]]:
                 cypher = json.loads(row[7] or "[]")
             except json.JSONDecodeError:
                 cypher = []
+            kind = row[2]
             rows.append(
                 {
                     "id": row[0],
                     "name": row[1],
-                    "kind": row[2],
+                    "kind": kind,
                     "operation": row[3],
                     "runtime_enabled": int(row[4] or 0),
                     "author_selectable": int(row[5] or 0),
@@ -353,6 +355,8 @@ def fetch_saved_queries() -> list[dict[str, Any]]:
                     "sort_order": row[8],
                     "description": row[9] or "",
                     "suspended": int(row[10] or 0),
+                    "single_step": (kind or "") == "sequence"
+                    and not cypher_utils.cypher_traverses_downstream(cypher),
                 }
             )
         return rows

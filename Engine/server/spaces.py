@@ -72,6 +72,7 @@ def get_space_row(space_id: str) -> sqlite3.Row:
     """Load one row from catalog ``spaces``; raise if unknown id."""
     with catalog_db() as conn:
         _ensure_spaces_dev_mode_column(conn)
+        _ensure_spaces_hide_empty_groups_column(conn)
         cur = conn.execute("SELECT * FROM spaces WHERE id = ?", (space_id,))
         row = cur.fetchone()
         if row is None:
@@ -529,6 +530,13 @@ def _space_dev_mode_from_row(row: sqlite3.Row) -> bool:
         return False
 
 
+def _space_hide_empty_groups_from_row(row: sqlite3.Row) -> bool:
+    try:
+        return bool(row["hide_empty_sequence_groups"])
+    except (KeyError, IndexError):
+        return False
+
+
 def append_space_attributive_labels(
     space_id: str, attributive_labels: Iterable[str]
 ) -> dict[str, Any]:
@@ -575,6 +583,7 @@ _SPACES_COLUMN_MIGRATIONS = (
     ("groups", "TEXT NOT NULL DEFAULT '{\"groups\":[]}'"),
     ("is_private", "INTEGER NOT NULL DEFAULT 0"),
     ("dev_mode", "INTEGER NOT NULL DEFAULT 0"),
+    ("hide_empty_sequence_groups", "INTEGER NOT NULL DEFAULT 0"),
     ("description", "TEXT NOT NULL DEFAULT ''"),
     ("embeddings_config", "TEXT NOT NULL DEFAULT '{}'"),
 )
@@ -602,6 +611,13 @@ def _ensure_spaces_is_private_column(conn: sqlite3.Connection) -> None:
 def _ensure_spaces_dev_mode_column(conn: sqlite3.Connection) -> None:
     """Add catalog ``spaces.dev_mode`` flag (0 = off, 1 = on)."""
     sqlite_util.ensure_column(conn, "spaces", "dev_mode", "INTEGER NOT NULL DEFAULT 0")
+
+
+def _ensure_spaces_hide_empty_groups_column(conn: sqlite3.Connection) -> None:
+    """Add catalog ``spaces.hide_empty_sequence_groups`` flag (0 = show empty groups)."""
+    sqlite_util.ensure_column(
+        conn, "spaces", "hide_empty_sequence_groups", "INTEGER NOT NULL DEFAULT 0"
+    )
 
 
 def _ensure_spaces_description_column(conn: sqlite3.Connection) -> None:
@@ -1013,6 +1029,7 @@ def create_space(
         _ensure_spaces_groups_column(conn)
         _ensure_spaces_is_private_column(conn)
         _ensure_spaces_dev_mode_column(conn)
+        _ensure_spaces_hide_empty_groups_column(conn)
         _ensure_spaces_description_column(conn)
         if _space_name_exists(conn, sid):
             raise ValueError(f"Space name already exists: {sid!r}")
@@ -1064,7 +1081,7 @@ def create_space(
 
 def fetch_space_record(space_id: str) -> dict[str, Any]:
     """
-    Return id, name, endpoint, labels, sequence_labels, is_private, and dev_mode.
+    Return id, name, endpoint, labels, sequence_labels, is_private, and UI flags.
 
     ``labels`` is the full stored view (sequence labels plus the inherited STEP/SCHEMA
     closure). ``sequence_labels`` is the user-selectable subset (the labels that are the
@@ -1084,6 +1101,7 @@ def fetch_space_record(space_id: str) -> dict[str, Any]:
         "sequence_labels": sequence_labels,
         "is_private": _space_is_private_from_row(row),
         "dev_mode": _space_dev_mode_from_row(row),
+        "hide_empty_sequence_groups": _space_hide_empty_groups_from_row(row),
         "description": _space_description_from_row(row),
     }
 
@@ -1111,6 +1129,8 @@ def update_space(
     set_description: bool = False,
     dev_mode: bool | None = None,
     set_dev_mode: bool = False,
+    hide_empty_sequence_groups: bool | None = None,
+    set_hide_empty_sequence_groups: bool = False,
 ) -> dict[str, Any]:
     """
     Update a catalog ``spaces`` row (name, endpoint, and optionally labels).
@@ -1118,7 +1138,8 @@ def update_space(
     Renaming recomputes ``id`` and all connection env-key columns from the normalized
     name, matching :func:`create_space`. When ``set_labels`` is true, ``labels`` must
     be shared sequences (queries.kind = 'sequence'). ``dev_mode`` is the builder flag
-    that surfaces composed Cypher and SQLite previews.
+    that surfaces composed Cypher and SQLite previews. ``hide_empty_sequence_groups``
+    hides named nav groups that currently hold no sequences.
     """
     sid = (space_id or "").strip()
     if not sid:
@@ -1134,6 +1155,7 @@ def update_space(
         _ensure_spaces_groups_column(conn)
         _ensure_spaces_is_private_column(conn)
         _ensure_spaces_dev_mode_column(conn)
+        _ensure_spaces_hide_empty_groups_column(conn)
         _ensure_spaces_description_column(conn)
         cur = conn.execute("SELECT id FROM spaces WHERE id = ?", (sid,))
         if cur.fetchone() is None:
@@ -1183,6 +1205,11 @@ def update_space(
             dev_mode_val = bool(dev_mode)
             assignments.append("dev_mode = ?")
             params.append(1 if dev_mode_val else 0)
+        hide_empty_val: bool | None = None
+        if set_hide_empty_sequence_groups:
+            hide_empty_val = bool(hide_empty_sequence_groups)
+            assignments.append("hide_empty_sequence_groups = ?")
+            params.append(1 if hide_empty_val else 0)
         params.append(sid)
         conn.execute(
             f"UPDATE spaces SET {', '.join(assignments)} WHERE id = ?",
@@ -1200,6 +1227,8 @@ def update_space(
             result["description"] = description_val or ""
         if set_dev_mode:
             result["dev_mode"] = bool(dev_mode_val)
+        if set_hide_empty_sequence_groups:
+            result["hide_empty_sequence_groups"] = bool(hide_empty_val)
         return result
 
 

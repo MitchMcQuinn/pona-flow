@@ -34,3 +34,19 @@ export function shouldRetargetSequenceWrap(opts: {
   if (name === (opts.currentWrapLabel || "").trim()) return false;
   return !opts.labelTakenByOther;
 }
+
+/**
+ * Operation wrap retarget: same as the sequence hybrid, plus a gate that keeps the wrap
+ * put when a multi-step sequence MATCHES the current wrap label (those queries bind by
+ * attributive_label, so renaming the node would break them).
+ */
+export function shouldRetargetOperationWrap(opts: {
+  requestedName: string;
+  wrapEntityId: string;
+  currentWrapLabel: string;
+  labelTakenByOther: boolean;
+  multiStepReferencesWrap: boolean;
+}): boolean {
+  if (opts.multiStepReferencesWrap) return false;
+  return shouldRetargetSequenceWrap(opts);
+}

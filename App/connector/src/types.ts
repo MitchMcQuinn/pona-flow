@@ -9,6 +9,9 @@ export interface SavedQueryRow {
   author_selectable: number;
   /** 1 when a SCHEMA change invalidated this query and it cannot run until re-saved. */
   suspended?: number;
+  /** True when this sequence's Cypher matches a single STEP (no downstream walk). */
+  single_step?: boolean;
+  cypher?: string[];
 }
 
 /** One catalog query's full package, including the declarative builder snapshot. */
@@ -280,6 +283,32 @@ interface DeleteResultBase {
   purged: boolean;
   unlinked_labels: string[];
   warnings: DeleteWarning[];
+  entities_deleted?: number;
+  catalog?: { queries_deleted: number; state_deleted: number };
+  graph?: { nodes_deleted: number };
+}
+
+export interface OperationDeletePreview {
+  space_id: string;
+  operation_id: string;
+  operation_name: string;
+  attributive_label: string;
+  requires_confirmation: boolean;
+  one_step_sequences: Array<{ id: string; name: string }>;
+  multi_step_sequences: Array<{ id: string; name: string }>;
+  summary: {
+    one_step_sequences: number;
+    multi_step_sequences: number;
+    execution_packages: number;
+  };
+}
+
+export interface OperationDeleteResult {
+  space_id: string;
+  operation_id: string;
+  attributive_label: string;
+  one_step_deleted: string[];
+  multi_step_suspended: string[];
   entities_deleted?: number;
   catalog?: { queries_deleted: number; state_deleted: number };
   graph?: { nodes_deleted: number };

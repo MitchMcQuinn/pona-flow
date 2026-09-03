@@ -134,10 +134,10 @@ fixtures are in `cypress/support/constants.ts`.
 | `builder.ts` | operation/label segment, attributive-label picker, schema props, `runBuilderCreate`, `createSchemaNode` |
 | `instance.ts` | `createInstanceNode` |
 | `operation.ts` | `configureReadInstanceMatch`, `configureReadInstanceParamFilter`, `saveBuilderOperation` |
-| `sequence.ts` | `openSequenceCreator`, `createSequenceFromStep`, `selectSequenceInNav`, `runSelectedSequence` |
+| `sequence.ts` | `openSequenceCreator`, `createSequenceFromStep`, `selectSequenceInNav`, `selectSingleStepInNav`, `runSelectedSequence` |
 | `update.ts` | `updateInstanceMatch`, `setInstanceProperty`, `addSchemaPropertyUpdate`, `confirmSchemaUpdate` |
 | `delete.ts` | `deleteSchema`, `deleteStep` |
-| `nav.ts` | `editSequenceInNav`, `deleteSequenceInNav`, `addNavGroup`, `openSpaceSettings` |
+| `nav.ts` | `editSequenceInNav`, `editSingleStepInNav`, `deleteSequenceInNav`, `deleteSingleStepInNav`, `addNavGroup`, `openSpaceSettings` |
 | `event.ts` | `openEventCreator`, `fillTimeEvent`, `fillExternalEvent`, `saveEvent`, `deleteEventInNav` |
 | `run.ts` | `triggerSequenceRun`, `fillSequenceParam`, `expectAwaitingParams`, `expectRunSuccess` |
 | `graph.ts` | `clickGraphNode`, `clickGraphRelationship`, `expectGraphNodeAffected` |

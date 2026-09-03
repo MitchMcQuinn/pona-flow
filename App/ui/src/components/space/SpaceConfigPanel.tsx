@@ -17,6 +17,7 @@ import { EmbeddingsPanel } from "../embeddings/EmbeddingsPanel";
 import { SpaceLabelsPicker } from "../modals/SpaceLabelsPicker";
 import { TemplatesPanel } from "../templates/TemplatesPanel";
 import { UsersPanel } from "../users/UsersPanel";
+import { LocalLlmsPanel } from "../localLlms/LocalLlmsPanel";
 import "../builder/builder.css";
 
 type SpaceConfigTab =
@@ -26,6 +27,7 @@ type SpaceConfigTab =
   | "credentials"
   | "embeddings"
   | "templates"
+  | "localLlms"
   | "audit";
 
 interface SpaceConfigPanelProps {
@@ -136,6 +138,7 @@ export function SpaceConfigPanel({
   const [endpoint, setEndpoint] = useState("");
   const [description, setDescription] = useState("");
   const [devMode, setDevMode] = useState(false);
+  const [hideEmptyGroups, setHideEmptyGroups] = useState(false);
   const [labels, setLabels] = useState<string[]>([]);
   const [recordLoading, setRecordLoading] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
@@ -157,6 +160,7 @@ export function SpaceConfigPanel({
         setEndpoint(record.endpoint ?? "");
         setDescription(record.description ?? "");
         setDevMode(Boolean(record.dev_mode));
+        setHideEmptyGroups(Boolean(record.hide_empty_sequence_groups));
         setLabels(record.sequence_labels ?? record.labels ?? []);
       })
       .catch((error: unknown) => {
@@ -166,6 +170,7 @@ export function SpaceConfigPanel({
         setEndpoint("");
         setDescription("");
         setDevMode(false);
+        setHideEmptyGroups(false);
         setLabels([]);
       })
       .finally(() => {
@@ -203,7 +208,7 @@ export function SpaceConfigPanel({
 
   useEffect(() => {
     setLocalError(null);
-  }, [name, endpoint, description, labels, devMode]);
+  }, [name, endpoint, description, labels, devMode, hideEmptyGroups]);
 
   const trimmedName = name.trim();
   const normalizedName = useMemo(() => normalizeSpaceName(trimmedName), [trimmedName]);
@@ -244,7 +249,8 @@ export function SpaceConfigPanel({
       endpoint: endpoint.trim(),
       labels,
       description: description.trim(),
-      dev_mode: devMode
+      dev_mode: devMode,
+      hide_empty_sequence_groups: hideEmptyGroups
     });
   }
 
@@ -318,6 +324,16 @@ export function SpaceConfigPanel({
               Templates
             </button>
           ) : null}
+          {canManageSpace ? (
+            <button
+              type="button"
+              className={tab === "localLlms" ? "active" : undefined}
+              data-testid="space-tab-local-llms"
+              onClick={() => setTab("localLlms")}
+            >
+              Local LLMs
+            </button>
+          ) : null}
           <button
             type="button"
             className={tab === "audit" ? "active" : undefined}
@@ -383,6 +399,19 @@ export function SpaceConfigPanel({
                   Show composed Cypher and SQLite previews in the builder.
                 </span>
               </div>
+              <div className="builderRowFlags">
+                <Toggle
+                  checked={hideEmptyGroups}
+                  onChange={setHideEmptyGroups}
+                  label="hide empty sequence groups"
+                  id="space-hide-empty-groups-toggle"
+                  disabled={!canManageSpace || savingSpace || recordLoading}
+                />
+                <span className="muted">
+                  Hide named groups that currently have no sequences. Empty groups reappear
+                  while you drag a sequence so you can still drop into them.
+                </span>
+              </div>
               {!labelsLoading && sharedSequenceLabels.length > 0 ? (
                 <div className="builderRow">
                   <div className="builderField">
@@ -443,6 +472,14 @@ export function SpaceConfigPanel({
 
         {tab === "templates" && canManageSpace ? (
           <TemplatesPanel spaceId={spaceId} />
+        ) : null}
+
+        {tab === "localLlms" && canManageSpace ? (
+          <LocalLlmsPanel
+            spaceId={spaceId}
+            embedded
+            onClose={() => setTab("settings")}
+          />
         ) : null}
 
         {tab === "audit" ? (

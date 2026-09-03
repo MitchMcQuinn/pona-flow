@@ -7,7 +7,7 @@ import json
 from fastapi import APIRouter, Depends, Request
 from fastapi.exceptions import HTTPException
 
-from .. import auth, catalog, config, schema_workflow, spaces
+from .. import auth, catalog, config, operation_delete, schema_workflow, spaces
 from ..auth import Principal
 from ..http_utils import (
     bad_request,
@@ -105,6 +105,13 @@ async def queries_upsert(
         released = schema_workflow.refresh_after_operation_save(space_id)
         if released is not None:
             result["suspension"] = released
+    # Resaving a sequence lifts an operation-delete suspension. Schema-drift is then
+    # re-evaluated so a still-broken INSTANCE chain goes back to red.
+    if space_id and kind == "sequence":
+        catalog.set_sequences_suspended([row_id], False)
+        released = schema_workflow.refresh_after_sequence_save(space_id, row_id)
+        if released is not None:
+            result["suspension"] = released
     return result
 
 
@@ -158,6 +165,44 @@ async def sequence_delete(
     auth.require_space_access(principal, space_id)
     with value_400_domain_500():
         return catalog.delete_sequence(sequence_id)
+
+
+@router.post("/api/operation/delete/preview")
+async def operation_delete_preview(
+    request: Request, principal: Principal = Depends(auth.current_principal)
+):
+    """Dry-run: delete the operation + one-step wrap, suspend multi-step dependents."""
+    body = await json_body(request)
+    space_id = require_body_space_id(body)
+    operation_id = str(body.get("operation_id") or "").strip()
+    sequence_id = str(body.get("sequence_id") or "").strip()
+    if not operation_id and not sequence_id:
+        raise bad_request("operation_id or sequence_id is required")
+    auth.require_flow(principal, space_id, "delete", "STEP")
+    with value_400_domain_500():
+        return operation_delete.preview_operation_deletion(
+            space_id, operation_id or None, sequence_id or None
+        )
+
+
+@router.post("/api/operation/delete")
+async def operation_delete_execute(
+    request: Request, principal: Principal = Depends(auth.current_principal)
+):
+    """Delete the operation, wrap STEP, and one-step sequences; suspend multi-step dependents."""
+    body = await json_body(request)
+    space_id = require_body_space_id(body)
+    operation_id = str(body.get("operation_id") or "").strip()
+    sequence_id = str(body.get("sequence_id") or "").strip()
+    if not operation_id and not sequence_id:
+        raise bad_request("operation_id or sequence_id is required")
+    if not bool(body.get("confirm") or False):
+        raise bad_request("confirm must be true to execute an operation deletion")
+    auth.require_flow(principal, space_id, "delete", "STEP")
+    with value_400_domain_500():
+        return operation_delete.execute_operation_deletion(
+            space_id, operation_id or None, sequence_id or None, confirm=True
+        )
 
 
 @router.post("/api/queries/reorder")

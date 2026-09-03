@@ -16,7 +16,8 @@ import "../builder/builder.css";
 
 interface LocalLlmsPanelProps {
   spaceId: string | null;
-  onClose: () => void;
+  onClose?: () => void;
+  embedded?: boolean;
 }
 
 const OPTION_KEYS = [
@@ -127,7 +128,11 @@ function payloadFromDraft(draft: Draft): LocalLlmConfigInput {
 /**
  * Manage named local Ollama configs for the current space (list + editor + test run).
  */
-export function LocalLlmsPanel({ spaceId, onClose }: LocalLlmsPanelProps) {
+export function LocalLlmsPanel({
+  spaceId,
+  onClose,
+  embedded = false
+}: LocalLlmsPanelProps) {
   const [configs, setConfigs] = useState<LocalLlmConfig[]>([]);
   const [models, setModels] = useState<string[]>([]);
   const [healthLine, setHealthLine] = useState("checking Ollama…");
@@ -290,14 +295,25 @@ export function LocalLlmsPanel({ spaceId, onClose }: LocalLlmsPanelProps) {
   const showEditor = isNew || Boolean(selected);
 
   if (!spaceId) {
+    if (embedded) {
+      return (
+        <>
+          <h3>Local LLMs</h3>
+          <p className="muted">Select a space to manage local LLM configs.</p>
+        </>
+      );
+    }
+
     return (
       <div className="panel configPanel">
         <div className="panel__body">
           <div className="rbacHeaderRow">
             <h3>Local LLMs</h3>
-            <button type="button" onClick={onClose}>
-              Close
-            </button>
+            {onClose ? (
+              <button type="button" onClick={onClose}>
+                Close
+              </button>
+            ) : null}
           </div>
           <p className="muted">Select a space to manage local LLM configs.</p>
         </div>
@@ -305,224 +321,221 @@ export function LocalLlmsPanel({ spaceId, onClose }: LocalLlmsPanelProps) {
     );
   }
 
-  return (
-    <div className="panel configPanel localLlmsPanel">
-      <div className="panel__body">
-        <div className="rbacHeaderRow">
-          <div>
-            <h3>Local LLMs</h3>
-            <p className="muted localLlmsHealth">{healthLine}</p>
-          </div>
+  const content = (
+    <>
+      <div className="rbacHeaderRow">
+        <div>
+          <h3>Local LLMs</h3>
+          <p className="muted localLlmsHealth">{healthLine}</p>
+        </div>
+        {!embedded && onClose ? (
           <button type="button" onClick={onClose}>
             Close
           </button>
-        </div>
-        <p className="muted">
-          Named Ollama setups for Local LLM steps. At run time the sequence&apos;s{" "}
-          <code>$prompt</code> parameter is sent and the model comes from the saved config. The
-          values below are the defaults: a step can override the system prompt, any option, and
-          the response format for a single run through its optional sequence parameters.
-        </p>
-        {error ? <p className="errorText">{error}</p> : null}
-        {loading ? <p className="muted">Loading…</p> : null}
+        ) : null}
+      </div>
+      <p className="muted">
+        Named Ollama setups for Local LLM steps. At run time the sequence&apos;s <code>$prompt</code>{" "}
+        parameter is sent and the model comes from the saved config. The values below are the defaults:
+        a step can override the system prompt, any option, and the response format for a single run
+        through its optional sequence parameters.
+      </p>
+      {error ? <p className="errorText">{error}</p> : null}
+      {loading ? <p className="muted">Loading…</p> : null}
 
-        <div className="localLlmsLayout">
-          <aside className="localLlmsSidebar">
-            <button type="button" className="btnPrimary" onClick={startNew}>
-              New config
-            </button>
-            <ul className="localLlmsList">
-              {configs.map((config) => (
-                <li key={config.id}>
+      <div className="localLlmsLayout">
+        <aside className="localLlmsSidebar">
+          <button type="button" className="btnPrimary" onClick={startNew}>
+            New config
+          </button>
+          <ul className="localLlmsList">
+            {configs.map((config) => (
+              <li key={config.id}>
+                <button
+                  type="button"
+                  className={
+                    !isNew && config.id === selectedId
+                      ? "localLlmsListBtn active"
+                      : "localLlmsListBtn"
+                  }
+                  onClick={() => selectConfig(config.id)}
+                >
+                  <span className="localLlmsListName">{config.name}</span>
+                  <span className="muted localLlmsListMeta">{config.model}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {!loading && configs.length === 0 ? <p className="muted">No configs yet.</p> : null}
+        </aside>
+
+        <div className="localLlmsMain">
+          {!showEditor ? (
+            <p className="muted">Select a config or create a new one.</p>
+          ) : (
+            <>
+              <div className="rbacHeaderRow">
+                <h4>{isNew ? "New config" : draft.name || "Edit config"}</h4>
+                <div className="inlineActions">
+                  <button type="button" className="btnPrimary" disabled={saving} onClick={() => void save()}>
+                    {saving ? "Saving…" : "Save"}
+                  </button>
+                  {!isNew ? (
+                    <button
+                      type="button"
+                      className="danger"
+                      disabled={saving}
+                      onClick={() => void remove()}
+                    >
+                      Delete
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              {status ? (
+                <p className={status.kind === "error" ? "errorText" : "muted"}>{status.message}</p>
+              ) : null}
+
+              <div className="builderField">
+                <label>name</label>
+                <input
+                  value={draft.name}
+                  placeholder="Ticket classifier"
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                />
+              </div>
+              <div className="builderField">
+                <label>model</label>
+                {models.length > 0 ? (
+                  <select
+                    value={draft.model}
+                    onChange={(e) => setDraft({ ...draft, model: e.target.value })}
+                  >
+                    {!models.includes(draft.model) && draft.model ? (
+                      <option value={draft.model}>{draft.model}</option>
+                    ) : null}
+                    {models.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className="builderMono"
+                    value={draft.model}
+                    placeholder="llama3.2"
+                    onChange={(e) => setDraft({ ...draft, model: e.target.value })}
+                  />
+                )}
+              </div>
+              <div className="builderField">
+                <label>system prompt</label>
+                <textarea
+                  rows={6}
+                  value={draft.systemPrompt}
+                  placeholder="You are a careful assistant…"
+                  onChange={(e) => setDraft({ ...draft, systemPrompt: e.target.value })}
+                />
+              </div>
+
+              <h4 className="navSectionHeader">Model options</h4>
+              <div className="localLlmsOptionsGrid">
+                {OPTION_KEYS.map((key) => (
+                  <div className="builderField" key={key}>
+                    <label title={OPTION_HELP[key]}>{key.replace(/_/g, " ")}</label>
+                    <input
+                      type="number"
+                      step={INT_KEYS.has(key) ? 1 : "any"}
+                      value={draft.options[key]}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          options: { ...draft.options, [key]: e.target.value }
+                        })
+                      }
+                    />
+                  </div>
+                ))}
+                <div className="builderField localLlmsStopField">
+                  <label>stop (comma-separated)</label>
+                  <input
+                    value={draft.stop}
+                    placeholder="END, ###"
+                    onChange={(e) => setDraft({ ...draft, stop: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <h4 className="navSectionHeader">Response format</h4>
+              <div className="builderField builderSegmentField">
+                <label>
+                  <input
+                    type="radio"
+                    name="local-llm-format"
+                    checked={draft.formatType === "text"}
+                    onChange={() => setDraft({ ...draft, formatType: "text" })}
+                  />{" "}
+                  text
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="local-llm-format"
+                    checked={draft.formatType === "json_schema"}
+                    onChange={() => setDraft({ ...draft, formatType: "json_schema" })}
+                  />{" "}
+                  JSON schema
+                </label>
+              </div>
+              {draft.formatType === "json_schema" ? (
+                <div className="builderField">
+                  <label>JSON schema</label>
+                  <textarea
+                    className="builderMono"
+                    rows={8}
+                    value={draft.schemaText}
+                    placeholder='{"type":"object","properties":{...}}'
+                    onChange={(e) => setDraft({ ...draft, schemaText: e.target.value })}
+                  />
+                </div>
+              ) : null}
+
+              {!isNew && selectedId ? (
+                <>
+                  <h4 className="navSectionHeader">Test</h4>
+                  <div className="builderField">
+                    <label>prompt</label>
+                    <textarea
+                      rows={3}
+                      value={testPrompt}
+                      placeholder="Your input here"
+                      onChange={(e) => setTestPrompt(e.target.value)}
+                    />
+                  </div>
                   <button
                     type="button"
-                    className={
-                      !isNew && config.id === selectedId
-                        ? "localLlmsListBtn active"
-                        : "localLlmsListBtn"
-                    }
-                    onClick={() => selectConfig(config.id)}
+                    className="btnPrimary"
+                    disabled={running || !testPrompt.trim()}
+                    onClick={() => void runTest()}
                   >
-                    <span className="localLlmsListName">{config.name}</span>
-                    <span className="muted localLlmsListMeta">{config.model}</span>
+                    {running ? "Running…" : "Run"}
                   </button>
-                </li>
-              ))}
-            </ul>
-            {!loading && configs.length === 0 ? (
-              <p className="muted">No configs yet.</p>
-            ) : null}
-          </aside>
-
-          <div className="localLlmsMain">
-            {!showEditor ? (
-              <p className="muted">Select a config or create a new one.</p>
-            ) : (
-              <>
-                <div className="rbacHeaderRow">
-                  <h4>{isNew ? "New config" : draft.name || "Edit config"}</h4>
-                  <div className="inlineActions">
-                    <button
-                      type="button"
-                      className="btnPrimary"
-                      disabled={saving}
-                      onClick={() => void save()}
-                    >
-                      {saving ? "Saving…" : "Save"}
-                    </button>
-                    {!isNew ? (
-                      <button
-                        type="button"
-                        className="danger"
-                        disabled={saving}
-                        onClick={() => void remove()}
-                      >
-                        Delete
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-                {status ? (
-                  <p className={status.kind === "error" ? "errorText" : "muted"}>
-                    {status.message}
-                  </p>
-                ) : null}
-
-                <div className="builderField">
-                  <label>name</label>
-                  <input
-                    value={draft.name}
-                    placeholder="Ticket classifier"
-                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                  />
-                </div>
-                <div className="builderField">
-                  <label>model</label>
-                  {models.length > 0 ? (
-                    <select
-                      value={draft.model}
-                      onChange={(e) => setDraft({ ...draft, model: e.target.value })}
-                    >
-                      {!models.includes(draft.model) && draft.model ? (
-                        <option value={draft.model}>{draft.model}</option>
-                      ) : null}
-                      {models.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      className="builderMono"
-                      value={draft.model}
-                      placeholder="llama3.2"
-                      onChange={(e) => setDraft({ ...draft, model: e.target.value })}
-                    />
-                  )}
-                </div>
-                <div className="builderField">
-                  <label>system prompt</label>
-                  <textarea
-                    rows={6}
-                    value={draft.systemPrompt}
-                    placeholder="You are a careful assistant…"
-                    onChange={(e) => setDraft({ ...draft, systemPrompt: e.target.value })}
-                  />
-                </div>
-
-                <h4 className="navSectionHeader">Model options</h4>
-                <div className="localLlmsOptionsGrid">
-                  {OPTION_KEYS.map((key) => (
-                    <div className="builderField" key={key}>
-                      <label title={OPTION_HELP[key]}>{key.replace(/_/g, " ")}</label>
-                      <input
-                        type="number"
-                        step={INT_KEYS.has(key) ? 1 : "any"}
-                        value={draft.options[key]}
-                        onChange={(e) =>
-                          setDraft({
-                            ...draft,
-                            options: { ...draft.options, [key]: e.target.value }
-                          })
-                        }
-                      />
-                    </div>
-                  ))}
-                  <div className="builderField localLlmsStopField">
-                    <label>stop (comma-separated)</label>
-                    <input
-                      value={draft.stop}
-                      placeholder="END, ###"
-                      onChange={(e) => setDraft({ ...draft, stop: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <h4 className="navSectionHeader">Response format</h4>
-                <div className="builderField builderSegmentField">
-                  <label>
-                    <input
-                      type="radio"
-                      name="local-llm-format"
-                      checked={draft.formatType === "text"}
-                      onChange={() => setDraft({ ...draft, formatType: "text" })}
-                    />{" "}
-                    text
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="local-llm-format"
-                      checked={draft.formatType === "json_schema"}
-                      onChange={() => setDraft({ ...draft, formatType: "json_schema" })}
-                    />{" "}
-                    JSON schema
-                  </label>
-                </div>
-                {draft.formatType === "json_schema" ? (
-                  <div className="builderField">
-                    <label>JSON schema</label>
-                    <textarea
-                      className="builderMono"
-                      rows={8}
-                      value={draft.schemaText}
-                      placeholder='{"type":"object","properties":{...}}'
-                      onChange={(e) => setDraft({ ...draft, schemaText: e.target.value })}
-                    />
-                  </div>
-                ) : null}
-
-                {!isNew && selectedId ? (
-                  <>
-                    <h4 className="navSectionHeader">Test</h4>
-                    <div className="builderField">
-                      <label>prompt</label>
-                      <textarea
-                        rows={3}
-                        value={testPrompt}
-                        placeholder="Your input here"
-                        onChange={(e) => setTestPrompt(e.target.value)}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      className="btnPrimary"
-                      disabled={running || !testPrompt.trim()}
-                      onClick={() => void runTest()}
-                    >
-                      {running ? "Running…" : "Run"}
-                    </button>
-                    {testOutput ? (
-                      <pre className="localLlmsOutput builderMono">{testOutput}</pre>
-                    ) : null}
-                  </>
-                ) : null}
-              </>
-            )}
-          </div>
+                  {testOutput ? (
+                    <pre className="localLlmsOutput builderMono">{testOutput}</pre>
+                  ) : null}
+                </>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
+    </>
+  );
+
+  return embedded ? content : (
+    <div className="panel configPanel localLlmsPanel">
+      <div className="panel__body">{content}</div>
     </div>
   );
 }

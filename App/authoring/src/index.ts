@@ -27,6 +27,7 @@ export * from "./matchMode.js";
 export * from "./returnProjections.js";
 export * from "./attributiveLabels.js";
 export * from "./uniqueAttributiveLabel.js";
+export * from "./sequenceCypher.js";
 export * from "./validation.js";
 export * from "./builderConfig.js";
 export * from "./normalize.js";

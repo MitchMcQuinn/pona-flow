@@ -45,9 +45,11 @@ SCHEMA in a space, so call describe_space to see what is taken and describe_sche
 creating instances of one. Writes are validated with the same rules the visual builder uses,
 and a rejected write comes back as a readable message — read it and adjust rather than retrying.
 
-Deletion cascades. delete_step, delete_schema, and delete_operation refuse to write on their
-first call: they return the blast radius and a confirm_token. Show the user what would be
-removed before calling again with the token.
+Deletion is two-phase. delete_step, delete_schema, and delete_operation refuse to write on
+their first call: they return the blast radius and a confirm_token. Show the user what would
+be removed before calling again with the token. delete_operation on a sequence unlinks it
+from the nav. On an operation it deletes the wrap STEP and one-step sequence; multi-step
+sequences that MATCH that STEP are suspended, not deleted.
 
 A create package describes nodes but does not create them until it runs. Pass execute=true to
 create_operation when the SCHEMA, INSTANCE, or STEP nodes should exist right away.`;

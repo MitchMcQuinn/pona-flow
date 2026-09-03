@@ -201,7 +201,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         results: emptyResults()
       };
 
-    case "SEQUENCE_SELECTED":
+    case "SEQUENCE_SELECTED": {
       // Re-selecting the already-selected sequence must be a no-op: the loader effect is
       // keyed on selectedSequenceId, so it won't re-run for an unchanged id. Resetting
       // sequence.loading to true here (without the effect to clear it) would otherwise leave
@@ -209,6 +209,9 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
       if (state.nav.selectedSequenceId === event.sequenceId) {
         return state;
       }
+      const singleStep = Boolean(
+        state.nav.sequences.find((sequence) => sequence.id === event.sequenceId)?.singleStep
+      );
       return {
         ...state,
         nav: {
@@ -217,7 +220,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         },
         sequence: {
           definition: null,
-          loading: true,
+          loading: !singleStep,
           error: null
         },
         editor: {
@@ -228,7 +231,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         run: idleRun(),
         view: {
           ...state.view,
-          visualMode: "design_graph",
+          visualMode: singleStep ? "empty" : "design_graph",
           rightPanelMode: "params"
         },
         results: emptyResults(),
@@ -241,6 +244,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         },
         createEvent: false
       };
+    }
 
     case "SEQUENCE_LOAD_STARTED":
       return {

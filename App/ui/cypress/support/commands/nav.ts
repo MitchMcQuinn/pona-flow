@@ -1,7 +1,10 @@
 export type SequenceDeleteMode = "nav" | "cascade";
 
-function hoverSequenceInNav(sequenceLabel: string): void {
-  cy.contains('[data-testid="nav-sequence-item"] .sequenceBtnLabel', sequenceLabel)
+function hoverSequenceInNav(sequenceLabel: string, singleStep = false): void {
+  const item = singleStep
+    ? '[data-testid="nav-sequence-item"][data-single-step="true"]'
+    : '[data-testid="nav-sequence-item"][data-single-step="false"]';
+  cy.contains(`${item} .sequenceBtnLabel`, sequenceLabel)
     .closest('[data-testid="nav-sequence-item"]')
     .trigger("mouseover");
 }
@@ -11,6 +14,13 @@ Cypress.Commands.add("editSequenceInNav", (sequenceLabel: string) => {
   hoverSequenceInNav(sequenceLabel);
   cy.get(`[aria-label="Edit sequence ${sequenceLabel}"]`).click();
   cy.get('[data-testid="builder-create-sequence-btn"]', { timeout: 20_000 }).should("be.visible");
+});
+
+/** Open a one-step sequence's wrapped operation in the locked operation editor. */
+Cypress.Commands.add("editSingleStepInNav", (sequenceLabel: string) => {
+  hoverSequenceInNav(sequenceLabel, true);
+  cy.get(`[aria-label="Edit operation ${sequenceLabel}"]`).click();
+  cy.get('[data-testid="builder-save-operation-btn"]', { timeout: 20_000 }).should("be.visible");
 });
 
 /**
@@ -36,6 +46,19 @@ Cypress.Commands.add(
     cy.contains(".sequenceBtnLabel", sequenceLabel).should("not.exist");
   }
 );
+
+/** Delete a one-step sequence wrap (operation + STEP). Confirms in the operation-delete modal. */
+Cypress.Commands.add("deleteSingleStepInNav", (sequenceLabel: string) => {
+  hoverSequenceInNav(sequenceLabel, true);
+  cy.get(`[aria-label="Delete sequence ${sequenceLabel}"]`).click();
+  cy.get('[data-testid="modal-operation-delete"]', { timeout: 30_000 }).should("be.visible");
+  cy.get('[data-testid="modal-operation-delete"] [data-testid="modal-confirm-btn"]').click();
+  cy.get('[data-testid="modal-operation-delete"]').should("not.exist");
+  cy.contains(
+    '[data-testid="nav-sequence-item"][data-single-step="true"] .sequenceBtnLabel',
+    sequenceLabel
+  ).should("not.exist");
+});
 
 /** Create a new navigation group via the inline add-group control. */
 Cypress.Commands.add("addNavGroup", (title: string) => {

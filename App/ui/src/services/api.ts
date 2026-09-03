@@ -92,6 +92,7 @@ type QueriesResponse = {
     parameters?: Array<{ name?: string }>;
     cypher?: string[];
     description?: string;
+    single_step?: boolean;
   }>;
 };
 
@@ -111,6 +112,8 @@ export interface CreateSpaceInput {
   description?: string;
   /** When true, the builder shows composed Cypher and SQLite previews. */
   dev_mode?: boolean;
+  /** When true, named nav groups with no sequences are hidden. */
+  hide_empty_sequence_groups?: boolean;
 }
 
 export interface CreateSpaceResult {
@@ -121,6 +124,7 @@ export interface CreateSpaceResult {
   is_private?: boolean;
   description?: string;
   dev_mode?: boolean;
+  hide_empty_sequence_groups?: boolean;
   creation_date?: string;
 }
 
@@ -155,6 +159,7 @@ export interface SpaceRecord {
   sequence_labels?: string[];
   is_private?: boolean;
   dev_mode?: boolean;
+  hide_empty_sequence_groups?: boolean;
   description?: string;
 }
 
@@ -178,7 +183,8 @@ export async function updateSpace(
       endpoint: input.endpoint?.trim() || null,
       labels: input.labels ?? [],
       description: input.description?.trim() ?? "",
-      dev_mode: Boolean(input.dev_mode)
+      dev_mode: Boolean(input.dev_mode),
+      hide_empty_sequence_groups: Boolean(input.hide_empty_sequence_groups)
     },
     "Failed to update space"
   );
@@ -334,6 +340,63 @@ export async function executeStepDeletion(
   );
 }
 
+export interface OperationDeletePreview {
+  space_id: string;
+  operation_id: string;
+  operation_name: string;
+  attributive_label: string;
+  requires_confirmation: boolean;
+  one_step_sequences: Array<{ id: string; name: string }>;
+  multi_step_sequences: Array<{ id: string; name: string }>;
+  summary: {
+    one_step_sequences: number;
+    multi_step_sequences: number;
+    execution_packages: number;
+  };
+}
+
+export interface OperationDeleteResult {
+  space_id: string;
+  operation_id: string;
+  attributive_label: string;
+  one_step_deleted: string[];
+  multi_step_suspended: string[];
+  entities_deleted?: number;
+  catalog?: { queries_deleted: number; state_deleted: number };
+  graph?: { nodes_deleted: number };
+}
+
+export async function previewOperationDeletion(
+  spaceId: string,
+  opts: { operationId?: string; sequenceId?: string }
+): Promise<OperationDeletePreview> {
+  return postJson<OperationDeletePreview>(
+    "/api/operation/delete/preview",
+    {
+      space_id: spaceId,
+      operation_id: opts.operationId || "",
+      sequence_id: opts.sequenceId || ""
+    },
+    "Failed to preview operation deletion"
+  );
+}
+
+export async function executeOperationDeletion(
+  spaceId: string,
+  opts: { operationId?: string; sequenceId?: string }
+): Promise<OperationDeleteResult> {
+  return postJson<OperationDeleteResult>(
+    "/api/operation/delete",
+    {
+      space_id: spaceId,
+      operation_id: opts.operationId || "",
+      sequence_id: opts.sequenceId || "",
+      confirm: true
+    },
+    "Failed to delete operation"
+  );
+}
+
 // A sequence read query matches its initial STEP node by attributive_label, e.g.
 //   MATCH (alias:STEP { attributive_label: 'STEP_LABEL' }) RETURN *
 const STEP_ATTR_LABEL_RE = /:STEP\s*\{[^}]*?attributive_label\s*:\s*['"]([^'"]+)['"]/i;
@@ -361,7 +424,8 @@ export async function fetchSequences(): Promise<SequenceSummary[]> {
     orphaned: false,
     groupTitle: query.group_title?.trim() || null,
     sortOrder: typeof query.sort_order === "number" ? query.sort_order : null,
-    description: typeof query.description === "string" ? query.description : ""
+    description: typeof query.description === "string" ? query.description : "",
+    singleStep: Boolean(query.single_step)
   }));
 }
 

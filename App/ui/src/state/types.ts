@@ -130,6 +130,8 @@ export interface SequenceSummary {
   sortOrder: number | null;
   /** Prose shown to MCP agents as the tool description; editable post-hoc. */
   description: string;
+  /** True when the sequence matches a single STEP (no POINTS_TO traversal). */
+  singleStep: boolean;
 }
 
 export interface ParameterSchema {

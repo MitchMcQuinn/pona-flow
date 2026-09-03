@@ -39,19 +39,35 @@ Cypress.Commands.add(
   }
 );
 
-Cypress.Commands.add("saveBuilderOperation", (operationName: string) => {
-  cy.get('[data-testid="builder-create-operation-btn"]').should("not.be.disabled").click();
-  cy.get('[data-testid="modal-create-operation"]').should("be.visible");
-  cy.get('[data-testid="modal-create-operation"]')
-    .contains("label", "name")
-    .parent()
-    .find("input")
-    .clear()
-    .type(operationName);
-  cy.get('[data-testid="modal-create-operation"] [data-testid="modal-confirm-btn"]').click();
-  cy.get('[data-testid="modal-create-operation"]').should("not.exist");
-  cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should(
-    "contain.text",
-    "Operation saved to catalog"
-  );
-});
+Cypress.Commands.add(
+  "saveBuilderOperation",
+  (operationName: string, groupTitle = "E2E Golden Path") => {
+    cy.get('[data-testid="builder-create-operation-btn"]').should("not.be.disabled").click();
+    cy.get('[data-testid="modal-create-operation"]').should("be.visible");
+    cy.get('[data-testid="modal-create-operation"]')
+      .contains("label", "name")
+      .parent()
+      .find("input")
+      .clear()
+      .type(operationName);
+
+    cy.get('[data-testid="modal-create-operation"]')
+      .contains("label", "group title")
+      .closest(".builderField")
+      .find(".builderPickerToggle")
+      .click();
+    cy.get('[data-testid="builder-picker-menu"]')
+      .contains("button.builderPickerCreate", "+ New group title")
+      .click();
+    cy.get('[data-testid="modal-create-operation"] input[placeholder="New group title"]')
+      .clear()
+      .type(groupTitle);
+
+    cy.get('[data-testid="modal-create-operation"] [data-testid="modal-confirm-btn"]').click();
+    cy.get('[data-testid="modal-create-operation"]').should("not.exist");
+    cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should(
+      "contain.text",
+      "Operation saved to catalog"
+    );
+  }
+);

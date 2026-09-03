@@ -94,6 +94,16 @@ assert.equal(
   "code-execution STEPs are archived; create_operation must not accept code_step"
 );
 
+assert.ok("add_as_sequence" in createSchema.properties, "create_operation accepts add_as_sequence");
+assert.equal(
+  (createSchema.required || []).includes("add_as_sequence"),
+  false,
+  "add_as_sequence defaults to true; agents may pass false"
+);
+
+const updateOperationSchema = byName.get("update_operation").inputSchema;
+assert.ok("name" in updateOperationSchema.properties, "update_operation must accept a workspace title");
+
 const updateSequenceSchema = byName.get("update_sequence").inputSchema;
 assert.ok(
   "name" in updateSequenceSchema.properties,

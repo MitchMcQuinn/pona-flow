@@ -59,7 +59,7 @@ export async function saveQueryOperation(
   return authoringSaveQueryOperation(authoringContext(state), input);
 }
 
-export async function updateQueryOperation(state: BuilderState): Promise<{ id: string }> {
+export async function updateQueryOperation(state: BuilderState): Promise<SequencePackageResult> {
   return authoringUpdateQueryOperation(authoringContext(state));
 }
 

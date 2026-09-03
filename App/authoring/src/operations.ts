@@ -2,7 +2,7 @@
  * Operation persistence and direct execution.
  *
  * Saving an operation is not one write: the catalog row is upserted, a STEP node is
- * auto-wrapped around it, and optionally a one-step sequence is created. There is no
+ * auto-wrapped around it, and (by default) a one-step sequence is created. There is no
  * transaction spanning the catalog database, the per-space SQLite mirror, and Neo4j,
  * so the ordering here is load-bearing — each step is idempotent and assumes the
  * previous one succeeded.
@@ -19,8 +19,13 @@ import {
   entitySqliteStatements,
   type QueriesCatalogPayload,
 } from "./packages.js";
-import { autoWrapInSequence } from "./sequences.js";
-import { autoWrapInStep, resolveStepWrapAttributiveLabel, stepWrapEntityId } from "./stepWrapLabel.js";
+import { autoWrapInSequence, type SequencePackageResult } from "./sequences.js";
+import {
+  autoWrapInStep,
+  maybeRetargetOperationWrap,
+  resolveStepWrapAttributiveLabel,
+  stepWrapEntityId
+} from "./stepWrapLabel.js";
 import {
   GRAPH_NODE_LABELS,
   type AuthoringContext,
@@ -35,6 +40,7 @@ import {
 export interface SaveOperationInput {
   name: string;
   runtimeEnabled: boolean;
+  /** Defaults to true: every saved operation is also a runnable one-step sequence. */
   addAsSequence?: boolean;
   groupTitle?: string;
   description?: string;
@@ -72,16 +78,40 @@ export async function resaveOperationFromConfig(
 
 /**
  * Update an existing saved operation in place: recompile the edited QueryObject and overwrite the
- * catalog row (cypher/sqlite/parameters + builder_config). No STEP/sequence wrapping side-effects —
- * the STEP wrapper and any referencing sequences point at the query by id/attributive_label and do
- * not change.
+ * catalog row (cypher/sqlite/parameters + builder_config).
+ *
+ * The catalog ``name`` is the workspace title and always saves. The wrapping STEP
+ * attributive_label follows only when that name is free in the graph and no multi-step
+ * sequence MATCHES the current wrap label. The paired one-step sequence title always
+ * syncs to the new name; its MATCH Cypher is rewritten only when the wrap retargets.
  */
-export async function updateQueryOperation(ctx: AuthoringContext): Promise<{ id: string }> {
+export async function updateQueryOperation(ctx: AuthoringContext): Promise<SequencePackageResult> {
   if (!ctx.spaceId) {
     throw new Error("Select a space before saving an operation.");
   }
-  const catalog = buildQueriesCatalogPayload(ctx, ctx.runtimeEnabled);
-  return connector.upsertQuery(catalog);
+  const operationId = ctx.query.id;
+  let groupTitle: string | undefined;
+  let description: string | undefined;
+  try {
+    const stored = await connector.fetchQueryPackage(operationId);
+    groupTitle = stored.group_title || undefined;
+    description = stored.description || undefined;
+  } catch {
+    groupTitle = undefined;
+    description = undefined;
+  }
+  const catalog = buildQueriesCatalogPayload(ctx, ctx.runtimeEnabled, {
+    name: ctx.query.name,
+    groupTitle,
+    description
+  });
+  const { id } = await connector.upsertQuery(catalog);
+  const wrap = await maybeRetargetOperationWrap(ctx.spaceId, id, catalog.name);
+  return {
+    id,
+    wrapRetargeted: wrap.retargeted,
+    wrapLabel: wrap.wrapLabel
+  };
 }
 
 /** Persist a package to the catalog (queries table + space groups), then wrap it in a STEP. */
@@ -107,7 +137,8 @@ export async function saveQueryOperation(
   });
   const { id: operationId } = await connector.upsertQuery(catalog);
   await autoWrapInStep(spaceId, operationId, catalog.name);
-  if (input.addAsSequence) {
+  const addAsSequence = input.addAsSequence !== false;
+  if (addAsSequence) {
     const wrapped = await autoWrapInSequence(
       spaceId,
       catalog.name,

@@ -16,7 +16,7 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from . import embeddings, schema_currency, schema_suspension, schema_update
+from . import catalog, embeddings, schema_currency, schema_suspension, schema_update
 
 
 def apply_schema_update(
@@ -114,6 +114,29 @@ def preview_schema_update(
         "affected_operations": affected.get("operations") or [],
         "out_of_sync_instance_count": out_of_sync_instance_count,
     }
+
+
+def refresh_after_sequence_save(space_id: str, sequence_id: str) -> dict[str, Any] | None:
+    """Re-evaluate schema-drift for a sequence that was just unsuspended by a save.
+
+    Operation-delete suspensions lift on save; if the chain still references a drifting
+    INSTANCE operation, this puts the red flag back. Best-effort.
+    """
+    try:
+        suspended_ops = list(catalog.fetch_suspended_query_ids("operation"))
+        released = schema_suspension.flatten_suspension(
+            schema_suspension.refresh_suspensions(
+                space_id,
+                candidate_sequence_ids=[sequence_id],
+                candidate_operation_ids=suspended_ops,
+            )
+        )
+    except Exception as e:
+        sys.stderr.write(f"sequence-save suspension refresh error: {e}\n")
+        return None
+    if released["suspended"] or released["unsuspended"]:
+        return released
+    return None
 
 
 def refresh_after_operation_save(space_id: str) -> dict[str, Any] | None:

@@ -8,8 +8,10 @@
 
 import { joinApiPath } from "./api-path.js";
 import {
+  executeOperationDeletion,
   executeSchemaDeletion,
   executeStepDeletion,
+  previewOperationDeletion,
   previewSchemaDeletion,
   previewStepDeletion,
 } from "./deletes.js";
@@ -79,6 +81,8 @@ export type {
   ExecuteQueryResponse,
   GraphNodeRow,
   GraphRelationshipRow,
+  OperationDeletePreview,
+  OperationDeleteResult,
   QueriesUpsertPayload,
   QueryPackageRow,
   SavedQueryRow,
@@ -223,6 +227,14 @@ export interface ConnectorApi {
     opts: { spaceId: string; attributiveLabel: string },
     apiBase?: string
   ): Promise<StepDeleteResult>;
+  previewOperationDeletion(
+    opts: { spaceId: string; operationId?: string; sequenceId?: string },
+    apiBase?: string
+  ): Promise<import("./types.js").OperationDeletePreview>;
+  executeOperationDeletion(
+    opts: { spaceId: string; operationId?: string; sequenceId?: string },
+    apiBase?: string
+  ): Promise<import("./types.js").OperationDeleteResult>;
   configure(cfg: import("./http.js").ConnectorConfig): void;
   configuredApiBase(): string;
   resetConfig(): void;
@@ -262,6 +274,8 @@ export const connector: ConnectorApi = {
   executeSchemaDeletion,
   previewStepDeletion,
   executeStepDeletion,
+  previewOperationDeletion,
+  executeOperationDeletion,
   configure,
   configuredApiBase,
   resetConfig,

@@ -10,6 +10,7 @@ import { TopBar } from "./components/TopBar";
 import { VisualizationPanel } from "./components/VisualizationPanel";
 import { fetchAuditLog, runSequenceExecution, updateMySettings } from "./services/api";
 import { SequenceDeleteConfirmModal } from "./components/modals/SequenceDeleteConfirmModal";
+import { OperationDeleteSuspendModal } from "./components/modals/OperationDeleteSuspendModal";
 import { useEventsNav } from "./hooks/useEventsNav";
 import { usePersistedViewRestore } from "./hooks/usePersistedViewRestore";
 import { useSequenceNav } from "./hooks/useSequenceNav";
@@ -65,6 +66,7 @@ export default function App() {
     spaces,
     spacesError,
     activeSpaceLabels,
+    hideEmptySequenceGroups,
     bumpSpaceLabelsVersion,
     noAccess,
     showCreateSpaceModal,
@@ -79,7 +81,8 @@ export default function App() {
     maybeRestoreSequence,
     bumpSpaceLabelsVersion
   });
-  const { composedSequence, composeError, sequencePreviewLoading, sequenceDelete } = sequenceNav;
+  const { composedSequence, composeError, sequencePreviewLoading, sequenceDelete, operationDelete } =
+    sequenceNav;
 
   const eventsNav = useEventsNav({ state, dispatch, maybeRestoreEvent });
 
@@ -206,11 +209,28 @@ export default function App() {
     [builderResult]
   );
 
-  // Open a sequence in the builder for editing: bump the builder session key so it remounts and
-  // hydrates from the sequence's saved builder_config, and seed the name/group/description.
+  // Open a sequence in the builder for editing. Multi-step rows hydrate the sequence
+  // builder_config. One-step rows are synthetic wraps — the pencil opens the wrapped
+  // operation the same way a visualizer STEP click does.
   function handleEditSequence(sequenceId: string) {
     const target = state.nav.sequences.find((sequence) => sequence.id === sequenceId);
     if (!target) return;
+    if (target.singleStep) {
+      const attributiveLabel = target.attributiveLabel.trim();
+      if (!attributiveLabel) {
+        showToast("This sequence's entry STEP is missing, so it can't be edited.", "error");
+        return;
+      }
+      dismissVisualization();
+      dispatch({ type: "OPEN_BUILDER" });
+      setSequenceBuilderKey((key) => key + 1);
+      setBuilderSeed({
+        kind: "stepNode",
+        attributiveLabel,
+        nonce: Date.now()
+      });
+      return;
+    }
     dismissVisualization();
     dispatch({ type: "CREATE_SEQUENCE_OPENED" });
     setSequenceBuilderKey((key) => key + 1);
@@ -407,6 +427,16 @@ export default function App() {
           onConfirm={sequenceNav.handleConfirmDeleteSequence}
         />
       ) : null}
+      {operationDelete ? (
+        <OperationDeleteSuspendModal
+          sequenceLabel={operationDelete.label}
+          preview={operationDelete.preview}
+          busy={sequenceNav.deletingSequence}
+          error={sequenceNav.sequenceDeleteError}
+          onCancel={sequenceNav.cancelSequenceDelete}
+          onConfirm={sequenceNav.handleConfirmDeleteOperation}
+        />
+      ) : null}
       <TopBar
         showBackToBuilder={
           state.createSequence ||
@@ -447,13 +477,9 @@ export default function App() {
               dismissVisualization();
               dispatch({ type: "SPACE_PANEL_OPENED" });
             }}
-            localLlmsActive={state.view.rightPanelMode === "localLlms"}
-            onOpenLocalLlms={() => {
-              dismissVisualization();
-              dispatch({ type: "LOCAL_LLMS_PANEL_OPENED" });
-            }}
             sequences={navSequences}
             groups={state.nav.groups}
+            hideEmptySequenceGroups={hideEmptySequenceGroups}
             selectedSequenceId={state.nav.selectedSequenceId}
             loading={state.nav.loading}
             error={state.nav.error}

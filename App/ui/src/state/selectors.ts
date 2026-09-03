@@ -31,6 +31,12 @@ function shouldShowBuilderResult(state: AppState, builderResult?: RunResult | nu
   return mode !== "space" && mode !== "event" && mode !== "localLlms";
 }
 
+function selectedIsSingleStep(state: AppState): boolean {
+  const id = state.nav.selectedSequenceId;
+  if (!id) return false;
+  return Boolean(state.nav.sequences.find((sequence) => sequence.id === id)?.singleStep);
+}
+
 export const selectors = {
   hasSequenceSelected: (state: AppState) => Boolean(state.nav.selectedSequenceId),
   showRunButton: (state: AppState) => Boolean(state.nav.selectedSequenceId),
@@ -39,9 +45,15 @@ export const selectors = {
     state.params.allValid &&
     state.run.status !== "running",
   rightPanelMode: (state: AppState) =>
-    state.editor.selectedElement ? "inspect" : state.nav.selectedSequenceId ? "params" : "builder",
+    state.editor.selectedElement
+      ? "inspect"
+      : state.nav.selectedSequenceId
+        ? "params"
+        : "builder",
   hasVisualizationContent: (state: AppState, builderResult?: RunResult | null) => {
     if (shouldShowBuilderResult(state, builderResult)) return true;
+    // One-step sequences have no chain to map, so hide the column until a run produces results.
+    if (selectedIsSingleStep(state)) return false;
     if (state.sequence.error) return true;
     if (state.sequence.loading) return true;
 

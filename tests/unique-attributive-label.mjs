@@ -2,7 +2,7 @@
  * nextUniqueAttributiveLabel: suffix collision when a STEP attributive_label is taken.
  */
 import assert from "node:assert/strict";
-import { nextUniqueAttributiveLabel } from "../App/authoring/src/uniqueAttributiveLabel.ts";
+import { nextUniqueAttributiveLabel, shouldRetargetOperationWrap } from "../App/authoring/src/uniqueAttributiveLabel.ts";
 
 assert.equal(nextUniqueAttributiveLabel("FOO", new Set()), "FOO", "unused base is kept");
 assert.equal(
@@ -22,5 +22,28 @@ assert.equal(
 );
 assert.equal(nextUniqueAttributiveLabel("  FOO  ", new Set(["FOO"])), "FOO1", "trims base name");
 assert.equal(nextUniqueAttributiveLabel("", new Set(["FOO"])), "", "empty base stays empty");
+
+assert.equal(
+  shouldRetargetOperationWrap({
+    requestedName: "READ_PEOPLE",
+    wrapEntityId: "wrap-1",
+    currentWrapLabel: "READ_PERSON",
+    labelTakenByOther: false,
+    multiStepReferencesWrap: false,
+  }),
+  true,
+  "free name with no multi-step MATCH retargets"
+);
+assert.equal(
+  shouldRetargetOperationWrap({
+    requestedName: "READ_PEOPLE",
+    wrapEntityId: "wrap-1",
+    currentWrapLabel: "READ_PERSON",
+    labelTakenByOther: false,
+    multiStepReferencesWrap: true,
+  }),
+  false,
+  "multi-step MATCH blocks wrap retarget"
+);
 
 console.log("unique-attributive-label: ok");

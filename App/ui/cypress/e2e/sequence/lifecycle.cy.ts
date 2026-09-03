@@ -74,15 +74,16 @@ describe("sequence: lifecycle", () => {
     cy.selectSequenceInNav(GOLDEN_SEQUENCE_NAME);
     cy.editSequenceInNav(GOLDEN_SEQUENCE_NAME);
 
-    // READ_PERSON is the wrapping STEP of the golden read operation, so the graph
-    // identity cannot follow; the workspace title still saves.
-    cy.get('[data-testid="builder-sequence-name"]').should("be.enabled").clear().type(GOLDEN_READ_OPERATION);
+    // PERSON is a SCHEMA attributive_label, so the graph identity cannot follow;
+    // the workspace title still saves. (READ_PERSON is now also a one-step sequence
+    // title, so it is not a valid uniqueness-free target.)
+    cy.get('[data-testid="builder-sequence-name"]').should("be.enabled").clear().type(GOLDEN_SCHEMA_LABEL);
 
     cy.get('[data-testid="builder-create-sequence-btn"]')
       .should("contain.text", "Save sequence")
       .click();
 
-    cy.contains(".sequenceBtnLabel", GOLDEN_READ_OPERATION, { timeout: 60_000 }).should(
+    cy.contains(".sequenceBtnLabel", GOLDEN_SCHEMA_LABEL, { timeout: 60_000 }).should(
       "be.visible"
     );
   });
@@ -113,5 +114,53 @@ describe("sequence: lifecycle", () => {
       .should("have.class", "orphaned");
 
     cy.deleteSequenceInNav(GOLDEN_SEQUENCE_NAME, "nav");
+  });
+
+  it("files a new operation under Single step sequences and opens the params view", () => {
+    cy.bootstrapApp();
+    cy.createSchemaNode(GOLDEN_SCHEMA_LABEL, [{ name: "name", isLabel: true }]);
+    cy.createInstanceNode(GOLDEN_SCHEMA_LABEL, { name: GOLDEN_INSTANCE_NAME });
+    cy.configureReadInstanceMatch(GOLDEN_SCHEMA_LABEL);
+    cy.saveBuilderOperation(GOLDEN_READ_OPERATION);
+
+    cy.get('[data-testid="nav-single-step-heading"]', { timeout: 60_000 }).should("be.visible");
+    cy.selectSingleStepInNav(GOLDEN_READ_OPERATION);
+
+    cy.editSingleStepInNav(GOLDEN_READ_OPERATION);
+    cy.get('[data-testid="builder-operation-name"]').should("have.value", GOLDEN_READ_OPERATION);
+
+    cy.get('[data-testid="builder-operation-name"]').clear().type("READ_PERSON_RENAMED");
+    cy.get('[data-testid="builder-save-operation-btn"]').should("not.be.disabled").click();
+    cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should("contain.text", "Operation updated");
+    cy.get('[data-testid="nav-single-step-section"]')
+      .contains(".sequenceBtnLabel", "READ_PERSON_RENAMED", { timeout: 60_000 })
+      .should("be.visible");
+  });
+
+  it("deletes a single-step sequence without dependents", () => {
+    cy.bootstrapApp();
+    cy.createSchemaNode(GOLDEN_SCHEMA_LABEL, [{ name: "name", isLabel: true }]);
+    cy.createInstanceNode(GOLDEN_SCHEMA_LABEL, { name: GOLDEN_INSTANCE_NAME });
+    cy.configureReadInstanceMatch(GOLDEN_SCHEMA_LABEL);
+    cy.saveBuilderOperation(GOLDEN_READ_OPERATION);
+
+    cy.get('[data-testid="nav-single-step-section"]', { timeout: 60_000 })
+      .contains(".sequenceBtnLabel", GOLDEN_READ_OPERATION)
+      .should("be.visible");
+    cy.deleteSingleStepInNav(GOLDEN_READ_OPERATION);
+    cy.get('[data-testid="nav-single-step-heading"]').should("not.exist");
+  });
+
+  it("shows the results panel after running a single-step sequence", () => {
+    cy.bootstrapApp();
+    cy.createSchemaNode(GOLDEN_SCHEMA_LABEL, [{ name: "name", isLabel: true }]);
+    cy.createInstanceNode(GOLDEN_SCHEMA_LABEL, { name: GOLDEN_INSTANCE_NAME });
+    cy.configureReadInstanceMatch(GOLDEN_SCHEMA_LABEL);
+    cy.saveBuilderOperation(GOLDEN_READ_OPERATION);
+
+    cy.selectSingleStepInNav(GOLDEN_READ_OPERATION);
+    cy.runSelectedSequence();
+    cy.get("main.layoutResizable").should("not.have.class", "layoutVizHidden");
+    cy.contains("h2", "Result", { timeout: 20_000 }).should("be.visible");
   });
 });

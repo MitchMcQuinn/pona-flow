@@ -1,23 +1,26 @@
 /**
  * Sequence navigation lifecycle for App: the per-space sequence/group list
- * loads, the selected-sequence loads (definition + stored read query preview +
- * EXECUTION compose), nav reorder/group handlers, and the two-mode sequence
- * delete flow (nav-only removal vs. full STEP cascade).
+ * loads, the selected-sequence loads (definition + stored read query preview for
+ * multi-step, EXECUTION compose for every sequence), nav reorder/group handlers,
+ * and delete (nav-only / STEP cascade for multi-step; operation+wrap for one-step).
  */
 
 import { useEffect, useState, type Dispatch } from "react";
 import {
   composeSequence,
   deleteSequenceDefinition,
+  executeOperationDeletion,
   executeStepDeletion,
   fetchNavSequences,
   fetchSequenceDefinition,
   fetchSpaceGroups,
+  previewOperationDeletion,
   previewStepDeletion,
   reorderSequences,
   runSequenceQuery,
   setSpaceGroups,
   type ComposedSequence,
+  type OperationDeletePreview,
   type StepDeletePreview
 } from "../services/api";
 import type { SequenceDeleteMode } from "../components/modals/SequenceDeleteConfirmModal";
@@ -54,6 +57,11 @@ export function useSequenceNav(options: {
     sequenceId: string;
     label: string;
     preview: StepDeletePreview | null;
+  } | null>(null);
+  const [operationDelete, setOperationDelete] = useState<{
+    sequenceId: string;
+    label: string;
+    preview: OperationDeletePreview;
   } | null>(null);
   const [deletingSequence, setDeletingSequence] = useState(false);
   const [sequenceDeleteError, setSequenceDeleteError] = useState<string | null>(null);
@@ -95,38 +103,48 @@ export function useSequenceNav(options: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.spaceId]);
 
+  const selectedSingleStep = Boolean(
+    state.nav.sequences.find((sequence) => sequence.id === state.nav.selectedSequenceId)?.singleStep
+  );
+
   useEffect(() => {
     if (!state.nav.selectedSequenceId || !state.spaceId) return;
     const sequenceId = state.nav.selectedSequenceId;
     const spaceId = state.spaceId;
+    const singleStep = selectedSingleStep;
     let cancelled = false;
 
-    dispatch({ type: "SEQUENCE_LOAD_STARTED" });
-    fetchSequenceDefinition(sequenceId, spaceId)
-      .then((definition) => {
-        if (!cancelled) dispatch({ type: "SEQUENCE_LOAD_SUCCEEDED", definition });
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          dispatch({
-            type: "SEQUENCE_LOAD_FAILED",
-            error: error instanceof Error ? error.message : "Unable to load sequence definition"
-          });
-        }
-      });
+    if (!singleStep) {
+      dispatch({ type: "SEQUENCE_LOAD_STARTED" });
+      fetchSequenceDefinition(sequenceId, spaceId)
+        .then((definition) => {
+          if (!cancelled) dispatch({ type: "SEQUENCE_LOAD_SUCCEEDED", definition });
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            dispatch({
+              type: "SEQUENCE_LOAD_FAILED",
+              error: error instanceof Error ? error.message : "Unable to load sequence definition"
+            });
+          }
+        });
 
-    // Run the sequence's stored read query and surface results in the visualization panel.
-    setSequencePreviewLoading(true);
-    runSequenceQuery(sequenceId, spaceId)
-      .then((result) => {
-        if (!cancelled) setBuilderResult(result);
-      })
-      .catch(() => {
-        if (!cancelled) setBuilderResult(null);
-      })
-      .finally(() => {
-        if (!cancelled) setSequencePreviewLoading(false);
-      });
+      // Run the sequence's stored read query and surface results in the visualization panel.
+      setSequencePreviewLoading(true);
+      runSequenceQuery(sequenceId, spaceId)
+        .then((result) => {
+          if (!cancelled) setBuilderResult(result);
+        })
+        .catch(() => {
+          if (!cancelled) setBuilderResult(null);
+        })
+        .finally(() => {
+          if (!cancelled) setSequencePreviewLoading(false);
+        });
+    } else {
+      setBuilderResult(null);
+      setSequencePreviewLoading(false);
+    }
 
     // Compose the EXECUTION package (persisted as an inactive state row) for the executor.
     setComposedSequence(null);
@@ -148,7 +166,7 @@ export function useSequenceNav(options: {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.nav.selectedSequenceId, state.spaceId]);
+  }, [state.nav.selectedSequenceId, state.spaceId, selectedSingleStep]);
 
   useEffect(() => {
     if (!composedSequence) return;
@@ -198,7 +216,8 @@ export function useSequenceNav(options: {
     try {
       const sequences = await fetchNavSequences(state.spaceId);
       dispatch({ type: "SEQUENCES_LOAD_SUCCEEDED", sequences });
-      if (sequences.some((sequence) => sequence.id === sequenceId)) {
+      const created = sequences.find((sequence) => sequence.id === sequenceId);
+      if (created) {
         dispatch({ type: "SEQUENCE_SELECTED", sequenceId });
       }
       reloadGroups();
@@ -289,6 +308,18 @@ export function useSequenceNav(options: {
     if (!target || !state.spaceId) return;
     const label = target.attributiveLabel.trim();
     setSequenceDeleteError(null);
+    if (target.singleStep) {
+      try {
+        const preview = await previewOperationDeletion(state.spaceId, { sequenceId });
+        setOperationDelete({ sequenceId, label: target.label, preview });
+      } catch (error) {
+        showToast(
+          error instanceof Error ? error.message : "Failed to resolve the deletion impact.",
+          "error"
+        );
+      }
+      return;
+    }
     if (!label || target.orphaned) {
       setSequenceDelete({ sequenceId, label: target.label, preview: null });
       return;
@@ -348,9 +379,41 @@ export function useSequenceNav(options: {
     }
   }
 
+  async function handleConfirmDeleteOperation() {
+    if (!operationDelete || !state.spaceId) return;
+    setDeletingSequence(true);
+    setSequenceDeleteError(null);
+    try {
+      const result = await executeOperationDeletion(state.spaceId, {
+        sequenceId: operationDelete.sequenceId
+      });
+      const deletedIds = new Set<string>([
+        operationDelete.sequenceId,
+        ...result.one_step_deleted
+      ]);
+      if (state.nav.selectedSequenceId && deletedIds.has(state.nav.selectedSequenceId)) {
+        dispatch({ type: "OPEN_BUILDER" });
+      }
+      const suspended = result.multi_step_suspended.length;
+      const message = suspended
+        ? `Deleted "${operationDelete.label}" and suspended ${suspended} dependent ${
+            suspended === 1 ? "sequence" : "sequences"
+          }.`
+        : `Deleted operation "${operationDelete.label}" and its one-step sequence.`;
+      setOperationDelete(null);
+      showToast(message);
+      handleNavRefresh();
+    } catch (error) {
+      setSequenceDeleteError(error instanceof Error ? error.message : "Failed to delete operation.");
+    } finally {
+      setDeletingSequence(false);
+    }
+  }
+
   function cancelSequenceDelete() {
     if (!deletingSequence) {
       setSequenceDelete(null);
+      setOperationDelete(null);
       setSequenceDeleteError(null);
     }
   }
@@ -360,6 +423,7 @@ export function useSequenceNav(options: {
     composeError,
     sequencePreviewLoading,
     sequenceDelete,
+    operationDelete,
     deletingSequence,
     sequenceDeleteError,
     cancelSequenceDelete,
@@ -370,6 +434,7 @@ export function useSequenceNav(options: {
     handleAddGroup,
     handleDeleteGroup,
     handleDeleteSequence,
-    handleConfirmDeleteSequence
+    handleConfirmDeleteSequence,
+    handleConfirmDeleteOperation
   };
 }

@@ -39,6 +39,25 @@ describe("space administration", () => {
     cy.get('[data-testid="builder-query-preview"]', { timeout: 20_000 }).should("be.visible");
   });
 
+  it("toggles hide empty sequence groups", () => {
+    cy.openSpaceTab("settings");
+    cy.get("#space-hide-empty-groups-toggle", { timeout: 20_000 })
+      .should("not.be.disabled")
+      .and("have.attr", "aria-checked", "false")
+      .click();
+    cy.get("#space-hide-empty-groups-toggle").should("have.attr", "aria-checked", "true");
+    cy.get('[data-testid="space-settings-save-btn"]').should("not.be.disabled").click();
+    cy.get('[data-testid="space-settings-save-btn"]', { timeout: 20_000 }).should(
+      "contain.text",
+      "Save changes"
+    );
+    cy.get("#space-hide-empty-groups-toggle", { timeout: 20_000 }).should(
+      "have.attr",
+      "aria-checked",
+      "true"
+    );
+  });
+
   it("invites a member on the Users tab", () => {
     cy.openSpaceTab("users");
     cy.inviteMember(SPACE_ADMIN.INVITE_EMAIL);
