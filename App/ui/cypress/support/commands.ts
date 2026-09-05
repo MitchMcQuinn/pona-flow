@@ -50,6 +50,8 @@ declare global {
       ): Chainable<void>;
       /** Click the primary Create button and wait for the success toast. */
       runBuilderCreate(): Chainable<void>;
+      /** Fill the HTTP endpoint (and a JSON object body) on the current create-STEP form. */
+      configureHttpStep(endpoint: string): Chainable<void>;
       /** Full create-SCHEMA flow: operation, label, node, properties, run. */
       createSchemaNode(
         attributiveLabel: string,

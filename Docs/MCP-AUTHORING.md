@@ -102,7 +102,7 @@ also stated in the server's `instructions` string.
 
 ```mermaid
 flowchart TD
-  A[create_operation per step] -->|auto-wraps a STEP node| B[STEP nodes exist in Neo4j]
+  A[create_operation per step] -->|query wrap or publish STEP| B[STEP nodes exist in Neo4j]
   B --> C[create_step_transition for each edge]
   C --> D[POINTS_TO chain exists]
   D --> E[create_sequence]
@@ -110,8 +110,15 @@ flowchart TD
 
 A sequence's read Cypher matches STEP nodes **by attributive_label at run time**, and a
 transition attaches to STEP nodes **by graph id**. Both need their nodes to already exist.
-Saving an operation is what brings a STEP node into being — every save auto-wraps one — which
-fixes the order: operations, then transitions, then the sequence.
+
+- **INSTANCE / SCHEMA / read / update / delete:** saving a catalog query auto-wraps a STEP
+  (and, by default, a one-step sequence). That wrap is what later sequences MATCH.
+- **Create STEP (HTTP / Local LLM):** `create_operation` materializes the designed STEP.
+  A **single new STEP** (no hops) is published as a one-step sequence by default. A chain
+  of STEPs is materialized only — call `create_sequence` after the transitions exist. It
+  does not save a factory whose wrap STEP would mint more STEPs when run. Pass
+  `add_as_sequence=false` for a STEP-only building block. `add_as_sequence=true` on a
+  multi-step create is rejected.
 
 Getting it wrong fails quietly rather than loudly: a sequence created before its steps exist
 matches nothing and runs as a no-op.
@@ -141,7 +148,7 @@ already taken.
 
 | Tool | Effect |
 |---|---|
-| `create_operation` | Saves a package to the catalog, auto-wraps it in a STEP node, and (by default) a one-step sequence. The visual builder always wraps; agents can pass `add_as_sequence=false`. `execute=true` also runs it. |
+| `create_operation` | INSTANCE/SCHEMA/read/update/delete: saves a catalog query, auto-wraps a STEP, and (by default) a one-step sequence. Create STEP: materializes the designed STEP. A single new STEP is published as a one-step sequence by default; a chain is materialized only (`create_sequence` publishes it). Agents can pass `add_as_sequence=false`. `execute=true` also runs a create INSTANCE/SCHEMA package (create STEP always materializes). |
 | `update_operation` | Recompiles and overwrites a package in place. The catalog name always saves and is shared with the paired one-step sequence title; the wrap STEP label follows only when the name is free and no multi-step sequence MATCHES the current wrap. Returns `wrap_retargeted` / `wrap_label`. |
 | `create_step_transition` | Writes a `POINTS_TO` edge between two existing STEP nodes, optionally conditional. |
 | `create_sequence` | Saves a runnable sequence starting at an existing STEP node. |
@@ -163,10 +170,11 @@ collides. On update, the catalog title always saves and stays in lockstep with t
 one-step sequence title; the wrap label follows only when that name is free and no multi-step
 sequence MATCHES the current wrap.
 
-**Saving is not running.** A create package *describes* nodes; it materializes them only when
-it runs. Pass `execute=true` to `create_operation` when the SCHEMA or INSTANCE should exist
-immediately. `create_step_transition` always writes immediately — an edge is not a reusable
-package.
+**Saving is not running (INSTANCE / SCHEMA).** A create-INSTANCE or create-SCHEMA package
+*describes* nodes; it materializes them only when it runs. Pass `execute=true` to
+`create_operation` when the SCHEMA or INSTANCE should exist immediately. A create-STEP
+package always materializes the designed STEP. `create_step_transition` always writes
+immediately — an edge is not a reusable package.
 
 ### Destructive (two-phase)
 
@@ -198,9 +206,11 @@ an operation from the `builder_config` snapshot stored alongside it in the catal
 MCP server saves through the same `@pona-flow/authoring` functions the builder uses, it writes
 the same snapshot, so anything an agent creates can be opened, inspected, and edited visually.
 
-`tests/mcp-authoring-roundtrip.mjs` is the test that pins this down: it creates an operation
-through the real MCP tools, fetches it back, and asserts the stored snapshot recomposes to
-byte-identical Cypher and parameters.
+`tests/mcp-authoring-roundtrip.mjs` is the test that pins this down: it creates a catalog
+query through the real MCP tools, fetches it back, and asserts the stored snapshot recomposes
+to byte-identical Cypher and parameters. Create-STEP packages take the publish path instead
+(materialize the designed STEP; wrap it as a one-step sequence only when it is a single new
+STEP with no hops).
 
 One cosmetic gap: `matchPositions` is canvas layout and is empty on agent-created operations.
 The match canvas auto-lays-out via `App/ui/src/utils/graphLayout.ts`, so they open tidy anyway.

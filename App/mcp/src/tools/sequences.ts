@@ -10,6 +10,7 @@
 
 import {
   assertPreflightClear,
+  DEFAULT_STEP_RELATIONSHIP_LABEL,
   runCreate,
   saveSequencePackage,
   updateSequencePackage,
@@ -113,14 +114,21 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
         "Create a POINTS_TO edge from one STEP node to another, so a sequence that reaches " +
         "the first step continues to the second. Both STEP nodes must already exist. " +
         "Unlike create_operation this writes to the graph immediately rather than saving a " +
-        "reusable package. Attach a condition to make the transition conditional: the branch " +
-        "fires only when the condition holds, so two edges out of one step form a branch.",
+        "reusable package. The edge label defaults to NEXT and may be reused on every " +
+        "STEP-to-STEP link — a unique name is not required. Attach a condition to make the " +
+        "transition conditional: the branch fires only when the condition holds, so two " +
+        "edges out of one step form a branch.",
       inputSchema: {
         from_step: z.string().describe("attributive_label of the source STEP node."),
         to_step: z.string().describe("attributive_label of the target STEP node."),
         relationship_label: z
           .string()
-          .describe("UPPER_SNAKE name for the edge, e.g. ON_APPROVAL. Describes why it fires."),
+          .optional()
+          .describe(
+            "UPPER_SNAKE name for the edge. Defaults to NEXT, which may be reused on every " +
+              "STEP-to-STEP edge. Use a distinct name like ON_APPROVAL only to describe why " +
+              "this branch fires."
+          ),
         condition_type: z
           .enum(["null", "parameter", "cypher", "implicit", "query"])
           .optional()
@@ -146,6 +154,8 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
     async (args) =>
       guard(async () => {
         const spaceId = resolveSpaceId(config, args.space_id);
+        const relationshipLabel =
+          (args.relationship_label || "").trim() || DEFAULT_STEP_RELATIONSHIP_LABEL;
         const [fromId, toId, queryId, relId] = await Promise.all([
           stepIdForLabel(spaceId, args.from_step),
           stepIdForLabel(spaceId, args.to_step),
@@ -157,7 +167,7 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
           {
             from: { id: fromId, attributive_label: args.from_step.trim() },
             to: { id: toId, attributive_label: args.to_step.trim() },
-            relationship_label: args.relationship_label,
+            relationship_label: relationshipLabel,
             condition: args.condition,
             condition_type: args.condition_type,
             condition_expected: args.condition_expected,
@@ -173,7 +183,7 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
           from_step: args.from_step,
           to_step: args.to_step,
           relationship_id: relId,
-          relationship_label: args.relationship_label,
+          relationship_label: relationshipLabel,
         };
       })
   );

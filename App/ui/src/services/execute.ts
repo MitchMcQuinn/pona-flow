@@ -14,7 +14,9 @@ import {
   saveSequencePackage as authoringSaveSequencePackage,
   updateQueryOperation as authoringUpdateQueryOperation,
   updateSequencePackage as authoringUpdateSequencePackage,
+  publishCreatedStepAsSequence as authoringPublishCreatedStepAsSequence,
   type AuthoringContext,
+  type PublishStepInput,
   type SaveOperationInput,
   type SequenceInput,
   type SequencePackageResult,
@@ -57,6 +59,13 @@ export async function saveQueryOperation(
   input: SaveOperationInput
 ): Promise<{ id: string; sequenceId?: string }> {
   return authoringSaveQueryOperation(authoringContext(state), input);
+}
+
+export async function publishCreatedStepAsSequence(
+  state: BuilderState,
+  input: PublishStepInput
+): Promise<{ sequenceId?: string; stepLabel: string }> {
+  return authoringPublishCreatedStepAsSequence(authoringContext(state), input);
 }
 
 export async function updateQueryOperation(state: BuilderState): Promise<SequencePackageResult> {

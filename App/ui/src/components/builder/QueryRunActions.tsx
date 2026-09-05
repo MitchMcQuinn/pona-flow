@@ -301,7 +301,7 @@ export function QueryRunActions({
 
   async function onCreateOperationSave(values: CreateOperationFormValues) {
     setSavingOp(true);
-    dispatch({ type: "SET_STATUS", message: "Saving operation…", kind: "info" });
+    dispatch({ type: "SET_STATUS", message: "Saving as sequence…", kind: "info" });
     try {
       const result = await saveQueryOperation(state, {
         name: values.name,
@@ -321,7 +321,7 @@ export function QueryRunActions({
         onSequenceCreated?.(result.sequenceId);
       }
       setShowCreateModal(false);
-      showToast("Operation saved to catalog as a one-step sequence.");
+      showToast("Saved as a one-step sequence.");
     } catch (error) {
       dispatch({
         type: "SET_STATUS",
@@ -361,7 +361,7 @@ export function QueryRunActions({
             disabled={!canSaveOp || disabled}
             onClick={() => setShowCreateModal(true)}
           >
-            Create operation
+            Save as sequence
           </button>
         </div>
         {state.status.kind === "error" ? (
@@ -374,6 +374,7 @@ export function QueryRunActions({
       {showCreateModal ? (
         <CreateOperationModal
           saving={savingOp}
+          variant="query"
           existingGroups={state.spaceGroups}
           takenSequenceNames={state.savedQueries
             .filter((q) => q.kind === "sequence" && q.id !== state.query.id)

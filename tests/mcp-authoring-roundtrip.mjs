@@ -74,6 +74,9 @@ async function fakeFetch(url, init = {}) {
     queries.set(body.id, body);
     return json({ id: body.id });
   }
+  if (path === "/api/queries" && method === "GET") {
+    return json({ queries: [...queries.values()] });
+  }
   if (path.startsWith("/api/queries/")) {
     const id = decodeURIComponent(path.slice("/api/queries/".length));
     const row = queries.get(id);
@@ -115,9 +118,97 @@ function parse(result) {
   return JSON.parse(result.content[0].text);
 }
 
-// --- Create an operation the way an agent would ---
+function recomposedStatements(cypher) {
+  return cypher
+    .split(/\s*;\s*\n/)
+    .map((chunk) =>
+      chunk
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("//"))
+        .join(" ")
+    )
+    .filter(Boolean);
+}
 
-const created = parse(
+// --- Catalog query (SCHEMA): same artifact a human saves, snapshot recomposes ---
+
+const createdSchema = parse(
+  await client.callTool({
+    name: "create_operation",
+    arguments: {
+      name: "Create customer",
+      description: "Mint the customer schema.",
+      group_title: "Fulfilment",
+      operation: "create",
+      node_label: "SCHEMA",
+      attributive_label: "customer record",
+      schema_properties: [
+        { key: "email address", value_type: "string", is_required: true, is_key: true },
+        { key: "name", is_label: true },
+      ],
+    },
+  })
+);
+assert.equal(createdSchema.ok, true);
+assert.ok(createdSchema.operation_id, "the query is saved under a catalog id");
+
+const schemaUpsertIndex = calls.findIndex(
+  (c) => c.path === "/api/queries/upsert" && c.body?.kind === "operation"
+);
+const schemaWrapIndex = calls.findIndex((c) => c.path === "/api/execute-create");
+assert.ok(schemaUpsertIndex >= 0, "the catalog row is saved");
+assert.ok(schemaWrapIndex > schemaUpsertIndex, "the STEP wrap happens after the catalog row exists");
+
+const fetched = parse(
+  await client.callTool({
+    name: "get_operation",
+    arguments: { operation_id: createdSchema.operation_id },
+  })
+);
+const pkg = fetched.operation;
+const snapshot = pkg.builder_config;
+
+assert.equal(snapshot.version, 1, "a builder_config snapshot came back");
+assert.ok(snapshot.query, "the snapshot carries the QueryObject");
+assert.equal(snapshot.query.id, createdSchema.operation_id);
+assert.equal(snapshot.query.operation, "create");
+
+const recomposed = composer.composeQuery(normalizeForCompose(snapshot.query));
+assert.deepEqual(
+  recomposedStatements(recomposed.cypher),
+  pkg.cypher,
+  "reopening the query in the builder must recompose the exact Cypher that was saved"
+);
+assert.deepEqual(
+  composer.queryParametersForQueriesCatalog(normalizeForCompose(snapshot.query)),
+  pkg.parameters,
+  "and the exact parameter contract"
+);
+
+const schemaNode = snapshot.query.match[0].patterns[0].path[0].node;
+assert.equal(schemaNode.attributive_label, "CUSTOMER_RECORD");
+
+const before = queries.get(createdSchema.operation_id);
+const updated = parse(
+  await client.callTool({
+    name: "update_operation",
+    arguments: { operation_id: createdSchema.operation_id, query: snapshot.query },
+  })
+);
+assert.equal(updated.operation_id, createdSchema.operation_id);
+const after = queries.get(createdSchema.operation_id);
+assert.deepEqual(
+  after.cypher,
+  before.cypher,
+  "re-saving an unmodified snapshot must not change the composed Cypher"
+);
+assert.deepEqual(after.builder_config, before.builder_config, "nor the snapshot");
+
+// --- Create STEP (HTTP): publish the designed step, do not save a factory ---
+
+calls.length = 0;
+const createdStep = parse(
   await client.callTool({
     name: "create_operation",
     arguments: {
@@ -137,89 +228,36 @@ const created = parse(
     },
   })
 );
-assert.equal(created.ok, true);
-assert.ok(created.operation_id, "the operation is saved under a catalog id");
+assert.equal(createdStep.ok, true);
+assert.equal(createdStep.operation_id, null, "create STEP does not mint a catalog factory");
+assert.equal(createdStep.executed, true, "the designed STEP is materialized");
+assert.equal(createdStep.step_attributive_label, "LOG_SHIPMENT_CALL");
+assert.ok(createdStep.sequence_id, "add_as_sequence defaults to a one-step sequence");
 
-// The tool must have gone through the whole choreography, in order: save the catalog row,
-// then wrap it in a STEP node. A wrap written before the row would reference nothing.
-const upsertIndex = calls.findIndex((c) => c.path === "/api/queries/upsert");
-const wrapIndex = calls.findIndex((c) => c.path === "/api/execute-create");
-assert.ok(upsertIndex >= 0, "the catalog row is saved");
-assert.ok(wrapIndex > upsertIndex, "the STEP wrap happens after the catalog row exists");
-
-// --- Fetch it back and prove the snapshot recomposes identically ---
-
-const fetched = parse(
-  await client.callTool({
-    name: "get_operation",
-    arguments: { operation_id: created.operation_id },
-  })
+const stepCreateIndex = calls.findIndex((c) => c.path === "/api/execute-create");
+const stepSeqUpsert = calls.findIndex(
+  (c) => c.path === "/api/queries/upsert" && c.body?.kind === "sequence"
 );
-const pkg = fetched.operation;
-const snapshot = pkg.builder_config;
-
-assert.equal(snapshot.version, 1, "a builder_config snapshot came back");
-assert.ok(snapshot.query, "the snapshot carries the QueryObject");
-assert.equal(snapshot.query.id, created.operation_id);
-assert.equal(snapshot.query.operation, "create");
-
-const recomposed = composer.composeQuery(normalizeForCompose(snapshot.query));
-const recomposedStatements = recomposed.cypher
-  .split(/\s*;\s*\n/)
-  .map((chunk) =>
-    chunk
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith("//"))
-      .join(" ")
-  )
-  .filter(Boolean);
-
-assert.deepEqual(
-  recomposedStatements,
-  pkg.cypher,
-  "reopening the operation in the builder must recompose the exact Cypher that was saved"
-);
-assert.deepEqual(
-  composer.queryParametersForQueriesCatalog(normalizeForCompose(snapshot.query)),
-  pkg.parameters,
-  "and the exact parameter contract"
+assert.ok(stepCreateIndex >= 0, "the designed STEP is written");
+assert.ok(stepSeqUpsert > stepCreateIndex, "the one-step sequence is saved after the STEP exists");
+assert.equal(
+  calls.filter((c) => c.path === "/api/queries/upsert" && c.body?.kind === "operation").length,
+  0,
+  "create STEP must not upsert a kind=operation factory"
 );
 
-// The STEP configuration survives the round trip, which is what makes the operation
-// editable rather than merely re-runnable.
-const node = snapshot.query.match[0].patterns[0].path[0].node;
-assert.equal(node.attributive_label, "LOG_SHIPMENT_CALL");
-assert.equal(node.sequencial_properties.endpoint, "https://example.test/shipments");
-assert.equal(node.sequencial_properties.method, "POST");
-assert.deepEqual(node.sequencial_properties.body, { tracking: "$tracking" });
-assert.deepEqual(node.sequencial_properties.response_parameters, [
-  { property_path: "data.id", parameter: "shipment_id" },
-]);
-assert.deepEqual(
-  snapshot.query.parameters.map((p) => p.name),
-  ["tracking"]
+const oneStep = queries.get(createdStep.sequence_id);
+assert.equal(oneStep.kind, "sequence");
+assert.equal(oneStep.name, "Log shipment");
+assert.match(
+  oneStep.cypher.join(" "),
+  /attributive_label: 'LOG_SHIPMENT_CALL'/,
+  "the sequence MATCHES the designed STEP, not a wrap of the create-query"
 );
 
-// --- Editing it back is idempotent ---
+assert.ok(stepNodes.has("LOG_SHIPMENT_CALL"), "the designed STEP is in the graph");
 
-const before = queries.get(created.operation_id);
-const updated = parse(
-  await client.callTool({
-    name: "update_operation",
-    arguments: { operation_id: created.operation_id, query: snapshot.query },
-  })
-);
-assert.equal(updated.operation_id, created.operation_id);
-const after = queries.get(created.operation_id);
-assert.deepEqual(
-  after.cypher,
-  before.cypher,
-  "re-saving an unmodified snapshot must not change the composed Cypher"
-);
-assert.deepEqual(after.builder_config, before.builder_config, "nor the snapshot");
-
-// --- Wiring two steps and sequencing them ---
+// --- Wiring two published steps and sequencing them ---
 
 parse(
   await client.callTool({
@@ -238,30 +276,27 @@ const transition = parse(
   await client.callTool({
     name: "create_step_transition",
     arguments: {
-      from_step: "Log shipment",
-      to_step: "Notify customer",
+      from_step: "LOG_SHIPMENT_CALL",
+      to_step: "NOTIFY_CUSTOMER_CALL",
       relationship_label: "then notify",
     },
   })
 );
 assert.equal(transition.ok, true);
-// The endpoints are MATCHed by graph id and only then MERGEd together. A wrapping STEP
-// node carries the operation's name verbatim ("Log shipment"), so the transition looks its
-// id up rather than assuming a normalized label.
 const edgeWrite = executed.at(-1);
-assert.match(edgeWrite.cypher.join(" "), /MATCH \(Log_shipment:STEP \{ id: '/);
-assert.match(edgeWrite.cypher.join(" "), /MATCH \(Notify_customer:STEP \{ id: '/);
+assert.match(edgeWrite.cypher.join(" "), /MATCH \(LOG_SHIPMENT_CALL:STEP \{ id: '/);
+assert.match(edgeWrite.cypher.join(" "), /MATCH \(NOTIFY_CUSTOMER_CALL:STEP \{ id: '/);
 assert.match(
   edgeWrite.cypher.join(" "),
-  /MERGE \(Log_shipment\)-\[THEN_NOTIFY:POINTS_TO \{[^}]*\}\]->\(Notify_customer\)/,
-  "the relationship label is normalized to UPPER_SNAKE even when the step names are not"
+  /MERGE \(LOG_SHIPMENT_CALL\)-\[THEN_NOTIFY:POINTS_TO \{[^}]*\}\]->\(NOTIFY_CUSTOMER_CALL\)/,
+  "the relationship label is normalized to UPPER_SNAKE"
 );
 
 const sequence = parse(
   await client.callTool({
     name: "create_sequence",
     arguments: {
-      entry_step: "Log shipment",
+      entry_step: "LOG_SHIPMENT_CALL",
       name: "Ship and notify",
       group_title: "Fulfilment",
       description: "Log a shipment, then notify the customer.",
@@ -273,7 +308,7 @@ assert.equal(sequenceRow.kind, "sequence");
 assert.equal(sequenceRow.triggerable, true);
 assert.match(
   sequenceRow.cypher.join(" "),
-  /MATCH path = \(:STEP \{ attributive_label: 'Log shipment' \}\)-\[\*\]->/,
+  /MATCH path = \(:STEP \{ attributive_label: 'LOG_SHIPMENT_CALL' \}\)-\[\*\]->/,
   "a sequence must traverse downstream, or it would run only its entry step"
 );
 
@@ -281,7 +316,7 @@ assert.match(
 // creating an empty node the sequence would then walk into.
 const missing = await client.callTool({
   name: "create_step_transition",
-  arguments: { from_step: "Log shipment", to_step: "NOT_A_STEP", relationship_label: "NOPE" },
+  arguments: { from_step: "LOG_SHIPMENT_CALL", to_step: "NOT_A_STEP", relationship_label: "NOPE" },
 });
 assert.equal(missing.isError, true);
 assert.match(JSON.parse(missing.content[0].text).error, /No STEP node named/);

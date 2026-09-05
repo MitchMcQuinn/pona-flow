@@ -19,7 +19,7 @@ Cypress.Commands.add("editSequenceInNav", (sequenceLabel: string) => {
 /** Open a one-step sequence's wrapped operation in the locked operation editor. */
 Cypress.Commands.add("editSingleStepInNav", (sequenceLabel: string) => {
   hoverSequenceInNav(sequenceLabel, true);
-  cy.get(`[aria-label="Edit operation ${sequenceLabel}"]`).click();
+  cy.get(`[aria-label="Edit step ${sequenceLabel}"]`).click();
   cy.get('[data-testid="builder-save-operation-btn"]', { timeout: 20_000 }).should("be.visible");
 });
 

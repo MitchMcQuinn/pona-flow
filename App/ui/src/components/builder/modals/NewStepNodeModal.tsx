@@ -7,8 +7,7 @@ interface NewStepNodeModalProps {
 }
 
 // Normalize to an attributive_label (uppercase letters, digits, underscores).
-// Parameters ($...) are intentionally disallowed here — use the dedicated
-// "+ ADD A PARAMETER" picker option for that.
+// Parameters ($...) are not accepted: create-STEP identity must be a literal.
 function sanitizeInput(raw: string): string {
   return raw
     .replace(/\s+/g, "_")

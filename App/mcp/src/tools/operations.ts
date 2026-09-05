@@ -3,14 +3,18 @@
  *
  * An "operation" is a saved catalog package (one read/create/update/delete against the
  * graph) that the engine wraps in a STEP node so it can be composed into a sequence.
- * Saving one is a multi-call choreography — catalog row, STEP wrap,
- * optional sequence — which lives in @pona-flow/authoring and is shared with the React
- * builder, so an agent-authored operation opens in the visual builder unchanged.
+ * Create-STEP is different: the designed STEP is materialized and (by default) published
+ * as a one-step sequence that runs that step, not a factory that mints more STEPs.
+ * Saving lives in @pona-flow/authoring and is shared with the React builder.
  */
 
 import {
   assertPreflightClear,
   collectCreateEntityIds,
+  collectStepCreateAttributiveLabels,
+  isSingleNewStepCreate,
+  isStepCreateQuery,
+  publishCreatedStepAsSequence,
   runCreate,
   saveQueryOperation,
   updateQueryOperation,
@@ -255,17 +259,22 @@ export function registerOperationTools(server: McpServer, config: McpConfig): vo
     {
       title: "Create operation",
       description:
-        "Save a new operation to the catalog and auto-wrap it in a STEP node so it can be " +
-        "used in a sequence. Describe the package with the intent arguments; the server " +
-        "assembles the QueryObject, validates it, and resolves name collisions. " +
-        "Set execute=true when the package should also run now — a create package only " +
-        "materializes its SCHEMA/INSTANCE/STEP nodes in the graph when it runs.",
+        "Save a catalog query (read/create/update/delete of INSTANCE or SCHEMA) and auto-wrap " +
+        "it in a STEP so it can be used in a sequence. For create STEP (HTTP or Local LLM), " +
+        "this materializes the designed STEP in the graph. A single new STEP is published as a " +
+        "one-step sequence by default; a chain of STEPs is materialized only — use " +
+        "create_sequence to publish it. It does not save a factory that mints more STEPs. " +
+        "Describe the package with the intent arguments; the server assembles the QueryObject, " +
+        "validates it, and resolves name collisions. Set execute=true to also run a create " +
+        "INSTANCE or SCHEMA package now (create STEP always materializes).",
       inputSchema: {
         name: z
           .string()
           .describe(
-            "Operation name, also the attributive_label of the wrapping STEP node. " +
-              "A numeric suffix is appended if it is already taken."
+            "Workspace title (nav and MCP tool title). For a saved query this is also the " +
+              "wrapping STEP attributive_label, with a numeric suffix if taken. For create " +
+              "STEP it is the one-step sequence title; the STEP's attributive_label comes from " +
+              "attributive_label (defaulting to this name)."
           ),
         description: z.string().optional(),
         group_title: z.string().optional().describe("Navigation group to file this under."),
@@ -277,13 +286,20 @@ export function registerOperationTools(server: McpServer, config: McpConfig): vo
           .boolean()
           .optional()
           .describe(
-            "Wrap the STEP node in a runnable one-step sequence. Defaults to true; the " +
-              "visual builder always wraps. Pass false to save a STEP-only building block."
+            "Wrap the STEP in a runnable one-step sequence. Defaults to true for a saved " +
+              "query and for a single new STEP. For create STEP this publishes the designed " +
+              "step only when the package is one new node with no hops; pass false to " +
+              "materialize a STEP-only building block. A multi-step create is never published " +
+              "this way — use create_sequence. For INSTANCE/SCHEMA/read/update/delete, pass " +
+              "false to save a STEP wrap without a nav sequence."
           ),
         execute: z
           .boolean()
           .optional()
-          .describe("Run the package after saving it. Only valid for create packages."),
+          .describe(
+            "Run a create INSTANCE or SCHEMA package after saving it. Ignored for create STEP, " +
+              "which always materializes the designed step. Only valid for create packages."
+          ),
         space_id: z.string().optional(),
         ...intentSchema,
         ...rawQueryArg,
@@ -292,7 +308,14 @@ export function registerOperationTools(server: McpServer, config: McpConfig): vo
     async (args) =>
       guard(async () => {
         const spaceId = resolveSpaceId(config, args.space_id);
-        const intent = args as unknown as OperationIntent;
+        const intent = { ...(args as unknown as OperationIntent) };
+        if (
+          !args.query &&
+          intent.node_label === "STEP" &&
+          !(intent.attributive_label || "").trim()
+        ) {
+          intent.attributive_label = args.name;
+        }
         const { queryId, entityIds } = await mintIds(
           args.query ? 0 : mintedIdCount(intent)
         );
@@ -306,6 +329,42 @@ export function registerOperationTools(server: McpServer, config: McpConfig): vo
           runtimeEnabled: args.runtime_enabled ?? true,
         };
         await assertPreflightClear(ctx);
+
+        if (isStepCreateQuery(query)) {
+          const single = isSingleNewStepCreate(query);
+          if (args.add_as_sequence === true && !single) {
+            throw new Error(
+              "add_as_sequence is only available for a single new STEP. " +
+                "Materialize the chain, then call create_sequence naming the entry STEP."
+            );
+          }
+          if (single) {
+            const published = await publishCreatedStepAsSequence(ctx, {
+              name: args.name,
+              groupTitle: args.group_title,
+              description: args.description,
+              addAsSequence: args.add_as_sequence !== false,
+            });
+            return {
+              ok: true,
+              operation_id: null,
+              sequence_id: published.sequenceId ?? null,
+              step_attributive_label: published.stepLabel,
+              created_entity_ids: collectCreateEntityIds(query),
+              executed: true,
+            };
+          }
+          await runCreate(ctx);
+          return {
+            ok: true,
+            operation_id: null,
+            sequence_id: null,
+            step_attributive_label:
+              collectStepCreateAttributiveLabels(query)[0] || args.name,
+            created_entity_ids: collectCreateEntityIds(query),
+            executed: true,
+          };
+        }
 
         const saved = await saveQueryOperation(ctx, {
           name: args.name,

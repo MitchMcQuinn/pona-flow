@@ -182,6 +182,12 @@ export interface ExecuteCreateBody {
   cypher_params?: Record<string, unknown>;
   attributive_labels?: string[];
   /**
+   * Labels to register on ``spaces.labels`` when they are not uniqueness-claimed.
+   * STEP-to-STEP POINTS_TO edges (default NEXT) go here so pickers can see them
+   * without the uniqueness gate treating a reused NEXT as a collision.
+   */
+  catalog_labels?: string[];
+  /**
    * Entity ids this package writes. The server treats an attributive_label held only by
    * these as the caller re-saving its own entity rather than colliding with another one.
    */

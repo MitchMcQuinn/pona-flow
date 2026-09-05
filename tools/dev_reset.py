@@ -145,7 +145,9 @@ def _wipe_graph(connections: list[tuple[str, str, str]]) -> bool:
     for uri, user, password in connections:
         driver = None
         try:
-            driver = graph.GraphDatabase.driver(uri, auth=(user, password))
+            driver = graph.GraphDatabase.driver(
+                graph.direct_bolt_uri(uri), auth=(user, password)
+            )
             with driver.session() as session:
                 summary = session.run("MATCH (n) DETACH DELETE n").consume()
                 deleted = summary.counters.nodes_deleted

@@ -142,7 +142,17 @@ def _template_graph_labels(template: dict[str, Any]) -> list[tuple[str, str]]:
         add("schema", node.get("attributive_label") or "")
     for node in g.get("step_nodes") or []:
         add("step", node.get("attributive_label") or "")
+    step_ids = {
+        (node.get("id") or "").strip()
+        for node in (g.get("step_nodes") or [])
+        if (node.get("id") or "").strip()
+    }
     for rel in g.get("relationships") or []:
+        src = (rel.get("source") or "").strip()
+        tgt = (rel.get("target") or "").strip()
+        # STEP-to-STEP edges may share NEXT; they are not a unique graph name.
+        if src in step_ids and tgt in step_ids:
+            continue
         add("relationship", rel.get("attributive_label") or "")
     return out
 
@@ -173,8 +183,8 @@ def preview_import(space_id: str, template: dict[str, Any]) -> dict[str, Any]:
     conflicts: list[dict[str, Any]] = []
     taken: set[str] = set()
 
-    # Graph attributive_label collisions (STEP/SCHEMA nodes and POINTS_TO rels share a
-    # single namespace, enforced by graph.attributive_label_exists).
+    # Graph attributive_label collisions (STEP/SCHEMA nodes and SCHEMA relationship
+    # types share a namespace). STEP-to-STEP POINTS_TO labels may repeat and are skipped.
     for scope, label in _template_graph_labels(template):
         if graph.attributive_label_exists(sid, scope.upper(), label):
             taken.add(label)

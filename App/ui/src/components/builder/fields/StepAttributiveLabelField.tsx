@@ -44,8 +44,11 @@ export function StepAttributiveLabelField({
   const [existing, setExisting] = useState<ExistingStepNode[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [showParamModal, setShowParamModal] = useState(false);
+  // Custom-endpoint STEP creates MERGE a concrete graph identity, so attributive_label
+  // cannot be a $parameter. SCHEMA create still allows one (meta-authoring).
+  const allowParameter = nodeLabel !== "STEP";
 
-  // Globally unique across STEP, SCHEMA, and POINTS_TO (enforced server-side).
+  // Globally unique across STEP/SCHEMA nodes and SCHEMA relationship types.
   // A $parameter label is validated against its default value in the parameters card.
   const isParameterLabel = isAttributiveLabelParameter(attributiveLabel);
   useDebouncedCheck(
@@ -105,7 +108,9 @@ export function StepAttributiveLabelField({
         options={options}
         createActions={[
           { label: "+ ADD NEW NODE", onClick: () => setShowModal(true) },
-          { label: "+ ADD A PARAMETER", onClick: () => setShowParamModal(true) }
+          ...(allowParameter
+            ? [{ label: "+ ADD A PARAMETER", onClick: () => setShowParamModal(true) }]
+            : [])
         ]}
         onSelect={(value) => {
           if (!attributiveLabelChanged(attributiveLabel, value)) return;
@@ -125,7 +130,7 @@ export function StepAttributiveLabelField({
           }}
         />
       ) : null}
-      {showParamModal ? (
+      {allowParameter && showParamModal ? (
         <AddParameterModal
           onCancel={() => setShowParamModal(false)}
           onSave={(param) => {

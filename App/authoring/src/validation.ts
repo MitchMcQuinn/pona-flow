@@ -353,6 +353,32 @@ export function isStepCreateQuery(query: QueryObject): boolean {
   return query.operation === "create" && query.match[0]?.label === "STEP";
 }
 
+/**
+ * Create STEP with exactly one new node and no hops. That is the only shape that
+ * can publish as a one-step sequence: a chain belongs in the create-sequence builder.
+ */
+export function isSingleNewStepCreate(query: QueryObject): boolean {
+  if (!isStepCreateQuery(query)) return false;
+  let nodeCount = 0;
+  let relCount = 0;
+  let writtenNew = 0;
+  for (const clause of query.match ?? []) {
+    for (const pattern of clause.patterns ?? []) {
+      for (const el of pattern.path ?? []) {
+        if (el.kind === "relationship") {
+          relCount += 1;
+          continue;
+        }
+        nodeCount += 1;
+        const node = el.node;
+        if (node.alias_mode === "reference" || node.node_source === "existing") continue;
+        writtenNew += 1;
+      }
+    }
+  }
+  return relCount === 0 && nodeCount === 1 && writtenNew === 1;
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

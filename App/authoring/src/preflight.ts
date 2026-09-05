@@ -2,14 +2,16 @@
  * Pre-write validation, including the checks that need the server.
  *
  * `validateQuery` is pure and catches structural problems. The uniqueness invariants —
- * attributive labels are globally unique across STEP and SCHEMA, graph ids are unique, an
- * INSTANCE is_key value may not repeat — can only be settled by asking the graph. In the
- * React builder those probes run continuously as debounced field checks and gate the Run
- * button through `checksAllClear`. Any other client (the MCP server) would otherwise write
- * straight past them, so the same probes are folded into one awaitable call here.
+ * attributive labels are globally unique across STEP and SCHEMA nodes (STEP-to-STEP
+ * POINTS_TO edges may reuse NEXT), graph ids are unique, an INSTANCE is_key value may
+ * not repeat — can only be settled by asking the graph. In the React builder those
+ * probes run continuously as debounced field checks and gate the Run button through
+ * `checksAllClear`. Any other client (the MCP server) would otherwise write straight
+ * past them, so the same probes are folded into one awaitable call here.
  */
 
 import { connector } from "@pona-flow/connector";
+import { attributiveLabelRequiresUniqueness } from "./attributiveLabels.js";
 import { ATTRIBUTIVE_LABEL_VALUE_TYPE } from "./parameterRefs.js";
 import type { AuthoringContext, NodePattern, RelationshipPattern } from "./types.js";
 import { catalogRuntimeEnabled, validateQuery } from "./validation.js";
@@ -69,9 +71,10 @@ export async function preflight(ctx: AuthoringContext): Promise<string[]> {
 
   for (const { clauseLabel, entity, isNode } of createdEntities(ctx)) {
     const attributiveLabel = (entity.attributive_label || "").trim();
-    // STEP and SCHEMA share one global attributive_label namespace; INSTANCE labels
-    // name their SCHEMA and are expected to already exist.
-    if (attributiveLabel && (clauseLabel === "STEP" || clauseLabel === "SCHEMA")) {
+    // STEP/SCHEMA nodes and SCHEMA relationship types share one global namespace.
+    // STEP-to-STEP POINTS_TO edges do not (NEXT may repeat). INSTANCE labels name
+    // their SCHEMA and are expected to already exist.
+    if (attributiveLabel && attributiveLabelRequiresUniqueness(clauseLabel, isNode)) {
       labelProbes.push({
         attributiveLabel,
         nodeLabel: isNode ? clauseLabel : undefined,

@@ -34,7 +34,7 @@ function toggleInSet(set: Set<string>, id: string): Set<string> {
 
 const SUMMARY_ROWS: Array<{ key: keyof TemplateSummary; label: string }> = [
   { key: "sequences", label: "Sequences" },
-  { key: "operations", label: "Operations" },
+  { key: "operations", label: "Queries" },
   { key: "steps", label: "Steps" },
   { key: "schemas", label: "Schemas" },
   { key: "instances", label: "Instances" },
@@ -274,9 +274,9 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         </section>
 
         <section className="templateSelectionGroup" data-testid="template-select-operations">
-          <h4 className="navSectionHeader">Operations</h4>
+          <h4 className="navSectionHeader">Queries</h4>
           {operations.length === 0 ? (
-            <p className="muted">No standalone operations in this space.</p>
+            <p className="muted">No standalone queries in this space.</p>
           ) : (
             <ul className="templateSelectionList">
               {operations.map((op) => (

@@ -3,7 +3,7 @@ import { formatPreviewSqlBlock, formatSqlForPreview } from "../../utils/formatSq
 import {
   catalogRuntimeEnabled,
   checksAllClear,
-  collectCreateAttributiveLabels,
+  collectCreateCatalogLabels,
   hopModeNotices,
   isActiveCheckKey,
   isEntityConfigUpdate,
@@ -102,7 +102,7 @@ function buildPreviewSqlite(
     }
   }
 
-  const newLabels = collectCreateAttributiveLabels(query);
+  const newLabels = collectCreateCatalogLabels(query);
   if (query.operation === "create" && newLabels.length && state.spaceId) {
     const spaceSql = composer.composeSpaceLabelsUpdateSql(
       state.spaceId,

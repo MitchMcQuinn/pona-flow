@@ -5,7 +5,8 @@ Purpose in the project
 ----------------------
 The QUERY package builder must enforce graph conventions before CREATE:
 
-- Globally unique ``attributive_label`` across STEP, SCHEMA, and POINTS_TO relationships
+- Globally unique ``attributive_label`` across STEP and SCHEMA nodes, and SCHEMA
+  relationship types. STEP-to-STEP POINTS_TO edges may reuse a label (default NEXT).
 - Globally unique ``id`` on STEP/SCHEMA nodes and POINTS_TO relationships
 - Pick-lists of existing STEP/SCHEMA/INSTANCE nodes for relationship wiring
 
@@ -55,6 +56,37 @@ RESERVED_EMBEDDING_PROPERTY_KEYS = frozenset({EMBEDDING_PROPERTY, "embedding_sta
 def _require_neo4j() -> None:
     if GraphDatabase is None:
         raise RuntimeError("Missing dependency: install with `pip install neo4j`.")
+
+
+# Local Desktop/Community is a single instance and cannot answer the neo4j:// routing
+# handshake. That failure shows up as "Unable to retrieve routing information" on the
+# first graph round-trip that does not swallow errors — often the attributive_label
+# uniqueness check after "+ ADD NEW NODE" in create SCHEMA/STEP.
+_LOOPBACK_NEO4J_PREFIXES = (
+    "neo4j://127.0.0.1",
+    "neo4j://localhost",
+    "neo4j://[::1]",
+)
+
+
+def direct_bolt_uri(uri: str) -> str:
+    """Rewrite loopback ``neo4j://`` URIs to ``bolt://`` so local DBMS connects directly."""
+    raw = (uri or "").strip()
+    lowered = raw.lower()
+    for prefix in _LOOPBACK_NEO4J_PREFIXES:
+        if lowered.startswith(prefix):
+            return "bolt://" + raw[len("neo4j://") :]
+    return raw
+
+
+def _neo4j_connect_error(exc: BaseException) -> RuntimeError:
+    msg = str(exc)
+    if "routing information" in msg.lower():
+        return RuntimeError(
+            "Can't reach Neo4j (routing table). For a local single-instance DBMS use "
+            "bolt://127.0.0.1:7687, not neo4j://, and confirm the database is running."
+        )
+    return RuntimeError(f"Neo4j error: {exc}")
 
 
 def _strip_embedding_properties(value: Any) -> Any:
@@ -144,7 +176,9 @@ def run_cypher_for_space(
     _require_neo4j()
     cfg = spaces.neo4j_config_for_space(space_id)
     params = params or {}
-    driver = GraphDatabase.driver(cfg["uri"], auth=(cfg["user"], cfg["password"]))
+    driver = GraphDatabase.driver(
+        direct_bolt_uri(cfg["uri"]), auth=(cfg["user"], cfg["password"])
+    )
     try:
         with driver.session() as session:
             result = session.run(cypher, params)
@@ -174,7 +208,7 @@ def run_cypher_for_space(
                 },
             }
     except Neo4jError as e:
-        raise RuntimeError(f"Neo4j error: {e}") from e
+        raise _neo4j_connect_error(e) from e
     finally:
         driver.close()
 
@@ -187,8 +221,11 @@ def attributive_label_exists(
 ) -> bool:
     """Return True if any STEP/SCHEMA node or POINTS_TO rel already uses this attributive_label.
 
-    Uniqueness is global across STEP and SCHEMA (node_label is accepted for API
-    compatibility but not used to scope the query).
+    Uniqueness is global across STEP and SCHEMA nodes (node_label is accepted for API
+    compatibility but not used to scope the query). POINTS_TO edges are included so a
+    new node or SCHEMA relationship type cannot reuse a name already on the graph.
+    STEP-to-STEP edges may still share NEXT: the create path does not uniqueness-claim
+    those labels, so this check is not run for them.
     """
     del node_label  # unused; kept for call-site / query-param compatibility
     al = (attributive_label or "").strip()

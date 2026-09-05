@@ -10,6 +10,7 @@
 
 import { composer } from "@pona-flow/composer";
 import { connector } from "@pona-flow/connector";
+import { collectStepCreateAttributiveLabels } from "./attributiveLabels.js";
 import { normalizeForCompose, primaryNodeLabel } from "./normalize.js";
 import {
   buildCreateBodyWithOptions,
@@ -25,6 +26,7 @@ import {
   maybeRetargetOperationWrap,
   resolveStepWrapAttributiveLabel
 } from "./stepWrapLabel.js";
+import { isSingleNewStepCreate, isStepCreateQuery } from "./validation.js";
 import {
   GRAPH_NODE_LABELS,
   type AuthoringContext,
@@ -43,6 +45,16 @@ export interface SaveOperationInput {
   addAsSequence?: boolean;
   groupTitle?: string;
   description?: string;
+}
+
+/** Publish a create-STEP query: materialize the designed STEP, optionally wrap it as a sequence. */
+export interface PublishStepInput {
+  /** Nav/MCP sequence title. Defaults to the STEP's attributive_label when empty. */
+  name: string;
+  groupTitle?: string;
+  description?: string;
+  /** Defaults to true: wrap the materialized STEP in a one-step sequence. */
+  addAsSequence?: boolean;
 }
 
 /**
@@ -153,6 +165,47 @@ export async function saveQueryOperation(
     return { id: savedId, sequenceId: wrapped.id || undefined };
   }
   return { id: savedId };
+}
+
+/**
+ * Materialize a create-STEP query as the designed STEP (HTTP / Local LLM / query-backed)
+ * and optionally wrap *that* node in a one-step sequence. Unlike `saveQueryOperation`,
+ * this does not save the create-query as a catalog factory or mint a second wrap STEP.
+ * Only a single new STEP (no hops) can publish this way; a chain uses Create sequence.
+ */
+export async function publishCreatedStepAsSequence(
+  ctx: AuthoringContext,
+  input: PublishStepInput
+): Promise<{ sequenceId?: string; stepLabel: string }> {
+  if (!isStepCreateQuery(ctx.query)) {
+    throw new Error("Publishing as a sequence is only available for create STEP packages.");
+  }
+  if (!isSingleNewStepCreate(ctx.query)) {
+    throw new Error(
+      "Publishing as a sequence is only available for a single new STEP. Use Create sequence to publish a chain."
+    );
+  }
+  if (!ctx.spaceId) {
+    throw new Error("Select a space before publishing a step.");
+  }
+  const stepLabel = (collectStepCreateAttributiveLabels(ctx.query)[0] || "").trim();
+  if (!stepLabel) {
+    throw new Error("The STEP needs an attributive_label before it can be published.");
+  }
+  await runCreate(ctx);
+  const addAsSequence = input.addAsSequence !== false;
+  if (!addAsSequence) {
+    return { stepLabel };
+  }
+  const title = input.name.trim() || stepLabel;
+  const wrapped = await autoWrapInSequence(
+    ctx.spaceId,
+    title,
+    input.groupTitle,
+    input.description,
+    stepLabel
+  );
+  return { sequenceId: wrapped.id || undefined, stepLabel };
 }
 
 /**

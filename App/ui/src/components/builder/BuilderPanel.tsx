@@ -8,6 +8,7 @@ import {
 import regexValidator from "../../services/regexValidator";
 import {
   createResponseToRunResult,
+  publishCreatedStepAsSequence,
   runCreate,
   saveQueryOperation,
   saveSequencePackage,
@@ -22,8 +23,11 @@ import { builderSelectors } from "../../state/builder/selectors";
 import {
   DEFAULT_LOOP_CONFIG,
   catalogNamesTakenForOperationRename,
+  collectStepCreateAttributiveLabels,
   isHydratableBuilderConfig,
   isLoopType,
+  isSingleNewStepCreate,
+  isStepCreateQuery,
   loopConfigWarnings,
   normalizeAttributiveLabel,
   sanitizeAttributiveLabelInput,
@@ -121,7 +125,7 @@ function EditOperationActions({
 
   async function onSave() {
     setBusy(true);
-    dispatch({ type: "SET_STATUS", message: "Saving operation…", kind: "info" });
+    dispatch({ type: "SET_STATUS", message: "Saving step…", kind: "info" });
     try {
       const result = await updateQueryOperation(state);
       loadSavedQueries(dispatch);
@@ -130,7 +134,7 @@ function EditOperationActions({
       // (and on any sequence whose steps reference it). Refresh the nav so the red highlighting
       // clears immediately, without requiring a manual reload.
       onNavRefresh?.();
-      dispatch({ type: "SET_STATUS", message: "Operation saved", kind: "ok" });
+      dispatch({ type: "SET_STATUS", message: "Step saved", kind: "ok" });
       const title = state.query.name.trim();
       if (
         result.wrapLabel &&
@@ -142,7 +146,7 @@ function EditOperationActions({
           "info"
         );
       } else {
-        showToast("Operation updated.");
+        showToast("Step updated.");
       }
     } catch (error) {
       dispatch({
@@ -165,7 +169,7 @@ function EditOperationActions({
           disabled={!canSave || busy || !nameValid || nameTaken}
           onClick={onSave}
         >
-          {busy ? "Saving…" : "Save operation"}
+          {busy ? "Saving…" : "Save step"}
         </button>
       </div>
       {state.status.kind === "error" ? (
@@ -192,6 +196,9 @@ function MutationRunActions({
   const showRunButton = builderSelectors.showRunButton(state);
   const canRun = builderSelectors.canCreate(state);
   const canSaveOp = builderSelectors.canSaveOperation(state);
+  // Create STEP with hops is graph authoring; a one-step sequence would ignore the chain.
+  const showSaveAsSequence =
+    !isStepCreateQuery(state.query) || isSingleNewStepCreate(state.query);
 
   if (op !== "create") return null;
 
@@ -235,8 +242,33 @@ function MutationRunActions({
 
   async function onCreateOperationSave(values: CreateOperationFormValues) {
     setSavingOp(true);
-    dispatch({ type: "SET_STATUS", message: "Saving operation…", kind: "info" });
+    const publishingStep = isSingleNewStepCreate(state.query);
+    dispatch({
+      type: "SET_STATUS",
+      message: publishingStep ? "Publishing step…" : "Saving as sequence…",
+      kind: "info"
+    });
     try {
+      if (publishingStep) {
+        const result = await publishCreatedStepAsSequence(state, {
+          name: values.name,
+          groupTitle: values.groupTitle,
+          description: values.description,
+          addAsSequence: true
+        });
+        loadSavedQueries(dispatch);
+        if (state.spaceId) {
+          refreshSpaceLabels(state.spaceId, dispatch);
+        }
+        dispatch({ type: "DATA_CHANGED" });
+        if (result.sequenceId) {
+          onSequenceCreated?.(result.sequenceId);
+        }
+        setShowCreateModal(false);
+        showToast("Step published as a one-step sequence.");
+        dispatch({ type: "RESET_BUILDER" });
+        return;
+      }
       const result = await saveQueryOperation(state, {
         name: values.name,
         groupTitle: values.groupTitle,
@@ -254,7 +286,7 @@ function MutationRunActions({
         onSequenceCreated?.(result.sequenceId);
       }
       setShowCreateModal(false);
-      showToast("Operation saved to catalog as a one-step sequence.");
+      showToast("Saved as a one-step sequence.");
     } catch (error) {
       dispatch({
         type: "SET_STATUS",
@@ -283,25 +315,38 @@ function MutationRunActions({
               {runButtonLabel(op, clauseLabel, { busy })}
             </button>
           ) : null}
-          <button
-            type="button"
-            className="btnSecondary"
-            data-testid="builder-create-operation-btn"
-            disabled={!canSaveOp || disabled}
-            onClick={() => setShowCreateModal(true)}
-          >
-            Create operation
-          </button>
+          {showSaveAsSequence ? (
+            <button
+              type="button"
+              className="btnSecondary"
+              data-testid="builder-create-operation-btn"
+              disabled={!canSaveOp || disabled}
+              onClick={() => setShowCreateModal(true)}
+            >
+              Save as sequence
+            </button>
+          ) : null}
         </div>
         {state.status.kind === "error" ? (
           <p className="builderRunStatus error">{state.status.message}</p>
         ) : null}
       </div>
 
-      {showCreateModal ? (
+      {showSaveAsSequence && showCreateModal ? (
         <CreateOperationModal
           saving={savingOp}
-          initialName={state.query.name}
+          variant={
+            isStepCreateQuery(state.query)
+              ? "step"
+              : clauseLabel === "SCHEMA"
+                ? "schema"
+                : "query"
+          }
+          initialName={
+            isStepCreateQuery(state.query)
+              ? collectStepCreateAttributiveLabels(state.query)[0] || state.query.name
+              : state.query.name
+          }
           existingGroups={state.spaceGroups}
           takenSequenceNames={state.savedQueries
             .filter((q) => q.kind === "sequence" && q.id !== state.query.id)
@@ -931,7 +976,7 @@ function BuilderBody({
                 ? "Edit sequence"
                 : "Create a sequence"
               : editingOperation
-                ? "Edit operation"
+                ? "Edit step"
                 : "Builder"}
           </strong>
           {editingSequence && editingSequenceId ? (
@@ -965,7 +1010,7 @@ function BuilderBody({
         {editingOperation ? (
           <div className="builderField">
             <div className="createSequenceLabelRow">
-              <label>Operation name</label>
+              <label>Step name</label>
               {!operationNameValid ? (
                 <span className="createSequenceRequired">Required</span>
               ) : operationNameTaken ? (
@@ -974,7 +1019,7 @@ function BuilderBody({
             </div>
             <input
               value={state.query.name}
-              placeholder="Operation name"
+              placeholder="Step name"
               data-testid="builder-operation-name"
               onChange={(e) =>
                 dispatch({ type: "SET_NAME", name: sanitizeAttributiveLabelInput(e.target.value) })

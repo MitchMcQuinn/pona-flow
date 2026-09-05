@@ -8,6 +8,8 @@ import { ModalBackdrop } from "../../modals/ModalBackdrop";
 
 export const CREATE_NEW_GROUP = "__new_group__";
 
+export type SaveAsSequenceVariant = "step" | "schema" | "query";
+
 export interface CreateOperationFormValues {
   name: string;
   groupTitle: string;
@@ -21,7 +23,15 @@ interface CreateOperationModalProps {
   initialName?: string;
   existingGroups?: string[];
   takenSequenceNames?: string[];
+  variant?: SaveAsSequenceVariant;
 }
+
+const VARIANT_HINT: Record<SaveAsSequenceVariant, string> = {
+  step: "Create this step and add a one-step sequence in the active space.",
+  schema:
+    "Save this create-schema query as a reusable one-step sequence. Running it mints a schema; it does not publish the schema you are editing.",
+  query: "Save this query as a one-step sequence in the active space."
+};
 
 export function CreateOperationModal({
   onCancel,
@@ -29,7 +39,8 @@ export function CreateOperationModal({
   saving = false,
   initialName = "",
   existingGroups = [],
-  takenSequenceNames = []
+  takenSequenceNames = [],
+  variant = "query"
 }: CreateOperationModalProps) {
   const [name, setName] = useState(() => normalizeAttributiveLabel(initialName));
   const [description, setDescription] = useState("");
@@ -68,9 +79,9 @@ export function CreateOperationModal({
         data-testid="modal-create-operation"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ marginTop: 0 }}>Create operation</h3>
+        <h3 style={{ marginTop: 0 }}>Save as sequence</h3>
         <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>
-          Save this package as a one-step sequence in the active space.
+          {VARIANT_HINT[variant]}
         </p>
 
         <div className="builderFormFieldset">
@@ -175,7 +186,7 @@ export function CreateOperationModal({
             disabled={saving}
             onClick={save}
           >
-            {saving ? "Saving…" : "Save operation"}
+            {saving ? "Saving…" : "Save sequence"}
           </button>
         </div>
       </div>

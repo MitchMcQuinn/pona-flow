@@ -109,6 +109,15 @@ Cypress.Commands.add("runBuilderCreate", () => {
   );
 });
 
+Cypress.Commands.add("configureHttpStep", (endpoint: string) => {
+  cy.contains(".builderField label", "endpoint")
+    .parent()
+    .find("input")
+    .clear()
+    .type(endpoint)
+    .blur();
+});
+
 Cypress.Commands.add(
   "createSchemaNode",
   (attributiveLabel: string, properties: SchemaPropertySpec[] = []) => {

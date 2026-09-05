@@ -335,10 +335,10 @@ function SequenceItem({
           type="button"
           aria-label={
             sequence.singleStep
-              ? `Edit operation ${sequence.label}`
+              ? `Edit step ${sequence.label}`
               : `Edit sequence ${sequence.label}`
           }
-          title={sequence.singleStep ? "Edit operation" : "Edit sequence"}
+          title={sequence.singleStep ? "Edit step" : "Edit sequence"}
           onClick={() => onEditSequence(sequence.id)}
         >
           <EditIcon />
@@ -1109,7 +1109,7 @@ export function NavigationPanel({
               <>
                 <div className="navSectionHeader">
                   <h3 className="navSectionTitle" data-testid="nav-single-step-heading">
-                    Operations
+                    Single-step
                   </h3>
                 </div>
                 <div data-testid="nav-single-step-section">

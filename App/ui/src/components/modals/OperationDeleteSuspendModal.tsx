@@ -39,14 +39,14 @@ export function OperationDeleteSuspendModal({
 
         {dependents.length ? (
           <p style={{ margin: "0 0 10px" }}>
-            This removes the operation and its one-step sequence. These multi-step sequences
-            still reference its STEP and will be <strong>suspended</strong> (they cannot run)
+            This removes the one-step sequence and its STEP. These multi-step sequences
+            still reference that STEP and will be <strong>suspended</strong> (they cannot run)
             until they are resaved with a valid STEP chain.
           </p>
         ) : (
           <p style={{ margin: "0 0 10px" }}>
-            This deletes the operation and its one-step sequence, including the wrapping STEP
-            node. No other sequences reference it.
+            This deletes the one-step sequence and its STEP node. No other sequences
+            reference it.
           </p>
         )}
 

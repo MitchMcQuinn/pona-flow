@@ -1,5 +1,8 @@
 import type { QueryObject } from "./types.js";
 
+/** Default POINTS_TO attributive_label for STEP-to-STEP edges. Reusable; uniqueness is not required. */
+export const DEFAULT_STEP_RELATIONSHIP_LABEL = "NEXT";
+
 /**
  * Entities a create package is actually writing. Alias references and matched-existing
  * endpoints are in the pattern so the composer can MERGE an edge onto them, but they
@@ -14,9 +17,26 @@ function isWrittenCreateEntity(entity: {
   return entity.alias_mode !== "reference" && entity.node_source !== "existing";
 }
 
+/**
+ * Whether a create entity's attributive_label must be globally unique.
+ *
+ * STEP and SCHEMA *nodes* share one namespace, and so do new SCHEMA relationship types.
+ * STEP-to-STEP POINTS_TO edges do not: they default to NEXT and any number of them may
+ * share that label (or any other). INSTANCE labels name an existing SCHEMA.
+ */
+export function attributiveLabelRequiresUniqueness(
+  clauseLabel: string,
+  isNode: boolean
+): boolean {
+  if (clauseLabel === "SCHEMA") return true;
+  if (clauseLabel === "STEP") return isNode;
+  return false;
+}
+
 function collectFromQuery(
   query: QueryObject,
-  clauseLabel: "STEP" | "SCHEMA"
+  clauseLabel: "STEP" | "SCHEMA",
+  includeRelationships: boolean
 ): string[] {
   const out = new Set<string>();
   if (query.operation !== "create" || query.match[0]?.label !== clauseLabel) return [];
@@ -35,19 +55,20 @@ function collectFromQuery(
     clause.patterns.forEach((pattern) => {
       pattern.path.forEach((element) => {
         if (element.kind === "node") add(element.node);
-        else add(element.relationship);
+        else if (includeRelationships) add(element.relationship);
       });
     });
   });
   return [...out];
 }
 
+/** Uniqueness-claimed labels: STEP/SCHEMA nodes and new SCHEMA relationship types. */
 export function collectStepCreateAttributiveLabels(query: QueryObject): string[] {
-  return collectFromQuery(query, "STEP");
+  return collectFromQuery(query, "STEP", false);
 }
 
 export function collectSchemaCreateAttributiveLabels(query: QueryObject): string[] {
-  return collectFromQuery(query, "SCHEMA");
+  return collectFromQuery(query, "SCHEMA", true);
 }
 
 export function collectCreateAttributiveLabels(query: QueryObject): string[] {
@@ -55,6 +76,24 @@ export function collectCreateAttributiveLabels(query: QueryObject): string[] {
     ...collectStepCreateAttributiveLabels(query),
     ...collectSchemaCreateAttributiveLabels(query)
   ];
+}
+
+/**
+ * Labels to register on ``spaces.labels`` so pickers can see them. Includes STEP
+ * relationship labels (NEXT, …) that uniqueness does not claim.
+ */
+export function collectCreateCatalogLabels(query: QueryObject): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const label of [
+    ...collectFromQuery(query, "STEP", true),
+    ...collectFromQuery(query, "SCHEMA", true)
+  ]) {
+    if (seen.has(label)) continue;
+    seen.add(label);
+    out.push(label);
+  }
+  return out;
 }
 
 /**

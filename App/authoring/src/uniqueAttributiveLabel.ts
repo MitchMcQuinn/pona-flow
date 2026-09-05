@@ -21,7 +21,7 @@ export function nextUniqueAttributiveLabel(
  *
  * The catalog name is the workspace title and always saves. The wrap label is graph identity
  * and only follows when a wrap already exists, the title actually changed, and no other
- * STEP/SCHEMA/POINTS_TO already holds that label.
+ * STEP/SCHEMA already holds that label.
  */
 export function shouldRetargetSequenceWrap(opts: {
   requestedName: string;

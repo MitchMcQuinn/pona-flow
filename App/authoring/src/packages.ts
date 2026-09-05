@@ -17,7 +17,11 @@ import {
   VECTOR_PARAM_TEXT,
 } from "@pona-flow/composer";
 import type { ExecuteCreateBody } from "@pona-flow/connector";
-import { collectCreateAttributiveLabels, collectCreateEntityIds } from "./attributiveLabels.js";
+import {
+  collectCreateAttributiveLabels,
+  collectCreateCatalogLabels,
+  collectCreateEntityIds
+} from "./attributiveLabels.js";
 import { serializeBuilderConfig } from "./builderConfig.js";
 import { normalizeForCompose, primaryNodeLabel } from "./normalize.js";
 import type { AuthoringContext, BuilderConfig, LoopConfig, QueryObject } from "./types.js";
@@ -205,6 +209,7 @@ export function buildCreateBodyWithOptions(
   }
   const cypher_params = cypherParamsFromQuery(query);
   const attributive_labels = collectCreateAttributiveLabels(ctx.query);
+  const catalog_labels = collectCreateCatalogLabels(ctx.query);
 
   const body: ExecuteCreateBody = {
     space_id: ctx.spaceId ?? "",
@@ -222,6 +227,11 @@ export function buildCreateBodyWithOptions(
   if (attributive_labels.length) {
     body.attributive_labels = attributive_labels;
     body.attributive_label_owner_ids = collectCreateEntityIds(ctx.query);
+  }
+  // STEP-to-STEP edges (default NEXT) still need to land in spaces.labels for pickers,
+  // but they are not uniqueness-claimed — send them only when they add to the set.
+  if (catalog_labels.some((label) => !attributive_labels.includes(label))) {
+    body.catalog_labels = catalog_labels;
   }
   return body;
 }

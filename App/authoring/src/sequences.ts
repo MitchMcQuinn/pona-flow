@@ -46,24 +46,27 @@ export interface SequencePackageResult {
 }
 
 /**
- * Wrap an auto-created STEP node in a one-step sequence (catalog kind=sequence, read,
- * triggerable). The sequence's read Cypher matches the wrapping STEP node by its
- * attributive_label, so a lone operation becomes runnable as a sequence without any
- * manual sequence-building step. `groupTitle` files the sequence under a navigation
- * group (the upsert endpoint registers it on the space).
+ * Wrap an existing STEP node in a one-step sequence (catalog kind=sequence, read,
+ * triggerable). The sequence's read Cypher matches that STEP by `entryLabel` (defaulting
+ * to `name`), so a lone step becomes runnable without a manual sequence-building pass.
+ * `name` is the nav/MCP title and may differ from the MATCH label. `groupTitle` files
+ * the sequence under a navigation group (the upsert endpoint registers it on the space).
  */
 export async function autoWrapInSequence(
   spaceId: string,
   name: string,
   groupTitle?: string,
-  description?: string
+  description?: string,
+  entryLabel?: string
 ): Promise<SequencePackageResult> {
-  const cypher = composer.composeOneStepSequenceCypher({ name });
+  const matchLabel = (entryLabel ?? name).trim();
+  const title = name.trim();
+  const cypher = composer.composeOneStepSequenceCypher({ name: matchLabel });
   if (!cypher) return { id: "" };
   const sequenceId = await connector.generateQueryId();
   const payload: QueriesCatalogPayload = {
     id: sequenceId,
-    name: name.trim(),
+    name: title,
     kind: "sequence",
     operation: "read",
     runtime_enabled: true,
@@ -76,9 +79,9 @@ export async function autoWrapInSequence(
     parameters: [],
     description: description?.trim() || undefined,
     // The auto-wrapped sequence never passes through the visual builder, so synthesize the
-    // matching STEP-by-attributive_label snapshot here; otherwise it persists an empty
+    // matching STEP-by-attributive-label snapshot here; otherwise it persists an empty
     // builder_config and can't be opened in the create-sequence editor.
-    builder_config: oneStepSequenceBuilderConfig(sequenceId, name)
+    builder_config: oneStepSequenceBuilderConfig(sequenceId, matchLabel)
   };
   await connector.upsertQuery(payload);
   return { id: sequenceId };

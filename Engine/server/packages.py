@@ -82,11 +82,14 @@ def _assert_attributive_labels_available(
 ) -> None:
     """Reject a create whose new attributive_labels are already owned by another entity.
 
-    Attributive labels are globally unique across STEP and SCHEMA. The React builder
-    enforces this with debounced field checks before enabling Run, but that gate lives
-    entirely in the browser — any other client (the MCP authoring server, a raw API call)
-    would otherwise MERGE onto an existing node and silently graft new configuration onto
-    someone else's entity.
+    Attributive labels are globally unique across STEP and SCHEMA *nodes*, and across
+    new SCHEMA relationship types. STEP-to-STEP POINTS_TO edges (default NEXT) are
+    reusable and are not sent in this list — they register via ``catalog_labels``.
+
+    The React builder enforces uniqueness with debounced field checks before enabling
+    Run, but that gate lives entirely in the browser — any other client (the MCP
+    authoring server, a raw API call) would otherwise MERGE onto an existing node and
+    silently graft new configuration onto someone else's entity.
 
     ``owner_ids`` are the entity ids this package itself writes. A label held only by
     those is a re-save of the caller's own entity (the STEP auto-wrap does exactly this
@@ -107,6 +110,22 @@ def _assert_attributive_labels_available(
             )
 
 
+def _catalog_labels_to_register(
+    attributive_labels: list[str] | None,
+    catalog_labels: list[str] | None,
+) -> list[str]:
+    """Union of uniqueness-claimed labels and catalog-only labels (STEP NEXT, …)."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in [*(attributive_labels or []), *(catalog_labels or [])]:
+        label = str(raw or "").strip()
+        if not label or label in seen:
+            continue
+        seen.add(label)
+        out.append(label)
+    return out
+
+
 def execute_create_package(
     space_id: str,
     cypher_statements: list[str],
@@ -115,6 +134,7 @@ def execute_create_package(
     queries_catalog: dict[str, Any] | None = None,
     attributive_labels: list[str] | None = None,
     attributive_label_owner_ids: list[str] | None = None,
+    catalog_labels: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run composed Cypher (Neo4j) and SQLite statements for a space."""
     _assert_attributive_labels_available(
@@ -142,9 +162,10 @@ def execute_create_package(
     if catalog_result is not None:
         out["queries_catalog"] = catalog_result
 
-    if attributive_labels:
+    space_labels = _catalog_labels_to_register(attributive_labels, catalog_labels)
+    if space_labels:
         out["space_labels"] = spaces.append_space_attributive_labels(
-            space_id, attributive_labels
+            space_id, space_labels
         )
 
     return out

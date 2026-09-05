@@ -32,7 +32,7 @@ describe("builder: edit saved operation", () => {
     cy.get('[data-testid="builder-save-operation-btn"]').should("not.be.disabled").click();
     cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should(
       "contain.text",
-      "Operation updated"
+      "Step updated"
     );
   });
 });

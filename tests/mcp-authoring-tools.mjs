@@ -142,10 +142,23 @@ assert.ok(
   "the instructions must present the stages in dependency order"
 );
 assert.match(INSTRUCTIONS, /HTTP call, or a Local LLM call/);
+assert.match(
+  INSTRUCTIONS,
+  /default to NEXT/,
+  "instructions must say STEP-to-STEP edges may reuse NEXT"
+);
 assert.equal(
   /code_step|code-execution|sandboxed code/i.test(INSTRUCTIONS),
   false,
   "authoring MCP instructions must not advertise code-execution STEPs"
+);
+
+const transitionSchema = byName.get("create_step_transition").inputSchema;
+assert.ok("relationship_label" in transitionSchema.properties);
+assert.equal(
+  (transitionSchema.required || []).includes("relationship_label"),
+  false,
+  "STEP-to-STEP edges default to NEXT; a unique relationship_label is not required"
 );
 
 // --- Intent -> QueryObject -> Cypher ---

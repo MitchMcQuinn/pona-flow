@@ -77,12 +77,32 @@ check(
 check("blank and duplicate labels are skipped", not rejects(["", "  ", "NEW", "NEW"], None))
 check("no labels at all is a no-op", not rejects(None, None))
 
+# Catalog-only labels (STEP-to-STEP NEXT) must still land in spaces.labels without
+# going through the uniqueness gate.
+merge = packages._catalog_labels_to_register
+check(
+    "catalog-only NEXT still registers when uniqueness claims nothing",
+    merge(None, ["NEXT"]) == ["NEXT"],
+)
+check(
+    "uniqueness labels still register when catalog_labels is omitted (old clients)",
+    merge(["STEP_A"], None) == ["STEP_A"],
+)
+check(
+    "catalog_labels unions with uniqueness labels without duplicating",
+    merge(["STEP_A"], ["STEP_A", "NEXT"]) == ["STEP_A", "NEXT"],
+)
+
 # The gate must run before anything is written, or a rejected create still leaves rows behind.
 create_src = inspect.getsource(packages.execute_create_package)
 body = create_src.split('"""', 2)[-1]
 check(
     "the uniqueness gate runs before any write in execute_create_package",
     body.index("_assert_attributive_labels_available") < body.index("upsert_queries_catalog_row"),
+)
+check(
+    "space catalog registration uses the uniqueness+catalog union",
+    "_catalog_labels_to_register" in body and "append_space_attributive_labels" in body,
 )
 
 # --- RBAC gate on the authoring route ----------------------------------------------------

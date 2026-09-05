@@ -67,7 +67,7 @@ Cypress.Commands.add(
     cy.get('[data-testid="modal-create-operation"]').should("not.exist");
     cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should(
       "contain.text",
-      "Operation saved to catalog"
+      "Saved as a one-step sequence"
     );
   }
 );

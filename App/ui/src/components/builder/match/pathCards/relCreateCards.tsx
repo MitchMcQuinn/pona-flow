@@ -16,7 +16,8 @@ import {
   collectQueryVariables,
   instanceEntityIdPatch,
   instanceKeyValue,
-  INSTANCE_ALIAS_DEFAULT_PLACEHOLDER
+  INSTANCE_ALIAS_DEFAULT_PLACEHOLDER,
+  DEFAULT_STEP_RELATIONSHIP_LABEL
 } from "@pona-flow/authoring";
 import {
   filterAliasReferencesForRequiredAttributiveLabel,
@@ -47,8 +48,6 @@ import {
   useRelCard,
   type RelCardProps
 } from "./shared";
-
-const DEFAULT_REL_ATTRIBUTIVE_LABEL = "NEXT";
 
 /** The create cards' default alias picker (create mode always allows defining one). */
 function CreateRelAliasField({
@@ -109,7 +108,7 @@ export function StepCreateRelCard(props: RelCardProps) {
           variable: aliasLocked ? relationship.variable : generatedId,
           attributive_label: relationship.attributive_label?.trim()
             ? relationship.attributive_label
-            : DEFAULT_REL_ATTRIBUTIVE_LABEL
+            : DEFAULT_STEP_RELATIONSHIP_LABEL
         });
       })
       .catch(() => undefined);

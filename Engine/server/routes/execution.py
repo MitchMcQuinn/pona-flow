@@ -48,6 +48,11 @@ async def execute_create(
         attributive_labels = [
             str(i).strip() for i in attributive_labels if str(i).strip()
         ]
+    catalog_labels = body.get("catalog_labels")
+    if catalog_labels is not None:
+        if not isinstance(catalog_labels, list):
+            raise bad_request("catalog_labels must be an array")
+        catalog_labels = [str(i).strip() for i in catalog_labels if str(i).strip()]
     # Entity ids this package writes, so re-MERGEing a label the caller already owns is
     # not mistaken for a collision (see packages._assert_attributive_labels_available).
     owner_ids = body.get("attributive_label_owner_ids")
@@ -64,6 +69,7 @@ async def execute_create(
             queries_catalog=queries_catalog,
             attributive_labels=attributive_labels,
             attributive_label_owner_ids=owner_ids,
+            catalog_labels=catalog_labels,
         )
     except ValueError as e:
         raise bad_request(str(e))

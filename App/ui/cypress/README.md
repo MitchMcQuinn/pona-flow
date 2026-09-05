@@ -181,7 +181,8 @@ Status legend: [x] covered by a spec, [~] partial / blocked, [ ] not yet covered
 - [x] update / SCHEMA + suspension preview (`update-schema.cy.ts`, `journeys/schema-update.cy.ts`)
 - [x] delete / SCHEMA cascade (`delete-schema.cy.ts`)
 - [x] delete / STEP cascade (`delete-step.cy.ts`)
-- [x] edit saved operation (locked toggles, Save operation) (`edit-operation.cy.ts`)
+- [x] edit saved step (locked toggles, Save step) (`edit-operation.cy.ts`)
+- [x] create / STEP HTTP publish as one-step sequence (`publish-http-step.cy.ts`)
 
 ### Sequence lifecycle (`e2e/sequence/`)
 

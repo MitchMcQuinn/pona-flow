@@ -11,12 +11,22 @@
 import assert from "node:assert/strict";
 
 import {
+  attributiveLabelRequiresUniqueness,
   buildCreateBodyWithOptions,
   collectCreateAttributiveLabels,
+  collectCreateCatalogLabels,
   collectCreateEntityIds,
+  DEFAULT_STEP_RELATIONSHIP_LABEL,
+  isSingleNewStepCreate,
   newQuery,
 } from "../App/authoring/src/index.ts";
 import { buildStepTransitionQuery } from "../App/mcp/src/intent.ts";
+
+assert.equal(attributiveLabelRequiresUniqueness("STEP", true), true);
+assert.equal(attributiveLabelRequiresUniqueness("STEP", false), false);
+assert.equal(attributiveLabelRequiresUniqueness("SCHEMA", true), true);
+assert.equal(attributiveLabelRequiresUniqueness("SCHEMA", false), true);
+assert.equal(attributiveLabelRequiresUniqueness("INSTANCE", false), false);
 
 function schemaRelCreate({ from, rel, to }) {
   const query = newQuery("create");
@@ -45,6 +55,17 @@ function existingNode(label, id) {
     variable: id,
     alias_mode: "define",
     node_source: "existing",
+    attributive_label: label,
+    id_binding: { key: "id", value: id },
+    properties: [],
+  };
+}
+
+function newNode(label, id) {
+  return {
+    variable: id,
+    alias_mode: "define",
+    node_source: "new",
     attributive_label: label,
     id_binding: { key: "id", value: id },
     properties: [],
@@ -88,6 +109,7 @@ function newRel(label, id, extra = {}) {
     { includeQueriesCatalog: false }
   );
   assert.deepEqual(body.attributive_labels, ["FOLLOWS_MESSAGE"]);
+  assert.equal(body.catalog_labels, undefined);
   assert.deepEqual(body.attributive_label_owner_ids, ["ent-follows"]);
 }
 
@@ -169,6 +191,8 @@ function newRel(label, id, extra = {}) {
 }
 
 // STEP transition: existing endpoints, new POINTS_TO edge.
+// STEP-to-STEP labels (NEXT, ON_APPROVAL, …) are reusable — they register in the
+// space catalog but are not uniqueness-claimed.
 
 {
   const query = buildStepTransitionQuery(
@@ -181,10 +205,134 @@ function newRel(label, id, extra = {}) {
   );
   assert.deepEqual(
     collectCreateAttributiveLabels(query),
+    [],
+    "STEP relationship labels are not uniqueness-claimed"
+  );
+  assert.deepEqual(
+    collectCreateCatalogLabels(query),
     ["ON_APPROVAL"],
-    "existing STEP endpoints must not be claimed as new labels"
+    "STEP relationship labels still register in the space catalog"
   );
   assert.deepEqual(collectCreateEntityIds(query), ["rel-1"]);
+
+  const body = buildCreateBodyWithOptions(
+    { spaceId: "space-1", query, runtimeEnabled: false },
+    { includeQueriesCatalog: false }
+  );
+  assert.equal(body.attributive_labels, undefined);
+  assert.deepEqual(body.catalog_labels, ["ON_APPROVAL"]);
+}
+
+{
+  const query = buildStepTransitionQuery(
+    {
+      from: { id: "step-a", attributive_label: "STEP_A" },
+      to: { id: "step-b", attributive_label: "STEP_B" },
+      relationship_label: DEFAULT_STEP_RELATIONSHIP_LABEL,
+    },
+    { queryId: "q-next", entityIds: ["rel-2"] }
+  );
+  assert.deepEqual(collectCreateAttributiveLabels(query), []);
+  assert.deepEqual(collectCreateCatalogLabels(query), ["NEXT"]);
+}
+
+// New STEP node plus a NEXT edge: only the node label is uniqueness-claimed.
+
+{
+  const query = newQuery("create");
+  query.match = [
+    {
+      label: "STEP",
+      optional: false,
+      patterns: [
+        {
+          path: [
+            {
+              kind: "node",
+              node: {
+                variable: "a1",
+                alias_mode: "define",
+                node_source: "new",
+                attributive_label: "STEP_A",
+                id_binding: { key: "id", value: "ent-step-a" },
+                properties: [],
+              },
+            },
+            {
+              kind: "relationship",
+              relationship: {
+                variable: "rel1",
+                alias_mode: "define",
+                type: "POINTS_TO",
+                attributive_label: "NEXT",
+                id_binding: { key: "id", value: "ent-next" },
+                properties: [],
+              },
+            },
+            {
+              kind: "node",
+              node: {
+                variable: "b1",
+                alias_mode: "define",
+                node_source: "existing",
+                attributive_label: "STEP_B",
+                id_binding: { key: "id", value: "ent-step-b" },
+                properties: [],
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ];
+  assert.deepEqual(collectCreateAttributiveLabels(query), ["STEP_A"]);
+  assert.deepEqual(collectCreateCatalogLabels(query), ["STEP_A", "NEXT"]);
+  const body = buildCreateBodyWithOptions(
+    { spaceId: "space-1", query, runtimeEnabled: false },
+    { includeQueriesCatalog: false }
+  );
+  assert.deepEqual(body.attributive_labels, ["STEP_A"]);
+  assert.deepEqual(body.catalog_labels, ["STEP_A", "NEXT"]);
+  assert.equal(isSingleNewStepCreate(query), false, "a hop is not a single new STEP");
+}
+
+{
+  const query = newQuery("create");
+  query.match = [
+    {
+      label: "STEP",
+      optional: false,
+      patterns: [{ path: [{ kind: "node", node: newNode("PING_WEBHOOK", "ent-ping") }] }],
+    },
+  ];
+  assert.equal(isSingleNewStepCreate(query), true, "one new STEP with no hops can publish");
+}
+
+{
+  const query = newQuery("create");
+  query.match = [
+    {
+      label: "STEP",
+      optional: false,
+      patterns: [
+        { path: [{ kind: "node", node: newNode("STEP_A", "ent-a") }] },
+        { path: [{ kind: "node", node: newNode("STEP_B", "ent-b") }] },
+      ],
+    },
+  ];
+  assert.equal(isSingleNewStepCreate(query), false, "two new STEPs cannot publish as one sequence");
+}
+
+{
+  const query = newQuery("create");
+  query.match = [
+    {
+      label: "STEP",
+      optional: false,
+      patterns: [{ path: [{ kind: "node", node: existingNode("STEP_A", "ent-a") }] }],
+    },
+  ];
+  assert.equal(isSingleNewStepCreate(query), false, "an existing STEP is not a new STEP");
 }
 
 console.log("create-attributive-labels: ok");

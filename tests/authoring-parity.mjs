@@ -82,6 +82,11 @@ assert.deepEqual(body.cypher, cypherStatementsForExecution(composed.cypher));
 assert.deepEqual(body.sqlite, entitySqliteStatements(composed.sqlite));
 assert.deepEqual(body.cypher_params, {});
 assert.deepEqual(body.attributive_labels, ["CUSTOMER"]);
+assert.equal(
+  body.catalog_labels,
+  undefined,
+  "catalog_labels is omitted when it matches uniqueness-claimed labels"
+);
 assert.deepEqual(
   body.attributive_label_owner_ids,
   ["ent-customer-1"],

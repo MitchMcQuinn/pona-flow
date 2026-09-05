@@ -104,8 +104,9 @@ function ParameterRow({
       })
     );
 
-  // Uniqueness of an attributive_label parameter's default value (create SCHEMA/STEP),
-  // mirroring the literal attributive_label check. Globally unique across STEP/SCHEMA/POINTS_TO.
+  // Uniqueness of an attributive_label parameter's default value (create SCHEMA/STEP
+  // nodes), mirroring the literal attributive_label check. STEP-to-STEP edges may
+  // reuse NEXT and are not uniqueness-claimed.
   const uniquenessKey = `alparam:${param.name}`;
   const uniquenessEnabled = Boolean(
     isAttributiveLabel &&

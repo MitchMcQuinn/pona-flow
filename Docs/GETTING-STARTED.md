@@ -108,8 +108,8 @@ Once a space exists, you'll see three main areas:
 └──────────────┴──────────────────────────┴───────────────────┘
 ```
 
-- **Left — Navigation:** pick your space and browse **sequences** (grouped workflows you can
-  run).
+- **Left — Navigation:** pick your space and browse **sequences**. Multi-step workflows sit
+  under Sequences; a single runnable step sits under **Single-step**. Both are sequences.
 - **Center — Visualization:** see how a sequence is structured, or view results after a run.
 - **Right — Config / Builder:** build new queries, fill in parameters, or inspect details.
 
@@ -132,7 +132,7 @@ may need to build them first (see "Common next steps" below).
 |------|----------------|
 | **Instance** | Your organization's private copy of pona flow |
 | **Space** | A workspace / project environment inside your instance |
-| **Sequence** | A workflow you can run — a chain of steps that do something useful |
+| **Sequence** | A workflow you can run. Some have many steps; some have one (listed under **Single-step**) |
 | **Step** | One action inside a sequence (read data, call an API, branch on a condition, etc.) |
 | **Schema** | A template describing what kind of data something is |
 | **Instance (data)** | An actual record that follows a schema (e.g. a specific company or person) |

@@ -100,7 +100,7 @@ export function SchemaUpdateSuspendModal({
         {affectedOperations.length ? (
           <div className="builderFormFieldset">
             <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
-              Operations to be suspended:
+              Standalone queries to be suspended:
             </p>
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
               {affectedOperations.map((op) => (

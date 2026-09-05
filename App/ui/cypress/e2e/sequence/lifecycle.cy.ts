@@ -148,7 +148,7 @@ describe("sequence: lifecycle", () => {
 
     cy.get('[data-testid="builder-operation-name"]').clear().type("READ_PERSON_RENAMED");
     cy.get('[data-testid="builder-save-operation-btn"]').should("not.be.disabled").click();
-    cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should("contain.text", "Operation updated");
+    cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should("contain.text", "Step updated");
     cy.get('[data-testid="nav-single-step-section"]')
       .contains(".sequenceBtnLabel", "READ_PERSON_RENAMED", { timeout: 60_000 })
       .should("be.visible");

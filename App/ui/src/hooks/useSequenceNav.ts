@@ -397,12 +397,12 @@ export function useSequenceNav(options: {
         ? `Deleted "${operationDelete.label}" and suspended ${suspended} dependent ${
             suspended === 1 ? "sequence" : "sequences"
           }.`
-        : `Deleted operation "${operationDelete.label}" and its one-step sequence.`;
+        : `Deleted one-step sequence "${operationDelete.label}".`;
       setOperationDelete(null);
       showToast(message);
       handleNavRefresh();
     } catch (error) {
-      setSequenceDeleteError(error instanceof Error ? error.message : "Failed to delete operation.");
+      setSequenceDeleteError(error instanceof Error ? error.message : "Failed to delete sequence.");
     } finally {
       setDeletingSequence(false);
     }
