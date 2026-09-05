@@ -6,6 +6,7 @@
  */
 
 import * as d3 from "d3";
+import { ARROW_LINE_END_OFFSET, trimLineToCircles } from "./graphTheme";
 
 /**
  * Assign each node a hierarchical "rank" (0 = top layer) so that edges tend to
@@ -176,5 +177,107 @@ export function selfLoopGeometry(
     path: `M${startX},${startY} C${c1x},${c1y} ${c2x},${c2y} ${endX},${endY}`,
     labelX,
     labelY
+  };
+}
+
+/** Perpendicular separation between adjacent parallel edges, in px at the arc apex. */
+export const PARALLEL_EDGE_GAP = 22;
+
+export interface ParallelEdgeGeometry {
+  path: string;
+  labelX: number;
+  labelY: number;
+  sx: number;
+  sy: number;
+  ex: number;
+  ey: number;
+  cx: number;
+  cy: number;
+}
+
+/**
+ * Canonical unit normal for the unordered chord between two points. Flipping the
+ * endpoints (A→B vs B→A) must not flip this vector, otherwise opposite-direction
+ * edges with symmetric offsets land on the same arc and overlap.
+ */
+function canonicalChordNormal(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+): { nx: number; ny: number } {
+  let dx = x2 - x1;
+  let dy = y2 - y1;
+  if (dx < 0 || (dx === 0 && dy < 0)) {
+    dx = -dx;
+    dy = -dy;
+  }
+  const len = Math.hypot(dx, dy) || 1;
+  return { nx: -dy / len, ny: dx / len };
+}
+
+/**
+ * Quadratic Bézier between two nodes that bows out along a shared perpendicular so
+ * multiple relationships on the same pair — including A→B and B→A — fan apart
+ * instead of stacking. `count === 1` (or a centered index) collapses to a straight
+ * line. Endpoints are trimmed to each node's circle, then pulled back at the target
+ * so the arrow head sits past the stroke.
+ */
+export function parallelEdgeGeometry(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  radius1: number,
+  radius2: number,
+  index: number,
+  count: number,
+  options?: { gap?: number; arrowEndOffset?: number }
+): ParallelEdgeGeometry {
+  const gap = options?.gap ?? PARALLEL_EDGE_GAP;
+  const arrowEndOffset = options?.arrowEndOffset ?? ARROW_LINE_END_OFFSET;
+  const trimmed = trimLineToCircles(x1, y1, x2, y2, radius1, radius2);
+  const dx = trimmed.x2 - trimmed.x1;
+  const dy = trimmed.y2 - trimmed.y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+
+  const sx = trimmed.x1;
+  const sy = trimmed.y1;
+  const ex = trimmed.x2 - ux * arrowEndOffset;
+  const ey = trimmed.y2 - uy * arrowEndOffset;
+
+  const offset = (index - (count - 1) / 2) * gap;
+  const mx = (sx + ex) / 2;
+  const my = (sy + ey) / 2;
+  // Shared pair normal (not each edge's own) so opposite directions still separate.
+  const { nx, ny } = canonicalChordNormal(sx, sy, ex, ey);
+  const cx = mx + nx * offset * 2;
+  const cy = my + ny * offset * 2;
+
+  // Stagger each label along its curve so parallel labels stack instead of piling
+  // up at a shared midpoint. A lone edge keeps its label centered. Siblings spread
+  // across a tight band biased slightly past the midpoint (toward the target).
+  const LABEL_BAND_CENTER = 0.54;
+  const LABEL_BAND_HALF = 0.12;
+  const labelT =
+    count <= 1
+      ? 0.5
+      : LABEL_BAND_CENTER + LABEL_BAND_HALF * (2 * (index / (count - 1)) - 1);
+  const mt = 1 - labelT;
+  const labelX = mt * mt * sx + 2 * mt * labelT * cx + labelT * labelT * ex;
+  const labelY = mt * mt * sy + 2 * mt * labelT * cy + labelT * labelT * ey;
+
+  return {
+    path: `M${sx},${sy} Q${cx},${cy} ${ex},${ey}`,
+    labelX,
+    labelY,
+    sx,
+    sy,
+    ex,
+    ey,
+    cx,
+    cy
   };
 }

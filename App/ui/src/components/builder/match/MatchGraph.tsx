@@ -42,7 +42,6 @@ import {
   nodeShadowFillUrl,
   portFillUrl,
   setNodeLightCenter,
-  trimLineForRelationship,
   updateEdgeMeshGradient
 } from "../../../utils/graphTheme";
 import { GraphNodeLightMotion, attachGraphNodeLightLoop } from "../../../utils/graphMouseLight";
@@ -50,6 +49,7 @@ import { attachGraphBackgroundMotion } from "../../../utils/graphBackgroundMotio
 import {
   computeNodeRanks,
   fitGraphToView,
+  parallelEdgeGeometry,
   selfLoopGeometry
 } from "../../../utils/graphLayout";
 
@@ -297,6 +297,21 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
 
     const normalEdges = graph.edges.filter((e) => e.from !== e.to);
     const selfEdges = graph.edges.filter((e) => e.from === e.to);
+    const parallelIndex = new Map<string, number>();
+    const parallelCount = new Map<string, number>();
+    const parallelGroups = new Map<string, MatchGraphEdge[]>();
+    normalEdges.forEach((e) => {
+      const key = e.from < e.to ? `${e.from}\u0000${e.to}` : `${e.to}\u0000${e.from}`;
+      const group = parallelGroups.get(key);
+      if (group) group.push(e);
+      else parallelGroups.set(key, [e]);
+    });
+    parallelGroups.forEach((group) => {
+      group.forEach((e, idx) => {
+        parallelIndex.set(e.variable, idx);
+        parallelCount.set(e.variable, group.length);
+      });
+    });
     const selfIndex = new Map<string, number>();
     const selfCounts = new Map<string, number>();
     selfEdges.forEach((e) => {
@@ -392,25 +407,53 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
       return { x: n?.x ?? width / 2, y: n?.y ?? height / 2 };
     };
 
-    /** Trimmed segment for a straight edge, oriented so it ends at the arrowhead. */
-    const edgeSegment = (e: MatchGraphEdge) => {
+    /** Bowed path for a relationship, fanned so A→B and B→A don't share a stroke. */
+    const edgeGeom = (e: MatchGraphEdge) => {
       const { source, target } = edgeDrawOrder(e);
       const a = center(source);
       const b = center(target);
-      return trimLineForRelationship(a.x, a.y, b.x, b.y, NODE_RADIUS, NODE_RADIUS);
+      return parallelEdgeGeometry(
+        a.x,
+        a.y,
+        b.x,
+        b.y,
+        NODE_RADIUS,
+        NODE_RADIUS,
+        parallelIndex.get(e.variable) ?? 0,
+        parallelCount.get(e.variable) ?? 1
+      );
     };
 
-    // --- straight relationships ---
+    // --- relationships (straight when alone, arced when the pair is shared) ---
     const link = root
       .append("g")
-      .selectAll("line")
+      .attr("fill", "none")
+      .selectAll("path")
       .data(normalEdges)
-      .join("line")
+      .join("path")
       .attr("data-edge", (e) => e.variable)
       .attr("stroke", GRAPH_THEME.edge)
+      .attr("stroke-width", 1.5)
       .attr("stroke-opacity", GRAPH_THEME.edgeOpacity)
       .attr("stroke-dasharray", (e) => hopDashArray(e.relationship))
       .attr("marker-end", arrowMarkerUrl(themePrefix))
+      .style("cursor", "pointer")
+      .on("click", (event, e) => {
+        event.stopPropagation();
+        dispatch({ type: "SELECT_MATCH_ELEMENT", element: { kind: "relationship", variable: e.variable } });
+      });
+
+    const EDGE_HIT_WIDTH = 16;
+    const linkHit = root
+      .append("g")
+      .attr("stroke", "transparent")
+      .attr("fill", "none")
+      .selectAll("path")
+      .data(normalEdges)
+      .join("path")
+      .attr("data-edge", (e) => e.variable)
+      .attr("stroke-width", EDGE_HIT_WIDTH)
+      .attr("pointer-events", "stroke")
       .style("cursor", "pointer")
       .on("click", (event, e) => {
         event.stopPropagation();
@@ -610,23 +653,14 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
     function render() {
       updateNodeTransforms();
       link.each(function (e) {
-        const seg = edgeSegment(e);
-        d3.select(this)
-          .attr("x1", seg.x1)
-          .attr("y1", seg.y1)
-          .attr("x2", seg.x2)
-          .attr("y2", seg.y2);
-        updateEdgeMeshGradient(defs, themePrefix, e.variable, seg.x1, seg.y1, seg.x2, seg.y2);
+        const geom = edgeGeom(e);
+        d3.select(this).attr("d", geom.path);
+        updateEdgeMeshGradient(defs, themePrefix, e.variable, geom.sx, geom.sy, geom.ex, geom.ey);
       });
+      linkHit.attr("d", (e) => edgeGeom(e).path);
       linkLabels
-        .attr("x", (e) => {
-          const seg = edgeSegment(e);
-          return (seg.x1 + seg.x2) / 2;
-        })
-        .attr("y", (e) => {
-          const seg = edgeSegment(e);
-          return (seg.y1 + seg.y2) / 2 - 4;
-        });
+        .attr("x", (e) => edgeGeom(e).labelX)
+        .attr("y", (e) => edgeGeom(e).labelY);
       selfLink.attr("d", (e) => {
         const c = center(e.from);
         return selfLoopPath(c.x, c.y, selfIndex.get(e.variable) ?? 0).path;

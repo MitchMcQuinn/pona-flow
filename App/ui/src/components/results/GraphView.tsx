@@ -21,8 +21,6 @@ import {
   nodeShadowFillUrl,
   setNodeLightCenter,
   setNodeLightGradientVariant,
-  trimLineToCircles,
-  ARROW_LINE_END_OFFSET,
   updateEdgeMeshGradient
 } from "../../utils/graphTheme";
 import { GraphNodeLightMotion, attachGraphNodeLightLoop } from "../../utils/graphMouseLight";
@@ -30,6 +28,7 @@ import { attachGraphBackgroundMotion } from "../../utils/graphBackgroundMotion";
 import {
   computeNodeRanks,
   fitGraphToView,
+  parallelEdgeGeometry,
   selfLoopGeometry as sharedSelfLoopGeometry
 } from "../../utils/graphLayout";
 import "./results.css";
@@ -80,77 +79,6 @@ function selfLoopGeometry(
   index: number
 ): { path: string; labelX: number; labelY: number } {
   return sharedSelfLoopGeometry(x, y, index, NODE_RADIUS, SELF_LOOP_REACH);
-}
-
-/** Perpendicular separation between adjacent parallel edges, in px at the arc apex. */
-const PARALLEL_EDGE_GAP = 22;
-
-/**
- * Build a quadratic Bézier arc between two nodes that bows out perpendicular to the
- * chord, so multiple relationships between the same pair fan apart instead of stacking
- * on one straight line. `count === 1` (or `index` centered) collapses to a straight line.
- * Endpoints are trimmed to each node's circle edge (and pulled back at the target so the
- * arrow head sits past the stroke), mirroring `trimLineForRelationship`.
- */
-function parallelEdgeGeometry(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  radius1: number,
-  radius2: number,
-  index: number,
-  count: number
-): { path: string; labelX: number; labelY: number; sx: number; sy: number; ex: number; ey: number } {
-  const trimmed = trimLineToCircles(x1, y1, x2, y2, radius1, radius2);
-  const dx = trimmed.x2 - trimmed.x1;
-  const dy = trimmed.y2 - trimmed.y1;
-  const len = Math.hypot(dx, dy) || 1;
-  const ux = dx / len;
-  const uy = dy / len;
-
-  const sx = trimmed.x1;
-  const sy = trimmed.y1;
-  const ex = trimmed.x2 - ux * ARROW_LINE_END_OFFSET;
-  const ey = trimmed.y2 - uy * ARROW_LINE_END_OFFSET;
-
-  // Spread edges symmetrically around the chord: e.g. count 3 -> offsets -1,0,+1.
-  const offset = (index - (count - 1) / 2) * PARALLEL_EDGE_GAP;
-
-  const mx = (sx + ex) / 2;
-  const my = (sy + ey) / 2;
-  // Perpendicular to the chord (unit normal). The control point is offset by 2x so the
-  // apex of the quadratic curve (at t=0.5) lands at the intended `offset` distance.
-  const nx = -uy;
-  const ny = ux;
-  const cx = mx + nx * offset * 2;
-  const cy = my + ny * offset * 2;
-
-  // Stagger each label to a different point along its curve so parallel labels stack
-  // visually (one above the next) instead of piling up at a shared midpoint. A lone edge
-  // keeps its label centered. Siblings spread across a tight band biased slightly past
-  // the midpoint (toward the target) so the topmost label clears the source node's own
-  // label, which sits just below that node along the edge.
-  const LABEL_BAND_CENTER = 0.54;
-  const LABEL_BAND_HALF = 0.12;
-  const labelT =
-    count <= 1
-      ? 0.5
-      : LABEL_BAND_CENTER + LABEL_BAND_HALF * (2 * (index / (count - 1)) - 1);
-  const mt = 1 - labelT;
-  // Point on the quadratic Bézier at t=labelT: (1-t)^2*S + 2(1-t)t*C + t^2*E.
-  const labelX = mt * mt * sx + 2 * mt * labelT * cx + labelT * labelT * ex;
-  const labelY = mt * mt * sy + 2 * mt * labelT * cy + labelT * labelT * ey;
-
-  return {
-    path: `M${sx},${sy} Q${cx},${cy} ${ex},${ey}`,
-    labelX,
-    labelY,
-    sx,
-    sy,
-    ex,
-    ey
-  };
 }
 
 function resolveNodeLabel(
