@@ -56,7 +56,7 @@ def partition_sequences_for_step_label(
         entry = {"id": (q.get("id") or "").strip(), "name": str(q.get("name") or "")}
         if not entry["id"]:
             continue
-        if cypher_utils.cypher_traverses_downstream(_parse_cypher(raw)):
+        if cypher_utils.cypher_has_step_hop(_parse_cypher(raw)):
             multi_step.append(entry)
         else:
             one_step.append(entry)

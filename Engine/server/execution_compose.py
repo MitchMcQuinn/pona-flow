@@ -26,6 +26,7 @@ from . import cypher_utils
 from . import execution_loop
 from . import graph
 from . import local_llms
+from . import sequence_scope
 from . import spaces
 
 # A sequence read query matches its initial STEP node by attributive_label, e.g.
@@ -47,9 +48,10 @@ _VALUE_TYPES = (
     "checkbox",
 )
 
-# A relationship pattern (``-[``) means the sequence walks past its initial STEP into
-# the downstream chain (see cypher_utils.cypher_traverses_downstream).
-_cypher_traverses_downstream = cypher_utils.cypher_traverses_downstream
+# A relationship pattern (``-[``) means the sequence walks past its initial STEP
+# (see cypher_utils.cypher_has_step_hop). How *far* it walks is decided by
+# sequence_scope, which reads the drawn path rather than just its presence.
+_cypher_has_step_hop = cypher_utils.cypher_has_step_hop
 
 
 def _parse_initial_step_label(cypher: Any) -> str | None:
@@ -170,16 +172,21 @@ def _load_step_adjacency(
     space_id: str, entities: dict[str, dict[str, Any]] | None = None
 ) -> dict[str, list[dict[str, Any]]]:
     """
-    Return ``{source_id: [{target, condition, condition_type}, ...]}``.
+    Return ``{source_id: [{target, attributive_label, condition, condition_type}, ...]}``.
 
     POINTS_TO topology comes from Neo4j, but a relationship's guard condition is
     read from its entities payload (SQLite) — falling back to the Neo4j-stored value
     for edges created before conditions were relocated to the payload.
+
+    ``attributive_label`` is carried because two STEPs can be joined by more than one
+    edge (a shared ``NEXT`` alongside a named one), and a path-scoped sequence names
+    the edge it walks, not just the pair it connects.
     """
     cypher = (
         "MATCH (a:STEP)-[r:POINTS_TO]->(b:STEP) "
         "WHERE a.id IS NOT NULL AND b.id IS NOT NULL "
         "RETURN r.id AS id, a.id AS source, b.id AS target, "
+        "r.attributive_label AS attributive_label, "
         "r.condition AS condition, r.condition_type AS condition_type"
     )
     entities = entities or {}
@@ -201,6 +208,7 @@ def _load_step_adjacency(
         ).strip()
         edge: dict[str, Any] = {
             "target": target,
+            "attributive_label": str(row.get("attributive_label") or "").strip(),
             "condition": condition,
             "condition_type": condition_type,
         }
@@ -308,6 +316,7 @@ def _build_step(
     entity: dict[str, Any],
     adjacency: dict[str, list[dict[str, Any]]],
     fetch_query: Any = None,
+    allow_edge: Any = None,
 ) -> dict[str, Any]:
     fetch_query = fetch_query or catalog.fetch_query_for_compose
     payload = entity.get("payload") or {}
@@ -337,6 +346,11 @@ def _build_step(
 
     transitions = []
     for edge in adjacency.get(node_id, []):
+        # A path-scoped sequence owns only the edges it drew. Filtering here rather
+        # than after the fact keeps the relationship's attributive_label in hand,
+        # which is the only way to tell two edges between the same pair apart.
+        if allow_edge is not None and not allow_edge(node_id, edge):
+            continue
         transition: dict[str, Any] = {
             "id": edge["target"],
             "condition_parameter": _transition_condition_parameter(edge),
@@ -456,19 +470,85 @@ class _StepWalk:
             for eid, ent in self.entities.items()
             if ent.get("attributive_label")
         }
+        # Display titles and UPPER_SNAKE forms of one name must resolve to the same
+        # node ("Call Discord …" ↔ CALL_DISCORD_…), so labels are also indexed
+        # normalized for the lookups that come from a saved snapshot.
+        self._normalized_label_to_id = {
+            cypher_utils.normalize_attributive_label(label): eid
+            for label, eid in self._label_to_id.items()
+        }
         self.queue: list[str] = []
         self.visited_steps: set[str] = set()
         self.visited_sequences: set[str] = {(root_query_id or "").strip()}
+        # Populated for a path-scoped sequence; None leaves every edge allowed.
+        self._allowed_edges: set[tuple[str, str, str]] | None = None
+        self._allowed_pairs: set[tuple[str, str]] | None = None
+
+    def step_id_for_label(self, label: str) -> str | None:
+        name = (label or "").strip()
+        if not name:
+            return None
+        return self._label_to_id.get(name) or self._normalized_label_to_id.get(
+            cypher_utils.normalize_attributive_label(name)
+        )
 
     def initial_step_id(self, cypher: list[Any]) -> str | None:
         """The step id matched by a sequence read query's initial STEP label."""
         label = _parse_initial_step_label(cypher or [])
-        return self._label_to_id.get(label) if label else None
+        return self.step_id_for_label(label) if label else None
 
     def enqueue_initial(self, cypher: list[Any]) -> None:
         initial = self.initial_step_id(cypher)
         if initial:
             self.queue.append(initial)
+
+    def enqueue_scope(self, scope: dict[str, Any], cypher: list[Any]) -> None:
+        """Seed the walk from a resolved sequence scope.
+
+        In ``path`` mode the declared steps are enqueued up front and the edge filter
+        is armed, so the walk never leaves the drawn path — no chain continuation is
+        needed or wanted. The other modes keep the historical entry-label seed.
+        """
+        if scope.get("mode") != sequence_scope.MODE_PATH:
+            self.enqueue_initial(cypher)
+            return
+
+        allowed_edges: set[tuple[str, str, str]] = set()
+        allowed_pairs: set[tuple[str, str]] = set()
+        for source_label, target_label, rel_label in scope.get("edges") or []:
+            source_id = self.step_id_for_label(source_label)
+            target_id = self.step_id_for_label(target_label)
+            if not source_id or not target_id:
+                continue
+            if rel_label == sequence_scope.WILDCARD_RELATIONSHIP:
+                allowed_pairs.add((source_id, target_id))
+            else:
+                allowed_edges.add(
+                    (
+                        source_id,
+                        target_id,
+                        cypher_utils.normalize_attributive_label(rel_label),
+                    )
+                )
+        self._allowed_edges = allowed_edges
+        self._allowed_pairs = allowed_pairs
+
+        for label in scope.get("step_labels") or []:
+            step_id = self.step_id_for_label(label)
+            if step_id:
+                self.queue.append(step_id)
+
+    def allow_edge(self, node_id: str, edge: dict[str, Any]) -> bool:
+        """Whether a graph edge belongs to this sequence's declared walk."""
+        if self._allowed_edges is None:
+            return True
+        target = str(edge.get("target") or "").strip()
+        if (node_id, target) in (self._allowed_pairs or set()):
+            return True
+        label = cypher_utils.normalize_attributive_label(
+            str(edge.get("attributive_label") or "")
+        )
+        return (node_id, target, label) in self._allowed_edges
 
     def enqueue_targets(self, node_id: str) -> None:
         """Enqueue the node's outgoing POINTS_TO targets (chain continuation)."""
@@ -557,14 +637,17 @@ def compose_execution_package(space_id: str, sequence_query_id: str) -> dict[str
             "inline that sequence's steps into this one."
         )
 
-    walk.enqueue_initial(seq.get("cypher") or [])
-
-    # A single-node read query (no relationship pattern) scopes the sequence to just its
-    # initial step. Only walk the downstream chain when the query actually traverses it.
-    traverse = _cypher_traverses_downstream(seq.get("cypher") or [])
+    # What the sequence declared: one step, an explicit path, or an open downstream
+    # walk. STEP nodes and their POINTS_TO edges are shared, so this is what keeps one
+    # sequence's chain (and its cycle) out of another's package.
+    scope = sequence_scope.resolve_sequence_scope(seq)
+    walk.enqueue_scope(scope, seq.get("cypher") or [])
+    traverse = scope.get("mode") == sequence_scope.MODE_OPEN
 
     for node_id, entity in walk.steps():
-        steps[node_id] = _build_step(node_id, entity, walk.adjacency, fetch_query)
+        steps[node_id] = _build_step(
+            node_id, entity, walk.adjacency, fetch_query, walk.allow_edge
+        )
 
         payload = entity.get("payload") or {}
         # Names this step can publish into run state, so a loop condition or a
@@ -661,8 +744,9 @@ def enumerate_sequence_operation_ids(space_id: str, sequence_query_id: str) -> s
     walk = _StepWalk(sid, root)
     operation_ids: set[str] = set()
 
-    walk.enqueue_initial(seq.get("cypher") or [])
-    traverse = _cypher_traverses_downstream(seq.get("cypher") or [])
+    scope = sequence_scope.resolve_sequence_scope(seq)
+    walk.enqueue_scope(scope, seq.get("cypher") or [])
+    traverse = scope.get("mode") == sequence_scope.MODE_OPEN
 
     for node_id, entity in walk.steps():
         payload = entity.get("payload") or {}

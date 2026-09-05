@@ -25,7 +25,7 @@ from . import spaces  # noqa: F401
 from .templates_export import (  # noqa: F401
     SCHEMA_VERSION,
     _blank_event_secrets,
-    _cypher_traverses_downstream,
+    _cypher_has_step_hop,
     _export_credentials,
     _export_graph_nodes,
     _export_relationships,

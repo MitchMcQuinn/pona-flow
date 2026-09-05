@@ -356,7 +356,7 @@ def fetch_saved_queries() -> list[dict[str, Any]]:
                     "description": row[9] or "",
                     "suspended": int(row[10] or 0),
                     "single_step": (kind or "") == "sequence"
-                    and not cypher_utils.cypher_traverses_downstream(cypher),
+                    and not cypher_utils.cypher_has_step_hop(cypher),
                 }
             )
         return rows
@@ -395,7 +395,12 @@ def fetch_query_package(query_id: str) -> dict[str, Any] | None:
 
 
 def fetch_query_for_compose(query_id: str) -> dict[str, Any] | None:
-    """Load a query row's kind/operation/cypher/parameters/loop_config for composition."""
+    """Load a query row's kind/operation/cypher/parameters/loop_config for composition.
+
+    ``builder_config`` comes along because a sequence's declared walk — which STEPs and
+    which POINTS_TO edges — is only fully described there; the composed ``cypher`` names
+    the entry step but cannot be scoped from without re-parsing (see sequence_scope).
+    """
     qid = (query_id or "").strip()
     if not qid:
         return None
@@ -403,7 +408,7 @@ def fetch_query_for_compose(query_id: str) -> dict[str, Any] | None:
         _ensure_queries_policy_columns(conn)
         cur = conn.execute(
             "SELECT id, name, kind, operation, cypher, parameters, runtime_enabled, triggerable, "
-            "suspended, loop_config FROM queries WHERE id = ?",
+            "suspended, loop_config, builder_config FROM queries WHERE id = ?",
             (qid,),
         )
         row = cur.fetchone()
@@ -411,6 +416,7 @@ def fetch_query_for_compose(query_id: str) -> dict[str, Any] | None:
             return None
         try:
             loop_config = json.loads(row[9] or "{}")
+            builder_config = json.loads(row[10] or "{}")
             return {
                 "id": row[0],
                 "name": row[1],
@@ -422,6 +428,7 @@ def fetch_query_for_compose(query_id: str) -> dict[str, Any] | None:
                 "triggerable": int(row[7] if row[7] is not None else 1),
                 "suspended": int(row[8] if row[8] is not None else 0),
                 "loop_config": loop_config if isinstance(loop_config, dict) else {},
+                "builder_config": builder_config if isinstance(builder_config, dict) else {},
             }
         except json.JSONDecodeError:
             return None

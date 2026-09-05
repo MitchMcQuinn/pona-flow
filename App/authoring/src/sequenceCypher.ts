@@ -1,7 +1,7 @@
 /**
  * Sequence read-query scanners shared by hybrid operation rename and the UI.
  *
- * Mirrors Engine/server/cypher_utils.py ``cypher_traverses_downstream`` and
+ * Mirrors Engine/server/cypher_utils.py ``cypher_has_step_hop`` and
  * Engine/server/spaces.py ``_parse_sequence_cypher_labels`` so authoring can
  * decide wrap retargets without a round trip to those helpers.
  */

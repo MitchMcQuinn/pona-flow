@@ -19,7 +19,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from . import catalog, config, credentials, cypher_utils, graph, spaces
+from . import catalog, config, credentials, cypher_utils, graph, sequence_scope, spaces
 
 SCHEMA_VERSION = 2
 
@@ -27,7 +27,7 @@ SCHEMA_VERSION = 2
 _SECRET_REF_RE = cypher_utils.SECRET_REF_RE
 _ATTR_LABEL_RE = cypher_utils.ATTR_LABEL_RE
 
-_cypher_traverses_downstream = cypher_utils.cypher_traverses_downstream
+_cypher_has_step_hop = cypher_utils.cypher_has_step_hop
 
 
 def _now() -> str:
@@ -85,6 +85,50 @@ def _labels_in_builder_config(config_obj: Any) -> set[str]:
 
     walk(config_obj)
     return labels
+
+
+def _relationship_key(
+    rel: dict[str, Any], nodes_by_id: dict[str, dict[str, Any]]
+) -> tuple[str, str, str]:
+    """A POINTS_TO edge as normalized ``(source_label, target_label, rel_label)``.
+
+    Sequence scopes are expressed in attributive_labels because they are read from a
+    saved snapshot that never saw graph ids; comparing in label space is what lets the
+    two meet.
+    """
+    normalize = cypher_utils.normalize_attributive_label
+
+    def label_of(node_id: Any) -> str:
+        node = nodes_by_id.get(str(node_id or "").strip()) or {}
+        return normalize(str(node.get("attributive_label") or ""))
+
+    return (
+        label_of(rel.get("source")),
+        label_of(rel.get("target")),
+        normalize(str(rel.get("attributive_label") or "")),
+    )
+
+
+def _scope_declares_relationship(
+    scope: dict[str, Any], rel: dict[str, Any], nodes_by_id: dict[str, dict[str, Any]]
+) -> bool:
+    """Whether a path-scoped sequence claims this POINTS_TO edge.
+
+    An edge the author left unnamed stands for any POINTS_TO between that pair, so it
+    matches on the endpoints alone.
+    """
+    source_label, target_label, rel_label = _relationship_key(rel, nodes_by_id)
+    normalize = cypher_utils.normalize_attributive_label
+    for declared_source, declared_target, declared_rel in scope.get("edges") or []:
+        if normalize(declared_source) != source_label:
+            continue
+        if normalize(declared_target) != target_label:
+            continue
+        if declared_rel == sequence_scope.WILDCARD_RELATIONSHIP:
+            return True
+        if normalize(declared_rel) == rel_label:
+            return True
+    return False
 
 
 def _formats_in_parameters(parameters: Any) -> set[str]:
@@ -165,8 +209,18 @@ def resolve_selection(space_id: str, selection: dict[str, Any] | None) -> dict[s
         if not pkg:
             return
         cypher = pkg.get("cypher") or []
-        entry_labels = spaces._parse_sequence_cypher_labels(json.dumps(cypher))
-        traverse = _cypher_traverses_downstream(cypher)
+        # Export the walk the sequence actually runs. A path-scoped sequence names its
+        # steps and edges, so seeding from all of them and collecting only the declared
+        # relationships keeps the import from re-creating edges this sequence does not
+        # own — which is how an extra cycle would reappear on the far side.
+        scope = sequence_scope.resolve_sequence_scope(pkg)
+        scoped = scope.get("mode") == sequence_scope.MODE_PATH
+        traverse = scope.get("mode") == sequence_scope.MODE_OPEN
+        entry_labels = (
+            scope.get("step_labels")
+            if scoped
+            else spaces._parse_sequence_cypher_labels(json.dumps(cypher))
+        )
         seeds = [nid for lbl in entry_labels for nid in label_to_node_ids.get(lbl, [])]
         visited: set[str] = set()
         queue = list(seeds)
@@ -179,7 +233,11 @@ def resolve_selection(space_id: str, selection: dict[str, Any] | None) -> dict[s
             node = nodes_by_id.get(nid)
             if node:
                 visit_step(node)
-            if traverse:
+            if scoped:
+                for rel in adjacency.get(nid, []):
+                    if _scope_declares_relationship(scope, rel, nodes_by_id):
+                        step_rel_ids.add(rel["id"])
+            elif traverse:
                 for rel in adjacency.get(nid, []):
                     step_rel_ids.add(rel["id"])
                     queue.append(rel["target"])

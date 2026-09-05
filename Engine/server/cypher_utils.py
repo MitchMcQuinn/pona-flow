@@ -45,10 +45,16 @@ def attributive_labels_equivalent(left: str | None, right: str | None) -> bool:
 
 
 # A relationship pattern (``-[...]->``) in a sequence read query means the sequence
-# walks past its initial STEP into the downstream POINTS_TO chain. Without one, the
-# query matches only the initial node, so the sequence is scoped to that single step
-# even though the shared STEP node may point to others in the graph.
+# walks past its initial STEP. Without one, the query matches only the initial node,
+# so the sequence is scoped to that single step even though the shared STEP node may
+# point to others in the graph.
 STEP_TRAVERSAL_RE = re.compile(r"-\s*\[")
+
+# A *variable-length* hop (``-[*]->``, ``-[r*1..3]->``) is the only pattern that asks
+# for an unbounded walk. Named hops enumerate the edges they traverse, so they are
+# scoped to those (see sequence_scope). Kept distinct from STEP_TRAVERSAL_RE because
+# conflating the two is what made every multi-hop sequence expand into the whole graph.
+STEP_OPEN_TRAVERSAL_RE = re.compile(r"-\s*\[[^\]]*\*")
 
 # Credential reference token: ``$secret.<NAME>``. The dot makes it distinct from a
 # normal ``$param`` (param names never contain dots), so it is not auto-discovered as
@@ -89,19 +95,38 @@ def labels_in_cypher_array(raw_cypher: str | None) -> set[str]:
     return labels
 
 
-def cypher_traverses_downstream(cypher: Any) -> bool:
+def cypher_has_step_hop(cypher: Any) -> bool:
     """
     True when a sequence's read query walks beyond its initial STEP node.
 
     ``MATCH (n:STEP {attributive_label:'X'}) RETURN *`` scopes the sequence to just that
-    step, whereas ``MATCH (:STEP {attributive_label:'X'})-[*]->(d) RETURN path`` pulls in
-    the downstream chain. STEP nodes (and their POINTS_TO edges) are shared across
-    sequences, so a one-step sequence that shares its node with a longer sequence must
-    not inherit that chain.
+    step, whereas any relationship pattern carries it onward. STEP nodes (and their
+    POINTS_TO edges) are shared across sequences, so a one-step sequence that shares its
+    node with a longer sequence must not inherit that chain.
+
+    This answers "is this sequence multi-step?", which is what the catalog's
+    ``single_step`` flag, delete partitioning, and wrap retargeting need. It does *not*
+    say how far the walk reaches — see :func:`cypher_walks_open_downstream`.
     """
     if not isinstance(cypher, list):
         return False
     return any(STEP_TRAVERSAL_RE.search(str(stmt or "")) for stmt in cypher)
+
+
+def cypher_walks_open_downstream(cypher: Any) -> bool:
+    """
+    True when a sequence's read query asks for an unbounded downstream walk.
+
+    Only a variable-length hop qualifies: ``(:STEP {attributive_label:'X'})-[*]->(d)``,
+    which the builder emits for the "Return downstream" toggle. A query that names its
+    hops (``-[:POINTS_TO {attributive_label:'SEND_TO_DISCORD'}]->``) enumerates the
+    edges it traverses, so it is scoped to exactly those.
+
+    Used as the fallback for rows with no ``builder_config`` snapshot to read.
+    """
+    if not isinstance(cypher, list):
+        return False
+    return any(STEP_OPEN_TRAVERSAL_RE.search(str(stmt or "")) for stmt in cypher)
 
 
 def _blank_quoted_literals(text: str) -> str:

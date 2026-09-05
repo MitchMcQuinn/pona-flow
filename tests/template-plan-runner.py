@@ -116,8 +116,8 @@ TEMPLATE = {
 sel = templates._normalize_selection({"sequences": ["A", "A", " B "], "schemas": ["S"]})
 check("_normalize_selection dedupes + trims", sel["sequences"] == ["A", "B"])
 check("_normalize_selection fills missing keys", sel["operations"] == [] and sel["events"] == [])
-check("_cypher_traverses_downstream true on hop", templates._cypher_traverses_downstream(["(a)-[:POINTS_TO]->(b)"]))
-check("_cypher_traverses_downstream false on single", not templates._cypher_traverses_downstream(["MATCH (n) RETURN n"]))
+check("_cypher_has_step_hop true on hop", templates._cypher_has_step_hop(["(a)-[:POINTS_TO]->(b)"]))
+check("_cypher_has_step_hop false on single", not templates._cypher_has_step_hop(["MATCH (n) RETURN n"]))
 bc_labels = templates._labels_in_builder_config(
     {"node_label": "PERSON", "children": [{"target_label": "COMPANY"}], "x": 1}
 )
