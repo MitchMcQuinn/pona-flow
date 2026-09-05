@@ -11,6 +11,7 @@
 import {
   assertPreflightClear,
   DEFAULT_STEP_RELATIONSHIP_LABEL,
+  normalizeAttributiveLabel,
   runCreate,
   saveSequencePackage,
   updateSequencePackage,
@@ -95,7 +96,14 @@ async function stepIdForLabel(spaceId: string, attributiveLabel: string): Promis
     nodeLabel: "STEP",
     attributiveLabel: label,
   });
-  const match = nodes.find((node) => node.attributive_label === label);
+  const wanted = normalizeAttributiveLabel(label);
+  const match =
+    nodes.find((node) => node.attributive_label === label) ??
+    nodes.find(
+      (node) =>
+        Boolean(wanted) &&
+        normalizeAttributiveLabel(node.attributive_label || "") === wanted
+    );
   if (!match) {
     throw new Error(
       `No STEP node named "${label}" exists in this space. ` +

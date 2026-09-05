@@ -21,6 +21,10 @@ const builderSrc = readFileSync(
   join(root, "App/ui/src/components/builder/BuilderPanel.tsx"),
   "utf8"
 );
+const selectorsSrc = readFileSync(
+  join(root, "App/ui/src/state/builder/selectors.ts"),
+  "utf8"
+);
 const mcpSrc = readFileSync(join(root, "App/mcp/src/tools/operations.ts"), "utf8");
 
 const publishStart = operationsSrc.indexOf("export async function publishCreatedStepAsSequence");
@@ -78,6 +82,11 @@ assert.match(
   builderSrc,
   /isSingleNewStepCreate\(state\.query\)/,
   "the builder only offers Save as sequence for a single new STEP"
+);
+assert.match(
+  selectorsSrc,
+  /stepCreateHasRelationships/,
+  "Create STEP is gated on a hop in the match clause"
 );
 assert.match(
   builderSrc,

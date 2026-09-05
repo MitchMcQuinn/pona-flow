@@ -9,6 +9,7 @@ import {
   isEntityConfigUpdate,
   isRunnableEndpointStepCreate,
   isStepCreateQuery,
+  stepCreateHasRelationships,
   normalizeForCompose,
   primaryNodeLabel,
   queryUsesParameters,
@@ -201,10 +202,18 @@ export const builderSelectors = {
     return warnings;
   },
 
-  showRunButton: (state: BuilderState): boolean =>
-    isEntityConfigUpdate(state.query.operation, state.query.match[0]?.label) ||
-    isRunnableEndpointStepCreate(state.query) ||
-    !queryUsesParameters(state.query),
+  showRunButton: (state: BuilderState): boolean => {
+    // Create STEP materializes a chain. A lone STEP (no hops) publishes via
+    // Save as sequence instead — the run button would be a redundant create.
+    if (isStepCreateQuery(state.query) && !stepCreateHasRelationships(state.query)) {
+      return false;
+    }
+    return (
+      isEntityConfigUpdate(state.query.operation, state.query.match[0]?.label) ||
+      isRunnableEndpointStepCreate(state.query) ||
+      !queryUsesParameters(state.query)
+    );
+  },
 
   canCreate: (state: BuilderState): boolean =>
     state.query.operation === "create" &&

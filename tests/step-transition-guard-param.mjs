@@ -18,6 +18,7 @@ import {
   syncParametersFromReferences
 } from "../App/authoring/src/parameterRefs.ts";
 import { builderSelectors } from "../App/ui/src/state/builder/selectors.ts";
+import { newQuery } from "../App/authoring/src/defaults.ts";
 
 function existingStepNode(variable, attributiveLabel, id) {
   return {
@@ -118,6 +119,23 @@ function builderState(query) {
 {
   const query = transitionQuery({ condition_type: "null", condition: "" });
   assert.deepEqual(collectReferencedParameterNames(query), []);
+  assert.equal(builderSelectors.showRunButton(builderState(query)), true);
+}
+
+// --- a lone create STEP (no hops) hides Create STEP; Save as sequence is the action ---
+{
+  const query = newQuery("create");
+  assert.equal(
+    builderSelectors.showRunButton(builderState(query)),
+    false,
+    '"Create step" is hidden until the match connects STEP nodes'
+  );
+}
+
+// --- create SCHEMA without hops still shows Create schema ---
+{
+  const query = newQuery("create");
+  query.match[0].label = "SCHEMA";
   assert.equal(builderSelectors.showRunButton(builderState(query)), true);
 }
 

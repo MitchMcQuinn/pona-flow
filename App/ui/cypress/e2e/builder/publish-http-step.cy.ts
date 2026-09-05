@@ -12,6 +12,7 @@ describe("builder: publish HTTP STEP as a one-step sequence", () => {
     cy.addNewAttributiveLabelNode(STEP_LABEL);
     cy.configureHttpStep(ENDPOINT);
 
+    cy.get('[data-testid="builder-run-btn"]').should("not.exist");
     cy.get('[data-testid="builder-create-operation-btn"]').should("not.be.disabled").click();
     cy.get('[data-testid="modal-create-operation"]').should("be.visible");
     cy.get('[data-testid="modal-create-operation"]')

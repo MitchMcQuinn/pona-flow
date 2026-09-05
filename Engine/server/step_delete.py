@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import graph, spaces
+from . import cypher_utils, graph, spaces
 from .schema_delete import (
     _catalog_queries,
     _graph_single_column,
@@ -33,6 +33,65 @@ from .schema_delete import (
 )
 
 
+def _canonical_step_label(space_id: str, attributive_label: str) -> str:
+    """Stored STEP attributive_label matching *attributive_label*, including UPPER_SNAKE aliases.
+
+    Create-STEP titles can land on the graph as display names (``Call Discord General
+    Webhook``) while delete/nav look up the normalized form (``CALL_DISCORD_GENERAL_WEBHOOK``).
+    Exact match wins; otherwise a unique normalized match is accepted.
+    """
+    al = (attributive_label or "").strip()
+    if not al:
+        return ""
+    exact = _graph_single_column(
+        space_id,
+        "MATCH (n:STEP {attributive_label: $al}) RETURN n.attributive_label AS label",
+        {"al": al},
+        "label",
+    )
+    if exact:
+        return exact[0]
+
+    wanted = cypher_utils.normalize_attributive_label(al)
+    if not wanted:
+        return ""
+    rows = graph.run_cypher_for_space(
+        space_id,
+        "MATCH (n:STEP) RETURN DISTINCT n.attributive_label AS label",
+        {},
+    )
+    matches: list[str] = []
+    for row in rows.get("records") or []:
+        label = (row.get("label") or "").strip()
+        if label and cypher_utils.normalize_attributive_label(label) == wanted:
+            matches.append(label)
+    unique = list(dict.fromkeys(matches))
+    if len(unique) == 1:
+        return unique[0]
+    if len(unique) > 1:
+        raise ValueError(
+            f"Multiple STEP nodes match attributive_label {al!r} in space {space_id!r}: {unique}"
+        )
+    return ""
+
+
+def sequence_references_step(
+    seq_step_labels: list[str] | set[str],
+    seq_all_labels: set[str],
+    step_labels: set[str],
+    relationship_labels: set[str],
+) -> bool:
+    """True when a sequence MATCHES one of *step_labels* (display or UPPER_SNAKE) or a rel pattern."""
+    if any(
+        cypher_utils.attributive_labels_equivalent(seq_label, step_label)
+        for seq_label in seq_step_labels
+        for step_label in step_labels
+        if seq_label and step_label
+    ):
+        return True
+    return bool(set(relationship_labels) & set(seq_all_labels))
+
+
 def _resolve_graph_targets(space_id: str, attributive_label: str) -> dict[str, Any]:
     """
     Collect graph-side ids/labels for a STEP delete from the space's Neo4j store.
@@ -40,7 +99,7 @@ def _resolve_graph_targets(space_id: str, attributive_label: str) -> dict[str, A
     Returns the STEP node ids for this label, the ids of POINTS_TO relationships touching
     those nodes, and the attributive_labels of those relationship patterns.
     """
-    al = attributive_label
+    al = _canonical_step_label(space_id, attributive_label) or (attributive_label or "").strip()
 
     step_node_ids = _graph_single_column(
         space_id,
@@ -92,12 +151,17 @@ def resolve_step_deletion(space_id: str, attributive_label: str) -> dict[str, An
     if not al:
         raise ValueError("attributive_label is required")
 
-    targets = _resolve_graph_targets(sid, al)
+    canonical = _canonical_step_label(sid, al)
+    if not canonical:
+        raise ValueError(f"No STEP node with attributive_label {al!r} in space {sid!r}")
+
+    targets = _resolve_graph_targets(sid, canonical)
     if not targets["step_node_ids"]:
         raise ValueError(f"No STEP node with attributive_label {al!r} in space {sid!r}")
 
-    # The step label plus the labels of POINTS_TO patterns touching it.
-    affected_labels = {al} | set(targets["relationship_labels"])
+    # The stored graph label, the name the caller used, and POINTS_TO patterns touching it.
+    step_keys = {canonical, al}
+    affected_labels = step_keys | set(targets["relationship_labels"])
 
     # Sequences depend on a STEP when their cypher matches it by attributive_label (as a
     # chained STEP) or references one of the affected relationship-pattern labels.
@@ -110,7 +174,12 @@ def resolve_step_deletion(space_id: str, attributive_label: str) -> dict[str, An
             continue
         seq_step_labels = set(spaces._parse_sequence_cypher_labels(q["cypher"]))
         seq_labels = _labels_in_cypher_array(q["cypher"])
-        if al in seq_step_labels or (affected_labels & seq_labels):
+        if sequence_references_step(
+            seq_step_labels,
+            seq_labels,
+            step_keys,
+            set(targets["relationship_labels"]),
+        ):
             affected_sequences.append({"id": q["id"], "name": q["name"]})
             affected_sequence_ids.add(q["id"])
             entry = _sequence_entry_label(q["cypher"])
@@ -121,8 +190,8 @@ def resolve_step_deletion(space_id: str, attributive_label: str) -> dict[str, An
     # sequences (a sequence's nav label is its entry STEP's attributive_label).
     strip_labels = affected_labels | sequence_entry_labels
 
-    # State packages that reference an affected sequence id or the step label.
-    ref_tokens = affected_sequence_ids | {al}
+    # State packages that reference an affected sequence id or either form of the step label.
+    ref_tokens = affected_sequence_ids | step_keys
     affected_state: list[dict[str, str]] = []
     for state in _state_rows():
         package = state["package"]
@@ -131,7 +200,7 @@ def resolve_step_deletion(space_id: str, attributive_label: str) -> dict[str, An
 
     return {
         "space_id": sid,
-        "attributive_label": al,
+        "attributive_label": canonical,
         "affected_labels": sorted(affected_labels, key=str.casefold),
         "relationship_labels": targets["relationship_labels"],
         "step_node_ids": targets["step_node_ids"],
@@ -171,10 +240,11 @@ def preview_step_deletion(space_id: str, attributive_label: str) -> dict[str, An
 
 def _delete_graph_nodes(space_id: str, attributive_label: str) -> dict[str, int]:
     """DETACH DELETE the STEP nodes from the space's graph (idempotent)."""
+    al = _canonical_step_label(space_id, attributive_label) or (attributive_label or "").strip()
     out = graph.run_cypher_for_space(
         space_id,
         "MATCH (n:STEP {attributive_label: $al}) DETACH DELETE n",
-        {"al": attributive_label},
+        {"al": al},
     )
     deleted = int(out.get("summary", {}).get("counters", {}).get("nodes_deleted", 0))
     return {"nodes_deleted": deleted}

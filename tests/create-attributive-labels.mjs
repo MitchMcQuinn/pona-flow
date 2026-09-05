@@ -19,6 +19,7 @@ import {
   DEFAULT_STEP_RELATIONSHIP_LABEL,
   isSingleNewStepCreate,
   newQuery,
+  stepCreateHasRelationships,
 } from "../App/authoring/src/index.ts";
 import { buildStepTransitionQuery } from "../App/mcp/src/intent.ts";
 
@@ -294,6 +295,7 @@ function newRel(label, id, extra = {}) {
   assert.deepEqual(body.attributive_labels, ["STEP_A"]);
   assert.deepEqual(body.catalog_labels, ["STEP_A", "NEXT"]);
   assert.equal(isSingleNewStepCreate(query), false, "a hop is not a single new STEP");
+  assert.equal(stepCreateHasRelationships(query), true, "a hop is a connected create STEP");
 }
 
 {
@@ -306,6 +308,7 @@ function newRel(label, id, extra = {}) {
     },
   ];
   assert.equal(isSingleNewStepCreate(query), true, "one new STEP with no hops can publish");
+  assert.equal(stepCreateHasRelationships(query), false, "a lone STEP has no relationships");
 }
 
 {
@@ -351,6 +354,11 @@ function newRel(label, id, extra = {}) {
     },
   ];
   assert.equal(isSingleNewStepCreate(query), false, "two new STEPs cannot publish as one sequence");
+  assert.equal(
+    stepCreateHasRelationships(query),
+    false,
+    "disconnected STEPs are not a connected create"
+  );
 }
 
 {

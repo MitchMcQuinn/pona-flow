@@ -21,6 +21,29 @@ ATTR_LABEL_RE = re.compile(
     r"attributive_label\s*(?::|=)\s*['\"]([^'\"]+)['\"]"
 )
 
+# Mirrors App/authoring ``normalizeAttributiveLabel``: display titles and UPPER_SNAKE
+# forms of the same name must compare equal ("Call Discord …" ↔ CALL_DISCORD_…).
+_ATTRIBUTIVE_LABEL_PARAM_RE = re.compile(r"^\$(?![0-9])[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def normalize_attributive_label(value: str | None) -> str:
+    """UPPER_SNAKE form of an attributive_label; ``$param`` references stay verbatim."""
+    text = "" if value is None else str(value)
+    trimmed = text.strip()
+    if _ATTRIBUTIVE_LABEL_PARAM_RE.fullmatch(trimmed):
+        return trimmed
+    return re.sub(r"[^A-Z0-9_]", "", re.sub(r"\s+", "_", text).upper())
+
+
+def attributive_labels_equivalent(left: str | None, right: str | None) -> bool:
+    """True when two labels are the same string or normalize to the same UPPER_SNAKE name."""
+    a = (left or "").strip()
+    b = (right or "").strip()
+    if not a or not b:
+        return False
+    return a == b or normalize_attributive_label(a) == normalize_attributive_label(b)
+
+
 # A relationship pattern (``-[...]->``) in a sequence read query means the sequence
 # walks past its initial STEP into the downstream POINTS_TO chain. Without one, the
 # query matches only the initial node, so the sequence is scoped to that single step

@@ -353,6 +353,19 @@ export function isStepCreateQuery(query: QueryObject): boolean {
   return query.operation === "create" && query.match[0]?.label === "STEP";
 }
 
+/** True when a create STEP match clause includes at least one relationship (a hop). */
+export function stepCreateHasRelationships(query: QueryObject): boolean {
+  if (!isStepCreateQuery(query)) return false;
+  for (const clause of query.match ?? []) {
+    for (const pattern of clause.patterns ?? []) {
+      for (const el of pattern.path ?? []) {
+        if (el.kind === "relationship") return true;
+      }
+    }
+  }
+  return false;
+}
+
 /**
  * Create STEP with exactly one node minted via "+ ADD NEW NODE" and no hops.
  * That is the only shape that can publish as a one-step sequence: a chain belongs
@@ -361,16 +374,13 @@ export function isStepCreateQuery(query: QueryObject): boolean {
  */
 export function isSingleNewStepCreate(query: QueryObject): boolean {
   if (!isStepCreateQuery(query)) return false;
+  if (stepCreateHasRelationships(query)) return false;
   let nodeCount = 0;
-  let relCount = 0;
   let writtenNew = 0;
   for (const clause of query.match ?? []) {
     for (const pattern of clause.patterns ?? []) {
       for (const el of pattern.path ?? []) {
-        if (el.kind === "relationship") {
-          relCount += 1;
-          continue;
-        }
+        if (el.kind === "relationship") continue;
         nodeCount += 1;
         const node = el.node;
         if (node.alias_mode === "reference") continue;
@@ -378,7 +388,7 @@ export function isSingleNewStepCreate(query: QueryObject): boolean {
       }
     }
   }
-  return relCount === 0 && nodeCount === 1 && writtenNew === 1;
+  return nodeCount === 1 && writtenNew === 1;
 }
 
 function escapeRegExp(value: string): string {

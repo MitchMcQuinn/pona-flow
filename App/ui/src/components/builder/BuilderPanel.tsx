@@ -197,7 +197,8 @@ function MutationRunActions({
   const canRun = builderSelectors.canCreate(state);
   const canSaveOp = builderSelectors.canSaveOperation(state);
   // Create STEP Save as sequence is only a single node minted via "+ ADD NEW NODE".
-  // Hops belong in Create sequence; an existing STEP already has a one-step sequence.
+  // Hops belong on Create STEP (the run button); an existing STEP already has a
+  // one-step sequence. The run button itself is hidden until the match has a hop.
   const showSaveAsSequence =
     !isStepCreateQuery(state.query) || isSingleNewStepCreate(state.query);
 
