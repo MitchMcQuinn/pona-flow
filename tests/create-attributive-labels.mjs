@@ -315,6 +315,36 @@ function newRel(label, id, extra = {}) {
       label: "STEP",
       optional: false,
       patterns: [
+        {
+          path: [
+            {
+              kind: "node",
+              node: {
+                variable: "n1",
+                alias_mode: "define",
+                attributive_label: "UNSET_SOURCE",
+                properties: [],
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ];
+  assert.equal(
+    isSingleNewStepCreate(query),
+    false,
+    "a STEP without node_source new (no + ADD NEW NODE) cannot publish"
+  );
+}
+
+{
+  const query = newQuery("create");
+  query.match = [
+    {
+      label: "STEP",
+      optional: false,
+      patterns: [
         { path: [{ kind: "node", node: newNode("STEP_A", "ent-a") }] },
         { path: [{ kind: "node", node: newNode("STEP_B", "ent-b") }] },
       ],
@@ -332,7 +362,7 @@ function newRel(label, id, extra = {}) {
       patterns: [{ path: [{ kind: "node", node: existingNode("STEP_A", "ent-a") }] }],
     },
   ];
-  assert.equal(isSingleNewStepCreate(query), false, "an existing STEP is not a new STEP");
+  assert.equal(isSingleNewStepCreate(query), false, "picking an existing STEP cannot publish");
 }
 
 console.log("create-attributive-labels: ok");

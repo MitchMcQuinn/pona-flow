@@ -32,7 +32,7 @@ assert.match(publishFn, /isStepCreateQuery\(ctx\.query\)/, "publish is gated on 
 assert.match(
   publishFn,
   /isSingleNewStepCreate\(ctx\.query\)/,
-  "publish requires a single new STEP (no hops)"
+  "publish requires a single STEP minted via + ADD NEW NODE (no hops)"
 );
 assert.match(publishFn, /await runCreate\(ctx\)/, "publish materializes the designed STEP");
 assert.match(

@@ -354,8 +354,10 @@ export function isStepCreateQuery(query: QueryObject): boolean {
 }
 
 /**
- * Create STEP with exactly one new node and no hops. That is the only shape that
- * can publish as a one-step sequence: a chain belongs in the create-sequence builder.
+ * Create STEP with exactly one node minted via "+ ADD NEW NODE" and no hops.
+ * That is the only shape that can publish as a one-step sequence: a chain belongs
+ * in the create-sequence builder, and an existing STEP already has a one-step
+ * sequence from when its operation was saved.
  */
 export function isSingleNewStepCreate(query: QueryObject): boolean {
   if (!isStepCreateQuery(query)) return false;
@@ -371,8 +373,8 @@ export function isSingleNewStepCreate(query: QueryObject): boolean {
         }
         nodeCount += 1;
         const node = el.node;
-        if (node.alias_mode === "reference" || node.node_source === "existing") continue;
-        writtenNew += 1;
+        if (node.alias_mode === "reference") continue;
+        if (node.node_source === "new") writtenNew += 1;
       }
     }
   }

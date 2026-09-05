@@ -196,7 +196,8 @@ function MutationRunActions({
   const showRunButton = builderSelectors.showRunButton(state);
   const canRun = builderSelectors.canCreate(state);
   const canSaveOp = builderSelectors.canSaveOperation(state);
-  // Create STEP with hops is graph authoring; a one-step sequence would ignore the chain.
+  // Create STEP Save as sequence is only a single node minted via "+ ADD NEW NODE".
+  // Hops belong in Create sequence; an existing STEP already has a one-step sequence.
   const showSaveAsSequence =
     !isStepCreateQuery(state.query) || isSingleNewStepCreate(state.query);
 
