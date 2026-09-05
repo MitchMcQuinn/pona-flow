@@ -910,10 +910,22 @@ button:focus-visible {
 .sequenceBtnLabel {
   display: block;
   min-width: 0;
-  width: 100%;
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sequenceMultiStepIcon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--muted);
+  margin-right: 4px;
+}
+
+.sequenceMultiStepIcon svg {
+  width: 14px;
+  height: 14px;
 }
 
 .sequenceLabelTooltip {

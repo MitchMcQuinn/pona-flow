@@ -136,7 +136,6 @@ export function SpaceConfigPanel({
   const [endpoint, setEndpoint] = useState("");
   const [description, setDescription] = useState("");
   const [devMode, setDevMode] = useState(false);
-  const [hideEmptyGroups, setHideEmptyGroups] = useState(false);
   const [recordLoading, setRecordLoading] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -155,7 +154,6 @@ export function SpaceConfigPanel({
         setEndpoint(record.endpoint ?? "");
         setDescription(record.description ?? "");
         setDevMode(Boolean(record.dev_mode));
-        setHideEmptyGroups(Boolean(record.hide_empty_sequence_groups));
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -164,7 +162,6 @@ export function SpaceConfigPanel({
         setEndpoint("");
         setDescription("");
         setDevMode(false);
-        setHideEmptyGroups(false);
       })
       .finally(() => {
         if (!cancelled) setRecordLoading(false);
@@ -183,7 +180,7 @@ export function SpaceConfigPanel({
 
   useEffect(() => {
     setLocalError(null);
-  }, [name, endpoint, description, devMode, hideEmptyGroups]);
+  }, [name, endpoint, description, devMode]);
 
   const trimmedName = name.trim();
   const normalizedName = useMemo(() => normalizeSpaceName(trimmedName), [trimmedName]);
@@ -223,8 +220,7 @@ export function SpaceConfigPanel({
       name: trimmedName,
       endpoint: endpoint.trim(),
       description: description.trim(),
-      dev_mode: devMode,
-      hide_empty_sequence_groups: hideEmptyGroups
+      dev_mode: devMode
     });
   }
 
@@ -371,19 +367,6 @@ export function SpaceConfigPanel({
                 />
                 <span className="muted">
                   Show composed Cypher and SQLite previews in the builder.
-                </span>
-              </div>
-              <div className="builderRowFlags">
-                <Toggle
-                  checked={hideEmptyGroups}
-                  onChange={setHideEmptyGroups}
-                  label="hide empty sequence groups"
-                  id="space-hide-empty-groups-toggle"
-                  disabled={!canManageSpace || savingSpace || recordLoading}
-                />
-                <span className="muted">
-                  Hide named groups that currently have no sequences. Empty groups reappear
-                  while you drag a sequence so you can still drop into them.
                 </span>
               </div>
             </div>

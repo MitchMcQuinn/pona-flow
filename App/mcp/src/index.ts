@@ -33,7 +33,7 @@ Vocabulary:
 - STEP: an executable unit — a saved query, an HTTP call, or a Local LLM call.
 - POINTS_TO: an edge between two STEP nodes; optionally conditional, which is how branching works.
 - Sequence: a saved, runnable entry point naming the STEP the run starts at. One-step sequences
-  are still sequences (the nav lists them under Single-step).
+  are still sequences; they share the Sequences list with multi-step sequences.
 
 Build order (this matters — each stage depends on the previous one existing):
 1. create_operation for each step.

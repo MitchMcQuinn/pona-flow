@@ -51,7 +51,6 @@ export function useSpacesLifecycle(options: {
   // whose attributive_label is in this set. Bumping spaceLabelsVersion refetches after
   // a create/edit that keeps the same space id selected.
   const [activeSpaceLabels, setActiveSpaceLabels] = useState<string[]>([]);
-  const [hideEmptySequenceGroups, setHideEmptySequenceGroups] = useState(false);
   const [spaceLabelsVersion, setSpaceLabelsVersion] = useState(0);
 
   const bumpSpaceLabelsVersion = useCallback(() => {
@@ -138,7 +137,6 @@ export function useSpacesLifecycle(options: {
   useEffect(() => {
     if (!state.spaceId) {
       setActiveSpaceLabels([]);
-      setHideEmptySequenceGroups(false);
       return;
     }
     let cancelled = false;
@@ -146,12 +144,10 @@ export function useSpacesLifecycle(options: {
       .then((record) => {
         if (cancelled) return;
         setActiveSpaceLabels(record.labels ?? []);
-        setHideEmptySequenceGroups(Boolean(record.hide_empty_sequence_groups));
       })
       .catch(() => {
         if (!cancelled) {
           setActiveSpaceLabels([]);
-          setHideEmptySequenceGroups(false);
         }
       });
     return () => {
@@ -215,16 +211,12 @@ export function useSpacesLifecycle(options: {
     endpoint?: string;
     description?: string;
     dev_mode?: boolean;
-    hide_empty_sequence_groups?: boolean;
   }) {
     if (!state.spaceId) return;
     setSavingSpaceEdit(true);
     setEditSpaceError(null);
     try {
       const updated = await updateSpace(state.spaceId, values);
-      if (values.hide_empty_sequence_groups !== undefined) {
-        setHideEmptySequenceGroups(Boolean(values.hide_empty_sequence_groups));
-      }
       await reloadSpaces(updated.id, { preserveSelection: true });
       bumpSpaceLabelsVersion();
       dispatch({ type: "SPACE_PANEL_OPENED" });
@@ -273,7 +265,6 @@ export function useSpacesLifecycle(options: {
     spaces,
     spacesError,
     activeSpaceLabels,
-    hideEmptySequenceGroups,
     bumpSpaceLabelsVersion,
     noAccess,
     showCreateSpaceModal,

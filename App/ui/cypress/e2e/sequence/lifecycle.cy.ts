@@ -121,17 +121,17 @@ describe("sequence: lifecycle", () => {
     cy.deleteSequenceInNav(GOLDEN_SEQUENCE_NAME, "nav");
   });
 
-  it("files a new operation under Single step sequences and opens the params view", () => {
+  it("files a new operation as a one-step sequence and opens the params view", () => {
     cy.bootstrapApp();
     cy.createSchemaNode(GOLDEN_SCHEMA_LABEL, [{ name: "name", isLabel: true }]);
     cy.createInstanceNode(GOLDEN_SCHEMA_LABEL, { name: GOLDEN_INSTANCE_NAME });
     cy.configureReadInstanceMatch(GOLDEN_SCHEMA_LABEL);
     cy.saveBuilderOperation(GOLDEN_READ_OPERATION);
 
-    cy.get('[data-testid="nav-single-step-heading"]', { timeout: 60_000 }).should("be.visible");
     cy.contains(
       '[data-testid="nav-sequence-item"][data-single-step="true"] .sequenceBtnLabel',
-      GOLDEN_READ_OPERATION
+      GOLDEN_READ_OPERATION,
+      { timeout: 60_000 }
     )
       .closest('[data-testid="nav-sequence-item"]')
       .should("not.have.class", "orphaned")
@@ -149,9 +149,11 @@ describe("sequence: lifecycle", () => {
     cy.get('[data-testid="builder-operation-name"]').clear().type("READ_PERSON_RENAMED");
     cy.get('[data-testid="builder-save-operation-btn"]').should("not.be.disabled").click();
     cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should("contain.text", "Step updated");
-    cy.get('[data-testid="nav-single-step-section"]')
-      .contains(".sequenceBtnLabel", "READ_PERSON_RENAMED", { timeout: 60_000 })
-      .should("be.visible");
+    cy.contains(
+      '[data-testid="nav-sequence-item"][data-single-step="true"] .sequenceBtnLabel',
+      "READ_PERSON_RENAMED",
+      { timeout: 60_000 }
+    ).should("be.visible");
   });
 
   it("deletes a single-step sequence without dependents", () => {
@@ -161,11 +163,16 @@ describe("sequence: lifecycle", () => {
     cy.configureReadInstanceMatch(GOLDEN_SCHEMA_LABEL);
     cy.saveBuilderOperation(GOLDEN_READ_OPERATION);
 
-    cy.get('[data-testid="nav-single-step-section"]', { timeout: 60_000 })
-      .contains(".sequenceBtnLabel", GOLDEN_READ_OPERATION)
-      .should("be.visible");
+    cy.contains(
+      '[data-testid="nav-sequence-item"][data-single-step="true"] .sequenceBtnLabel',
+      GOLDEN_READ_OPERATION,
+      { timeout: 60_000 }
+    ).should("be.visible");
     cy.deleteSingleStepInNav(GOLDEN_READ_OPERATION);
-    cy.get('[data-testid="nav-single-step-heading"]').should("not.exist");
+    cy.contains(
+      '[data-testid="nav-sequence-item"][data-single-step="true"] .sequenceBtnLabel',
+      GOLDEN_READ_OPERATION
+    ).should("not.exist");
   });
 
   it("shows the results panel after running a single-step sequence", () => {

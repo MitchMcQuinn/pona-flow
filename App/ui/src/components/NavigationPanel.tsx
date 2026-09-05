@@ -4,7 +4,6 @@ import type { EventSummary, SequenceSummary } from "../state/types";
 import {
   UNGROUPED_LABEL,
   buildNavGroups,
-  isSingleStepSequence,
   reindexSequences,
   type NavGroup
 } from "../state/navOrder";
@@ -20,8 +19,6 @@ interface NavigationPanelProps {
   onSelectSpace: (spaceId: string) => void;
   sequences: SequenceSummary[];
   groups: string[];
-  /** When true, named groups with no sequences are omitted from the nav. */
-  hideEmptySequenceGroups?: boolean;
   selectedSequenceId: string | null;
   loading: boolean;
   error: string | null;
@@ -59,11 +56,6 @@ interface NavigationPanelProps {
 }
 
 type DropPosition = "before" | "after";
-type NavSection = "multi" | "single";
-
-function accordionKey(section: NavSection, title: string): string {
-  return `${section}::${title}`;
-}
 
 function DeleteIcon() {
   return (
@@ -122,6 +114,16 @@ function ChevronIcon() {
   );
 }
 
+function MultiStepIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <circle cx="3.5" cy="8" r="2" />
+      <circle cx="12.5" cy="8" r="2" />
+      <path d="M5.5 8h5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // Drag handlers shared by every sequence item / group container / group header.
 interface DragApi {
   draggingId: string | null;
@@ -134,12 +136,12 @@ interface DragApi {
   onItemDragEnd: () => void;
   onItemDragOver: (id: string, e: React.DragEvent) => void;
   onItemDrop: (id: string, e: React.DragEvent) => void;
-  onContainerDragOver: (section: NavSection, e: React.DragEvent) => void;
-  onContainerDrop: (title: string, section: NavSection, e: React.DragEvent) => void;
+  onContainerDragOver: (e: React.DragEvent) => void;
+  onContainerDrop: (title: string, e: React.DragEvent) => void;
   onGroupDragStart: (title: string, e: React.DragEvent) => void;
   onGroupDragEnd: () => void;
-  onGroupHeaderDragOver: (title: string, section: NavSection, expanded: boolean, e: React.DragEvent) => void;
-  onGroupHeaderDrop: (title: string, section: NavSection, expanded: boolean, e: React.DragEvent) => void;
+  onGroupHeaderDragOver: (title: string, expanded: boolean, e: React.DragEvent) => void;
+  onGroupHeaderDrop: (title: string, expanded: boolean, e: React.DragEvent) => void;
   headerSequenceDrop: string | null;
 }
 
@@ -325,6 +327,11 @@ function SequenceItem({
         }
         onClick={() => onSelectSequence(sequence.id)}
       >
+        {!sequence.singleStep ? (
+          <span className="sequenceMultiStepIcon" title="Multi-step sequence">
+            <MultiStepIcon />
+          </span>
+        ) : null}
         <span className="sequenceBtnLabel" ref={labelRef}>
           {sequence.label}
         </span>
@@ -360,7 +367,6 @@ function SequenceItem({
 
 function SequenceList({
   groupTitle,
-  section,
   sequences,
   selectedSequenceId,
   onSelectSequence,
@@ -369,7 +375,6 @@ function SequenceList({
   drag
 }: {
   groupTitle: string;
-  section: NavSection;
   sequences: SequenceSummary[];
   selectedSequenceId: string | null;
   onSelectSequence: (sequenceId: string) => void;
@@ -380,8 +385,8 @@ function SequenceList({
   return (
     <ul
       className="sequenceList"
-      onDragOver={(e) => drag.onContainerDragOver(section, e)}
-      onDrop={(e) => drag.onContainerDrop(groupTitle, section, e)}
+      onDragOver={(e) => drag.onContainerDragOver(e)}
+      onDrop={(e) => drag.onContainerDrop(groupTitle, e)}
     >
       {sequences.map((sequence) => (
         <SequenceItem
@@ -400,7 +405,6 @@ function SequenceList({
 
 function GroupBlock({
   group,
-  section,
   selectedSequenceId,
   onSelectSequence,
   onEditSequence,
@@ -410,7 +414,6 @@ function GroupBlock({
   accordion
 }: {
   group: NavGroup;
-  section: NavSection;
   selectedSequenceId: string | null;
   onSelectSequence: (sequenceId: string) => void;
   onEditSequence: (sequenceId: string) => void;
@@ -419,12 +422,10 @@ function GroupBlock({
   drag: DragApi;
   accordion: AccordionApi;
 }) {
-  const groupKey = accordionKey(section, group.title);
-  const expanded = accordion.expandedTitle === groupKey;
+  const expanded = accordion.expandedTitle === group.title;
   const sequenceList = expanded ? (
     <SequenceList
       groupTitle={group.title}
-      section={section}
       sequences={group.sequences}
       selectedSequenceId={selectedSequenceId}
       onSelectSequence={onSelectSequence}
@@ -436,24 +437,24 @@ function GroupBlock({
 
   if (group.ungrouped) {
     const headerClasses = ["navGroupHeader", "navGroupHeaderUngrouped"];
-    if (drag.headerSequenceDrop === groupKey) headerClasses.push("sequenceDropTarget");
+    if (drag.headerSequenceDrop === group.title) headerClasses.push("sequenceDropTarget");
 
     return (
       <div
         className="navGroup navGroupUngrouped"
-        onDragOver={(e) => drag.onContainerDragOver(section, e)}
-        onDrop={(e) => drag.onContainerDrop(group.title, section, e)}
+        onDragOver={(e) => drag.onContainerDragOver(e)}
+        onDrop={(e) => drag.onContainerDrop(group.title, e)}
       >
         <div
           className={headerClasses.join(" ")}
-          onDragOver={(e) => drag.onGroupHeaderDragOver(group.title, section, expanded, e)}
-          onDrop={(e) => drag.onGroupHeaderDrop(group.title, section, expanded, e)}
+          onDragOver={(e) => drag.onGroupHeaderDragOver(group.title, expanded, e)}
+          onDrop={(e) => drag.onGroupHeaderDrop(group.title, expanded, e)}
         >
           <button
             type="button"
             className="navGroupToggle"
             aria-expanded={expanded}
-            onClick={() => accordion.toggle(groupKey)}
+            onClick={() => accordion.toggle(group.title)}
           >
             <span className="navGroupToggleLabel">
               <span className="navGroupTitle">{group.title}</span>
@@ -472,21 +473,21 @@ function GroupBlock({
   if (group.title === drag.draggingGroup) headerClasses.push("dragging");
   if (indicator === "before") headerClasses.push("dropBefore");
   if (indicator === "after") headerClasses.push("dropAfter");
-  if (drag.headerSequenceDrop === groupKey) headerClasses.push("sequenceDropTarget");
+  if (drag.headerSequenceDrop === group.title) headerClasses.push("sequenceDropTarget");
 
   return (
     <div
       className="navGroup"
-      onDragOver={(e) => drag.onContainerDragOver(section, e)}
-      onDrop={(e) => drag.onContainerDrop(group.title, section, e)}
+      onDragOver={(e) => drag.onContainerDragOver(e)}
+      onDrop={(e) => drag.onContainerDrop(group.title, e)}
     >
       <div
         className={headerClasses.join(" ")}
         draggable
         onDragStart={(e) => drag.onGroupDragStart(group.title, e)}
         onDragEnd={drag.onGroupDragEnd}
-        onDragOver={(e) => drag.onGroupHeaderDragOver(group.title, section, expanded, e)}
-        onDrop={(e) => drag.onGroupHeaderDrop(group.title, section, expanded, e)}
+        onDragOver={(e) => drag.onGroupHeaderDragOver(group.title, expanded, e)}
+        onDrop={(e) => drag.onGroupHeaderDrop(group.title, expanded, e)}
       >
         <span
           className="navGroupDragHandle"
@@ -500,24 +501,22 @@ function GroupBlock({
           type="button"
           className="navGroupToggle"
           aria-expanded={expanded}
-          onClick={() => accordion.toggle(groupKey)}
+          onClick={() => accordion.toggle(group.title)}
         >
           <span className="navGroupToggleLabel">
             <span className="navGroupTitle">{group.title}</span>
             <ChevronIcon />
           </span>
         </button>
-        {section === "multi" ? (
-          <button
-            type="button"
-            className="tinyBtn tinyBtnIcon danger navGroupDeleteBtn"
-            aria-label={`Delete group ${group.title}`}
-            title="Delete group"
-            onClick={() => onDeleteGroup(group.title)}
-          >
-            <DeleteIcon />
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className="tinyBtn tinyBtnIcon danger navGroupDeleteBtn"
+          aria-label={`Delete group ${group.title}`}
+          title="Delete group"
+          onClick={() => onDeleteGroup(group.title)}
+        >
+          <DeleteIcon />
+        </button>
       </div>
       {sequenceList}
     </div>
@@ -682,7 +681,6 @@ export function NavigationPanel({
   onSelectSpace,
   sequences,
   groups,
-  hideEmptySequenceGroups = false,
   selectedSequenceId,
   loading,
   error,
@@ -715,21 +713,9 @@ export function NavigationPanel({
     () => sequences.filter((sequence) => sequence.kind === "sequence"),
     [sequences]
   );
-  const multiStepSequences = useMemo(
-    () => navSequences.filter((sequence) => !isSingleStepSequence(sequence)),
-    [navSequences]
-  );
-  const singleStepSequences = useMemo(
-    () => navSequences.filter((sequence) => isSingleStepSequence(sequence)),
-    [navSequences]
-  );
-  const builtMultiStepGroups = useMemo(
-    () => buildNavGroups(multiStepSequences, groups),
-    [multiStepSequences, groups]
-  );
-  const singleStepGroups = useMemo(
-    () => buildNavGroups(singleStepSequences, groups).filter((group) => group.sequences.length > 0),
-    [singleStepSequences, groups]
+  const sequenceGroups = useMemo(
+    () => buildNavGroups(navSequences, groups),
+    [navSequences, groups]
   );
 
   const [expandedGroupTitle, setExpandedGroupTitle] = useState<string | null>(null);
@@ -738,37 +724,20 @@ export function NavigationPanel({
   const [draggingGroup, setDraggingGroup] = useState<string | null>(null);
   const [groupDrop, setGroupDrop] = useState<{ title: string; position: DropPosition } | null>(null);
   const [headerSequenceDrop, setHeaderSequenceDrop] = useState<string | null>(null);
-  const [pinnedEmptyGroups, setPinnedEmptyGroups] = useState<string[]>([]);
   // Restrict drag initiation to the six-dot handles.
   const itemArmed = useRef(false);
   const groupArmed = useRef(false);
 
-  useEffect(() => {
-    setPinnedEmptyGroups([]);
-  }, [selectedSpaceId]);
-
-  const multiStepGroups = useMemo(() => {
-    if (!hideEmptySequenceGroups || draggingId) return builtMultiStepGroups;
-    const pinned = new Set(pinnedEmptyGroups);
-    return builtMultiStepGroups.filter(
-      (group) => group.ungrouped || group.sequences.length > 0 || pinned.has(group.title)
-    );
-  }, [builtMultiStepGroups, hideEmptySequenceGroups, draggingId, pinnedEmptyGroups]);
-
   const allAccordionKeys = useMemo(
-    () => [
-      ...multiStepGroups.map((group) => accordionKey("multi", group.title)),
-      ...singleStepGroups.map((group) => accordionKey("single", group.title))
-    ],
-    [multiStepGroups, singleStepGroups]
+    () => sequenceGroups.map((group) => group.title),
+    [sequenceGroups]
   );
 
   useEffect(() => {
     if (!selectedSequenceId) return;
     const seq = navSequences.find((s) => s.id === selectedSequenceId);
     if (!seq) return;
-    const section: NavSection = isSingleStepSequence(seq) ? "single" : "multi";
-    setExpandedGroupTitle(accordionKey(section, seq.groupTitle?.trim() || UNGROUPED_LABEL));
+    setExpandedGroupTitle(seq.groupTitle?.trim() || UNGROUPED_LABEL);
   }, [selectedSequenceId, navSequences]);
 
   useEffect(() => {
@@ -805,57 +774,36 @@ export function NavigationPanel({
     setGroupDrop(null);
   }
 
-  function commitSection(section: NavSection, nextInSection: SequenceSummary[]) {
-    const multi = section === "multi" ? nextInSection : multiStepSequences;
-    const single = section === "single" ? nextInSection : singleStepSequences;
-    onReorderSequences(reindexSequences([...multi, ...single]));
-  }
-
-  function sectionOf(id: string): NavSection | null {
-    const seq = navSequences.find((s) => s.id === id);
-    if (!seq) return null;
-    return isSingleStepSequence(seq) ? "single" : "multi";
-  }
-
-  function sectionSequences(section: NavSection): SequenceSummary[] {
-    return section === "single" ? singleStepSequences : multiStepSequences;
-  }
-
-  function sectionGroups(section: NavSection): NavGroup[] {
-    return section === "single" ? singleStepGroups : multiStepGroups;
+  function commitOrder(next: SequenceSummary[]) {
+    onReorderSequences(reindexSequences(next));
   }
 
   function dropOnItem(targetId: string, position: DropPosition) {
     if (!draggingId || draggingId === targetId) return;
-    const section = sectionOf(draggingId);
-    if (!section || section !== sectionOf(targetId)) return;
-    const ordered = sectionSequences(section);
-    const dragging = ordered.find((s) => s.id === draggingId);
+    const dragging = navSequences.find((s) => s.id === draggingId);
     if (!dragging) return;
-    const rest = ordered.filter((s) => s.id !== draggingId);
+    const rest = navSequences.filter((s) => s.id !== draggingId);
     const targetIdx = rest.findIndex((s) => s.id === targetId);
     if (targetIdx === -1) return;
     const newGroup = rest[targetIdx].groupTitle ?? null;
     const insertIdx = position === "after" ? targetIdx + 1 : targetIdx;
     const moved: SequenceSummary = { ...dragging, groupTitle: newGroup };
-    commitSection(section, [...rest.slice(0, insertIdx), moved, ...rest.slice(insertIdx)]);
+    commitOrder([...rest.slice(0, insertIdx), moved, ...rest.slice(insertIdx)]);
   }
 
   function findGroupInsertIndex(
     rest: SequenceSummary[],
     groupTitle: string,
-    section: NavSection,
     atTop: boolean
   ): number {
     const newGroup = groupTitle === UNGROUPED_LABEL ? null : groupTitle;
     const firstInGroup = rest.findIndex((s) => (s.groupTitle ?? null) === newGroup);
     if (atTop) {
       if (firstInGroup !== -1) return firstInGroup;
-      const groupsForSection = sectionGroups(section);
-      const groupIdx = groupsForSection.findIndex((g) => g.title === groupTitle);
+      const groupIdx = sequenceGroups.findIndex((g) => g.title === groupTitle);
       if (groupIdx === -1) return rest.length;
-      for (let i = groupIdx + 1; i < groupsForSection.length; i++) {
-        const ng = groupsForSection[i].title === UNGROUPED_LABEL ? null : groupsForSection[i].title;
+      for (let i = groupIdx + 1; i < sequenceGroups.length; i++) {
+        const ng = sequenceGroups[i].title === UNGROUPED_LABEL ? null : sequenceGroups[i].title;
         const nextIdx = rest.findIndex((s) => (s.groupTitle ?? null) === ng);
         if (nextIdx !== -1) return nextIdx;
       }
@@ -868,17 +816,15 @@ export function NavigationPanel({
     return insertIdx;
   }
 
-  function dropOnGroupContainer(groupTitle: string, section: NavSection, atTop = false) {
+  function dropOnGroupContainer(groupTitle: string, atTop = false) {
     if (!draggingId) return;
-    if (sectionOf(draggingId) !== section) return;
-    const ordered = sectionSequences(section);
-    const dragging = ordered.find((s) => s.id === draggingId);
+    const dragging = navSequences.find((s) => s.id === draggingId);
     if (!dragging) return;
     const newGroup = groupTitle === UNGROUPED_LABEL ? null : groupTitle;
-    const rest = ordered.filter((s) => s.id !== draggingId);
-    const insertIdx = findGroupInsertIndex(rest, groupTitle, section, atTop);
+    const rest = navSequences.filter((s) => s.id !== draggingId);
+    const insertIdx = findGroupInsertIndex(rest, groupTitle, atTop);
     const moved: SequenceSummary = { ...dragging, groupTitle: newGroup };
-    commitSection(section, [...rest.slice(0, insertIdx), moved, ...rest.slice(insertIdx)]);
+    commitOrder([...rest.slice(0, insertIdx), moved, ...rest.slice(insertIdx)]);
   }
 
   function reorderGroupTo(targetTitle: string, position: DropPosition) {
@@ -896,9 +842,9 @@ export function NavigationPanel({
     return e.clientY > rect.top + rect.height / 2 ? "after" : "before";
   }
 
-  function dropSequenceOnCollapsedGroup(groupTitle: string, section: NavSection) {
-    dropOnGroupContainer(groupTitle, section, true);
-    setExpandedGroupTitle(accordionKey(section, groupTitle));
+  function dropSequenceOnCollapsedGroup(groupTitle: string) {
+    dropOnGroupContainer(groupTitle, true);
+    setExpandedGroupTitle(groupTitle);
     resetItemDrag();
   }
 
@@ -934,7 +880,6 @@ export function NavigationPanel({
     onItemDragEnd: resetItemDrag,
     onItemDragOver: (id, e) => {
       if (!draggingId || draggingId === id) return;
-      if (sectionOf(draggingId) !== sectionOf(id)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
       setItemDrop({ id, position: verticalPosition(e) });
@@ -945,19 +890,17 @@ export function NavigationPanel({
       dropOnItem(id, verticalPosition(e));
       resetItemDrag();
     },
-    onContainerDragOver: (section, e) => {
+    onContainerDragOver: (e) => {
       if (!draggingId) return;
-      if (sectionOf(draggingId) !== section) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
     },
-    onContainerDrop: (title, section, e) => {
+    onContainerDrop: (title, e) => {
       if (!draggingId) return;
-      if (sectionOf(draggingId) !== section) return;
       e.preventDefault();
-      const collapsed = expandedGroupTitle !== accordionKey(section, title);
-      dropOnGroupContainer(title, section, collapsed);
-      if (collapsed) setExpandedGroupTitle(accordionKey(section, title));
+      const collapsed = expandedGroupTitle !== title;
+      dropOnGroupContainer(title, collapsed);
+      if (collapsed) setExpandedGroupTitle(title);
       resetItemDrag();
     },
     onGroupDragStart: (title, e) => {
@@ -970,7 +913,7 @@ export function NavigationPanel({
       e.dataTransfer.setData("text/plain", title);
     },
     onGroupDragEnd: resetGroupDrag,
-    onGroupHeaderDragOver: (title, section, expanded, e) => {
+    onGroupHeaderDragOver: (title, expanded, e) => {
       if (draggingGroup && draggingGroup !== title) {
         e.preventDefault();
         e.stopPropagation();
@@ -978,14 +921,14 @@ export function NavigationPanel({
         setGroupDrop({ title, position: verticalPosition(e) });
         return;
       }
-      if (draggingId && !expanded && sectionOf(draggingId) === section) {
+      if (draggingId && !expanded) {
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = "move";
-        setHeaderSequenceDrop(accordionKey(section, title));
+        setHeaderSequenceDrop(title);
       }
     },
-    onGroupHeaderDrop: (title, section, expanded, e) => {
+    onGroupHeaderDrop: (title, expanded, e) => {
       if (draggingGroup) {
         e.preventDefault();
         e.stopPropagation();
@@ -993,16 +936,15 @@ export function NavigationPanel({
         resetGroupDrag();
         return;
       }
-      if (draggingId && !expanded && sectionOf(draggingId) === section) {
+      if (draggingId && !expanded) {
         e.preventDefault();
         e.stopPropagation();
-        dropSequenceOnCollapsedGroup(title, section);
+        dropSequenceOnCollapsedGroup(title);
       }
     }
   };
 
-  const onlyUngroupedMulti = multiStepGroups.length === 1 && multiStepGroups[0].ungrouped;
-  const onlyUngroupedSingle = singleStepGroups.length === 1 && singleStepGroups[0].ungrouped;
+  const onlyUngrouped = sequenceGroups.length === 1 && sequenceGroups[0].ungrouped;
 
   return (
     <div className="panel navPanel">
@@ -1073,13 +1015,12 @@ export function NavigationPanel({
 
         {!loading && !error ? (
           <>
-            {multiStepGroups.length === 0 ? (
+            {sequenceGroups.length === 0 ? (
               <p className="muted">No sequences yet.</p>
-            ) : onlyUngroupedMulti ? (
+            ) : onlyUngrouped ? (
               <SequenceList
                 groupTitle={UNGROUPED_LABEL}
-                section="multi"
-                sequences={multiStepGroups[0].sequences}
+                sequences={sequenceGroups[0].sequences}
                 selectedSequenceId={selectedSequenceId}
                 onSelectSequence={onSelectSequence}
                 onEditSequence={onEditSequence}
@@ -1088,11 +1029,10 @@ export function NavigationPanel({
               />
             ) : (
               <div className="navGroupList">
-                {multiStepGroups.map((group) => (
+                {sequenceGroups.map((group) => (
                   <GroupBlock
-                    key={`multi:${group.title}`}
+                    key={group.title}
                     group={group}
-                    section="multi"
                     selectedSequenceId={selectedSequenceId}
                     onSelectSequence={onSelectSequence}
                     onEditSequence={onEditSequence}
@@ -1105,58 +1045,7 @@ export function NavigationPanel({
               </div>
             )}
 
-            {singleStepGroups.length > 0 ? (
-              <>
-                <div className="navSectionHeader">
-                  <h3 className="navSectionTitle" data-testid="nav-single-step-heading">
-                    Single-step
-                  </h3>
-                </div>
-                <div data-testid="nav-single-step-section">
-                  {onlyUngroupedSingle ? (
-                    <SequenceList
-                      groupTitle={UNGROUPED_LABEL}
-                      section="single"
-                      sequences={singleStepGroups[0].sequences}
-                      selectedSequenceId={selectedSequenceId}
-                      onSelectSequence={onSelectSequence}
-                      onEditSequence={onEditSequence}
-                      onDeleteSequence={onDeleteSequence}
-                      drag={drag}
-                    />
-                  ) : (
-                    <div className="navGroupList">
-                      {singleStepGroups.map((group) => (
-                        <GroupBlock
-                          key={`single:${group.title}`}
-                          group={group}
-                          section="single"
-                          selectedSequenceId={selectedSequenceId}
-                          onSelectSequence={onSelectSequence}
-                          onEditSequence={onEditSequence}
-                          onDeleteSequence={onDeleteSequence}
-                          onDeleteGroup={onDeleteGroup}
-                          drag={drag}
-                          accordion={accordion}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : null}
-
-            <AddGroupControl
-              existingGroups={groups}
-              onAddGroup={(title) => {
-                if (hideEmptySequenceGroups) {
-                  setPinnedEmptyGroups((prev) =>
-                    prev.includes(title) ? prev : [...prev, title]
-                  );
-                }
-                onAddGroup(title);
-              }}
-            />
+            <AddGroupControl existingGroups={groups} onAddGroup={onAddGroup} />
           </>
         ) : null}
 

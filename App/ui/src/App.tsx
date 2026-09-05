@@ -66,7 +66,6 @@ export default function App() {
     spaces,
     spacesError,
     activeSpaceLabels,
-    hideEmptySequenceGroups,
     bumpSpaceLabelsVersion,
     noAccess,
     showCreateSpaceModal,
@@ -479,7 +478,6 @@ export default function App() {
             }}
             sequences={navSequences}
             groups={state.nav.groups}
-            hideEmptySequenceGroups={hideEmptySequenceGroups}
             selectedSequenceId={state.nav.selectedSequenceId}
             loading={state.nav.loading}
             error={state.nav.error}

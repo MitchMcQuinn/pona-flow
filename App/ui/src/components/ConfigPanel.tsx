@@ -35,7 +35,6 @@ interface ConfigPanelProps {
     labels?: string[];
     description?: string;
     dev_mode?: boolean;
-    hide_empty_sequence_groups?: boolean;
   }) => Promise<void>;
   savingSpace: boolean;
   spaceSaveError: string | null;

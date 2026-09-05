@@ -111,8 +111,6 @@ export interface CreateSpaceInput {
   description?: string;
   /** When true, the builder shows composed Cypher and SQLite previews. */
   dev_mode?: boolean;
-  /** When true, named nav groups with no sequences are hidden. */
-  hide_empty_sequence_groups?: boolean;
 }
 
 export interface CreateSpaceResult {
@@ -162,18 +160,14 @@ export async function updateSpace(
   spaceId: string,
   input: CreateSpaceInput
 ): Promise<CreateSpaceResult> {
-  return postJson<CreateSpaceResult>(
-    "/api/spaces/update",
-    {
-      space_id: spaceId,
-      name: input.name.trim(),
-      endpoint: input.endpoint?.trim() || null,
-      description: input.description?.trim() ?? "",
-      dev_mode: Boolean(input.dev_mode),
-      hide_empty_sequence_groups: Boolean(input.hide_empty_sequence_groups)
-    },
-    "Failed to update space"
-  );
+  const payload: Record<string, unknown> = {
+    space_id: spaceId,
+    name: input.name.trim(),
+    endpoint: input.endpoint?.trim() || null,
+    description: input.description?.trim() ?? "",
+    dev_mode: Boolean(input.dev_mode)
+  };
+  return postJson<CreateSpaceResult>("/api/spaces/update", payload, "Failed to update space");
 }
 
 export async function deleteSpace(spaceId: string): Promise<{ id: string; deleted: boolean }> {

@@ -4,7 +4,7 @@ const STEP_LABEL = "PING_WEBHOOK";
 const ENDPOINT = "https://example.test/ping";
 
 describe("builder: publish HTTP STEP as a one-step sequence", () => {
-  it("materializes the designed step and files it under Single-step", () => {
+  it("materializes the designed step and files it as a one-step sequence", () => {
     cy.bootstrapApp();
 
     cy.selectBuilderOperation("create");
@@ -39,10 +39,11 @@ describe("builder: publish HTTP STEP as a one-step sequence", () => {
       "Step published as a one-step sequence"
     );
 
-    cy.get('[data-testid="nav-single-step-heading"]', { timeout: 60_000 }).should("be.visible");
-    cy.get('[data-testid="nav-single-step-section"]')
-      .contains(".sequenceBtnLabel", STEP_LABEL)
-      .should("be.visible");
+    cy.contains(
+      '[data-testid="nav-sequence-item"][data-single-step="true"] .sequenceBtnLabel',
+      STEP_LABEL,
+      { timeout: 60_000 }
+    ).should("be.visible");
 
     cy.selectSingleStepInNav(STEP_LABEL);
     cy.contains(
