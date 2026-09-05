@@ -235,7 +235,7 @@ assert.equal(
   "update INSTANCE splits on an optional hop and keeps SET after the tail"
 );
 
-// ---- 11. SCHEMA mutations ignore the flag (entities payload / cascade endpoint) ----
+// ---- 11. SCHEMA/STEP mutations ignore the optional flag (concrete hop path) ----
 
 const deleteSchema = readQuery(
   "SCHEMA",
@@ -245,7 +245,7 @@ const deleteSchema = readQuery(
 
 assert.ok(
   !composer.composeQuery(deleteSchema).cypher.includes("OPTIONAL MATCH"),
-  "delete SCHEMA never splits: it runs the cascade endpoint, not the composed pattern"
+  "delete SCHEMA never splits: hop MATCH is a concrete path (optional/absent ignored)"
 );
 
 const deleteStep = readQuery(

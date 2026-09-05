@@ -389,7 +389,7 @@ const deleteSchemaAbsent = readQuery(
 
 assert.ok(
   !composer.composeQuery(deleteSchemaAbsent).cypher.includes("NOT EXISTS"),
-  "delete SCHEMA never splits: it runs the cascade endpoint, not the composed pattern"
+  "delete SCHEMA never splits: hop MATCH is a concrete path (optional/absent ignored)"
 );
 
 // ---- 17. Validation: SET / DELETE must not reference negated-tail variables ----

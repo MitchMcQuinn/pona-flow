@@ -30,14 +30,19 @@ import { SchemaUpdateSuspendModal } from "./modals/SchemaUpdateSuspendModal";
 import { StepDeleteConfirmModal } from "./modals/StepDeleteConfirmModal";
 import { isDestructiveRunButton, runButtonLabel } from "./runButtonLabels";
 
-/** True when the query deletes a SCHEMA pattern (routed through the cascade preview). */
+/** True when the query deletes a SCHEMA pattern. */
 function isSchemaDelete(state: BuilderState): boolean {
   return state.query.operation === "delete" && state.query.match[0]?.label === "SCHEMA";
 }
 
-/** True when the query deletes a STEP pattern (routed through the cascade preview). */
+/** True when the query deletes a STEP pattern. */
 function isStepDelete(state: BuilderState): boolean {
   return state.query.operation === "delete" && state.query.match[0]?.label === "STEP";
+}
+
+/** Lone SCHEMA node delete — the cascade purge. A hop MATCH deletes only that edge. */
+function isSchemaNodeCascadeDelete(state: BuilderState): boolean {
+  return isSchemaDelete(state) && !matchHasRelationshipHop(state.query);
 }
 
 /** Lone STEP node delete — the cascade purge. A hop MATCH deletes only that edge. */
@@ -91,7 +96,7 @@ export function QueryRunActions({
   const [schemaUpdateError, setSchemaUpdateError] = useState<string | null>(null);
   const op = state.query.operation;
   const clauseLabel = state.query.match[0]?.label;
-  const schemaDelete = isSchemaDelete(state);
+  const schemaDelete = isSchemaNodeCascadeDelete(state);
   const stepDelete = isStepNodeCascadeDelete(state);
   const showRunButton = builderSelectors.showRunButton(state);
   const canRun = builderSelectors.canRun(state);

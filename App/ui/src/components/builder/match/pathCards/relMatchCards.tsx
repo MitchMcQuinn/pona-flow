@@ -295,10 +295,16 @@ export function MatchRelCard(props: RelCardProps) {
       edge.rel_attributive_label
     );
     if (relLabelChanged) clearRelCardChecks();
+    const relId = (edge.rel_id || "").trim();
     // Reverse hops (edge points AT the preceding node) compose as <-[...]- via direction.
     patch({
       ...matchRelAliasPatch(edge.rel_attributive_label, state.query),
-      direction: edge.direction === "incoming" ? "incoming" : "outgoing"
+      direction: edge.direction === "incoming" ? "incoming" : "outgoing",
+      // Delete SCHEMA of a reusable type (HAS_MANY, …) must key the entities row
+      // by id, not common_label — otherwise every copy of that type is removed.
+      ...(operation === "delete" && label === "SCHEMA"
+        ? { id_binding: relId ? { key: "id", value: relId } : undefined }
+        : {})
     });
     const following = state.query.match[clauseIndex]?.patterns[patternIndex]?.path[pathIndex + 1];
     const targetNode = following?.kind === "node" ? following.node : undefined;

@@ -214,9 +214,9 @@ export function isLabelOnlyMatch(
 /**
  * Delete STEP / SCHEMA: in addition to hiding the WHERE card (see ``isLabelOnlyMatch``),
  * a lone-node MATCH hides the DELETE card — Run goes through the cascade endpoint
- * keyed by attributive_label. A STEP hop MATCH shows the DELETE card so the author
+ * keyed by attributive_label. A hop MATCH shows the DELETE card so the author
  * can pick which matched elements to remove; ``normalizeForCompose`` still defaults
- * to the relationship(s) when no target is chosen. SCHEMA deletes always cascade.
+ * to the relationship(s) when no target is chosen.
  */
 export function isLabelOnlyDelete(
   operation: Operation,
@@ -228,16 +228,16 @@ export function isLabelOnlyDelete(
 /**
  * Whether the builder Delete card should list MATCH-bound targets.
  *
- * INSTANCE deletes always show it. STEP hop deletes show it so the author can
- * choose among the nodes and relationships in the match clause (two POINTS_TO
- * edges between the same STEPs are otherwise indistinguishable). Lone-node
- * STEP/SCHEMA deletes stay card-less: they run the cascade endpoint.
+ * INSTANCE deletes always show it. STEP/SCHEMA hop deletes show it so the author
+ * can choose among the nodes and relationships in the match clause (two edges
+ * between the same pair are otherwise indistinguishable). Lone-node STEP/SCHEMA
+ * deletes stay card-less: they run the cascade endpoint.
  */
 export function showsDeleteSection(query: QueryObject): boolean {
   if (query.operation !== "delete") return false;
   const label = query.match[0]?.label;
   if (!isLabelOnlyDelete(query.operation, label)) return true;
-  return label === "STEP" && matchHasRelationshipHop(query);
+  return matchHasRelationshipHop(query);
 }
 
 /** True when the MATCH path includes a labeled relationship (a hop, not a lone node). */

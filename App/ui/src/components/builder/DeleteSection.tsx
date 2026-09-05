@@ -53,7 +53,7 @@ export function DeleteSection() {
   }, [boundDelete, bindings, del.targets, patchQuery]);
 
   // Pre-select when the MATCH leaves no real choice: a single bound entity, or a
-  // STEP hop whose default is "delete the relationship(s), leave the nodes".
+  // STEP/SCHEMA hop whose default is "delete the relationship(s), leave the nodes".
   useEffect(() => {
     if (!boundDelete) return;
     const sole = soleDeleteTargetVariable(state.query);

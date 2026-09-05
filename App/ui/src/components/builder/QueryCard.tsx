@@ -26,7 +26,7 @@ export function QueryCard() {
   // Update SCHEMA/STEP only edits entity config payloads (SQLite); the graph-clause
   // cards (WHERE/SET/RETURN) don't apply.
   const entityConfigUpdate = isEntityConfigUpdate(op, clauseLabel);
-  // INSTANCE deletes and STEP hop deletes list MATCH-bound targets. Lone-node
+  // INSTANCE deletes and STEP/SCHEMA hop deletes list MATCH-bound targets. Lone-node
   // STEP/SCHEMA deletes skip the card (they run the cascade endpoint).
   const showDelete = showsDeleteSection(query);
   const vectorSearch =

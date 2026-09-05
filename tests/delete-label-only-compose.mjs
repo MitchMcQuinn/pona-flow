@@ -95,8 +95,8 @@ for (const label of ["STEP", "SCHEMA"]) {
   assert.equal(matchHasRelationshipHop(hop), true, `${label} hop MATCH is a relationship hop`);
   assert.equal(
     showsDeleteSection(hop),
-    label === "STEP",
-    `${label}: Delete card lists MATCH targets only for STEP hops (SCHEMA still cascades)`
+    true,
+    `${label}: Delete card lists MATCH targets on a hop`
   );
   const normalized = normalizeForCompose(hop);
   assert.deepEqual(
@@ -112,6 +112,11 @@ for (const label of ["STEP", "SCHEMA"]) {
     sqlite.filter((s) => /common_label = 'Thing'|common_label = 'Other'/.test(s)).length,
     0,
     `${label}: sqlite does not drop the endpoint node rows`
+  );
+  assert.equal(
+    sqlite.length,
+    0,
+    `${label}: hop without a relationship id does not delete entities by reusable common_label`
   );
 
   const nodeQuery = nodeDeleteQuery(label);
@@ -137,11 +142,11 @@ for (const label of ["STEP", "SCHEMA"]) {
   );
 }
 
-// A STEP hop whose relationship has a graph id must delete that entities row by id,
-// never by the reusable common_label (NEXT), and MATCH must pin the same id so a
-// second NEXT between the same STEPs is not also removed from the graph.
-{
-  const hop = hopDeleteQuery("STEP");
+// A hop whose relationship has a graph id must delete that entities row by id,
+// never by the reusable common_label, and MATCH must pin the same id so a
+// second edge of that type between the same pair is not also removed.
+for (const label of ["STEP", "SCHEMA"]) {
+  const hop = hopDeleteQuery(label);
   hop.match[0].patterns[0].path[1].relationship.id_binding = {
     key: "id",
     value: "ID_rel_next"
@@ -150,23 +155,35 @@ for (const label of ["STEP", "SCHEMA"]) {
   const normalized = normalizeForCompose(hop);
   const { cypher, sqlite } = composer.composeQuery(normalized);
   assert.deepEqual(sqlite, ["DELETE FROM entities WHERE id = 'ID_rel_next';"]);
-  assert.match(cypher, /id: ['"]ID_rel_next['"]/, "STEP hop MATCH includes the relationship id");
-  assert.match(cypher, /\bDELETE r0\b/, "STEP hop with id still deletes only the relationship");
+  assert.match(
+    cypher,
+    /id: ['"]ID_rel_next['"]/,
+    `${label} hop MATCH includes the relationship id`
+  );
+  assert.match(cypher, /\bDELETE r0\b/, `${label} hop with id still deletes only the relationship`);
 }
 
 // Explicit Delete-card / MCP targets must not be overwritten by the hop default.
-{
-  const hop = hopDeleteQuery("STEP");
+for (const label of ["STEP", "SCHEMA"]) {
+  const hop = hopDeleteQuery(label);
   hop.delete = { detach: true, targets: ["n0"] };
   const normalized = normalizeForCompose(hop);
   assert.deepEqual(
     normalized.delete,
     { detach: true, targets: ["n0"] },
-    "STEP hop: explicit node target is kept"
+    `${label} hop: explicit node target is kept`
   );
   const { cypher } = composer.composeQuery(normalized);
-  assert.match(cypher, /DETACH DELETE n0/, "explicit node target composes DETACH DELETE of that node");
-  assert.doesNotMatch(cypher, /\bDELETE r0\b/, "explicit node target does not also delete the hop");
+  assert.match(
+    cypher,
+    /DETACH DELETE n0/,
+    `${label}: explicit node target composes DETACH DELETE of that node`
+  );
+  assert.doesNotMatch(
+    cypher,
+    /\bDELETE r0\b/,
+    `${label}: explicit node target does not also delete the hop`
+  );
 }
 
 {

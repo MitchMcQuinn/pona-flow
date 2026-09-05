@@ -12,7 +12,8 @@ export type HopSplitMode = "optional" | "absent";
  * INSTANCE splits on every match operation: an optional hop widens the matched set
  * and an absent hop narrows it, which is meaningful for a read, an update's SET, and
  * a delete's targets alike. SCHEMA splits on read only — update SCHEMA edits the
- * per-space entities payload (SQLite, no Cypher) and delete SCHEMA runs the cascade
+ * per-space entities payload (SQLite, no Cypher) and a hop delete SCHEMA composes a
+ * concrete path (no optional/absent split). Lone-node SCHEMA delete runs the cascade
  * endpoint by attributive_label rather than the composed pattern. STEP never splits:
  * a sequence needs a single concrete entry point.
  */

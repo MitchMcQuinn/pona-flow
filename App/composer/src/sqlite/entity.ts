@@ -57,10 +57,10 @@ export function composeEntitySqlite(query: QueryObject, operation?: string): str
           // STEP/SCHEMA entities are matched in the graph by attributive_label
           // (there is no literal id), which maps to the entities common_label — so
           // delete the entities-table counterpart by its (label, common_label).
-          // STEP relationship labels (NEXT, …) are reusable: a common_label delete
-          // would strip every NEXT row in the space. Skip those and rely on the
-          // graph DELETE; hop select binds r.id when one exists.
-          if (label === "STEP" && step.kind === "relationship") return;
+          // Relationship labels (NEXT, HAS_MANY, …) are reusable types: a
+          // common_label delete would strip every copy in the space. Skip those
+          // and rely on the graph DELETE; hop select binds r.id when one exists.
+          if (step.kind === "relationship") return;
           if (label === "STEP" || label === "SCHEMA") {
             const commonLabel = commonLabelForEntity(entity, label);
             if (commonLabel) {

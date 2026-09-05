@@ -58,8 +58,8 @@ assert.ok(supportsHopModes("delete", "INSTANCE"), "delete INSTANCE offers hop mo
 assert.ok(supportsHopModes("update", "INSTANCE"), "update INSTANCE offers hop modes");
 
 assert.ok(!supportsHopModes("read", "STEP"), "read STEP needs one concrete entry point");
-assert.ok(!supportsHopModes("delete", "STEP"), "delete STEP runs the cascade endpoint");
-assert.ok(!supportsHopModes("delete", "SCHEMA"), "delete SCHEMA runs the cascade endpoint");
+assert.ok(!supportsHopModes("delete", "STEP"), "delete STEP hop MATCH is a concrete path");
+assert.ok(!supportsHopModes("delete", "SCHEMA"), "delete SCHEMA hop MATCH is a concrete path");
 assert.ok(!supportsHopModes("update", "SCHEMA"), "update SCHEMA edits the entities payload");
 assert.ok(!supportsHopModes("create", "INSTANCE"), "create writes patterns, never splits them");
 assert.ok(!supportsHopModes("delete", undefined), "an unset clause label offers nothing");
