@@ -541,8 +541,9 @@ export function validateQuery(query: QueryObject, _runtimeEnabled: boolean): str
     warnings.push("UPDATE requires at least one SET expression.");
   }
 
-  // Delete STEP/SCHEMA auto-targets every matched entity (DETACH DELETE composed in
-  // normalizeForCompose), so it needs no manually selected target variable.
+  // Delete STEP/SCHEMA auto-targets in normalizeForCompose when the Delete card is
+  // empty (relationships on a hop MATCH, otherwise the matched node). An explicit
+  // target list is required for every other delete.
   if (
     op === "delete" &&
     !isLabelOnlyDelete(op, query.match[0]?.label) &&
@@ -789,6 +790,20 @@ function validateClause(
             patternCount,
             "a relationship is missing its Cypher variable."
           );
+        }
+        if (op === "create" && label === "STEP" && rel.alias_mode !== "reference") {
+          const hasLabel = (rel.attributive_label || "").trim();
+          const idVal = rel.id_binding?.value;
+          const hasId =
+            idVal !== undefined && idVal !== null && String(idVal).trim() !== "";
+          if (hasLabel && !hasId) {
+            pushPatternWarning(
+              warnings,
+              pi,
+              patternCount,
+              "STEP relationship requires an id for create."
+            );
+          }
         }
         if (op === "create" && label === "SCHEMA" && rel.alias_mode !== "reference") {
           const hasLabel = (rel.attributive_label || "").trim();

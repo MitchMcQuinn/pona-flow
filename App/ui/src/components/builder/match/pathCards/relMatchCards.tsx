@@ -177,6 +177,11 @@ export function ConfigUpdateRelCard(props: RelCardProps) {
           parentAttributiveLabel={precedingNodeLabel}
           attributiveLabel={relationship.attributive_label ?? ""}
           targetAttributiveLabel={followingNodeLabel}
+          relationshipId={
+            typeof relationship.id_binding?.value === "string"
+              ? relationship.id_binding.value
+              : ""
+          }
           onSelect={selectConfigStepRel}
           onSelectParameter={() => undefined}
         />
@@ -349,20 +354,34 @@ export function MatchRelCard(props: RelCardProps) {
       currentFollowing?.kind === "node" ? currentFollowing.node.attributive_label ?? "" : "";
     const relChanged = attributiveLabelChanged(relationship.attributive_label, relAttributiveLabel);
     const targetChanged = attributiveLabelChanged(currentTarget, edge.target_attributive_label);
+    const currentRelId =
+      typeof relationship.id_binding?.value === "string"
+        ? relationship.id_binding.value.trim()
+        : "";
+    const nextRelId = (edge.rel_id || "").trim();
+    const idChanged = operation === "delete" && currentRelId !== nextRelId;
     // Siblings share a rel label, so detect a change via the target too — otherwise
     // switching between same-label edges (different targets) would be a no-op.
-    if (!relChanged && !targetChanged) return;
+    if (!relChanged && !targetChanged && !idChanged) return;
     clearRelCardChecks();
     clearDownstream();
     patchQuery((q) => {
       let next = clearPathAttributiveLabelsAfter(clauseIndex, patternIndex, pathIndex, {
         preserveIdentity: graphMode
       })(q);
+      const relId = (edge.rel_id || "").trim();
       next = updateRelationship(
         clauseIndex,
         patternIndex,
         pathIndex,
-        matchRelAliasPatch(relAttributiveLabel, next)
+        {
+          ...matchRelAliasPatch(relAttributiveLabel, next),
+          // Delete of a reusable label (NEXT) must key the entities row by id,
+          // not common_label — otherwise every NEXT edge in the space is removed.
+          ...(operation === "delete"
+            ? { id_binding: relId ? { key: "id", value: relId } : undefined }
+            : {})
+        }
       )(next);
       const following = next.match[clauseIndex]?.patterns[patternIndex]?.path[pathIndex + 1];
       if (following?.kind === "node") {
@@ -481,6 +500,11 @@ export function MatchRelCard(props: RelCardProps) {
           parentAttributiveLabel={precedingNodeLabel}
           attributiveLabel={relationship.attributive_label ?? ""}
           targetAttributiveLabel={followingNodeLabel}
+          relationshipId={
+            typeof relationship.id_binding?.value === "string"
+              ? relationship.id_binding.value
+              : ""
+          }
           disabled={matchAliasLocked}
           onSelect={selectMatchStepRel}
           onSelectParameter={selectMatchRelParameter}

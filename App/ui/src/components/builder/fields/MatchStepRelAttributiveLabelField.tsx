@@ -8,6 +8,10 @@ import { useBuilder } from "../../../state/builder/BuilderContext";
 import connector, { type StepOutgoingEdge } from "../../../services/connector";
 import { Picker } from "../Picker";
 import { AddParameterModal } from "../modals/AddParameterModal";
+import {
+  selectedStepOutgoingEdgeValue,
+  stepOutgoingEdgePickerOptions
+} from "./stepOutgoingEdgeOptions";
 
 interface MatchStepRelAttributiveLabelFieldProps {
   /** STEP node attributive_label that owns outgoing edges for this hop. */
@@ -15,6 +19,8 @@ interface MatchStepRelAttributiveLabelFieldProps {
   attributiveLabel: string;
   /** Following node's attributive_label — disambiguates siblings sharing a rel label. */
   targetAttributiveLabel?: string;
+  /** Bound graph id of the selected POINTS_TO, when two edges share rel+target. */
+  relationshipId?: string;
   disabled?: boolean;
   onSelect: (attributiveLabel: string, edge: StepOutgoingEdge) => void;
   /** Set the attributive_label to a $parameter instead of binding an edge. */
@@ -26,6 +32,7 @@ export function MatchStepRelAttributiveLabelField({
   parentAttributiveLabel,
   attributiveLabel,
   targetAttributiveLabel = "",
+  relationshipId = "",
   disabled = false,
   onSelect,
   onSelectParameter
@@ -76,42 +83,23 @@ export function MatchStepRelAttributiveLabelField({
     [edges, catalogKeys]
   );
 
-  const options = useMemo(() => {
-    const relCounts = new Map<string, number>();
-    for (const edge of catalogEdges) {
-      const relAl = edge.rel_attributive_label?.trim();
-      if (!relAl) continue;
-      relCounts.set(relAl, (relCounts.get(relAl) ?? 0) + 1);
-    }
-    const list: Array<{ value: string; label: string; edge: StepOutgoingEdge }> = [];
-    for (const edge of catalogEdges) {
-      const relAl = edge.rel_attributive_label?.trim();
-      const targetAl = edge.target_attributive_label?.trim();
-      if (!relAl || !targetAl) continue;
-      const ambiguous = (relCounts.get(relAl) ?? 0) > 1;
-      const value = ambiguous ? `${relAl}|${targetAl}` : relAl;
-      const label = ambiguous ? `${relAl} → ${targetAl}` : relAl;
-      if (list.some((o) => o.value === value)) continue;
-      list.push({ value, label, edge });
-    }
-    return list.sort((a, b) => a.label.localeCompare(b.label));
-  }, [catalogEdges]);
+  const distinguishParallelPairs =
+    state.query.operation === "delete" || state.query.operation === "update";
+  const options = useMemo(
+    () => stepOutgoingEdgePickerOptions(catalogEdges, { distinguishParallelPairs }),
+    [catalogEdges, distinguishParallelPairs]
+  );
 
-  // The stored attributive_label is the bare rel label; reconstruct the picker's
-  // (possibly composite) option value so the selected sibling shows its target.
-  const selectedValue = useMemo(() => {
-    const relAl = attributiveLabel.trim();
-    if (!relAl) return attributiveLabel;
-    const target = targetAttributiveLabel.trim();
-    const exact = options.find(
-      (o) =>
-        o.edge.rel_attributive_label?.trim() === relAl &&
-        o.edge.target_attributive_label?.trim() === target
-    );
-    if (exact) return exact.value;
-    const byRel = options.find((o) => o.edge.rel_attributive_label?.trim() === relAl);
-    return byRel ? byRel.value : attributiveLabel;
-  }, [options, attributiveLabel, targetAttributiveLabel]);
+  const selectedValue = useMemo(
+    () =>
+      selectedStepOutgoingEdgeValue(
+        options,
+        attributiveLabel,
+        targetAttributiveLabel,
+        relationshipId
+      ),
+    [options, attributiveLabel, targetAttributiveLabel, relationshipId]
+  );
 
   const hasGraphEdges = edges.length > 0;
   const hasCatalogOverlap = catalogEdges.length > 0;

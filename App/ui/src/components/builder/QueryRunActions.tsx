@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { matchHasRelationshipHop } from "@pona-flow/authoring";
 import {
   executeSchemaDeletion,
   executeStepDeletion,
@@ -37,6 +38,11 @@ function isSchemaDelete(state: BuilderState): boolean {
 /** True when the query deletes a STEP pattern (routed through the cascade preview). */
 function isStepDelete(state: BuilderState): boolean {
   return state.query.operation === "delete" && state.query.match[0]?.label === "STEP";
+}
+
+/** Lone STEP node delete — the cascade purge. A hop MATCH deletes only that edge. */
+function isStepNodeCascadeDelete(state: BuilderState): boolean {
+  return isStepDelete(state) && !matchHasRelationshipHop(state.query);
 }
 
 /** attributive_label of the first matched node (the SCHEMA/STEP targeted by a delete). */
@@ -86,7 +92,7 @@ export function QueryRunActions({
   const op = state.query.operation;
   const clauseLabel = state.query.match[0]?.label;
   const schemaDelete = isSchemaDelete(state);
-  const stepDelete = isStepDelete(state);
+  const stepDelete = isStepNodeCascadeDelete(state);
   const showRunButton = builderSelectors.showRunButton(state);
   const canRun = builderSelectors.canRun(state);
   const canSaveOp = builderSelectors.canSaveOperation(state);

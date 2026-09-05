@@ -730,14 +730,19 @@ def list_schema_graph_relationships(space_id: str) -> list[dict[str, Any]]:
 
 
 def list_step_outgoing(space_id: str, attributive_label: str) -> list[dict[str, Any]]:
-    """Outgoing POINTS_TO edges from a STEP node to other STEP nodes."""
+    """Outgoing POINTS_TO edges from a STEP node to other STEP nodes.
+
+    Edges without ``r.id`` are included: hop pickers distinguish parallel edges by
+    ``attributive_label``, and an id-less POINTS_TO (created before the id was minted)
+    must still be selectable. ``rel_id`` is empty in that case.
+    """
     al = (attributive_label or "").strip()
     if not al:
         raise ValueError("attributive_label is required")
     cypher = (
         "MATCH (s:STEP {attributive_label: $attributive_label})"
         f"-[r:{GRAPH_REL_TYPE}]->(t:STEP) "
-        "WHERE r.attributive_label IS NOT NULL AND r.id IS NOT NULL "
+        "WHERE r.attributive_label IS NOT NULL "
         "AND t.attributive_label IS NOT NULL AND t.id IS NOT NULL "
         "RETURN r.id AS rel_id, r.attributive_label AS rel_attributive_label, "
         "t.id AS target_id, t.attributive_label AS target_attributive_label, "
@@ -751,7 +756,10 @@ def list_step_outgoing(space_id: str, attributive_label: str) -> list[dict[str, 
         rel_al = (row.get("rel_attributive_label") or "").strip()
         target_id = (row.get("target_id") or "").strip()
         target_al = (row.get("target_attributive_label") or "").strip()
-        if not rel_id or not rel_al or not target_id or not target_al:
+        # r.id is optional: a POINTS_TO created before the id was minted still
+        # has to appear in hop pickers (parallel edges are distinguished by
+        # attributive_label). Config update / entities-row writes need the id.
+        if not rel_al or not target_id or not target_al:
             continue
         # Guard conditions now live in the relationship's entities payload (SQLite);
         # fall back to the Neo4j-stored value for edges created before the migration.

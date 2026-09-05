@@ -174,15 +174,17 @@ export function createExpectsEntityMirrorWrites(query: QueryObject): boolean {
           if (step.node.alias_mode === "reference" || step.node.node_source === "existing") {
             continue;
           }
-          const id = step.node.id_binding?.value;
-          if (id !== undefined && id !== null && String(id).trim() !== "") return true;
+          return true;
         }
         if (step.kind === "relationship" && step.relationship) {
           if (step.relationship.alias_mode === "reference") {
             continue;
           }
-          const id = step.relationship.id_binding?.value;
-          if (id !== undefined && id !== null && String(id).trim() !== "") return true;
+          // Written STEP/SCHEMA edges must be mirrored. An id is required to
+          // compose the INSERT; missing one must fail closed rather than MERGE
+          // a graph-only POINTS_TO that hop pickers (which key on r.id for
+          // config) cannot reliably round-trip.
+          return true;
         }
       }
     }

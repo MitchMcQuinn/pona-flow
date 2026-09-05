@@ -11,6 +11,10 @@ import {
   bindingDisplayLabels,
   bindingForVariable,
   collectDeleteTargetBindings,
+  hasExplicitDeleteTargets,
+  isLabelOnlyDelete,
+  labelOnlyDeleteClause,
+  matchHasRelationshipHop,
   soleDeleteTargetVariable
 } from "@pona-flow/authoring";
 import { GRAPH_NODE_LABELS } from "../../state/builder/types";
@@ -48,13 +52,26 @@ export function DeleteSection() {
     });
   }, [boundDelete, bindings, del.targets, patchQuery]);
 
-  // A single-entity MATCH (e.g. one INSTANCE filtered by WHERE id = $param) has exactly
-  // one possible target, so pre-select it instead of blocking on the manual picker.
+  // Pre-select when the MATCH leaves no real choice: a single bound entity, or a
+  // STEP hop whose default is "delete the relationship(s), leave the nodes".
   useEffect(() => {
     if (!boundDelete) return;
     const sole = soleDeleteTargetVariable(state.query);
-    if (sole) patchQuery(setDeleteTargets([sole]));
-  }, [boundDelete, state.query, patchQuery]);
+    if (sole) {
+      patchQuery(setDeleteTargets([sole]));
+      return;
+    }
+    if (hasExplicitDeleteTargets(state.query)) return;
+    if (
+      isLabelOnlyDelete(state.query.operation, label) &&
+      matchHasRelationshipHop(state.query)
+    ) {
+      const clause = labelOnlyDeleteClause(state.query);
+      if (clause.targets.length) {
+        patchQuery((q) => ({ ...q, delete: clause }));
+      }
+    }
+  }, [boundDelete, label, state.query, patchQuery]);
 
   return (
     <section className="builderSection">

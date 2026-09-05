@@ -12,7 +12,7 @@ import { ReturnSection } from "./ReturnSection";
 import { UnwindSection } from "./UnwindSection";
 import { SetSection } from "./SetSection";
 import { VectorSearchSection } from "./VectorSearchSection";
-import { isEntityConfigUpdate, isLabelOnlyDelete } from "@pona-flow/authoring";
+import { isEntityConfigUpdate, showsDeleteSection } from "@pona-flow/authoring";
 
 export function QueryCard() {
   const { state, patchQuery, createSequenceMode } = useBuilder();
@@ -26,9 +26,9 @@ export function QueryCard() {
   // Update SCHEMA/STEP only edits entity config payloads (SQLite); the graph-clause
   // cards (WHERE/SET/RETURN) don't apply.
   const entityConfigUpdate = isEntityConfigUpdate(op, clauseLabel);
-  // Delete STEP/SCHEMA needs no Delete card: it always DETACH DELETEs every matched
-  // node/relationship (the target inputs and DETACH toggle would be redundant).
-  const labelOnlyDelete = isLabelOnlyDelete(op, clauseLabel);
+  // INSTANCE deletes and STEP hop deletes list MATCH-bound targets. Lone-node
+  // STEP/SCHEMA deletes skip the card (they run the cascade endpoint).
+  const showDelete = showsDeleteSection(query);
   const vectorSearch =
     op === "read" && clauseLabel === "INSTANCE" && isVectorSearchEnabled(query);
   // Graph vs entity-config card stack — only this boundary needs a enter transition on
@@ -65,7 +65,7 @@ export function QueryCard() {
             <ReturnSection />
           </>
         ) : null}
-        {op === "delete" && !labelOnlyDelete ? <DeleteSection /> : null}
+        {showDelete ? <DeleteSection /> : null}
 
         {showParameters ? <ParametersSection /> : null}
       </div>

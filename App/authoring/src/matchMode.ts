@@ -213,15 +213,44 @@ export function isLabelOnlyMatch(
 
 /**
  * Delete STEP / SCHEMA: in addition to hiding the WHERE card (see ``isLabelOnlyMatch``),
- * the DELETE card is hidden and the user is assumed to intend a DETACH DELETE of every
- * node/relationship in the MATCH clause (composed automatically in
- * ``normalizeForCompose``).
+ * a lone-node MATCH hides the DELETE card — Run goes through the cascade endpoint
+ * keyed by attributive_label. A STEP hop MATCH shows the DELETE card so the author
+ * can pick which matched elements to remove; ``normalizeForCompose`` still defaults
+ * to the relationship(s) when no target is chosen. SCHEMA deletes always cascade.
  */
 export function isLabelOnlyDelete(
   operation: Operation,
   clauseLabel: GraphNodeLabel | undefined
 ): boolean {
   return operation === "delete" && (clauseLabel === "STEP" || clauseLabel === "SCHEMA");
+}
+
+/**
+ * Whether the builder Delete card should list MATCH-bound targets.
+ *
+ * INSTANCE deletes always show it. STEP hop deletes show it so the author can
+ * choose among the nodes and relationships in the match clause (two POINTS_TO
+ * edges between the same STEPs are otherwise indistinguishable). Lone-node
+ * STEP/SCHEMA deletes stay card-less: they run the cascade endpoint.
+ */
+export function showsDeleteSection(query: QueryObject): boolean {
+  if (query.operation !== "delete") return false;
+  const label = query.match[0]?.label;
+  if (!isLabelOnlyDelete(query.operation, label)) return true;
+  return label === "STEP" && matchHasRelationshipHop(query);
+}
+
+/** True when the MATCH path includes a labeled relationship (a hop, not a lone node). */
+export function matchHasRelationshipHop(query: QueryObject): boolean {
+  for (const clause of query.match ?? []) {
+    for (const pattern of clause.patterns ?? []) {
+      for (const element of pattern.path ?? []) {
+        if (element.kind !== "relationship") continue;
+        if ((element.relationship.attributive_label ?? "").trim()) return true;
+      }
+    }
+  }
+  return false;
 }
 
 /** A new STEP node with a custom HTTP template (endpoint/body), not an operation reference. */

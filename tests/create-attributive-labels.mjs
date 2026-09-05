@@ -16,6 +16,7 @@ import {
   collectCreateAttributiveLabels,
   collectCreateCatalogLabels,
   collectCreateEntityIds,
+  createExpectsEntityMirrorWrites,
   DEFAULT_STEP_RELATIONSHIP_LABEL,
   isSingleNewStepCreate,
   newQuery,
@@ -371,6 +372,31 @@ function newRel(label, id, extra = {}) {
     },
   ];
   assert.equal(isSingleNewStepCreate(query), false, "picking an existing STEP cannot publish");
+}
+
+{
+  const query = buildStepTransitionQuery(
+    {
+      from: { id: "step-a", attributive_label: "STEP_A" },
+      to: { id: "step-b", attributive_label: "STEP_B" },
+      relationship_label: "SEND_TO_DISCORD",
+    },
+    { queryId: "q-idless", entityIds: [""] }
+  );
+  assert.equal(
+    createExpectsEntityMirrorWrites(query),
+    true,
+    "a written STEP edge must be mirrored even when its id is missing"
+  );
+  assert.throws(
+    () =>
+      buildCreateBodyWithOptions(
+        { spaceId: "space-1", query, runtimeEnabled: false },
+        { includeQueriesCatalog: false }
+      ),
+    /No entity SQLite statements were composed/,
+    "refuse a graph-only POINTS_TO that hop pickers cannot round-trip"
+  );
 }
 
 console.log("create-attributive-labels: ok");

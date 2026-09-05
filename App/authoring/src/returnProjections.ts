@@ -133,6 +133,36 @@ export function collectDeleteTargetBindings(query: QueryObject): ReadMatchPathBi
   return out;
 }
 
+/** True when the author has already named at least one DELETE target. */
+export function hasExplicitDeleteTargets(query: QueryObject): boolean {
+  return (query.delete?.targets ?? []).some((t) => (t || "").trim());
+}
+
+/**
+ * Default DELETE clause for a STEP/SCHEMA delete whose author has not picked targets.
+ *
+ * A hop MATCH is "delete this POINTS_TO", not "purge the endpoint nodes". A lone
+ * node MATCH DETACH DELETEs that node. Used by ``normalizeForCompose`` when the
+ * Delete card is empty, and by the Delete card itself to pre-select the hop.
+ */
+export function labelOnlyDeleteClause(query: QueryObject): {
+  detach: boolean;
+  targets: string[];
+} {
+  const bindings = collectDeleteTargetBindings(query);
+  const relTargets = bindings
+    .filter((binding) => binding.entityRole === "relationship")
+    .map((binding) => binding.variable.trim())
+    .filter(Boolean);
+  const nodeTargets = bindings
+    .filter((binding) => binding.entityRole === "node")
+    .map((binding) => binding.variable.trim())
+    .filter(Boolean);
+  return relTargets.length
+    ? { detach: false, targets: relTargets }
+    : { detach: true, targets: nodeTargets };
+}
+
 /**
  * The variable a target-less DELETE can be auto-filled with, when unambiguous.
  *
@@ -143,8 +173,7 @@ export function collectDeleteTargetBindings(query: QueryObject): ReadMatchPathBi
  */
 export function soleDeleteTargetVariable(query: QueryObject): string | null {
   if (query.operation !== "delete") return null;
-  const targets = query.delete?.targets ?? [];
-  if (targets.some((t) => (t || "").trim())) return null;
+  if (hasExplicitDeleteTargets(query)) return null;
   const bindings = collectDeleteTargetBindings(query);
   return bindings.length === 1 ? bindings[0].variable : null;
 }
