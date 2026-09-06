@@ -28,7 +28,7 @@ flowchart TB
   server -->|"tools/list"| list["sequence_service.list_runnable_sequences (RBAC-filtered)"]
   server -->|"tools/call"| run["sequence_service.run_sequence_once"]
   run --> pending["pending: paused for operator input + state_id"]
-  run --> waiting["waiting: timer / until / event / loop delay"]
+  run --> waiting["waiting: timer / until / event / loop delay / retry backoff"]
   run --> done["inactive: final_result"]
 ```
 
@@ -177,8 +177,9 @@ Repeat until `status` is `inactive` (done) or `error`. This works with every MCP
 because it needs only ordinary tool calls — no elicitation support is required.
 
 A `waiting` result is different: the run is parked on a timer, an until datetime, a
-catalog Event, or a loop-iteration delay. It resumes in the background without new
-parameters — do not treat it as a form to fill. Poll or call again with the same
+catalog Event, a loop-iteration delay, or an HTTP/LLM retry backoff. It resumes in the
+background without new parameters — do not treat it as a form to fill. Poll or call
+again with the same
 `state_id` after the wait; a fire of the referenced Event both starts any sequences
 listed on that Event *and* releases waiters parked on it.
 
@@ -230,7 +231,7 @@ triggered the run.
 | Tool `inputSchema` | Aggregated sequence parameters still needed from the caller (each carrying its description) + `state_id`. Names pre-set on the sequence are omitted. |
 | Server `instructions` | Space description |
 | `pending` result + `state_id` | Paused for operator input; resume with those parameters |
-| `waiting` result + `state_id` | Background park (timer / until / event / loop delay); resumes without new params |
+| `waiting` result + `state_id` | Background park (timer / until / event / loop delay / retry backoff); resumes without new params |
 | Agent key + RBAC allowlist | Tool authorization |
 
 Because the gateway wraps `sequence_service`, anything that improves sequence execution

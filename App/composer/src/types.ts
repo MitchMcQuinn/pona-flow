@@ -106,6 +106,12 @@ export interface SequencialProperties {
   wait_until?: string;
   /** Catalog event id whose fire resumes this run. */
   wait_event_id?: string;
+  /** HTTP / Local LLM: call timeout in seconds, or exactly `$name`. */
+  timeout_seconds?: number | string;
+  /** HTTP / Local LLM: tries including the first. Default 1 (no retry). */
+  max_attempts?: number;
+  /** HTTP / Local LLM: pause between retries in seconds, or `$name`. 0 retries immediately. */
+  backoff_seconds?: number | string;
 }
 
 export interface CypherConditionPredicate {

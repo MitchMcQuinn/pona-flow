@@ -38,6 +38,15 @@ from . import cypher_utils, spaces
 
 NEO4J_AVAILABLE = GraphDatabase is not None
 
+
+def _call_policy_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """HTTP / Local LLM timeout and retry fields stored on the STEP entity payload."""
+    out: dict[str, Any] = {}
+    for key in ("timeout_seconds", "max_attempts", "backoff_seconds"):
+        if payload.get(key) is not None and payload.get(key) != "":
+            out[key] = payload[key]
+    return out
+
 GRAPH_REL_TYPE = "POINTS_TO"
 
 # Reserved INSTANCE system property holding a record's embedding vector (written by
@@ -445,6 +454,7 @@ def list_graph_nodes_by_label(space_id: str, node_label: str) -> list[dict[str, 
                         "step_type": "local_llm",
                         "local_llm_config_id": str(payload.get("config_id") or ""),
                         "response_parameters": payload.get("response_parameters") or [],
+                        **_call_policy_from_payload(payload),
                     }
                     node["parameters"] = _fetch_entity_parameters(space_id, entity_id, "STEP")
                 elif str(payload.get("kind") or "").strip() == "wait":
@@ -472,6 +482,7 @@ def list_graph_nodes_by_label(space_id: str, node_label: str) -> list[dict[str, 
                         "headers": headers if isinstance(headers, dict) else {},
                         "body": payload.get("body", {}),
                         "response_parameters": payload.get("response_parameters") or [],
+                        **_call_policy_from_payload(payload),
                     }
                     node["parameters"] = _fetch_entity_parameters(space_id, entity_id, "STEP")
             nodes.append(node)

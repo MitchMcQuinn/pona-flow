@@ -651,6 +651,14 @@ the stored queue mid-chain. A loop may also park between completed passes via
 `loop.delay_seconds`. Human-in-the-loop remains `pending` (needs operator input);
 clock and event parks are `waiting` so callers do not treat a timer as a form to fill.
 
+HTTP and Local LLM steps publish `ok` (and HTTP `status`) into run state after each
+call, so a `POINTS_TO` condition on `ok` can escalate a failed call. They may retry
+without a loop: `max_attempts` (default 1) with optional parked `backoff_seconds`
+(`progress.wait.kind = retry_backoff`). Call timeout is authorable per step
+(`timeout_seconds`; HTTP default 30s, Local LLM default 300s, cap 300s). A timeout is a
+failed, retryable attempt. Query steps set `ok=true` on success; Neo4j errors still
+abort the run.
+
 ```1187:1192:Engine/server/execution_run.py
 def _progress_snapshot(
     queue: list[str],

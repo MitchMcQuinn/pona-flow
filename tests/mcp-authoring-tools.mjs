@@ -11,6 +11,8 @@
 import assert from "node:assert/strict";
 
 import { validateQuery } from "../App/authoring/src/index.ts";
+import { callStepWarnings } from "../App/authoring/src/callStep.ts";
+import { stepEntityPayload } from "../App/composer/src/step/endpoint.ts";
 import { issueConfirmation, redeemConfirmation, resetConfirmations } from "../App/mcp/src/confirm.ts";
 import {
   buildOperationQuery,
@@ -83,6 +85,18 @@ assert.deepEqual(
   "only the arguments with no sensible default are required"
 );
 assert.ok("http_step" in createSchema.properties, "create_operation accepts http_step");
+assert.ok(
+  "timeout_seconds" in (createSchema.properties.http_step?.properties || {}),
+  "http_step accepts timeout_seconds"
+);
+assert.ok(
+  "max_attempts" in (createSchema.properties.http_step?.properties || {}),
+  "http_step accepts max_attempts"
+);
+assert.ok(
+  "backoff_seconds" in (createSchema.properties.local_llm_step?.properties || {}),
+  "local_llm_step accepts backoff_seconds"
+);
 assert.ok("unwind" in createSchema.properties, "create_operation accepts unwind");
 assert.ok(
   "local_llm_step" in createSchema.properties,
@@ -244,6 +258,80 @@ assert.equal(unwindQuery.unwind.items.length, 2);
 const unwindCypher = composer.composeQuery(unwindQuery).cypher;
 assert.match(unwindCypher, /UNWIND \[SUBJECT\.id, OBJECT\.id\] AS entityId/);
 assert.match(unwindCypher, /RETURN entityId/);
+
+const httpPayload = JSON.parse(
+  stepEntityPayload({
+    step_type: "http",
+    endpoint: "https://example.test/hook",
+    method: "POST",
+    timeout_seconds: 15,
+    max_attempts: 3,
+    backoff_seconds: 2,
+  })
+);
+assert.equal(httpPayload.timeout_seconds, 15, "HTTP payload round-trips timeout_seconds");
+assert.equal(httpPayload.max_attempts, 3, "HTTP payload round-trips max_attempts");
+assert.equal(httpPayload.backoff_seconds, 2, "HTTP payload round-trips backoff_seconds");
+
+const omittedPayload = JSON.parse(
+  stepEntityPayload({
+    step_type: "http",
+    endpoint: "https://example.test/hook",
+    method: "POST",
+  })
+);
+assert.equal(
+  omittedPayload.max_attempts,
+  undefined,
+  "omitted max_attempts is not persisted"
+);
+
+const llmPayload = JSON.parse(
+  stepEntityPayload({
+    step_type: "local_llm",
+    local_llm_config_id: "cfg-1",
+    timeout_seconds: "$limit",
+    max_attempts: 2,
+  })
+);
+assert.equal(llmPayload.kind, "local_llm");
+assert.equal(llmPayload.timeout_seconds, "$limit");
+assert.equal(llmPayload.max_attempts, 2);
+
+assert.deepEqual(
+  callStepWarnings({
+    step_type: "http",
+    endpoint: "https://example.test/hook",
+    timeout_seconds: 400,
+  }),
+  ["Call timeout must be between 1 and 300 seconds."]
+);
+
+const httpIntent = buildOperationQuery(
+  {
+    name: "Notify",
+    operation: "create",
+    node_label: "STEP",
+    attributive_label: "notify hook",
+    http_step: {
+      endpoint: "https://example.test/notify",
+      method: "POST",
+      timeout_seconds: 20,
+      max_attempts: 4,
+      backoff_seconds: 8,
+    },
+  },
+  { queryId: "q-http", entityIds: ["step-http"] }
+);
+assert.deepEqual(validateQuery(httpIntent, true), [], "HTTP call-policy intent must pass validation");
+const httpSp = httpIntent.match[0].patterns[0].path[0].node.sequencial_properties;
+assert.equal(httpSp.timeout_seconds, 20);
+assert.equal(httpSp.max_attempts, 4);
+assert.equal(httpSp.backoff_seconds, 8);
+const intentPayload = JSON.parse(composer.stepEntityPayload(httpSp));
+assert.equal(intentPayload.timeout_seconds, 20);
+assert.equal(intentPayload.max_attempts, 4);
+assert.equal(intentPayload.backoff_seconds, 8);
 
 // A transition MATCHes both endpoints by graph id, then MERGEs the edge between them —
 // this is what stops it from creating two empty STEP nodes instead of wiring the real ones.

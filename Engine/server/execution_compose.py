@@ -424,6 +424,17 @@ def _transition_condition_expected(edge: dict[str, Any]) -> bool | None:
     return None
 
 
+def _attach_call_policy(step: dict[str, Any], payload: dict[str, Any]) -> None:
+    """Copy HTTP/LLM timeout and retry fields from the entity payload onto the composed step."""
+    for key in ("timeout_seconds", "max_attempts", "backoff_seconds"):
+        if key not in payload:
+            continue
+        value = payload.get(key)
+        if value is None or value == "":
+            continue
+        step[key] = value
+
+
 def _build_step(
     node_id: str,
     entity: dict[str, Any],
@@ -494,6 +505,7 @@ def _build_step(
         # Always require ``prompt`` and expose the optional setting overrides, even
         # when the STEP entity was saved before those parameters were declared.
         step["parameters"] = _ensure_local_llm_params(parameters)
+        _attach_call_policy(step, payload)
     elif kind == "wait":
         step["kind"] = "wait"
         mode = str(payload.get("mode") or "duration").strip() or "duration"
@@ -504,6 +516,8 @@ def _build_step(
             step["event_id"] = str(payload.get("event_id") or "").strip()
         else:
             step["duration_seconds"] = payload.get("duration_seconds", 0)
+    else:
+        _attach_call_policy(step, payload)
     return step
 
 
@@ -512,9 +526,10 @@ def _step_return_aliases(payload: dict[str, Any], fetch_query: Any) -> list[str]
     Names a step publishes into run state, in binding order.
 
     For an operation-backed step those are its scalar RETURN aliases (the executor
-    binds them automatically); for an endpoint/code/LLM step they are the parameters
-    its ``response_parameters`` mappings write. Together this is the vocabulary a
-    loop condition or for-each source may draw on.
+    binds them automatically) plus ``ok`` after a successful query; for an
+    endpoint/LLM/wait step they are ``ok`` (and HTTP ``status``) plus the
+    parameters its ``response_parameters`` mappings write. Together this is the
+    vocabulary a loop condition or for-each source may draw on.
     """
     names: list[str] = []
     seen: set[str] = set()
@@ -526,11 +541,18 @@ def _step_return_aliases(payload: dict[str, Any], fetch_query: Any) -> list[str]
             names.append(text)
 
     query_id = str(payload.get("query_id") or "").strip()
+    kind = str(payload.get("kind") or "").strip()
     if query_id:
         referenced = fetch_query(query_id)
         if referenced and referenced.get("kind") != "sequence":
             for alias in cypher_utils.return_aliases(referenced.get("cypher") or []):
                 add(alias)
+        add("ok")
+    elif kind in ("local_llm", "wait", "code"):
+        add("ok")
+    else:
+        add("ok")
+        add("status")
     for rp in payload.get("response_parameters") or []:
         if isinstance(rp, dict):
             add(rp.get("parameter"))

@@ -24,7 +24,8 @@ import {
   isStepCodeExecution,
   isStepCustomEndpoint,
   isStepLocalLlm,
-  isStepWait
+  isStepWait,
+  stepEntityPayload
 } from "./step/endpoint.js";
 import { instanceCreateIdParamName } from "./entity/ids.js";
 import {
@@ -180,6 +181,7 @@ export interface ComposerApi {
   isStepCodeExecution(sp: SequencialProperties | null | undefined): boolean;
   isStepLocalLlm(sp: SequencialProperties | null | undefined): boolean;
   isStepWait(sp: SequencialProperties | null | undefined): boolean;
+  stepEntityPayload(sp: SequencialProperties | null | undefined): string;
   composeStepWrapEntitySql(params: {
     entityId: string;
     operationId: string;
@@ -221,6 +223,7 @@ export const composer: ComposerApi = {
   composeStepWrapEntitySql,
   composeStepWrapGraphCypher,
   composeOneStepSequenceCypher,
+  stepEntityPayload,
   formatLiteral,
   escapeSqliteString,
   buildExistsInstanceCondition,

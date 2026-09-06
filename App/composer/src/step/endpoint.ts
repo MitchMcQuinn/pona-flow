@@ -45,6 +45,22 @@ export function isStepWait(
   return Boolean(sp && sp.query_id === undefined && sp.step_type === "wait");
 }
 
+export function attachCallPolicy(
+  payload: Record<string, unknown>,
+  sp: SequencialProperties | null | undefined
+): void {
+  if (!sp) return;
+  if (sp.timeout_seconds !== undefined && sp.timeout_seconds !== "") {
+    payload.timeout_seconds = sp.timeout_seconds;
+  }
+  if (typeof sp.max_attempts === "number" && Number.isFinite(sp.max_attempts)) {
+    payload.max_attempts = Math.trunc(sp.max_attempts);
+  }
+  if (sp.backoff_seconds !== undefined && sp.backoff_seconds !== "") {
+    payload.backoff_seconds = sp.backoff_seconds;
+  }
+}
+
 export function stepEntityPayload(sp: SequencialProperties | null | undefined): string {
   if (sp && sp.query_id) {
     return JSON.stringify({ query_id: String(sp.query_id) });
@@ -69,6 +85,7 @@ export function stepEntityPayload(sp: SequencialProperties | null | undefined): 
     if (response_parameters.length > 0) {
       payload.response_parameters = response_parameters;
     }
+    attachCallPolicy(payload, sp);
     return JSON.stringify(payload);
   }
   if (isStepWait(sp)) {
@@ -93,6 +110,7 @@ export function stepEntityPayload(sp: SequencialProperties | null | undefined): 
   if (response_parameters.length > 0) {
     payload.response_parameters = response_parameters;
   }
+  attachCallPolicy(payload, sp);
   return JSON.stringify(payload);
 }
 

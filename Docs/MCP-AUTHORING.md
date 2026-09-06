@@ -122,8 +122,12 @@ transition attaches to STEP nodes **by graph id**. Both need their nodes to alre
 
 `http_step`, `local_llm_step`, and `wait_step` are mutually exclusive on create/update
 operation. A wait STEP parks a run (`duration` seconds, `until` an ISO datetime, or
-until a catalog `event_id` fires) without blocking the request thread. Sequence `loop`
-accepts `delay_seconds` to park between completed loop passes (not before the first).
+until a catalog `event_id` fires) without blocking the request thread. HTTP and Local
+LLM STEPs publish `ok` (HTTP also publishes `status`) into run state for `POINTS_TO`
+conditions. They accept `timeout_seconds` (HTTP default 30, Local LLM default 300, cap
+300), `max_attempts` (default 1), and `backoff_seconds` (0 retries immediately; `>0`
+parks as `retry_backoff`). Sequence `loop` accepts `delay_seconds` to park between
+completed loop passes (not before the first).
 `create_sequence` / `update_sequence` `parameters` bake values into existing STEP inputs
 for that sequence only (`name` + `value`). Bound names skip HITL and runtime MCP/webhook
 collection; a caller can still override them. Call `describe_sequence` first so the names

@@ -86,11 +86,17 @@ export interface StepHttpIntent {
   body?: Record<string, unknown>;
   headers?: Record<string, unknown>;
   response_parameters?: Array<{ property_path: string; parameter: string; default_value?: string }>;
+  timeout_seconds?: number | string;
+  max_attempts?: number;
+  backoff_seconds?: number | string;
 }
 
 export interface StepLocalLlmIntent {
   config_id: string;
   response_parameters?: Array<{ property_path: string; parameter: string; default_value?: string }>;
+  timeout_seconds?: number | string;
+  max_attempts?: number;
+  backoff_seconds?: number | string;
 }
 
 export interface StepWaitIntent {
@@ -98,6 +104,26 @@ export interface StepWaitIntent {
   duration_seconds?: number | string;
   until?: string;
   event_id?: string;
+}
+
+function callPolicyFromStep(step: {
+  timeout_seconds?: number | string;
+  max_attempts?: number;
+  backoff_seconds?: number | string;
+}): {
+  timeout_seconds?: number | string;
+  max_attempts?: number;
+  backoff_seconds?: number | string;
+} {
+  const out: {
+    timeout_seconds?: number | string;
+    max_attempts?: number;
+    backoff_seconds?: number | string;
+  } = {};
+  if (step.timeout_seconds !== undefined) out.timeout_seconds = step.timeout_seconds;
+  if (step.max_attempts !== undefined) out.max_attempts = step.max_attempts;
+  if (step.backoff_seconds !== undefined) out.backoff_seconds = step.backoff_seconds;
+  return out;
 }
 
 export interface OperationIntent {
@@ -279,12 +305,14 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
         headers: intent.http_step.headers ?? {},
         body: intent.http_step.body ?? {},
         response_parameters: intent.http_step.response_parameters ?? [],
+        ...callPolicyFromStep(intent.http_step),
       };
     } else if (intent.local_llm_step) {
       element.node.sequencial_properties = {
         step_type: "local_llm",
         local_llm_config_id: intent.local_llm_step.config_id,
         response_parameters: intent.local_llm_step.response_parameters ?? [],
+        ...callPolicyFromStep(intent.local_llm_step),
       };
     } else if (intent.wait_step) {
       const mode = intent.wait_step.mode;

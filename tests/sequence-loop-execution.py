@@ -609,7 +609,7 @@ try:
 
     check(
         "compose publishes the alias catalog the builder's pickers draw on",
-        {"step_id": "B", "label": "STEP_B", "aliases": ["entityId", "role"]}
+        {"step_id": "B", "label": "STEP_B", "aliases": ["entityId", "role", "ok"]}
         in package["available_parameters"],
     )
 

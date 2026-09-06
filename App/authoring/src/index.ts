@@ -24,6 +24,7 @@ export * from "./instanceRules.js";
 export * from "./sequenceRules.js";
 export * from "./loopRules.js";
 export * from "./waitStep.js";
+export * from "./callStep.js";
 export * from "./matchMode.js";
 export * from "./returnProjections.js";
 export * from "./attributiveLabels.js";

@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import {
+  callStepWarnings,
   formatStepBodyJson,
+  HTTP_DEFAULT_TIMEOUT_SECONDS,
+  LLM_DEFAULT_TIMEOUT_SECONDS,
   validateStepBodyJson,
   waitStepWarnings,
   type WaitMode
@@ -52,6 +55,58 @@ function mergeSequencialProperties(
       spaceDefaultEndpoint
     )
   };
+}
+
+interface CallRetryFieldsProps {
+  sp: SequencialProperties;
+  timeoutDefault: number;
+  warnings: string[];
+  onCommit: (patch: Partial<SequencialProperties>) => void;
+}
+
+function CallRetryFields({ sp, timeoutDefault, warnings, onCommit }: CallRetryFieldsProps) {
+  return (
+    <>
+      <DurationField
+        label="timeout"
+        allowParameter
+        testId="builder-call-timeout"
+        value={sp.timeout_seconds ?? timeoutDefault}
+        hint="How long this call may run before it fails. Failure publishes ok=false (HTTP also publishes status) for edge conditions, and retries if attempts remain."
+        onChange={(next) => onCommit({ timeout_seconds: next })}
+      />
+      {warnings.length > 0 ? (
+        <span className="builderCheckMsg error">{warnings[0]}</span>
+      ) : null}
+      <div className="builderField">
+        <label>max attempts</label>
+        <input
+          type="number"
+          min={1}
+          max={20}
+          data-testid="builder-call-max-attempts"
+          value={sp.max_attempts ?? 1}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (!Number.isFinite(n)) return;
+            onCommit({ max_attempts: Math.trunc(n) });
+          }}
+        />
+        <span className="createSequenceHint">
+          Includes the first try. After the last failure the walk continues with ok=false so an
+          edge can escalate.
+        </span>
+      </div>
+      <DurationField
+        label="retry backoff"
+        allowParameter
+        testId="builder-call-backoff"
+        value={sp.backoff_seconds ?? 0}
+        hint="Wait between retries. 0 retries immediately; longer values park the run until the scheduler wakes it."
+        onChange={(next) => onCommit({ backoff_seconds: next })}
+      />
+    </>
+  );
 }
 
 interface StepSequencialConfigProps {
@@ -263,6 +318,8 @@ export function StepSequencialConfig({
   const bodyCheck = bodyCheckKey ? state.checks[bodyCheckKey] : undefined;
   const localLlmMissing = !(sp.local_llm_config_id ?? "").trim();
   const waitWarnings = stepType === "wait" ? waitStepWarnings({ ...sp, step_type: "wait" }) : [];
+  const callWarnings =
+    stepType === "http" || stepType === "local_llm" ? callStepWarnings({ ...sp, step_type: stepType }) : [];
   const selectedWaitEvent = events.find((event) => event.id === (sp.wait_event_id ?? "").trim());
   const waitEventAlsoTargetsThis =
     Boolean(state.query.id) &&
@@ -353,6 +410,12 @@ export function StepSequencialConfig({
                 <code>stop</code> override the saved config for a single run — leave one blank to
                 keep the config&apos;s value.
               </p>
+              <CallRetryFields
+                sp={sp}
+                timeoutDefault={LLM_DEFAULT_TIMEOUT_SECONDS}
+                warnings={callWarnings}
+                onCommit={commitSequencial}
+              />
             </>
           ) : stepType === "wait" ? (
             <>
@@ -509,6 +572,12 @@ export function StepSequencialConfig({
                   }}
                 />
               </div>
+              <CallRetryFields
+                sp={sp}
+                timeoutDefault={HTTP_DEFAULT_TIMEOUT_SECONDS}
+                warnings={callWarnings}
+                onCommit={commitSequencial}
+              />
             </>
           )}
         </>

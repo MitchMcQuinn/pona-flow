@@ -10,9 +10,12 @@ state machine:
      that case the run pauses as "pending" and returns *all* of the step's fields
      to prompt (optional included), so the operator can review/override them.
   3. Execute the step (query against Neo4j, HTTP endpoint, or local LLM),
-     then bind values for downstream steps: a query step's scalar RETURN columns
-     fill in names not already resolved, and response_parameter mappings apply
-     afterwards so an explicit mapping can still overwrite one.
+     then bind values for downstream steps: HTTP/LLM/wait publish ``ok`` (and
+     HTTP ``status``) into resolved; a successful query sets ``ok=True``; a query
+     step's scalar RETURN columns fill in names not already resolved; and
+     response_parameter mappings apply afterwards so an explicit mapping can
+     still overwrite one. HTTP and Local LLM may retry (``max_attempts``) with
+     an optional parked ``backoff_seconds`` before the step is marked visited.
   4. Follow outgoing transitions whose condition_parameter is empty. When a
      condition_parameter is set, gate on it: with a condition_expected boolean,
      follow only when the parameter's strict boolean value matches it (so two
@@ -49,6 +52,7 @@ from . import config
 from . import credentials
 from . import cypher_utils
 from . import embeddings
+from . import execution_call
 from . import execution_loop
 from . import execution_wait
 from . import graph
@@ -355,6 +359,13 @@ def _execute_endpoint_step(
     if not any(k.lower() == "user-agent" for k in req_headers):
         req_headers["User-Agent"] = _OUTBOUND_USER_AGENT
 
+    try:
+        timeout = execution_call.timeout_seconds(
+            step, resolved, execution_call.HTTP_DEFAULT_TIMEOUT_SECONDS
+        )
+    except ValueError as e:
+        return {"_ok": False, "_status": 0, "_error": str(e)}
+
     request = urllib.request.Request(
         endpoint, data=data, method=method, headers=req_headers
     )
@@ -362,7 +373,7 @@ def _execute_endpoint_step(
     status = 0
     error: str | None = None
     try:
-        with urllib.request.urlopen(request, timeout=30) as resp:
+        with urllib.request.urlopen(request, timeout=timeout) as resp:
             status = int(getattr(resp, "status", 0) or 0)
             raw = resp.read().decode("utf-8")
     except urllib.error.HTTPError as e:
@@ -371,6 +382,8 @@ def _execute_endpoint_step(
             raw = e.read().decode("utf-8")
         except Exception:
             raw = ""
+    except TimeoutError:
+        error = f"HTTP request timed out after {timeout}s"
     except Exception as e:
         error = str(e)
 
@@ -447,8 +460,18 @@ def _execute_local_llm_step(
         }
     prompt_text = prompt if isinstance(prompt, str) else str(prompt)
     try:
+        timeout = execution_call.timeout_seconds(
+            step, resolved, execution_call.LLM_DEFAULT_TIMEOUT_SECONDS
+        )
+    except ValueError as e:
+        return {"_ok": False, "_error": str(e)}
+    try:
         result = local_llms.run_config(
-            space_id, config_id, prompt_text, _local_llm_overrides(resolved)
+            space_id,
+            config_id,
+            prompt_text,
+            _local_llm_overrides(resolved),
+            timeout_seconds=timeout,
         )
     except local_llms.ConfigNotFound as e:
         return {"_ok": False, "_error": str(e)}
@@ -505,6 +528,39 @@ def _bind_response_parameters(
             resolved[param] = value
         elif param not in resolved and rp.get("default_value") is not None:
             resolved[param] = rp.get("default_value")
+
+
+def _bind_transport_outcome(
+    step: dict[str, Any],
+    response: dict[str, Any],
+    resolved: dict[str, Any],
+) -> None:
+    """Publish this step's transport outcome into ``resolved`` for POINTS_TO / loops.
+
+    Overwrites a previous step's ``ok`` / ``status`` so a later condition always sees
+    the latest call. HTTP ``status`` is 0 on a network error; Local LLM and wait do
+    not invent ``status``. A successful query sets ``ok=True`` and leaves ``status``
+    alone. Explicit ``response_parameters`` mappings run afterwards and may override.
+    """
+    resp = response if isinstance(response, dict) else {}
+    query_id = str(step.get("query_id") or "").strip()
+    kind = str(step.get("kind") or "").strip()
+    if query_id:
+        resolved["ok"] = True
+        return
+    if kind == "wait":
+        resolved["ok"] = True
+        return
+    if kind == "local_llm" or kind == "code":
+        resolved["ok"] = bool(resp.get("_ok"))
+        return
+    if str(step.get("endpoint") or "").strip() or "_ok" in resp or "_status" in resp:
+        resolved["ok"] = bool(resp.get("_ok"))
+        status = resp.get("_status")
+        try:
+            resolved["status"] = int(status) if status is not None else 0
+        except (TypeError, ValueError):
+            resolved["status"] = 0
 
 
 def _bind_query_return_columns(
@@ -1093,7 +1149,7 @@ def run_execution(
       - ``{"status": "pending", "step_id", "parameters": [...], "resolved": {...}}``
         when a step needs human-supplied parameters.
       - ``{"status": "waiting", "state_id", "reason", "wake_at"?}`` when a wait
-        STEP or loop delay has parked the run.
+        STEP, loop delay, or HTTP/LLM retry backoff has parked the run.
       - ``{"status": "cancelled", ...}`` when Stop ended the run.
       - ``{"status": "inactive", "resolved": {...}, "executed": [...]}`` when the
         chain has finished.
@@ -1169,6 +1225,7 @@ def run_execution(
     executed: list[dict[str, Any]] = []
     final_step: dict[str, Any] | None = None
     final_response: dict[str, Any] | None = None
+    retry_attempt_by_step: dict[str, int] = {}
 
     loop_progress = loop_state if loop else None
 
@@ -1186,6 +1243,7 @@ def run_execution(
             )
 
         complete_pending_wait = False
+        retry_resume_attempt = 0
         if wait_state:
             if not execution_wait.wait_due(wait_state):
                 return _park_waiting(
@@ -1197,6 +1255,11 @@ def run_execution(
                     wait_state,
                     step_id=queue[0] if queue else None,
                 )
+            if str(wait_state.get("kind") or "") == "retry_backoff":
+                try:
+                    retry_resume_attempt = max(1, int(wait_state.get("attempt") or 1))
+                except (TypeError, ValueError):
+                    retry_resume_attempt = 1
             wait_state = {}
             complete_pending_wait = True
 
@@ -1278,11 +1341,71 @@ def run_execution(
                 _progress_snapshot(queue, resolved, visited, loop_progress, wait_state),
             )
 
-        queue.pop(0)
-        visited.add(step_id)
+        retryable = execution_call.is_retryable_step(step)
+        attempt = 1
+        if retryable:
+            if retry_resume_attempt:
+                attempt = retry_resume_attempt
+                retry_resume_attempt = 0
+            else:
+                attempt = retry_attempt_by_step.get(step_id, 1)
+            try:
+                execution_call.timeout_seconds(
+                    step, resolved, execution_call.default_timeout_seconds(step)
+                )
+                execution_call.max_attempts(step)
+                execution_call.backoff_seconds(step, resolved)
+            except ValueError as e:
+                return _finish_run(
+                    state_id,
+                    {
+                        "status": "error",
+                        "state_id": state_id,
+                        "message": str(e),
+                        "resolved": resolved,
+                        "executed": executed,
+                    },
+                )
+
+        if not retryable:
+            queue.pop(0)
+            visited.add(step_id)
+
         response = _execute_step(space_id, step, resolved)
         final_step = step
         final_response = response if isinstance(response, dict) else {}
+        in_loop_body = bool(loop) and step_id in loop_body
+        bound = _bind_query_return_columns(
+            step, final_response, resolved, overwrite=in_loop_body
+        )
+        _bind_transport_outcome(step, final_response, resolved)
+        _bind_response_parameters(final_response, response_parameters, resolved)
+
+        if retryable:
+            ok = bool(final_response.get("_ok"))
+            if not ok and attempt < execution_call.max_attempts(step):
+                next_attempt = attempt + 1
+                retry_attempt_by_step[step_id] = next_attempt
+                backoff = execution_call.backoff_seconds(step, resolved)
+                if backoff > 0:
+                    spec = execution_wait.park_spec_for_retry_backoff(
+                        backoff, next_attempt
+                    )
+                    if spec is not None:
+                        return _park_waiting(
+                            state_id,
+                            queue,
+                            resolved,
+                            visited,
+                            loop_progress,
+                            spec,
+                            step_id=step_id,
+                        )
+                continue
+            retry_attempt_by_step.pop(step_id, None)
+            queue.pop(0)
+            visited.add(step_id)
+
         executed_entry = {
             "step_id": step_id,
             "query_id": str(step.get("query_id") or ""),
@@ -1301,12 +1424,6 @@ def run_execution(
             # in the trace is readable.
             executed_entry["iteration"] = int(loop_state.get("iteration") or 0)
         executed.append(executed_entry)
-        in_loop_body = bool(loop) and step_id in loop_body
-        bound = _bind_query_return_columns(
-            step, response, resolved, overwrite=in_loop_body
-        )
-        _bind_response_parameters(response, response_parameters, resolved)
-
         if loop:
             _capture_loop_items(
                 loop,

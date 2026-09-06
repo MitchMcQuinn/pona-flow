@@ -56,6 +56,7 @@ from .execution_run import (  # noqa: F401
     _bind_loop_item,
     _bind_query_return_columns,
     _bind_response_parameters,
+    _bind_transport_outcome,
     _capture_loop_items,
     _classify_final_response,
     _clear_iteration_state,

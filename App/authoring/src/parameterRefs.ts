@@ -104,6 +104,9 @@ export function collectReferencedParameterNames(query: QueryObject): string[] {
             if (el.node.sequencial_properties?.step_type === "wait") {
               addRefsFromText(String(el.node.sequencial_properties.wait_duration_seconds ?? ""), refs);
               addRefsFromText(String(el.node.sequencial_properties.wait_until ?? ""), refs);
+            } else {
+              addRefsFromText(String(el.node.sequencial_properties?.timeout_seconds ?? ""), refs);
+              addRefsFromText(String(el.node.sequencial_properties?.backoff_seconds ?? ""), refs);
             }
           }
           if (el.node.where) addRefsFromWhereItem(el.node.where, refs);

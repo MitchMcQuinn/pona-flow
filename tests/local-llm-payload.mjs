@@ -27,5 +27,20 @@ assert.ok(Array.isArray(payload.response_parameters));
 assert.equal(payload.response_parameters[0].parameter, "answer");
 assert.equal(payload.endpoint, undefined);
 assert.equal(payload.resource_id, undefined);
+assert.equal(payload.timeout_seconds, undefined);
+assert.equal(payload.max_attempts, undefined);
+
+const withRetry = JSON.parse(
+  stepEntityPayload({
+    step_type: "local_llm",
+    local_llm_config_id: "ID_cfg1",
+    timeout_seconds: 120,
+    max_attempts: 3,
+    backoff_seconds: 5,
+  })
+);
+assert.equal(withRetry.timeout_seconds, 120);
+assert.equal(withRetry.max_attempts, 3);
+assert.equal(withRetry.backoff_seconds, 5);
 
 console.log("All local-llm-payload checks passed.");

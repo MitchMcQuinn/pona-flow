@@ -136,6 +136,22 @@ def park_spec_for_loop_delay(delay_seconds: int, now: datetime | None = None) ->
     }
 
 
+def park_spec_for_retry_backoff(
+    delay_seconds: int, attempt: int, now: datetime | None = None
+) -> dict[str, Any] | None:
+    """Park between HTTP/LLM retries. ``attempt`` is the try that should run on wake."""
+    if delay_seconds <= 0:
+        return None
+    if delay_seconds > MAX_WAIT_SECONDS:
+        delay_seconds = MAX_WAIT_SECONDS
+    clock = now or now_utc()
+    return {
+        "kind": "retry_backoff",
+        "until": isoformat(clock + timedelta(seconds=delay_seconds)),
+        "attempt": max(1, int(attempt)),
+    }
+
+
 def waiting_payload(
     state_id: str, wait: dict[str, Any], *, step_id: str | None = None
 ) -> dict[str, Any]:

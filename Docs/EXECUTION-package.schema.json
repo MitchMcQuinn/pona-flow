@@ -129,6 +129,18 @@
             "type": "string",
             "description": "Wait STEP event mode: catalog event id whose fire resumes this run."
           },
+          "timeout_seconds": {
+            "description": "HTTP / Local LLM: call timeout in seconds, or a $parameter. HTTP default 30, Local LLM default 300. Range 1–300. A timeout is a failed retryable attempt."
+          },
+          "max_attempts": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "description": "HTTP / Local LLM: tries including the first. Default 1 (no retry). After the last failure the walk continues with ok=false."
+          },
+          "backoff_seconds": {
+            "description": "HTTP / Local LLM: seconds to wait between retries, or a $parameter. 0 retries immediately; >0 parks with progress.wait.kind retry_backoff. Cap 30 days."
+          },
           "endpoint": {
             "type": "string",
             "description": "Webhook endpoint URL. Empty string when the step runs a query instead."
@@ -176,7 +188,7 @@
           "aliases": {
             "type": "array",
             "items": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
-            "description": "Identifier-shaped names this step binds: an operation-backed step's RETURN aliases, or the parameters an endpoint/LLM step's response_parameters mappings write."
+            "description": "Identifier-shaped names this step binds: an operation-backed step's RETURN aliases plus ok, or ok (and HTTP status) plus the parameters an endpoint/LLM step's response_parameters mappings write."
           }
         }
       },

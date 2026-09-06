@@ -56,6 +56,9 @@ export interface GraphNodeRow {
     wait_duration_seconds?: number | string;
     wait_until?: string;
     wait_event_id?: string;
+    timeout_seconds?: number | string;
+    max_attempts?: number;
+    backoff_seconds?: number | string;
   };
   /** Custom-endpoint STEP input parameters (from the entities ``parameters`` column). */
   parameters?: Array<Record<string, unknown>>;

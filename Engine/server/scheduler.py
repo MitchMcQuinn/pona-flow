@@ -124,7 +124,7 @@ def _resume_event_waiters(
 
 
 def _wake_waiting_runs(now: datetime) -> Optional[datetime]:
-    """Resume duration/until/loop_delay waits that are due. Return the next wake time."""
+    """Resume duration/until/loop_delay/retry_backoff waits that are due. Return the next wake time."""
     earliest: Optional[datetime] = None
     for row in catalog.list_waiting_states():
         progress = row.get("progress") if isinstance(row.get("progress"), dict) else {}

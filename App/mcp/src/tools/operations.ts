@@ -35,6 +35,30 @@ const responseParameterSchema = z.object({
   default_value: z.string().optional(),
 });
 
+const callPolicySchema = {
+  timeout_seconds: z
+    .union([z.number().min(1).max(300), z.string()])
+    .optional()
+    .describe(
+      "Call timeout in seconds, or exactly $name. HTTP default 30, Local LLM default 300. Range 1–300. A timeout is a failed retryable attempt."
+    ),
+  max_attempts: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .optional()
+    .describe(
+      "Tries including the first. Default 1 (no retry). After the last HTTP/LLM failure, ok=false and the walk continues so a POINTS_TO condition on ok can escalate."
+    ),
+  backoff_seconds: z
+    .union([z.number().min(0), z.string()])
+    .optional()
+    .describe(
+      "Pause between retries in seconds, or exactly $name. 0 retries immediately; >0 parks the run (retry_backoff) until the scheduler wakes it. Cap 30 days."
+    ),
+};
+
 const intentSchema = {
   operation: z
     .enum(["read", "create", "update", "delete"])
@@ -138,10 +162,11 @@ const intentSchema = {
       body: z.record(z.unknown()).optional(),
       headers: z.record(z.unknown()).optional(),
       response_parameters: z.array(responseParameterSchema).optional(),
+      ...callPolicySchema,
     })
     .optional()
     .describe(
-      "Creates a custom-endpoint STEP node. Mutually exclusive with local_llm_step and wait_step."
+      "Creates a custom-endpoint STEP node. Mutually exclusive with local_llm_step and wait_step. Publishes ok (boolean) and status (HTTP code) into run state for edge conditions."
     ),
   local_llm_step: z
     .object({
@@ -149,6 +174,7 @@ const intentSchema = {
         .string()
         .describe("Id of a saved Local LLM config in this space (from the Local LLMs panel)."),
       response_parameters: z.array(responseParameterSchema).optional(),
+      ...callPolicySchema,
     })
     .optional()
     .describe(
@@ -156,7 +182,7 @@ const intentSchema = {
         "optional parameters that override the saved config for that run: `system_prompt`, " +
         "`response_format` (text|json_schema), `json_schema` (JSON text), `temperature`, " +
         "`top_p`, `top_k`, `min_p`, `repeat_penalty`, `num_ctx`, `num_predict`, `seed`, `stop`. " +
-        "Mutually exclusive with http_step and wait_step."
+        "Publishes ok into run state. Mutually exclusive with http_step and wait_step."
     ),
   wait_step: z
     .object({

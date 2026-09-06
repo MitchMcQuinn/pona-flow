@@ -400,6 +400,7 @@ def generate(
     options: dict[str, Any] | None = None,
     format_payload: dict[str, Any] | str | None = None,
     base_url: str,
+    timeout: float | None = None,
 ) -> dict[str, Any]:
     """POST ``/api/generate`` (non-streaming) and return Ollama's JSON object."""
     payload: dict[str, Any] = {
@@ -419,7 +420,7 @@ def generate(
         "/api/generate",
         base_url=base_url,
         payload=payload,
-        timeout=_GENERATE_TIMEOUT_SECONDS,
+        timeout=_GENERATE_TIMEOUT_SECONDS if timeout is None else timeout,
     )
 
 
@@ -472,6 +473,7 @@ def run_config(
     config_id: str,
     prompt: str,
     overrides: dict[str, Any] | None = None,
+    timeout_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Load a saved config and run it against Ollama with the given prompt.
 
@@ -499,6 +501,7 @@ def run_config(
         options=options,
         format_payload=format_payload,
         base_url=base,
+        timeout=timeout_seconds,
     )
     response_text = str(result.get("response") or "")
     parsed: Any = None
