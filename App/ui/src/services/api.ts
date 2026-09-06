@@ -736,6 +736,25 @@ export type ExecutionRunResult =
       resolved: Record<string, unknown>;
     }
   | {
+      status: "waiting";
+      state_id: string;
+      reason?: string;
+      wake_at?: string;
+      event_id?: string;
+      step_id?: string;
+    }
+  | {
+      status: "cancelled";
+      state_id?: string;
+      message?: string;
+      stopped?: string[];
+    }
+  | {
+      status: "cancelling";
+      state_id?: string;
+      stopped?: string[];
+    }
+  | {
       status: "inactive";
       state_id: string;
       resolved: Record<string, unknown>;
@@ -743,6 +762,16 @@ export type ExecutionRunResult =
       final_result: ExecutionFinalResult | null;
     }
   | { status: "error"; message: string };
+
+export interface InFlightRun {
+  state_id: string;
+  sequence_id: string;
+  status: "active" | "pending" | "waiting";
+  reason?: string | null;
+  wake_at?: string | null;
+  event_id?: string | null;
+  step_id?: string | null;
+}
 
 /**
  * Run (or resume) a composed sequence's EXECUTION package via the backend
@@ -765,6 +794,45 @@ export async function runSequenceExecution(
   if (!response.ok) {
     const data = (await response.json().catch(() => ({}))) as { error?: string };
     return { status: "error", message: data.error || "Sequence run failed" };
+  }
+  return (await response.json()) as ExecutionRunResult;
+}
+
+export async function fetchInFlightRuns(spaceId: string): Promise<InFlightRun[]> {
+  const data = await getJson<{ runs?: InFlightRun[] }>(
+    `/api/sequence/in-flight?space_id=${encodeURIComponent(spaceId)}`,
+    "Failed to load in-flight sequences"
+  );
+  return data.runs || [];
+}
+
+export async function fetchSequenceStatus(stateId: string): Promise<ExecutionRunResult> {
+  const response = await fetch(
+    `/api/sequence/status?state_id=${encodeURIComponent(stateId)}`
+  );
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    return { status: "error", message: data.error || "Failed to load sequence status" };
+  }
+  return (await response.json()) as ExecutionRunResult;
+}
+
+export async function stopSequenceExecution(
+  spaceId: string,
+  args: { stateId?: string; sequenceId?: string }
+): Promise<ExecutionRunResult> {
+  const response = await fetch("/api/sequence/stop", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      space_id: spaceId,
+      state_id: args.stateId || "",
+      sequence_id: args.sequenceId || ""
+    })
+  });
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    return { status: "error", message: data.error || "Failed to stop sequence" };
   }
   return (await response.json()) as ExecutionRunResult;
 }

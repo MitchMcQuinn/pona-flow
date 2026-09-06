@@ -10,7 +10,8 @@ for the underlying run/resume contract — and on the architecture decision in
 
 > **One-sentence version:** Point an MCP client at `https://<host>/api/spaces/{space_id}/mcp`
 > with an agent API key, and the space's runnable sequences appear as callable tools — each
-> returning either a final result or the parameters it still needs (human-in-the-loop).
+> returning a final result, a pause for operator input, or a background wait that resumes
+> without new parameters.
 
 For the companion server that *creates* those sequences rather than running them, see
 [MCP-AUTHORING.md](MCP-AUTHORING.md) (D11).
@@ -26,7 +27,8 @@ flowchart TB
   authz --> server["MCP server (stateless)"]
   server -->|"tools/list"| list["sequence_service.list_runnable_sequences (RBAC-filtered)"]
   server -->|"tools/call"| run["sequence_service.run_sequence_once"]
-  run --> pending["pending: required params + state_id"]
+  run --> pending["pending: paused for operator input + state_id"]
+  run --> waiting["waiting: timer / until / event / loop delay"]
   run --> done["inactive: final_result"]
 ```
 
@@ -132,10 +134,10 @@ The tool result is a text content block containing the executor's JSON response.
 
 ---
 
-## 5. Human-in-the-loop (pending parameters)
+## 5. Human-in-the-loop (pending) vs background waits
 
-Sequences resolve required inputs lazily. When a step needs input the caller has not yet
-supplied, the tool result is the executor's `pending` payload:
+Sequences resolve inputs lazily. When a step **pauses for operator input**, the tool
+result is the executor's `pending` payload:
 
 ```json
 {
@@ -172,6 +174,12 @@ sequenceDiagram
 
 Repeat until `status` is `inactive` (done) or `error`. This works with every MCP client
 because it needs only ordinary tool calls — no elicitation support is required.
+
+A `waiting` result is different: the run is parked on a timer, an until datetime, a
+catalog Event, or a loop-iteration delay. It resumes in the background without new
+parameters — do not treat it as a form to fill. Poll or call again with the same
+`state_id` after the wait; a fire of the referenced Event both starts any sequences
+listed on that Event *and* releases waiters parked on it.
 
 ---
 
@@ -220,7 +228,8 @@ triggered the run.
 | Tool `description` | Sequence description (falls back to name + group) |
 | Tool `inputSchema` | Aggregated sequence parameters (each carrying its description) + `state_id` |
 | Server `instructions` | Space description |
-| `pending` result + `state_id` | Human-in-the-loop pause / resume |
+| `pending` result + `state_id` | Paused for operator input; resume with those parameters |
+| `waiting` result + `state_id` | Background park (timer / until / event / loop delay); resumes without new params |
 | Agent key + RBAC allowlist | Tool authorization |
 
 Because the gateway wraps `sequence_service`, anything that improves sequence execution

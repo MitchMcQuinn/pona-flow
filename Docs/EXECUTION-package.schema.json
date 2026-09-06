@@ -106,12 +106,28 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["local_llm"],
-            "description": "Set to \"local_llm\" when the step runs a saved Ollama config instead of a query or HTTP endpoint. Omitted for query/endpoint steps."
+            "enum": ["local_llm", "wait"],
+            "description": "\"local_llm\" runs a saved Ollama config. \"wait\" parks the run for a duration, until a timestamp, or until an Event fires. Omitted for query/endpoint steps."
           },
           "config_id": {
             "type": "string",
             "description": "Catalog local_llm_configs row id. Only present when kind is \"local_llm\"."
+          },
+          "wait_mode": {
+            "type": "string",
+            "enum": ["duration", "until", "event"],
+            "description": "Wait STEP: how the run parks. Only present when kind is \"wait\"."
+          },
+          "duration_seconds": {
+            "description": "Wait STEP duration mode: seconds, or a $parameter name resolved at run time."
+          },
+          "until": {
+            "type": "string",
+            "description": "Wait STEP until mode: ISO-8601 datetime or a $parameter."
+          },
+          "event_id": {
+            "type": "string",
+            "description": "Wait STEP event mode: catalog event id whose fire resumes this run."
           },
           "endpoint": {
             "type": "string",
@@ -234,6 +250,11 @@
           "source_step": {
             "type": "string",
             "description": "for_each: the step that projects source, resolved at compose time. Named explicitly because an empty result set has no row to recognize the alias in — without it the executor could not tell \"the source returned nothing\" (skip the body) from \"this step is not the source\"."
+          },
+          "delay_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Seconds to park between completed loop passes (not before the first). Omitted or 0 = no delay."
           }
         }
       }

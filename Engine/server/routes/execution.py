@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 import sys
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.exceptions import HTTPException
 
 from .. import (
@@ -14,12 +14,20 @@ from .. import (
     cypher_utils,
     embeddings,
     execution,
+    execution_wait,
     packages,
     scheduler,
     schema_currency,
 )
 from ..auth import Principal
-from ..http_utils import bad_request, infer_node_label, json_body, require_body_space_id
+from ..http_utils import (
+    bad_request,
+    domain_500,
+    infer_node_label,
+    json_body,
+    require_body_space_id,
+    require_query_space_id,
+)
 
 router = APIRouter()
 
@@ -187,4 +195,79 @@ async def sequence_run(
         raise bad_request(str(e))
     except Exception as e:
         sys.stderr.write(f"sequence-run error: {e}\n")
+        raise HTTPException(500, str(e))
+
+
+@router.get("/api/sequence/in-flight")
+def sequence_in_flight(
+    space_id: str = Query(""),
+    principal: Principal = Depends(auth.current_principal),
+):
+    sid = require_query_space_id(space_id)
+    auth.require_space_access(principal, sid)
+    with domain_500():
+        items = catalog.list_in_flight_states(sid)
+    return {"space_id": sid, "runs": items}
+
+
+@router.get("/api/sequence/status")
+def sequence_status(
+    state_id: str = Query(""),
+    principal: Principal = Depends(auth.current_principal),
+):
+    sid = (state_id or "").strip()
+    if not sid:
+        raise bad_request("state_id is required")
+    row = catalog.fetch_state_package(sid)
+    if not row:
+        raise HTTPException(404, "state not found")
+    package = row.get("package") or {}
+    space_id = str(package.get("space_id") or "").strip()
+    if space_id:
+        auth.require_space_access(principal, space_id)
+    status = str(row.get("status") or "inactive")
+    progress = row.get("progress") if isinstance(row.get("progress"), dict) else {}
+    wait = progress.get("wait") if isinstance((progress or {}).get("wait"), dict) else {}
+    stored = row.get("result") if isinstance(row.get("result"), dict) else None
+    if status in ("inactive", "cancelled") and stored:
+        return stored
+    if status == "pending":
+        return {
+            "status": "pending",
+            "state_id": sid,
+            "resolved": (progress or {}).get("resolved") or {},
+            "queue": (progress or {}).get("queue") or [],
+        }
+    if status == "waiting":
+        return execution_wait.waiting_payload(sid, wait or {})
+    return {
+        "status": status,
+        "state_id": sid,
+        "sequence_id": str(package.get("sequence_query_id") or ""),
+        "resolved": (progress or {}).get("resolved") or {},
+    }
+
+
+@router.post("/api/sequence/stop")
+async def sequence_stop(
+    request: Request, principal: Principal = Depends(auth.current_principal)
+):
+    body = await json_body(request)
+    space_id = require_body_space_id(body)
+    auth.require_space_access(principal, space_id)
+    state_id = str(body.get("state_id") or "").strip()
+    sequence_id = str(body.get("sequence_id") or "").strip()
+    if state_id and not principal.is_superadmin:
+        stored = catalog.fetch_state_package(state_id)
+        seq_id = str((stored or {}).get("package", {}).get("sequence_query_id") or "").strip()
+        if seq_id:
+            auth.require_sequence_run(principal, space_id, seq_id)
+    elif sequence_id and not principal.is_superadmin:
+        auth.require_sequence_run(principal, space_id, sequence_id)
+    try:
+        return execution.stop_execution(space_id, state_id or None, sequence_id or None)
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except Exception as e:
+        sys.stderr.write(f"sequence-stop error: {e}\n")
         raise HTTPException(500, str(e))

@@ -69,6 +69,7 @@ export const initialState: AppState = {
   editor: resetEditor(),
   params: resetParams(),
   run: idleRun(),
+  inFlight: [],
   view: {
     rightPanelMode: "builder",
     visualMode: "empty"
@@ -114,6 +115,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         editor: resetEditor(),
         params: resetParams(),
         run: idleRun(),
+        inFlight: [],
         view: {
           rightPanelMode: "builder",
           visualMode: "empty"
@@ -751,6 +753,9 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
           awaitingParams: false
         }
       };
+
+    case "IN_FLIGHT_UPDATED":
+      return { ...state, inFlight: event.runs };
 
     case "RESET_RESULTS":
       return {

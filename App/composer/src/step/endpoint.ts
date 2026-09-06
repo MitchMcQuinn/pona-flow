@@ -38,6 +38,13 @@ export function isStepLocalLlm(
   return Boolean(sp && sp.query_id === undefined && sp.step_type === "local_llm");
 }
 
+/** True for a custom STEP that parks the run (duration / until / event). */
+export function isStepWait(
+  sp: SequencialProperties | null | undefined
+): boolean {
+  return Boolean(sp && sp.query_id === undefined && sp.step_type === "wait");
+}
+
 export function stepEntityPayload(sp: SequencialProperties | null | undefined): string {
   if (sp && sp.query_id) {
     return JSON.stringify({ query_id: String(sp.query_id) });
@@ -61,6 +68,19 @@ export function stepEntityPayload(sp: SequencialProperties | null | undefined): 
     };
     if (response_parameters.length > 0) {
       payload.response_parameters = response_parameters;
+    }
+    return JSON.stringify(payload);
+  }
+  if (isStepWait(sp)) {
+    const mode = sp?.wait_mode === "until" || sp?.wait_mode === "event" ? sp.wait_mode : "duration";
+    const payload: Record<string, unknown> = { kind: "wait", mode };
+    if (mode === "duration") {
+      const seconds = sp?.wait_duration_seconds;
+      payload.duration_seconds = seconds === undefined || seconds === "" ? 0 : seconds;
+    } else if (mode === "until") {
+      payload.until = String(sp?.wait_until || "").trim();
+    } else {
+      payload.event_id = String(sp?.wait_event_id || "").trim();
     }
     return JSON.stringify(payload);
   }

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import {
   formatStepBodyJson,
-  validateStepBodyJson
+  validateStepBodyJson,
+  waitStepWarnings,
+  type WaitMode
 } from "@pona-flow/authoring";
 import { useBuilder } from "../../../state/builder/BuilderContext";
 import { stepCreateReferencesExistingNode } from "../../../state/builder/cardReset";
@@ -12,8 +14,10 @@ import type {
   StepResponseParameter,
   StepType
 } from "../../../state/builder/types";
-import { fetchLocalLlmConfigs } from "../../../services/api";
+import { fetchEvents, fetchLocalLlmConfigs } from "../../../services/api";
+import type { EventSummary } from "../../../state/types";
 import { SegmentToggle } from "../SegmentToggle";
+import { DurationField } from "./DurationField";
 import { StepBodyEditor } from "./StepBodyEditor";
 import { StepResponseParametersSection } from "./StepResponseParametersSection";
 
@@ -65,7 +69,15 @@ export function StepSequencialConfig({
   const highlightParameters = !stepCreateReferencesExistingNode(state.query);
   const sp: SequencialProperties = node.sequencial_properties ?? {};
   const stepType: StepType =
-    sp.step_type === "code" ? "code" : sp.step_type === "local_llm" ? "local_llm" : "http";
+    sp.step_type === "code"
+      ? "code"
+      : sp.step_type === "local_llm"
+        ? "local_llm"
+        : sp.step_type === "wait"
+          ? "wait"
+          : "http";
+  const waitMode: WaitMode =
+    sp.wait_mode === "until" || sp.wait_mode === "event" ? sp.wait_mode : "duration";
 
   const [bodyRaw, setBodyRaw] = useState(() => formatStepBodyJson(sp.body));
   const [headersRaw, setHeadersRaw] = useState(() => formatHeadersJson(sp.headers));
@@ -74,6 +86,8 @@ export function StepSequencialConfig({
     Array<{ id: string; name: string; model: string }>
   >([]);
   const [localLlmLoadError, setLocalLlmLoadError] = useState<string | null>(null);
+  const [events, setEvents] = useState<EventSummary[]>([]);
+  const [eventsLoadError, setEventsLoadError] = useState<string | null>(null);
 
   function reportCheck(result: { valid: boolean; message: string }) {
     if (!bodyCheckKey) return;
@@ -180,6 +194,22 @@ export function StepSequencialConfig({
   }, [stepType, sp.local_llm_config_id]);
 
   useEffect(() => {
+    if (stepType !== "wait") return;
+    const warnings = waitStepWarnings({ ...sp, step_type: "wait" });
+    reportCheck({
+      valid: warnings.length === 0,
+      message: warnings[0] ?? "valid"
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    stepType,
+    waitMode,
+    sp.wait_duration_seconds,
+    sp.wait_until,
+    sp.wait_event_id
+  ]);
+
+  useEffect(() => {
     if (stepType !== "local_llm" || !state.spaceId) return;
     let cancelled = false;
     setLocalLlmLoadError(null);
@@ -202,13 +232,58 @@ export function StepSequencialConfig({
     };
   }, [stepType, state.spaceId]);
 
+  useEffect(() => {
+    if (stepType !== "wait" || !state.spaceId) return;
+    let cancelled = false;
+    setEventsLoadError(null);
+    fetchEvents(state.spaceId)
+      .then((list) => {
+        if (cancelled) return;
+        setEvents(list);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setEventsLoadError(err instanceof Error ? err.message : "Could not load events.");
+        setEvents([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stepType, state.spaceId]);
+
   function switchStepType(next: StepType) {
     if (next === stepType) return;
+    if (next === "wait") {
+      commitSequencial({ step_type: "wait", wait_mode: waitMode || "duration" });
+      return;
+    }
     commitSequencial({ step_type: next });
   }
 
   const bodyCheck = bodyCheckKey ? state.checks[bodyCheckKey] : undefined;
   const localLlmMissing = !(sp.local_llm_config_id ?? "").trim();
+  const waitWarnings = stepType === "wait" ? waitStepWarnings({ ...sp, step_type: "wait" }) : [];
+  const selectedWaitEvent = events.find((event) => event.id === (sp.wait_event_id ?? "").trim());
+  const waitEventAlsoTargetsThis =
+    Boolean(state.query.id) &&
+    Boolean(selectedWaitEvent?.sequences?.includes(state.query.id));
+
+  function isoToDatetimeLocal(iso: string): string {
+    const trimmed = iso.trim();
+    if (!trimmed || trimmed.startsWith("$")) return trimmed;
+    const date = new Date(trimmed);
+    if (Number.isNaN(date.getTime())) return trimmed;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function datetimeLocalToIso(raw: string): string {
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith("$")) return trimmed;
+    const date = new Date(trimmed);
+    if (Number.isNaN(date.getTime())) return trimmed;
+    return date.toISOString();
+  }
 
   return (
     <div className="builderBlock">
@@ -231,10 +306,12 @@ export function StepSequencialConfig({
             <label id="builder-step-type-label">step type</label>
             <SegmentToggle
               labelledBy="builder-step-type-label"
-              value={stepType === "local_llm" ? "local_llm" : "http"}
+              value={stepType}
+              testId="builder-step-type"
               options={[
                 { value: "http", label: "HTTP request" },
-                { value: "local_llm", label: "Local LLM" }
+                { value: "local_llm", label: "Local LLM" },
+                { value: "wait", label: "Wait" }
               ]}
               onChange={switchStepType}
             />
@@ -276,6 +353,97 @@ export function StepSequencialConfig({
                 <code>stop</code> override the saved config for a single run — leave one blank to
                 keep the config&apos;s value.
               </p>
+            </>
+          ) : stepType === "wait" ? (
+            <>
+              <div className="builderField builderSegmentField">
+                <label id="builder-wait-mode-label">wait for</label>
+                {waitWarnings.length > 0 ? (
+                  <span className="builderCheckMsg error">{waitWarnings[0]}</span>
+                ) : bodyCheck?.status === "ok" ? (
+                  <span className="builderCheckMsg ok">{bodyCheck.message}</span>
+                ) : null}
+                <SegmentToggle
+                  labelledBy="builder-wait-mode-label"
+                  value={waitMode}
+                  testId="builder-wait-mode"
+                  options={[
+                    { value: "duration", label: "Duration" },
+                    { value: "until", label: "Until" },
+                    { value: "event", label: "Event" }
+                  ]}
+                  onChange={(mode) => commitSequencial({ wait_mode: mode })}
+                />
+              </div>
+              {waitMode === "duration" ? (
+                <DurationField
+                  label="duration"
+                  allowParameter
+                  testId="builder-wait-duration"
+                  value={sp.wait_duration_seconds ?? 0}
+                  hint="The run parks and resumes after this delay. $parameter values are seconds."
+                  onChange={(next) => commitSequencial({ wait_duration_seconds: next })}
+                />
+              ) : null}
+              {waitMode === "until" ? (
+                <div className="builderField">
+                  <label>until</label>
+                  <input
+                    type="datetime-local"
+                    data-testid="builder-wait-until"
+                    value={isoToDatetimeLocal(String(sp.wait_until ?? ""))}
+                    onChange={(e) =>
+                      commitSequencial({ wait_until: datetimeLocalToIso(e.target.value) })
+                    }
+                  />
+                  <span className="createSequenceHint">
+                    ISO datetime. A $parameter is also allowed below.
+                  </span>
+                  <input
+                    className="builderMono"
+                    placeholder="$wake_at"
+                    value={
+                      String(sp.wait_until ?? "").trim().startsWith("$")
+                        ? String(sp.wait_until)
+                        : ""
+                    }
+                    onChange={(e) => commitSequencial({ wait_until: e.target.value })}
+                  />
+                </div>
+              ) : null}
+              {waitMode === "event" ? (
+                <div className="builderField">
+                  <label>
+                    event
+                    {eventsLoadError ? (
+                      <span className="builderCheckMsg error">{eventsLoadError}</span>
+                    ) : null}
+                  </label>
+                  <select
+                    data-testid="builder-wait-event"
+                    value={sp.wait_event_id ?? ""}
+                    onChange={(e) => commitSequencial({ wait_event_id: e.target.value })}
+                  >
+                    <option value="" disabled>
+                      Select an event
+                    </option>
+                    {events.map((event) => (
+                      <option key={event.id} value={event.id}>
+                        {event.name} ({event.type})
+                      </option>
+                    ))}
+                  </select>
+                  <span className="createSequenceHint">
+                    The run parks until this event fires. Time and external events both work.
+                  </span>
+                  {waitEventAlsoTargetsThis ? (
+                    <span className="builderCheckMsg error">
+                      This sequence is also a target of that event, so a fire would start a new
+                      run and resume this waiter.
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
             </>
           ) : (
             <>
@@ -346,10 +514,12 @@ export function StepSequencialConfig({
         </>
       )}
 
-      <StepResponseParametersSection
-        items={sp.response_parameters ?? []}
-        onChange={setResponseParameters}
-      />
+      {stepType === "wait" ? null : (
+        <StepResponseParametersSection
+          items={sp.response_parameters ?? []}
+          onChange={setResponseParameters}
+        />
+      )}
     </div>
   );
 }

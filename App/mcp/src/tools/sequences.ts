@@ -85,6 +85,14 @@ const loopSchema = z
       .min(1)
       .optional()
       .describe("Safety cap (default 1000). Exceeding it fails the run."),
+    delay_seconds: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe(
+        "Seconds to park between completed loop passes (not before the first). Zero or omitted = no delay."
+      ),
   })
   .optional();
 
@@ -230,7 +238,10 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
               name: z.string(),
               value_type: z.string().optional(),
               value: z.string().optional(),
-              is_required: z.boolean().optional(),
+              is_required: z
+                .boolean()
+                .optional()
+                .describe("When true, a manual run pauses here until an operator supplies this value."),
             })
           )
           .optional()
@@ -294,7 +305,10 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
               name: z.string(),
               value_type: z.string().optional(),
               value: z.string().optional(),
-              is_required: z.boolean().optional(),
+              is_required: z
+                .boolean()
+                .optional()
+                .describe("When true, a manual run pauses here until an operator supplies this value."),
             })
           )
           .optional(),

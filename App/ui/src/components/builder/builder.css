@@ -133,6 +133,23 @@
   margin-top: 4px;
 }
 
+.builderDurationRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.builderDurationRow input {
+  flex: 1;
+  min-width: 0;
+}
+
+.builderDurationRow select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
 /* Horizontal row for action buttons (run, remove, toolbar). */
 .builderRowActions {
   display: flex;

@@ -38,7 +38,7 @@ export interface GraphNodeRow {
   // strict types as the composer (HTTP verb union; object body) rather than string/unknown.
   sequencial_properties?: {
     query_id?: string;
-    step_type?: "http" | "code" | "local_llm";
+    step_type?: "http" | "code" | "local_llm" | "wait";
     endpoint?: string;
     method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     headers?: Record<string, unknown>;
@@ -52,6 +52,10 @@ export interface GraphNodeRow {
       parameter: string;
       default_value?: string;
     }>;
+    wait_mode?: "duration" | "until" | "event";
+    wait_duration_seconds?: number | string;
+    wait_until?: string;
+    wait_event_id?: string;
   };
   /** Custom-endpoint STEP input parameters (from the entities ``parameters`` column). */
   parameters?: Array<Record<string, unknown>>;

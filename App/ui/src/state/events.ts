@@ -1,4 +1,5 @@
 import type {
+  AppState,
   AuditEntry,
   EventSummary,
   GraphPayload,
@@ -73,5 +74,6 @@ export type AppEvent =
       awaitingParams?: boolean;
     }
   | { type: "RUN_FAILED"; error: string }
+  | { type: "IN_FLIGHT_UPDATED"; runs: AppState["inFlight"] }
   | { type: "RESET_RESULTS" }
   | { type: "VISUALIZATION_DISMISSED" };

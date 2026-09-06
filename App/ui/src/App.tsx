@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useAuth, useUser } from "./services/clerkAuth";
 import { ConfigPanel } from "./components/ConfigPanel";
 import { CreateSpaceModal } from "./components/modals/CreateSpaceModal";
@@ -8,7 +8,15 @@ import { ResizableDashboardLayout } from "./components/layout/ResizableDashboard
 import { NavigationPanel } from "./components/NavigationPanel";
 import { TopBar } from "./components/TopBar";
 import { VisualizationPanel } from "./components/VisualizationPanel";
-import { fetchAuditLog, runSequenceExecution, updateMySettings } from "./services/api";
+import {
+  fetchAuditLog,
+  fetchInFlightRuns,
+  fetchSequenceStatus,
+  runSequenceExecution,
+  stopSequenceExecution,
+  updateMySettings,
+  type ExecutionFinalResult
+} from "./services/api";
 import { SequenceDeleteConfirmModal } from "./components/modals/SequenceDeleteConfirmModal";
 import { OperationDeleteSuspendModal } from "./components/modals/OperationDeleteSuspendModal";
 import { useEventsNav } from "./hooks/useEventsNav";
@@ -257,6 +265,103 @@ export default function App() {
       );
   }, [state.spaceId]);
 
+  const lastPolledResultRef = useRef<string | null>(null);
+
+  const selectedInFlight = useMemo(
+    () => state.inFlight.find((run) => run.sequence_id === state.nav.selectedSequenceId) ?? null,
+    [state.inFlight, state.nav.selectedSequenceId]
+  );
+
+  const applyFinishedResult = useCallback(
+    (
+      result: { resolved?: Record<string, unknown>; final_result?: ExecutionFinalResult | null },
+      toast: boolean
+    ) => {
+      dispatch({ type: "RESPONSE_VALUES_UPDATED", values: result.resolved ?? {} });
+      const final = result.final_result ?? null;
+      if (final && final.kind === "graph") {
+        setBuilderResult({
+          kind: "graph",
+          columns: final.columns,
+          rows: final.rows,
+          graph: final.graph
+        });
+      } else if (final && final.kind === "table") {
+        setBuilderResult({ kind: "table", columns: final.columns, rows: final.rows });
+      } else if (final && final.kind === "response") {
+        setBuilderResult({
+          kind: "response",
+          response: final.response,
+          status: final.status,
+          ok: final.ok,
+          error: final.error
+        });
+      } else {
+        setBuilderResult(null);
+      }
+      dispatch({ type: "RUN_SUCCEEDED", runId: `${Date.now()}`, result: null });
+      if (!toast) return;
+      const endpointFailed = final?.kind === "response" && final.ok === false;
+      if (endpointFailed) {
+        showToast("execution finished with an endpoint error", "error");
+      } else {
+        showToast("successful execution");
+      }
+    },
+    [showToast]
+  );
+
+  const trackedRunRef = useRef<{ sequenceId: string; stateId: string } | null>(null);
+
+  useEffect(() => {
+    if (!state.spaceId) return;
+    let cancelled = false;
+    const spaceId = state.spaceId;
+    const selectedSequenceId = state.nav.selectedSequenceId;
+    async function tick() {
+      try {
+        const runs = await fetchInFlightRuns(spaceId);
+        if (cancelled) return;
+        dispatch({ type: "IN_FLIGHT_UPDATED", runs });
+        const mine = selectedSequenceId
+          ? runs.find((run) => run.sequence_id === selectedSequenceId)
+          : undefined;
+        if (mine && (mine.status === "waiting" || mine.status === "active")) {
+          trackedRunRef.current = { sequenceId: mine.sequence_id, stateId: mine.state_id };
+          return;
+        }
+        if (mine) {
+          trackedRunRef.current = null;
+          return;
+        }
+        const tracked = trackedRunRef.current;
+        if (!tracked || tracked.sequenceId !== selectedSequenceId) {
+          trackedRunRef.current = null;
+          return;
+        }
+        const status = await fetchSequenceStatus(tracked.stateId);
+        if (cancelled) return;
+        trackedRunRef.current = null;
+        const key = `${tracked.stateId}:${status.status}`;
+        if (lastPolledResultRef.current === key) return;
+        lastPolledResultRef.current = key;
+        if (status.status === "inactive" && "final_result" in status) {
+          applyFinishedResult(status, true);
+        } else if (status.status === "cancelled") {
+          dispatch({ type: "RUN_SUCCEEDED", runId: `${Date.now()}`, result: null });
+        }
+      } catch {
+        /* polling must not surface as a run failure */
+      }
+    }
+    void tick();
+    const id = window.setInterval(() => void tick(), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [state.spaceId, state.nav.selectedSequenceId, applyFinishedResult]);
+
   async function handleRun() {
     if (!state.nav.selectedSequenceId || !state.spaceId || !canRun) return;
     // A suspended sequence (a SCHEMA change invalidated one of its INSTANCE steps) cannot run
@@ -271,9 +376,13 @@ export default function App() {
       });
       return;
     }
-    if (!composedSequence) {
-      // Distinguish a compose that failed (surface the server's reason) from one
-      // that simply hasn't finished yet.
+    const inflight = selectedInFlight;
+    if (inflight && (inflight.status === "waiting" || inflight.status === "active")) {
+      return;
+    }
+    const isResume = state.run.awaitingParams || inflight?.status === "pending";
+    const runStateId = (isResume && inflight?.state_id) || composedSequence?.state_id;
+    if (!runStateId) {
       dispatch({
         type: "RUN_FAILED",
         error: composeError
@@ -286,7 +395,6 @@ export default function App() {
     // starts from a clean slate. On a fresh run we clear the progressively-revealed inputs and
     // resolved values and send no params, so the executor pauses at the first step that needs
     // input and we reveal each step's parameters as it's reached.
-    const isResume = state.run.awaitingParams;
     if (!isResume) {
       dispatch({ type: "RUN_INPUTS_RESET" });
     }
@@ -294,12 +402,29 @@ export default function App() {
     try {
       const result = await runSequenceExecution(
         state.spaceId,
-        composedSequence.state_id,
+        runStateId,
         isResume ? state.params.values : {}
       );
 
       if (result.status === "error") {
         dispatch({ type: "RUN_FAILED", error: result.message });
+        return;
+      }
+
+      if (result.status === "waiting" || result.status === "cancelling") {
+        dispatch({ type: "RUN_SUCCEEDED", runId: `${Date.now()}`, result: null });
+        try {
+          const runs = await fetchInFlightRuns(state.spaceId);
+          dispatch({ type: "IN_FLIGHT_UPDATED", runs });
+        } catch {
+          /* nav poll will catch up */
+        }
+        return;
+      }
+
+      if (result.status === "cancelled") {
+        dispatch({ type: "RUN_SUCCEEDED", runId: `${Date.now()}`, result: null });
+        showToast("sequence stopped");
         return;
       }
 
@@ -338,37 +463,21 @@ export default function App() {
           result: null,
           awaitingParams: true
         });
+        try {
+          const runs = await fetchInFlightRuns(state.spaceId);
+          dispatch({ type: "IN_FLIGHT_UPDATED", runs });
+        } catch {
+          /* nav poll will catch up */
+        }
         return;
       }
 
-      // Finished: surface resolved response parameters in the params panel. Query-step
-      // finals (graph or table) go in the results panel — a vector-search read returns
-      // the node plus a score, and if the driver only hydrated property maps the
-      // classifier still emits a table we must not drop. Custom-endpoint JSON stays a
-      // response view. Anything else keeps the sequence design graph.
-      dispatch({ type: "RESPONSE_VALUES_UPDATED", values: result.resolved });
-      const final = result.final_result;
-      if (final && final.kind === "graph") {
-        setBuilderResult({ kind: "graph", columns: final.columns, rows: final.rows, graph: final.graph });
-      } else if (final && final.kind === "table") {
-        setBuilderResult({ kind: "table", columns: final.columns, rows: final.rows });
-      } else if (final && final.kind === "response") {
-        setBuilderResult({
-          kind: "response",
-          response: final.response,
-          status: final.status,
-          ok: final.ok,
-          error: final.error
-        });
-      } else {
-        setBuilderResult(null);
-      }
-      dispatch({ type: "RUN_SUCCEEDED", runId: `${Date.now()}`, result: null });
-      const endpointFailed = final?.kind === "response" && final.ok === false;
-      if (endpointFailed) {
-        showToast("execution finished with an endpoint error", "error");
-      } else {
-        showToast("successful execution");
+      applyFinishedResult(result, true);
+      try {
+        const runs = await fetchInFlightRuns(state.spaceId);
+        dispatch({ type: "IN_FLIGHT_UPDATED", runs });
+      } catch {
+        /* nav poll will catch up */
       }
     } catch (error: unknown) {
       dispatch({
@@ -376,6 +485,27 @@ export default function App() {
         error: error instanceof Error ? error.message : "Run failed"
       });
     }
+  }
+
+  async function handleStop() {
+    if (!state.spaceId || !state.nav.selectedSequenceId) return;
+    const result = await stopSequenceExecution(state.spaceId, {
+      sequenceId: state.nav.selectedSequenceId,
+      stateId: selectedInFlight?.state_id
+    });
+    try {
+      const runs = await fetchInFlightRuns(state.spaceId);
+      dispatch({ type: "IN_FLIGHT_UPDATED", runs });
+    } catch {
+      /* nav poll will catch up */
+    }
+    if (result.status === "error") {
+      showToast(result.message, "error");
+      return;
+    }
+    trackedRunRef.current = null;
+    dispatch({ type: "RUN_SUCCEEDED", runId: `${Date.now()}`, result: null });
+    showToast("sequence stopped");
   }
 
   if (noAccess) {
@@ -457,6 +587,9 @@ export default function App() {
         canRun={canRun}
         running={state.run.status === "running"}
         onRun={handleRun}
+        inFlightStatus={selectedInFlight?.status ?? null}
+        awaitingParams={state.run.awaitingParams}
+        onStop={handleStop}
       />
 
       {spacesError ? <div className="appError">Space load error: {spacesError}</div> : null}
@@ -513,6 +646,7 @@ export default function App() {
             userTimezone={state.me?.timezone ?? null}
             onSaveTimezone={handleSaveTimezone}
             onLogout={handleLogout}
+            inFlightSequenceIds={state.inFlight.map((run) => run.sequence_id)}
           />
         }
         visualization={

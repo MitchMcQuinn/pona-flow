@@ -17,6 +17,8 @@ export type {
   GraphIdBinding,
   StepType,
   CodeLanguage,
+  WaitMode,
+  WaitDurationUnit,
   SequencialProperties,
   StepResponseParameter,
   CypherConditionPredicate,

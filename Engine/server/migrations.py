@@ -105,6 +105,9 @@ def run_startup_migrations() -> None:
         # then add the detail column on databases that predate it.
         _ensure_audit_log_trigger_check(conn)
         _ensure_audit_log_detail_column(conn)
+        # Rebuild state.status CHECK for waiting/cancelled; add result column.
+        catalog._rebuild_state_status_check(conn)
+        sqlite_util.ensure_column(conn, "state", "result", "TEXT")
         # Additive column migrations on the existing spaces table
         # (groups/is_private/dev_mode/hide_empty_sequence_groups).
         spaces.ensure_catalog_space_schema(conn)

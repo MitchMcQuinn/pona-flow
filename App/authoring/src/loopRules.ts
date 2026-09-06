@@ -82,6 +82,8 @@ export function normalizeLoopConfig(loop: LoopConfig | undefined): LoopConfig | 
   const out: LoopConfig = { type };
   const maxIterations = positiveInt(loop!.max_iterations);
   if (maxIterations) out.max_iterations = maxIterations;
+  const delaySeconds = positiveInt(loop!.delay_seconds);
+  if (delaySeconds) out.delay_seconds = delaySeconds;
   if (type === "for") {
     out.count = positiveInt(loop!.count) ?? 0;
   } else if (type === "for_while") {
@@ -137,10 +139,16 @@ export function loopConfigWarnings(loop: LoopConfig | undefined): string[] {
     ) {
       warnings.push("A for/while loop needs a comparison operator.");
     }
-  } else if (type === "for_each") {
+  } else   if (type === "for_each") {
     if (!(loop!.source || "").trim()) {
       warnings.push("A for/each loop needs a RETURN alias to iterate.");
     }
   }
+
+  const delayGiven = String(loop!.delay_seconds ?? "").trim() !== "";
+  if (delayGiven && positiveInt(loop!.delay_seconds) === null) {
+    warnings.push("Loop delay must be a whole number of seconds.");
+  }
+
   return warnings;
 }

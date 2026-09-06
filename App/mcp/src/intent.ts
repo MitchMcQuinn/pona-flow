@@ -93,6 +93,13 @@ export interface StepLocalLlmIntent {
   response_parameters?: Array<{ property_path: string; parameter: string; default_value?: string }>;
 }
 
+export interface StepWaitIntent {
+  mode: "duration" | "until" | "event";
+  duration_seconds?: number | string;
+  until?: string;
+  event_id?: string;
+}
+
 export interface OperationIntent {
   name: string;
   operation: Operation;
@@ -104,6 +111,7 @@ export interface OperationIntent {
   instance_properties?: InstancePropertyIntent[];
   http_step?: StepHttpIntent;
   local_llm_step?: StepLocalLlmIntent;
+  wait_step?: StepWaitIntent;
   where?: WhereIntent[];
   return_items?: ReturnIntent[];
   /**
@@ -278,6 +286,17 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
         local_llm_config_id: intent.local_llm_step.config_id,
         response_parameters: intent.local_llm_step.response_parameters ?? [],
       };
+    } else if (intent.wait_step) {
+      const mode = intent.wait_step.mode;
+      element.node.sequencial_properties = {
+        step_type: "wait",
+        wait_mode: mode,
+        ...(mode === "until"
+          ? { wait_until: intent.wait_step.until ?? "" }
+          : mode === "event"
+            ? { wait_event_id: intent.wait_step.event_id ?? "" }
+            : { wait_duration_seconds: intent.wait_step.duration_seconds ?? 0 }),
+      };
     }
   } else {
     const where = whereGroup(intent);
@@ -442,6 +461,7 @@ export interface LoopIntent {
   condition?: { parameter?: string; operator?: string; value?: string };
   source?: string;
   max_iterations?: number;
+  delay_seconds?: number;
 }
 
 /**
@@ -459,6 +479,7 @@ export function buildLoopConfig(intent: LoopIntent | undefined): LoopConfig | un
   if (!isLoopType(type) || type === "dag") return undefined;
   const loop: LoopConfig = { type };
   if (typeof intent?.max_iterations === "number") loop.max_iterations = intent.max_iterations;
+  if (typeof intent?.delay_seconds === "number") loop.delay_seconds = intent.delay_seconds;
   if (type === "for") {
     loop.count = typeof intent?.count === "number" ? intent.count : 0;
   } else if (type === "for_while") {

@@ -166,7 +166,7 @@ export function SequenceWebhookSection({
                 <tr>
                   <th>name</th>
                   <th>type</th>
-                  <th>required</th>
+                  <th>pause for input</th>
                 </tr>
               </thead>
               <tbody>
@@ -176,7 +176,7 @@ export function SequenceWebhookSection({
                     <td>
                       <code>{parameter.value_type || "string"}</code>
                     </td>
-                    <td>{parameter.is_required ? "required" : "optional"}</td>
+                    <td>{parameter.is_required ? "pause for input" : "optional"}</td>
                   </tr>
                 ))}
               </tbody>

@@ -4,8 +4,10 @@
 CREATE TABLE IF NOT EXISTS state (
     id TEXT PRIMARY KEY NOT NULL,
     package TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(package)),
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('active', 'pending', 'inactive')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('active', 'pending', 'waiting', 'cancelled', 'inactive')),
     run_start_date TEXT,
     -- Executor resume state: remaining step queue + resolved values + visited steps.
-    progress TEXT
+    progress TEXT,
+    -- Completion payload for the UI to poll after a background wait resume.
+    result TEXT
 );

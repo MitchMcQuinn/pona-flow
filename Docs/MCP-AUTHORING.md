@@ -113,12 +113,17 @@ transition attaches to STEP nodes **by graph id**. Both need their nodes to alre
 
 - **INSTANCE / SCHEMA / read / update / delete:** saving a catalog query auto-wraps a STEP
   (and, by default, a one-step sequence). That wrap is what later sequences MATCH.
-- **Create STEP (HTTP / Local LLM):** `create_operation` materializes the designed STEP.
+- **Create STEP (HTTP / Local LLM / Wait):** `create_operation` materializes the designed STEP.
   A **single new STEP** (no hops) is published as a one-step sequence by default. A chain
   of STEPs is materialized only — call `create_sequence` after the transitions exist. It
   does not save a factory whose wrap STEP would mint more STEPs when run. Pass
   `add_as_sequence=false` for a STEP-only building block. `add_as_sequence=true` on a
   multi-step create is rejected.
+
+`http_step`, `local_llm_step`, and `wait_step` are mutually exclusive on create/update
+operation. A wait STEP parks a run (`duration` seconds, `until` an ISO datetime, or
+until a catalog `event_id` fires) without blocking the request thread. Sequence `loop`
+accepts `delay_seconds` to park between completed loop passes (not before the first).
 
 Getting it wrong fails quietly rather than loudly: a sequence created before its steps exist
 matches nothing and runs as a no-op.

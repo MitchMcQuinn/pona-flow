@@ -88,6 +88,7 @@ assert.ok(
   "local_llm_step" in createSchema.properties,
   "create_operation accepts local_llm_step"
 );
+assert.ok("wait_step" in createSchema.properties, "create_operation accepts wait_step");
 assert.equal(
   "code_step" in createSchema.properties,
   false,
@@ -108,6 +109,11 @@ const updateSequenceSchema = byName.get("update_sequence").inputSchema;
 assert.ok(
   "name" in updateSequenceSchema.properties,
   "update_sequence must accept a workspace title"
+);
+const createSequenceSchema = byName.get("create_sequence").inputSchema;
+assert.ok(
+  "delay_seconds" in (createSequenceSchema.properties?.loop?.properties || {}),
+  "create_sequence loop accepts delay_seconds"
 );
 
 // --- Argument validation happens before anything reaches the network ---

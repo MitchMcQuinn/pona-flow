@@ -18,9 +18,12 @@ Authentication mirrors the webhook: an ``stg_`` agent key (``X-Pona-Flow-Key`` h
 Bearer) or a Clerk JWT, resolved to a principal that must be a member of the space. The
 agent's role decides which sequences appear as tools and which it may call.
 
-The human-in-the-loop pause is surfaced as the tool result: when a sequence needs more
-input, the result is the executor's ``pending`` payload (required parameters + a
-``state_id``); the caller invokes the tool again with that ``state_id`` to resume.
+The human-in-the-loop pause is surfaced as the tool result: when a sequence needs
+operator input, the result is the executor's ``pending`` payload (parameters that
+pause for input + a ``state_id``); the caller invokes the tool again with that
+``state_id`` to resume. A ``waiting`` result is a background park (timer, until,
+event, or loop delay) that resumes without new parameters — do not treat it as a
+form to fill.
 
 If the ``mcp`` package is not installed, this module degrades gracefully: ``MCP_AVAILABLE``
 is ``False`` and the route/lifespan hooks become no-ops, leaving the rest of the API intact.
@@ -102,7 +105,7 @@ def build_input_schema(parameters: list[dict[str, Any]]) -> dict[str, Any]:
             continue
         value_type = str(p.get("value_type") or "string")
         prop: dict[str, Any] = {"type": _VALUE_TYPE_TO_JSON.get(value_type, "string")}
-        hint = "required" if p.get("is_required") else "optional"
+        hint = "pauses for input" if p.get("is_required") else "optional"
         fmt = str(p.get("format") or "").strip()
         # radio/checkbox constrain the agent to the configured options. radio -> one enum
         # string; checkbox -> an array of enum strings honoring the min/max selection counts.
@@ -138,7 +141,7 @@ def build_input_schema(parameters: list[dict[str, Any]]) -> dict[str, Any]:
     properties[STATE_ID_ARG] = {
         "type": "string",
         "description": (
-            "Resume token from a prior pending result. Omit on the first call; pass it "
+            "Resume token from a prior pending (operator input) result. Omit on the first call; pass it "
             "back (with the requested parameters) to continue a paused run."
         ),
     }
@@ -203,8 +206,10 @@ def _build_tools(space_id: str, principal: Principal) -> list[Any]:
         if group:
             description += f" (group: {group})"
         description += (
-            " Returns the final result, or a 'pending' payload listing the parameters "
-            "still required plus a state_id to resume with."
+            " Returns the final result, a 'pending' payload when paused for operator input "
+            "(parameters plus a state_id to resume with), or a 'waiting' payload when the "
+            "run is parked on a timer, until, event, or loop delay and will resume without "
+            "new parameters."
         )
         tools.append(
             mcp_types.Tool(
@@ -219,8 +224,10 @@ def _build_tools(space_id: str, principal: Principal) -> list[Any]:
 
 _DEFAULT_INSTRUCTIONS = (
     "Each tool runs one of this pona flow space's sequences. Call a tool with its "
-    "parameters; if the response status is 'pending', supply the listed parameters and "
-    "the returned state_id on a follow-up call to resume."
+    "parameters; if the response status is 'pending', the run is paused for operator "
+    "input — supply the listed parameters and the returned state_id on a follow-up call "
+    "to resume. A 'waiting' status is a background park (timer, until, event, or loop "
+    "delay) that continues without new parameters."
 )
 
 

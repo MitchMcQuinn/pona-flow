@@ -447,6 +447,20 @@ def list_graph_nodes_by_label(space_id: str, node_label: str) -> list[dict[str, 
                         "response_parameters": payload.get("response_parameters") or [],
                     }
                     node["parameters"] = _fetch_entity_parameters(space_id, entity_id, "STEP")
+                elif str(payload.get("kind") or "").strip() == "wait":
+                    mode = str(payload.get("mode") or "duration").strip() or "duration"
+                    sequencial: dict[str, Any] = {"step_type": "wait", "wait_mode": mode}
+                    if mode == "until":
+                        sequencial["wait_until"] = str(payload.get("until") or "")
+                    elif mode == "event":
+                        sequencial["wait_event_id"] = str(payload.get("event_id") or "")
+                    else:
+                        duration = payload.get("duration_seconds")
+                        sequencial["wait_duration_seconds"] = (
+                            duration if duration is not None else 0
+                        )
+                    node["sequencial_properties"] = sequencial
+                    node["parameters"] = _fetch_entity_parameters(space_id, entity_id, "STEP")
                 else:
                     headers = payload.get("headers")
                     # Custom-endpoint STEP nodes are editable in the update flow, so

@@ -72,13 +72,17 @@ export interface StepResponseParameter {
   default_value?: string;
 }
 
-/** Custom STEP execution kind: HTTP request (default/legacy), leftover code, or local LLM. */
-export type StepType = "http" | "code" | "local_llm";
+/** Custom STEP execution kind: HTTP request (default/legacy), leftover code, local LLM, or wait. */
+export type StepType = "http" | "code" | "local_llm" | "wait";
 export type CodeLanguage = "python" | "javascript";
+/** How a wait STEP parks the run. */
+export type WaitMode = "duration" | "until" | "event";
+/** Builder display unit for a duration wait; the entity payload stores seconds. */
+export type WaitDurationUnit = "seconds" | "minutes" | "hours";
 
 export interface SequencialProperties {
   query_id?: string;
-  /** Omitted/"http" -> endpoint step (legacy payloads); "code" -> leftover archived kind; "local_llm" -> named Ollama config. */
+  /** Omitted/"http" -> endpoint step (legacy payloads); "code" -> leftover archived kind; "local_llm" -> named Ollama config; "wait" -> park the run. */
   step_type?: StepType;
   endpoint?: string;
   method?: HttpMethod;
@@ -94,6 +98,14 @@ export interface SequencialProperties {
   /** Local LLM: catalog `local_llm_configs` row id. Prompt comes from sequence param `prompt`. */
   local_llm_config_id?: string;
   response_parameters?: StepResponseParameter[];
+  /** Wait STEP: duration, until a timestamp, or until an Event fires. */
+  wait_mode?: WaitMode;
+  /** Wait duration in seconds, or exactly `$name` to take it from a parameter. */
+  wait_duration_seconds?: number | string;
+  /** Wait until this ISO-8601 datetime, or exactly `$name`. */
+  wait_until?: string;
+  /** Catalog event id whose fire resumes this run. */
+  wait_event_id?: string;
 }
 
 export interface CypherConditionPredicate {
@@ -418,6 +430,8 @@ export interface LoopConfig {
   source?: string;
   /** Hard cap on passes; exceeding it fails the run rather than spinning. */
   max_iterations?: number;
+  /** Seconds to park between completed passes (not before the first). Omitted or 0 = no delay. */
+  delay_seconds?: number;
 }
 
 export interface QueryObject {

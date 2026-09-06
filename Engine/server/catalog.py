@@ -37,6 +37,10 @@ from . import cypher_utils
 from . import spaces
 from . import sqlite_util
 
+_STATE_STATUSES = ("active", "pending", "waiting", "cancelled", "inactive")
+_IN_FLIGHT_STATUSES = ("active", "pending", "waiting")
+_FINISHED_STATUSES = ("inactive", "cancelled")
+
 _REGEX_TABLE_SQL = config.ROOT / "Engine" / "schema" / "regex-table.sql"
 _STATE_TABLE_SQL = config.ROOT / "Engine" / "schema" / "state-table.sql"
 _EVENTS_TABLE_SQL = config.ROOT / "Engine" / "schema" / "events-table.sql"
@@ -58,17 +62,34 @@ def _ensure_regex_table(conn: sqlite3.Connection) -> None:
 
 
 def _ensure_state_table(conn: sqlite3.Connection) -> None:
-    """Create state table and add run_start_date on legacy catalog databases."""
-    if not _create_table_from_ddl(conn, "state", _STATE_TABLE_SQL):
+    """Create state table and migrate status CHECK / result column on legacy catalogs."""
+    existed = _create_table_from_ddl(conn, "state", _STATE_TABLE_SQL)
+    if existed:
+        _rebuild_state_status_check(conn)
+    sqlite_util.ensure_column(conn, "state", "run_start_date", "TEXT", commit=False)
+    sqlite_util.ensure_column(conn, "state", "progress", "TEXT", commit=False)
+    sqlite_util.ensure_column(conn, "state", "result", "TEXT", commit=False)
+    conn.commit()
+
+
+def _rebuild_state_status_check(conn: sqlite3.Connection) -> None:
+    """Rebuild ``state`` when its status CHECK predates waiting/cancelled.
+
+    SQLite cannot alter a CHECK constraint in place (same pattern as audit_log).
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'state'"
+    ).fetchone()
+    if row is None or "'waiting'" in (row[0] or ""):
         return
-    changed = sqlite_util.ensure_column(
-        conn, "state", "run_start_date", "TEXT", commit=False
-    )
-    changed = sqlite_util.ensure_column(
-        conn, "state", "progress", "TEXT", commit=False
-    ) or changed
-    if changed:
-        conn.commit()
+    old_cols = [r[1] for r in conn.execute("PRAGMA table_info(state)").fetchall()]
+    conn.execute("ALTER TABLE state RENAME TO state_legacy")
+    conn.executescript(_STATE_TABLE_SQL.read_text(encoding="utf-8"))
+    new_cols = {r[1] for r in conn.execute("PRAGMA table_info(state)").fetchall()}
+    copy_cols = ", ".join(c for c in old_cols if c in new_cols)
+    conn.execute(f"INSERT INTO state ({copy_cols}) SELECT {copy_cols} FROM state_legacy")
+    conn.execute("DROP TABLE state_legacy")
+    conn.commit()
 
 
 def _ensure_events_table(conn: sqlite3.Connection) -> None:
@@ -439,7 +460,7 @@ def insert_state_package(
 ) -> str:
     """Insert an EXECUTION package into the ``state`` table; return the generated UID."""
     state_id = config.generate_entity_id()
-    status_val = status if status in ("active", "pending", "inactive") else "inactive"
+    status_val = status if status in _STATE_STATUSES else "inactive"
     with catalog_connection() as conn:
         conn.execute(
             "INSERT INTO state (id, package, status, run_start_date) VALUES (?, ?, ?, ?)",
@@ -450,13 +471,13 @@ def insert_state_package(
 
 
 def fetch_state_package(state_id: str) -> dict[str, Any] | None:
-    """Load a ``state`` row (id, package, status, run_start_date, progress)."""
+    """Load a ``state`` row (id, package, status, run_start_date, progress, result)."""
     sid = (state_id or "").strip()
     if not sid:
         return None
     with catalog_connection() as conn:
         cur = conn.execute(
-            "SELECT id, package, status, run_start_date, progress FROM state WHERE id = ?",
+            "SELECT id, package, status, run_start_date, progress, result FROM state WHERE id = ?",
             (sid,),
         )
         row = cur.fetchone()
@@ -470,12 +491,17 @@ def fetch_state_package(state_id: str) -> dict[str, Any] | None:
             progress = json.loads(row[4]) if row[4] else None
         except json.JSONDecodeError:
             progress = None
+        try:
+            result = json.loads(row[5]) if row[5] else None
+        except (json.JSONDecodeError, IndexError):
+            result = None
         return {
             "id": row[0],
             "package": package,
             "status": row[2],
             "run_start_date": row[3],
             "progress": progress,
+            "result": result,
         }
 
 
@@ -492,6 +518,142 @@ def update_state_progress(state_id: str, progress: dict[str, Any] | None) -> Non
         conn.commit()
 
 
+def update_state_result(state_id: str, result: dict[str, Any] | None) -> None:
+    """Persist the completion payload so a background resume can be polled."""
+    sid = (state_id or "").strip()
+    if not sid:
+        return
+    with catalog_connection() as conn:
+        conn.execute(
+            "UPDATE state SET result = ? WHERE id = ?",
+            (json.dumps(result) if result is not None else None, sid),
+        )
+        conn.commit()
+
+
+def state_cancel_requested(state_id: str) -> bool:
+    """True when Stop was requested on an in-flight run."""
+    row = fetch_state_package(state_id)
+    if not row:
+        return False
+    if row.get("status") == "cancelled":
+        return True
+    progress = row.get("progress") or {}
+    return bool(isinstance(progress, dict) and progress.get("cancel_requested"))
+
+
+def request_state_cancel(state_id: str) -> dict[str, Any]:
+    """Stop a parked run immediately, or flag an active run to halt between steps."""
+    row = fetch_state_package(state_id)
+    if not row:
+        return {"status": "error", "message": "state not found", "state_id": state_id}
+    status = str(row.get("status") or "")
+    sid = str(row.get("id") or state_id)
+    if status in ("waiting", "pending"):
+        payload = {
+            "status": "cancelled",
+            "state_id": sid,
+            "message": "Sequence stopped.",
+        }
+        update_state_result(sid, payload)
+        update_state_progress(sid, None)
+        update_state_status(sid, "cancelled")
+        return payload
+    if status == "active":
+        progress = dict(row.get("progress") or {}) if isinstance(row.get("progress"), dict) else {}
+        progress["cancel_requested"] = True
+        update_state_progress(sid, progress)
+        return {"status": "cancelling", "state_id": sid}
+    if status == "cancelled":
+        return {"status": "cancelled", "state_id": sid, "message": "Sequence stopped."}
+    return {"status": status or "inactive", "state_id": sid}
+
+
+def _decode_state_row(row: Any) -> dict[str, Any]:
+    try:
+        package = json.loads(row[1] or "{}")
+    except json.JSONDecodeError:
+        package = {}
+    try:
+        progress = json.loads(row[4]) if row[4] else None
+    except json.JSONDecodeError:
+        progress = None
+    result = None
+    if len(row) > 5 and row[5]:
+        try:
+            result = json.loads(row[5])
+        except json.JSONDecodeError:
+            result = None
+    return {
+        "id": row[0],
+        "package": package if isinstance(package, dict) else {},
+        "status": row[2],
+        "run_start_date": row[3],
+        "progress": progress,
+        "result": result,
+    }
+
+
+def list_in_flight_states(space_id: str) -> list[dict[str, Any]]:
+    """Active, pending, and waiting runs in a space (for the nav spinner / Stop)."""
+    sid = (space_id or "").strip()
+    if not sid:
+        return []
+    placeholders = ", ".join("?" * len(_IN_FLIGHT_STATUSES))
+    with catalog_connection() as conn:
+        cur = conn.execute(
+            f"SELECT id, package, status, run_start_date, progress, result FROM state "
+            f"WHERE status IN ({placeholders})",
+            _IN_FLIGHT_STATUSES,
+        )
+        rows = [_decode_state_row(r) for r in cur.fetchall()]
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        package = row.get("package") or {}
+        if str(package.get("space_id") or "").strip() != sid:
+            continue
+        progress = row.get("progress") if isinstance(row.get("progress"), dict) else {}
+        wait = progress.get("wait") if isinstance((progress or {}).get("wait"), dict) else {}
+        out.append(
+            {
+                "state_id": row["id"],
+                "sequence_id": str(package.get("sequence_query_id") or "").strip(),
+                "status": row["status"],
+                "reason": str(wait.get("kind") or "") or None,
+                "wake_at": wait.get("until"),
+                "event_id": wait.get("event_id"),
+                "step_id": (progress or {}).get("queue", [None])[0]
+                if isinstance((progress or {}).get("queue"), list) and progress.get("queue")
+                else None,
+            }
+        )
+    return out
+
+
+def list_waiting_states() -> list[dict[str, Any]]:
+    """Every waiting run (scheduler tick)."""
+    with catalog_connection() as conn:
+        cur = conn.execute(
+            "SELECT id, package, status, run_start_date, progress, result FROM state "
+            "WHERE status = 'waiting'"
+        )
+        return [_decode_state_row(r) for r in cur.fetchall()]
+
+
+def list_waiting_for_event(event_id: str) -> list[dict[str, Any]]:
+    """Waiting runs parked on a given catalog event id."""
+    eid = (event_id or "").strip()
+    if not eid:
+        return []
+    out: list[dict[str, Any]] = []
+    for row in list_waiting_states():
+        progress = row.get("progress") if isinstance(row.get("progress"), dict) else {}
+        wait = progress.get("wait") if isinstance((progress or {}).get("wait"), dict) else {}
+        if str(wait.get("event_id") or "").strip() == eid:
+            out.append(row)
+    return out
+
+
 def update_state_status(
     state_id: str, status: str, run_start_date: str | None = None, set_run_start: bool = False
 ) -> None:
@@ -499,7 +661,7 @@ def update_state_status(
     sid = (state_id or "").strip()
     if not sid:
         return
-    status_val = status if status in ("active", "pending", "inactive") else "inactive"
+    status_val = status if status in _STATE_STATUSES else "inactive"
     with catalog_connection() as conn:
         if set_run_start:
             conn.execute(
@@ -522,9 +684,8 @@ def delete_unrun_state_packages(
     "Unrun" means status ``inactive`` with no ``run_start_date`` — a package that
     was composed but never executed. Re-composing the same sequence for the same
     owner (and space) can replace the prior package with this, instead of leaving
-    abandoned packages to pile up in the ``state`` table. Packages that have run
-    (``run_start_date`` set) or are in-flight (``active`` / ``pending``) are never
-    touched. ``owner_id`` / ``space_id`` further scope the match so one client's
+    abandoned packages to pile up in the ``state`` table.     Packages that have run (``run_start_date`` set) or are in-flight
+    (``active`` / ``pending`` / ``waiting``) are never touched. ``owner_id`` / ``space_id`` further scope the match so one client's
     re-compose can't drop another client's pending package.
     """
     seq = (sequence_query_id or "").strip()
@@ -551,31 +712,51 @@ def delete_unrun_state_packages(
 
 
 def purge_finished_state_packages(exclude_id: str | None = None) -> int:
-    """Delete completed run packages from the ``state`` table; return the count removed.
+    """Delete stale finished run packages; keep the latest per sequence.
 
-    A "finished" run is an ``inactive`` row that actually ran (``run_start_date``
-    is set). Those runs are now recorded in ``audit_log``, so the package itself
-    is disposable. Rows that are still meaningful are preserved:
+    Finished means ``inactive`` or ``cancelled`` with a ``run_start_date``. Rows
+    still needed are preserved:
 
-      - freshly composed packages that have not run yet (``run_start_date`` NULL),
-        since a client/scheduler still holds the ``state_id`` to run them;
-      - in-flight runs (``active`` / ``pending``);
-      - ``exclude_id`` when supplied, so a just-finished run can still be re-run
-        with the same ``state_id``.
+      - composed-but-unrun packages (``run_start_date`` NULL);
+      - in-flight runs (``active`` / ``pending`` / ``waiting``);
+      - the latest finished row per (sequence, owner, space), so the UI can poll
+        a background wait's result;
+      - ``exclude_id`` when supplied.
     """
     with catalog_connection() as conn:
+        cur = conn.execute(
+            "SELECT id, package, status, run_start_date FROM state "
+            "WHERE status IN ('inactive', 'cancelled') AND run_start_date IS NOT NULL"
+        )
+        groups: dict[tuple[str, str, str], list[tuple[str, str]]] = {}
+        for row in cur.fetchall():
+            try:
+                package = json.loads(row[1] or "{}")
+            except json.JSONDecodeError:
+                package = {}
+            key = (
+                str((package or {}).get("sequence_query_id") or "").strip(),
+                str((package or {}).get("owner_id") or "").strip(),
+                str((package or {}).get("space_id") or "").strip(),
+            )
+            groups.setdefault(key, []).append((row[0], str(row[3] or "")))
+        keep: set[str] = set()
         eid = (exclude_id or "").strip()
         if eid:
-            cur = conn.execute(
-                "DELETE FROM state "
-                "WHERE status = 'inactive' AND run_start_date IS NOT NULL AND id != ?",
-                (eid,),
-            )
-        else:
-            cur = conn.execute(
-                "DELETE FROM state "
-                "WHERE status = 'inactive' AND run_start_date IS NOT NULL"
-            )
+            keep.add(eid)
+        delete_ids: list[str] = []
+        for rows in groups.values():
+            rows_sorted = sorted(rows, key=lambda item: item[1], reverse=True)
+            latest_id = rows_sorted[0][0] if rows_sorted else ""
+            if latest_id:
+                keep.add(latest_id)
+            for row_id, _ in rows_sorted:
+                if row_id not in keep:
+                    delete_ids.append(row_id)
+        if not delete_ids:
+            return 0
+        placeholders = ", ".join("?" * len(delete_ids))
+        cur = conn.execute(f"DELETE FROM state WHERE id IN ({placeholders})", delete_ids)
         conn.commit()
         return cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
 

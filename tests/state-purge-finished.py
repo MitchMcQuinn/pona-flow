@@ -1,10 +1,13 @@
 """
 Diagnostic test for ``catalog.purge_finished_state_packages``.
 
-Verifies that cleaning up the ``state`` table after a run removes only finished
-run packages (status ``inactive`` with a ``run_start_date``) while preserving:
+Verifies that cleaning up the ``state`` table after a run removes stale finished
+run packages (status ``inactive`` or ``cancelled`` with a ``run_start_date``)
+while preserving:
   - freshly composed-but-unrun packages (``run_start_date`` NULL),
-  - in-flight runs (``active`` / ``pending``),
+  - in-flight runs (``active`` / ``pending`` / ``waiting``),
+  - the latest finished row per sequence (owner/space), so the UI can poll a
+    background wait's result,
   - the explicitly excluded row (a just-finished run that may be re-run).
 
 Runs against a throwaway SQLite catalog DB (no Neo4j needed).
@@ -50,9 +53,10 @@ try:
     finished_a = catalog.insert_state_package(pkg, status="inactive", run_start_date="2026-01-01T00:00:00")
     finished_b = catalog.insert_state_package(pkg, status="inactive", run_start_date="2026-01-02T00:00:00")
     active_id = catalog.insert_state_package(pkg, status="active", run_start_date="2026-01-03T00:00:00")
+    waiting_id = catalog.insert_state_package(pkg, status="waiting", run_start_date="2026-01-04T12:00:00")
     pending_id = catalog.insert_state_package(pkg, status="pending", run_start_date="2026-01-04T00:00:00")
 
-    check("seeded five state rows", len(_existing_ids()) == 5)
+    check("seeded six state rows", len(_existing_ids()) == 6)
 
     # Purge excluding the most-recent finished run (as run_execution does).
     removed = catalog.purge_finished_state_packages(exclude_id=finished_b)
@@ -64,14 +68,18 @@ try:
     check("kept the composed-but-unrun package", composed_id in remaining)
     check("kept the active run", active_id in remaining)
     check("kept the pending run", pending_id in remaining)
+    check("kept the waiting run", waiting_id in remaining)
 
-    # A second purge with no exclusion clears the remaining finished run too.
+    # A second purge with no exclusion still keeps the latest finished row per sequence.
     removed2 = catalog.purge_finished_state_packages()
     remaining2 = _existing_ids()
 
-    check("second purge removes the last finished run", removed2 == 1)
-    check("finished run fully cleared", finished_b not in remaining2)
-    check("composed/active/pending all survive", remaining2 == {composed_id, active_id, pending_id})
+    check("second purge does not drop the latest finished row", removed2 == 0)
+    check("latest finished run survives", finished_b in remaining2)
+    check(
+        "composed/active/pending/waiting all survive",
+        remaining2 == {composed_id, active_id, pending_id, waiting_id, finished_b},
+    )
 
     # Purging when nothing qualifies is a no-op.
     removed3 = catalog.purge_finished_state_packages()

@@ -12,6 +12,7 @@ import type {
   LoopType
 } from "@pona-flow/authoring";
 import type { ExecutionAvailableParameters } from "../../../services/api";
+import { DurationField } from "./DurationField";
 import { Picker } from "../Picker";
 
 interface SequenceLoopFieldsProps {
@@ -204,6 +205,20 @@ export function SequenceLoopFields({
             Safety cap: a run that exceeds it fails instead of looping forever.
           </span>
         </div>
+      ) : null}
+
+      {looping ? (
+        <DurationField
+          label="delay between iterations (optional)"
+          value={loop.delay_seconds ?? 0}
+          disabled={disabled}
+          hint="Parks the run between completed passes. The first pass starts immediately."
+          onChange={(next) =>
+            patch({
+              delay_seconds: typeof next === "number" ? next : undefined
+            })
+          }
+        />
       ) : null}
 
       {looping && unsaved ? (

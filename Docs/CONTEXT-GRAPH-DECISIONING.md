@@ -642,7 +642,14 @@ human answer given on the first pass is not asked for again.
 
 Because visited steps, resolved parameters, and the iteration cursor all live on the
 state row, a loop can pause mid-iteration (e.g. waiting for human input) and resume on
-the pass it stopped on:
+the pass it stopped on.
+
+A Wait STEP (duration, until a timestamp, or until a catalog Event fires) parks the same
+way: the executor writes `status=waiting` and `progress.wait` on that state row and
+returns, rather than sleeping in the request. The scheduler or an Event ingest resumes
+the stored queue mid-chain. A loop may also park between completed passes via
+`loop.delay_seconds`. Human-in-the-loop remains `pending` (needs operator input);
+clock and event parks are `waiting` so callers do not treat a timer as a form to fill.
 
 ```1187:1192:Engine/server/execution_run.py
 def _progress_snapshot(

@@ -50,6 +50,7 @@ from . import credentials
 from . import cypher_utils
 from . import embeddings
 from . import execution_loop
+from . import execution_wait
 from . import graph
 from . import local_llms
 from . import schema_currency
@@ -483,6 +484,8 @@ def _execute_step(
         return _execute_code_step(space_id, step, resolved)
     if kind == "local_llm":
         return _execute_local_llm_step(space_id, step, resolved)
+    if kind == "wait":
+        return {"_ok": True}
     if str(step.get("endpoint") or "").strip():
         return _execute_endpoint_step(space_id, step, resolved)
     return {}
@@ -972,11 +975,14 @@ def _progress_snapshot(
     resolved: dict[str, Any],
     visited: set[str],
     loop_state: dict[str, Any] | None = None,
+    wait_state: dict[str, Any] | None = None,
+    cancel_requested: bool = False,
 ) -> dict[str, Any]:
     """The resume payload stored on the state row.
 
     ``loop`` is omitted for a non-looping run, so those progress rows keep exactly
-    the shape they have always had.
+    the shape they have always had. ``wait`` is the parked timer/event; it is
+    omitted when the run is not waiting.
     """
     snapshot: dict[str, Any] = {
         "queue": queue,
@@ -985,7 +991,50 @@ def _progress_snapshot(
     }
     if loop_state is not None:
         snapshot["loop"] = loop_state
+    if wait_state:
+        snapshot["wait"] = wait_state
+    if cancel_requested:
+        snapshot["cancel_requested"] = True
     return snapshot
+
+
+def _finish_run(state_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Persist a terminal payload (inactive / cancelled / error) for later polling."""
+    status = str(payload.get("status") or "inactive")
+    try:
+        catalog.update_state_result(state_id, payload)
+        if status in ("inactive", "cancelled", "error"):
+            catalog.update_state_progress(state_id, None)
+            catalog.update_state_status(
+                state_id, "cancelled" if status == "cancelled" else "inactive"
+            )
+            catalog.purge_finished_state_packages(exclude_id=state_id)
+    except Exception as persist_err:
+        sys.stderr.write(f"state-finish error: {persist_err}\n")
+    return payload
+
+
+def _park_waiting(
+    state_id: str,
+    queue: list[str],
+    resolved: dict[str, Any],
+    visited: set[str],
+    loop_progress: dict[str, Any] | None,
+    wait_state: dict[str, Any],
+    step_id: str | None = None,
+) -> dict[str, Any]:
+    catalog.update_state_progress(
+        state_id,
+        _progress_snapshot(queue, resolved, visited, loop_progress, wait_state),
+    )
+    catalog.update_state_status(state_id, "waiting")
+    try:
+        from . import scheduler
+
+        scheduler.request_reload()
+    except Exception:
+        pass
+    return execution_wait.waiting_payload(state_id, wait_state, step_id=step_id)
 
 
 def _loop_exit_targets(
@@ -1023,6 +1072,9 @@ def run_execution(
     Returns one of:
       - ``{"status": "pending", "step_id", "parameters": [...], "resolved": {...}}``
         when a step needs human-supplied parameters.
+      - ``{"status": "waiting", "state_id", "reason", "wake_at"?}`` when a wait
+        STEP or loop delay has parked the run.
+      - ``{"status": "cancelled", ...}`` when Stop ended the run.
       - ``{"status": "inactive", "resolved": {...}, "executed": [...]}`` when the
         chain has finished.
       - ``{"status": "error", "message": ...}`` when the state row is missing.
@@ -1030,6 +1082,13 @@ def run_execution(
     row = catalog.fetch_state_package(state_id)
     if not row:
         return {"status": "error", "message": "state not found"}
+    if str(row.get("status") or "") == "cancelled":
+        stored = row.get("result") if isinstance(row.get("result"), dict) else None
+        return stored or {
+            "status": "cancelled",
+            "state_id": state_id,
+            "message": "Sequence stopped.",
+        }
 
     package = row.get("package") or {}
     steps_list = package.get("steps") or []
@@ -1054,7 +1113,15 @@ def run_execution(
     _merge_caller_params(resolved, params)
     visited: set[str] = set(progress.get("visited") or [])
     loop_state: dict[str, Any] = dict(progress.get("loop") or {}) or _new_loop_state()
+    wait_state: dict[str, Any] = (
+        dict(progress.get("wait") or {}) if isinstance(progress.get("wait"), dict) else {}
+    )
     stored_queue = progress.get("queue")
+
+    if stored_queue is not None and wait_state and not execution_wait.wait_due(wait_state):
+        return execution_wait.waiting_payload(
+            state_id, wait_state, step_id=str((stored_queue or [None])[0] or "") or None
+        )
 
     if stored_queue is None:
         queue: list[str] = [str(steps_list[0]["id"])] if steps_list else []
@@ -1085,6 +1152,33 @@ def run_execution(
     loop_progress = loop_state if loop else None
 
     while queue:
+        if catalog.state_cancel_requested(state_id):
+            return _finish_run(
+                state_id,
+                {
+                    "status": "cancelled",
+                    "state_id": state_id,
+                    "message": "Sequence stopped.",
+                    "resolved": resolved,
+                    "executed": executed,
+                },
+            )
+
+        complete_pending_wait = False
+        if wait_state:
+            if not execution_wait.wait_due(wait_state):
+                return _park_waiting(
+                    state_id,
+                    queue,
+                    resolved,
+                    visited,
+                    loop_progress,
+                    wait_state,
+                    step_id=queue[0] if queue else None,
+                )
+            wait_state = {}
+            complete_pending_wait = True
+
         step_id = queue[0]
         step = steps_by_id.get(step_id)
         if step is None or step_id in visited:
@@ -1114,7 +1208,8 @@ def run_execution(
         )
         if unresolved:
             catalog.update_state_progress(
-                state_id, _progress_snapshot(queue, resolved, visited, loop_progress)
+                state_id,
+                _progress_snapshot(queue, resolved, visited, loop_progress, wait_state),
             )
             catalog.update_state_status(state_id, "pending")
             return {
@@ -1128,10 +1223,36 @@ def run_execution(
         _apply_step_defaults(step_defaults, resolved)
         _fill_blank_optional_query_params(step, resolved, response_param_names)
 
+        if str(step.get("kind") or "").strip() == "wait" and not complete_pending_wait:
+            try:
+                spec = execution_wait.park_spec_for_step(step, resolved)
+            except ValueError as e:
+                return _finish_run(
+                    state_id,
+                    {
+                        "status": "error",
+                        "state_id": state_id,
+                        "message": str(e),
+                        "resolved": resolved,
+                        "executed": executed,
+                    },
+                )
+            if spec is not None:
+                return _park_waiting(
+                    state_id,
+                    queue,
+                    resolved,
+                    visited,
+                    loop_progress,
+                    spec,
+                    step_id=step_id,
+                )
+
         minted = _mint_auto_ids(step, resolved)
         if minted:
             catalog.update_state_progress(
-                state_id, _progress_snapshot(queue, resolved, visited, loop_progress)
+                state_id,
+                _progress_snapshot(queue, resolved, visited, loop_progress, wait_state),
             )
 
         queue.pop(0)
@@ -1150,6 +1271,8 @@ def run_execution(
         elif str(step.get("kind") or "").strip() == "local_llm":
             executed_entry["kind"] = "local_llm"
             executed_entry["config_id"] = str(step.get("config_id") or "")
+        elif str(step.get("kind") or "").strip() == "wait":
+            executed_entry["kind"] = "wait"
         if loop and step_id in loop_body:
             # A body step appears once per pass; stamp the pass so a repeated entry
             # in the trace is readable.
@@ -1186,22 +1309,20 @@ def run_execution(
             ):
                 next_iteration = int(loop_state.get("iteration") or 0) + 1
                 if next_iteration >= max_iterations:
-                    catalog.update_state_progress(
+                    return _finish_run(
                         state_id,
-                        _progress_snapshot(queue, resolved, visited, loop_progress),
+                        {
+                            "status": "error",
+                            "state_id": state_id,
+                            "message": (
+                                f"Loop exceeded its limit of {max_iterations} iterations "
+                                "without terminating. Check the loop's exit condition, or "
+                                "raise the sequence's maximum iterations."
+                            ),
+                            "resolved": resolved,
+                            "executed": executed,
+                        },
                     )
-                    catalog.update_state_status(state_id, "inactive")
-                    return {
-                        "status": "error",
-                        "state_id": state_id,
-                        "message": (
-                            f"Loop exceeded its limit of {max_iterations} iterations "
-                            "without terminating. Check the loop's exit condition, or "
-                            "raise the sequence's maximum iterations."
-                        ),
-                        "resolved": resolved,
-                        "executed": executed,
-                    }
                 _clear_iteration_state(loop, loop_state, resolved, visited)
                 loop_state["iteration"] = next_iteration
                 if loop.get("type") == "for_each":
@@ -1210,6 +1331,18 @@ def run_execution(
                     )
                 _bind_loop_item(loop, loop_state, resolved)
                 queue.append(loop_entry)
+                delay = int(loop.get("delay_seconds") or 0)
+                delay_spec = execution_wait.park_spec_for_loop_delay(delay)
+                if delay_spec is not None:
+                    return _park_waiting(
+                        state_id,
+                        queue,
+                        resolved,
+                        visited,
+                        loop_progress,
+                        delay_spec,
+                        step_id=loop_entry,
+                    )
             else:
                 queue.extend(
                     target for target in passing if target != loop_entry
@@ -1217,24 +1350,45 @@ def run_execution(
         else:
             _enqueue_transitions(step, resolved, queue)
 
-    catalog.update_state_progress(state_id, None)
-    catalog.update_state_status(state_id, "inactive")
-    # This run is now recorded in audit_log, so older finished run packages are
-    # dead weight in the state table. Drop them (keeping this row so an immediate
-    # re-run can still resolve its state_id) instead of letting them accumulate.
-    try:
-        catalog.purge_finished_state_packages(exclude_id=state_id)
-    except Exception as purge_err:  # cleanup must never break a completed run
-        sys.stderr.write(f"state-purge error: {purge_err}\n")
     final_result = (
         _classify_final_response(final_step, final_response)
         if final_step is not None and final_response is not None
         else None
     )
-    return {
-        "status": "inactive",
-        "state_id": state_id,
-        "resolved": resolved,
-        "executed": executed,
-        "final_result": final_result,
-    }
+    return _finish_run(
+        state_id,
+        {
+            "status": "inactive",
+            "state_id": state_id,
+            "resolved": resolved,
+            "executed": executed,
+            "final_result": final_result,
+        },
+    )
+
+
+def stop_execution(
+    space_id: str, state_id: str | None = None, sequence_id: str | None = None
+) -> dict[str, Any]:
+    """Cancel one run, or every in-flight run of a sequence in the space."""
+    sid = (space_id or "").strip()
+    one = (state_id or "").strip()
+    seq = (sequence_id or "").strip()
+    if one:
+        return catalog.request_state_cancel(one)
+    if not seq:
+        return {"status": "error", "message": "state_id or sequence_id is required"}
+    stopped: list[str] = []
+    results: list[dict[str, Any]] = []
+    for row in catalog.list_in_flight_states(sid):
+        if str(row.get("sequence_id") or "") != seq:
+            continue
+        result = catalog.request_state_cancel(str(row.get("state_id") or ""))
+        results.append(result)
+        stopped.append(str(row.get("state_id") or ""))
+    if not stopped:
+        return {"status": "inactive", "stopped": []}
+    status = "cancelled"
+    if any(r.get("status") == "cancelling" for r in results):
+        status = "cancelling"
+    return {"status": status, "stopped": stopped}

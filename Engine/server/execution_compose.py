@@ -381,6 +381,16 @@ def _build_step(
         # Always require ``prompt`` and expose the optional setting overrides, even
         # when the STEP entity was saved before those parameters were declared.
         step["parameters"] = _ensure_local_llm_params(parameters)
+    elif kind == "wait":
+        step["kind"] = "wait"
+        mode = str(payload.get("mode") or "duration").strip() or "duration"
+        step["wait_mode"] = mode
+        if mode == "until":
+            step["until"] = str(payload.get("until") or "").strip()
+        elif mode == "event":
+            step["event_id"] = str(payload.get("event_id") or "").strip()
+        else:
+            step["duration_seconds"] = payload.get("duration_seconds", 0)
     return step
 
 

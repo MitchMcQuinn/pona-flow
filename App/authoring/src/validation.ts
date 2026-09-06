@@ -1,6 +1,7 @@
 import { validateOptionalAlias } from "./normalizeField.js";
 import { validateStepBodyParameters } from "./stepBodyParams.js";
 import { validateStepResponseParameters } from "./stepResponseParams.js";
+import { waitStepWarnings } from "./waitStep.js";
 import { ATTRIBUTIVE_LABEL_VALUE_TYPE, extractExactParameterRef } from "./parameterRefs.js";
 import type {
   FieldCheck,
@@ -321,6 +322,12 @@ function validateStepSequencialProperties(
       );
     }
     validateStepResponseParameters(sp.response_parameters).forEach((message) => {
+      pushPatternWarning(warnings, patternIndex, patternCount, message);
+    });
+    return;
+  }
+  if (sp.step_type === "wait") {
+    waitStepWarnings(sp).forEach((message) => {
       pushPatternWarning(warnings, patternIndex, patternCount, message);
     });
     return;

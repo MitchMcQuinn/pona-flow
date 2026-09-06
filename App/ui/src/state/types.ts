@@ -241,6 +241,16 @@ export interface AppState {
      */
     awaitingParams: boolean;
   };
+  /** In-flight runs in the current space (active / pending / waiting). */
+  inFlight: Array<{
+    state_id: string;
+    sequence_id: string;
+    status: "active" | "pending" | "waiting";
+    reason?: string | null;
+    wake_at?: string | null;
+    event_id?: string | null;
+    step_id?: string | null;
+  }>;
   view: {
     rightPanelMode: RightPanelMode;
     visualMode: VisualMode;

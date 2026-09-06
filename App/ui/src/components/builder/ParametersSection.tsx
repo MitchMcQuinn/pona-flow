@@ -271,13 +271,16 @@ function ParameterRow({
         </div>
       </div>
       <div className="builderRowActions">
-        <Toggle
-          checked={Boolean(param.is_required)}
-          onChange={(checked) => patchQuery(updateParameterAt(index, { is_required: checked }))}
-          label="required"
-          labelFirst
-          disabled={locked}
-        />
+        <div>
+          <Toggle
+            checked={Boolean(param.is_required)}
+            onChange={(checked) => patchQuery(updateParameterAt(index, { is_required: checked }))}
+            label="pause for input"
+            labelFirst
+            disabled={locked}
+          />
+          <p className="muted">The sequence waits here until an operator supplies this value.</p>
+        </div>
         {declared && !locked ? (
           <button type="button" className="builderTinyBtn builderDanger" onClick={onRemove}>
             Remove

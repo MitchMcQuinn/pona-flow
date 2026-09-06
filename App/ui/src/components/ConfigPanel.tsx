@@ -360,13 +360,12 @@ export function ConfigPanel({
           <h2>Parameters</h2>
           {inputParams.length === 0 ? (
             <p className="muted">
-              Inputs appear here as the sequence reaches steps that require them. Run the sequence
+              Inputs appear here as the sequence reaches steps that pause for them. Run the sequence
               to begin.
             </p>
           ) : state.run.awaitingParams ? (
             <p className="muted">
-              The run paused at a step that needs input. Fill in the fields below and run again to
-              continue.
+              The run paused for operator input. Fill in the fields below and run again to continue.
             </p>
           ) : null}
           {inputParams.map((parameter) => {
@@ -395,7 +394,7 @@ export function ConfigPanel({
                 {locked ? (
                   <div className="muted paramLockedHint">Locked — already used by an executed step.</div>
                 ) : state.params.validity[parameter.name] === false ? (
-                  <div className="errorText">Required parameter</div>
+                  <div className="errorText">Needs a value to continue</div>
                 ) : null}
               </div>
             );

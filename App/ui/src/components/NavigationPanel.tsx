@@ -53,6 +53,17 @@ interface NavigationPanelProps {
   userTimezone: string | null;
   onSaveTimezone: (timezone: string) => void;
   onLogout: () => void;
+  /** Sequence ids that currently have an active, pending, or waiting run. */
+  inFlightSequenceIds?: string[];
+}
+
+function ActivityIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <circle cx="8" cy="8" r="5.5" strokeOpacity="0.35" />
+      <path d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 type DropPosition = "before" | "after";
@@ -228,7 +239,8 @@ function SequenceItem({
   onSelectSequence,
   onEditSequence,
   onDeleteSequence,
-  drag
+  drag,
+  inFlight
 }: {
   sequence: SequenceSummary;
   selected: boolean;
@@ -236,6 +248,7 @@ function SequenceItem({
   onEditSequence: (sequenceId: string) => void;
   onDeleteSequence: (sequenceId: string) => void;
   drag: DragApi;
+  inFlight: boolean;
 }) {
   const itemRef = useRef<HTMLLIElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
@@ -295,6 +308,7 @@ function SequenceItem({
       ref={itemRef}
       className={classNames.join(" ")}
       data-testid="nav-sequence-item"
+      data-sequence-id={sequence.id}
       data-single-step={sequence.singleStep ? "true" : "false"}
       data-orphaned={sequence.orphaned ? "true" : "false"}
       data-suspended={sequence.suspended ? "true" : "false"}
@@ -335,6 +349,11 @@ function SequenceItem({
         <span className="sequenceBtnLabel" ref={labelRef}>
           {sequence.label}
         </span>
+        {inFlight ? (
+          <span className="sequenceActivityIcon" title="Sequence is running" data-testid="sequence-activity-icon">
+            <ActivityIcon />
+          </span>
+        ) : null}
       </button>
       <span className="inlineActions sequenceItemActions">
         <button
@@ -372,7 +391,8 @@ function SequenceList({
   onSelectSequence,
   onEditSequence,
   onDeleteSequence,
-  drag
+  drag,
+  inFlightSequenceIds
 }: {
   groupTitle: string;
   sequences: SequenceSummary[];
@@ -381,6 +401,7 @@ function SequenceList({
   onEditSequence: (sequenceId: string) => void;
   onDeleteSequence: (sequenceId: string) => void;
   drag: DragApi;
+  inFlightSequenceIds: string[];
 }) {
   return (
     <ul
@@ -397,6 +418,7 @@ function SequenceList({
           onEditSequence={onEditSequence}
           onDeleteSequence={onDeleteSequence}
           drag={drag}
+          inFlight={inFlightSequenceIds.includes(sequence.id)}
         />
       ))}
     </ul>
@@ -411,7 +433,8 @@ function GroupBlock({
   onDeleteSequence,
   onDeleteGroup,
   drag,
-  accordion
+  accordion,
+  inFlightSequenceIds
 }: {
   group: NavGroup;
   selectedSequenceId: string | null;
@@ -421,6 +444,7 @@ function GroupBlock({
   onDeleteGroup: (title: string) => void;
   drag: DragApi;
   accordion: AccordionApi;
+  inFlightSequenceIds: string[];
 }) {
   const expanded = accordion.expandedTitle === group.title;
   const sequenceList = expanded ? (
@@ -432,6 +456,7 @@ function GroupBlock({
       onEditSequence={onEditSequence}
       onDeleteSequence={onDeleteSequence}
       drag={drag}
+      inFlightSequenceIds={inFlightSequenceIds}
     />
   ) : null;
 
@@ -707,7 +732,8 @@ export function NavigationPanel({
   userEmail,
   userTimezone,
   onSaveTimezone,
-  onLogout
+  onLogout,
+  inFlightSequenceIds = []
 }: NavigationPanelProps) {
   const navSequences = useMemo(
     () => sequences.filter((sequence) => sequence.kind === "sequence"),
@@ -1026,6 +1052,7 @@ export function NavigationPanel({
                 onEditSequence={onEditSequence}
                 onDeleteSequence={onDeleteSequence}
                 drag={drag}
+                inFlightSequenceIds={inFlightSequenceIds}
               />
             ) : (
               <div className="navGroupList">
@@ -1040,6 +1067,7 @@ export function NavigationPanel({
                     onDeleteGroup={onDeleteGroup}
                     drag={drag}
                     accordion={accordion}
+                    inFlightSequenceIds={inFlightSequenceIds}
                   />
                 ))}
               </div>

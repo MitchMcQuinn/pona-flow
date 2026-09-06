@@ -91,6 +91,64 @@ def _fire_event(event: dict[str, Any], trigger: str) -> None:
             )
 
 
+def _event_params(event: dict[str, Any]) -> dict[str, Any]:
+    package = event.get("event_package") or {}
+    params = package.get("parameters") if isinstance(package, dict) else {}
+    return dict(params) if isinstance(params, dict) else {}
+
+
+def _resume_event_waiters(
+    event_id: str, params: dict[str, Any] | None = None, trigger: str = "event"
+) -> None:
+    """Release runs parked on this event and continue them."""
+    eid = (event_id or "").strip()
+    if not eid:
+        return
+    for row in catalog.list_waiting_for_event(eid):
+        state_id = str(row.get("id") or "")
+        package = row.get("package") or {}
+        space_id = str(package.get("space_id") or "").strip()
+        if not state_id or not space_id:
+            continue
+        progress = dict(row.get("progress") or {}) if isinstance(row.get("progress"), dict) else {}
+        wait = dict(progress.get("wait") or {}) if isinstance(progress.get("wait"), dict) else {}
+        wait["released"] = True
+        progress["wait"] = wait
+        try:
+            catalog.update_state_progress(state_id, progress)
+            execution.run_execution(
+                space_id, state_id, dict(params or {}), trigger=trigger, event_id=eid
+            )
+        except Exception as e:
+            sys.stderr.write(f"scheduler: resume waiter {state_id!r} failed: {e}\n")
+
+
+def _wake_waiting_runs(now: datetime) -> Optional[datetime]:
+    """Resume duration/until/loop_delay waits that are due. Return the next wake time."""
+    earliest: Optional[datetime] = None
+    for row in catalog.list_waiting_states():
+        progress = row.get("progress") if isinstance(row.get("progress"), dict) else {}
+        wait = progress.get("wait") if isinstance((progress or {}).get("wait"), dict) else {}
+        if not wait or (wait.get("kind") == "event" and not wait.get("released")):
+            continue
+        until = _parse_iso(wait.get("until"))
+        if until is None:
+            continue
+        if until <= now:
+            state_id = str(row.get("id") or "")
+            package = row.get("package") or {}
+            space_id = str(package.get("space_id") or "").strip()
+            if not state_id or not space_id:
+                continue
+            try:
+                execution.run_execution(space_id, state_id, {}, trigger="event")
+            except Exception as e:
+                sys.stderr.write(f"scheduler: wake waiting run {state_id!r} failed: {e}\n")
+        elif earliest is None or until < earliest:
+            earliest = until
+    return earliest
+
+
 def _compute_next(event: dict[str, Any], after: datetime) -> Optional[datetime]:
     return triggers.next_activation(event.get("event_package") or {}, after)
 
@@ -124,6 +182,11 @@ def _startup_recovery() -> None:
                 f"(due {next_fire.isoformat()}); running recovery sequences\n"
             )
             _fire_event(event, trigger="recovery")
+            _resume_event_waiters(
+                str(event.get("id") or ""),
+                params=_event_params(event),
+                trigger="recovery",
+            )
         # Recompute the next fire time from now so we don't immediately re-fire it.
         upcoming = _compute_next(event, now)
         _store_timers(str(event.get("id") or ""), timers.get("last_fired_at"), upcoming)
@@ -148,9 +211,14 @@ def _tick() -> float:
             last_fired = _iso(now)
             next_fire = _compute_next(event, now)
             _store_timers(event_id, last_fired, next_fire)
+            _resume_event_waiters(event_id, params=_event_params(event), trigger="event")
 
         if next_fire is not None and (earliest is None or next_fire < earliest):
             earliest = next_fire
+
+    wait_soonest = _wake_waiting_runs(now)
+    if wait_soonest is not None and (earliest is None or wait_soonest < earliest):
+        earliest = wait_soonest
 
     if earliest is None:
         return _MAX_SLEEP_SECONDS

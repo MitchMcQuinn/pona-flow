@@ -101,6 +101,10 @@ export function collectReferencedParameterNames(query: QueryObject): string[] {
               refs.add("prompt");
               LOCAL_LLM_OVERRIDE_PARAMS.forEach((p) => refs.add(p.name));
             }
+            if (el.node.sequencial_properties?.step_type === "wait") {
+              addRefsFromText(String(el.node.sequencial_properties.wait_duration_seconds ?? ""), refs);
+              addRefsFromText(String(el.node.sequencial_properties.wait_until ?? ""), refs);
+            }
           }
           if (el.node.where) addRefsFromWhereItem(el.node.where, refs);
         } else {

@@ -31,7 +31,7 @@ import secrets
 import sys
 from typing import Any
 
-from . import catalog, sequence_service
+from . import catalog, sequence_service, scheduler
 
 # Token embedded in the inbound URL; high-entropy so the URL itself is the secret.
 _INGEST_TOKEN_PREFIX = "evt_"
@@ -198,6 +198,10 @@ def dispatch_external_event(
     params = extract_params(config, payload)
     ran: list[str] = []
     failed: list[str] = []
+    try:
+        scheduler._resume_event_waiters(event_id, params=params, trigger=trigger)
+    except Exception as e:
+        sys.stderr.write(f"external trigger: resume waiters for {event_id!r} failed: {e}\n")
     for seq_id in event.get("sequences") or []:
         seq = str(seq_id or "").strip()
         if not seq:

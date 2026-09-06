@@ -43,7 +43,7 @@ const intentSchema = {
     .enum(["STEP", "SCHEMA", "INSTANCE"])
     .describe(
         "Primary node label. SCHEMA defines a property contract, INSTANCE is data satisfying " +
-        "one, STEP is an executable unit (a custom endpoint or Local LLM call)."
+        "one, STEP is an executable unit (a custom endpoint, Local LLM call, or wait)."
     ),
   attributive_label: z
     .string()
@@ -141,7 +141,7 @@ const intentSchema = {
     })
     .optional()
     .describe(
-      "Creates a custom-endpoint STEP node. Mutually exclusive with local_llm_step."
+      "Creates a custom-endpoint STEP node. Mutually exclusive with local_llm_step and wait_step."
     ),
   local_llm_step: z
     .object({
@@ -156,7 +156,35 @@ const intentSchema = {
         "optional parameters that override the saved config for that run: `system_prompt`, " +
         "`response_format` (text|json_schema), `json_schema` (JSON text), `temperature`, " +
         "`top_p`, `top_k`, `min_p`, `repeat_penalty`, `num_ctx`, `num_predict`, `seed`, `stop`. " +
-        "Mutually exclusive with http_step."
+        "Mutually exclusive with http_step and wait_step."
+    ),
+  wait_step: z
+    .object({
+      mode: z
+        .enum(["duration", "until", "event"])
+        .describe(
+          "'duration' parks for N seconds. 'until' parks until an ISO-8601 datetime. " +
+            "'event' parks until a catalog Event fires (time or external)."
+        ),
+      duration_seconds: z
+        .union([z.number().min(0), z.string()])
+        .optional()
+        .describe(
+          "duration mode: seconds to wait, or exactly $name to take it from a parameter. Cap 30 days."
+        ),
+      until: z
+        .string()
+        .optional()
+        .describe("until mode: ISO-8601 datetime, or exactly $name."),
+      event_id: z
+        .string()
+        .optional()
+        .describe("event mode: catalog event id (from the Events panel / list via the UI)."),
+    })
+    .optional()
+    .describe(
+      "Creates a Wait STEP that parks the run without blocking the request thread. " +
+        "Mutually exclusive with http_step and local_llm_step."
     ),
   where: z
     .array(
@@ -218,7 +246,10 @@ const intentSchema = {
         name: z.string(),
         value_type: z.string().optional(),
         value: z.string().optional().describe("Default value."),
-        is_required: z.boolean().optional(),
+        is_required: z
+          .boolean()
+          .optional()
+          .describe("When true, a manual run pauses here until an operator supplies this value."),
       })
     )
     .optional()

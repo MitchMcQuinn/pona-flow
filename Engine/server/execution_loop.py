@@ -102,6 +102,9 @@ def normalize_loop_config(raw: Any) -> dict[str, Any]:
         }
     elif loop_type == "for_each":
         out["source"] = str(config.get("source") or "").strip()
+    delay_seconds = _as_positive_int(config.get("delay_seconds"))
+    if delay_seconds:
+        out["delay_seconds"] = delay_seconds
     return out
 
 

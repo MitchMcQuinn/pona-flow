@@ -118,6 +118,14 @@ Cypress.Commands.add("configureHttpStep", (endpoint: string) => {
     .blur();
 });
 
+Cypress.Commands.add("configureWaitStep", (seconds: number) => {
+  cy.get('[data-testid="builder-step-type-option-wait"]')
+    .should("not.be.disabled")
+    .click();
+  cy.get('[data-testid="builder-step-type"] button.active').should("contain.text", "Wait");
+  cy.get('[data-testid="builder-wait-duration"]').clear().type(String(seconds)).blur();
+});
+
 Cypress.Commands.add(
   "createSchemaNode",
   (attributiveLabel: string, properties: SchemaPropertySpec[] = []) => {
