@@ -117,6 +117,7 @@ assert.equal(
 const plain = readReturnItemPatch(bindings, "p", "AGE");
 assert.equal(plain.expression, "p.AGE");
 assert.equal(plain.boolean_mode, undefined);
+assert.equal(plain.count_mode, undefined);
 assert.equal(plain.comparison_operator, undefined);
 assert.equal(plain.comparison_value, undefined);
 

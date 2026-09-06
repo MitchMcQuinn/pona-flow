@@ -273,6 +273,19 @@ export function readReturnBooleanExpression(
   return `coalesce(${lhs} ${operator} ${rhs}, false)`;
 }
 
+/**
+ * Compile a count projection: how many matched values of this property, as an integer.
+ *
+ * Cypher's count() skips nulls and always yields an integer (0 when nothing matched),
+ * so the column is a strict count rather than a missing-property null. An incomplete
+ * row compiles to "" and is reported by validateQuery.
+ */
+export function readReturnCountExpression(pathVariable: string, propertyKey: string): string {
+  const lhs = readReturnExpression(pathVariable, propertyKey);
+  if (!lhs) return "";
+  return `count(${lhs})`;
+}
+
 export function bindingForVariable(
   bindings: ReadMatchPathBinding[],
   variable: string
@@ -304,6 +317,7 @@ export function resolvedReadReturnFields(
   attributive_label: string;
   entityRole: "node" | "relationship";
   boolean_mode: boolean;
+  count_mode: boolean;
   comparison_operator: WhereComparisonOperator | undefined;
   comparison_value: string;
 } {
@@ -323,14 +337,21 @@ export function resolvedReadReturnFields(
     attributive_label: binding?.attributive_label ?? (item.attributive_label || "").trim(),
     entityRole: binding?.entityRole ?? item.entity_role ?? "node",
     boolean_mode: item.boolean_mode === true,
+    count_mode: item.count_mode === true,
     comparison_operator: item.comparison_operator,
     comparison_value: item.comparison_value ?? ""
   };
 }
 
-/** Comparison inputs a boolean projection compiles from. */
-export interface ReturnBooleanInputs {
+/**
+ * Mode + comparison inputs a RETURN projection compiles from.
+ *
+ * `booleanMode` and `countMode` are mutually exclusive: if both are set, boolean
+ * wins and count is dropped so the compiled expression stays unambiguous.
+ */
+export interface ReturnProjectionInputs {
   booleanMode?: boolean;
+  countMode?: boolean;
   operator?: WhereComparisonOperator;
   /** Literal or exact $parameter; ignored by the valueless operators. */
   value?: string;
@@ -340,22 +361,26 @@ export function readReturnItemPatch(
   bindings: ReadMatchPathBinding[],
   pathVariable: string,
   propertyKey: string,
-  inputs: ReturnBooleanInputs = {}
+  inputs: ReturnProjectionInputs = {}
 ): Partial<ReturnItem> {
   const binding = bindingForVariable(bindings, pathVariable);
   const booleanMode = inputs.booleanMode === true;
+  const countMode = !booleanMode && inputs.countMode === true;
   const operator = booleanMode ? inputs.operator : undefined;
   const value = booleanMode ? (inputs.value ?? "") : "";
-  const expression = booleanMode
-    ? readReturnBooleanExpression(pathVariable, propertyKey, operator, value)
-    : readReturnExpression(pathVariable, propertyKey);
+  const expression = countMode
+    ? readReturnCountExpression(pathVariable, propertyKey)
+    : booleanMode
+      ? readReturnBooleanExpression(pathVariable, propertyKey, operator, value)
+      : readReturnExpression(pathVariable, propertyKey);
   return {
     path_variable: pathVariable.trim() || undefined,
     property_key: propertyKey.trim() || undefined,
     attributive_label: binding?.attributive_label,
     entity_role: binding?.entityRole,
-    // Off stays unset so projections saved before boolean mode re-save unchanged.
+    // Off stays unset so projections saved before these modes re-save unchanged.
     boolean_mode: booleanMode ? true : undefined,
+    count_mode: countMode ? true : undefined,
     comparison_operator: operator,
     comparison_value: booleanMode && value ? value : undefined,
     expression

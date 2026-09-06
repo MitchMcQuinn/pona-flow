@@ -10,7 +10,7 @@ import {
   isReturnFieldParameter,
   readReturnItemPatch,
   resolvedReadReturnFields,
-  type ReturnBooleanInputs
+  type ReturnProjectionInputs
 } from "@pona-flow/authoring";
 import { updateReturnItem } from "../../state/builder/queryHelpers";
 import {
@@ -95,10 +95,11 @@ export function ReadReturnProjectionRow({
     patchQuery(updateReturnItem(index, partial));
   }
 
-  // The row's current comparison state, carried through every schema/property patch so
-  // recompiling the expression never silently drops the boolean configuration.
-  const booleanInputs: ReturnBooleanInputs = {
+  // The row's current mode + comparison state, carried through every schema/property
+  // patch so recompiling the expression never silently drops the configuration.
+  const projectionInputs: ReturnProjectionInputs = {
     booleanMode: resolved.boolean_mode,
+    countMode: resolved.count_mode,
     operator: resolved.comparison_operator,
     value: resolved.comparison_value
   };
@@ -106,16 +107,17 @@ export function ReadReturnProjectionRow({
   function patchFields(
     pathVariable: string,
     propertyKey: string,
-    inputs: ReturnBooleanInputs = booleanInputs
+    inputs: ReturnProjectionInputs = projectionInputs
   ) {
     patch(readReturnItemPatch(bindings, pathVariable, propertyKey, inputs));
   }
 
   const needsComparisonValue = comparisonOperatorNeedsValue(resolved.comparison_operator);
   const aliasError = validateOptionalAlias(item.alias);
-  // A boolean projection's column would otherwise be named after the whole comparison
-  // expression, which no downstream response_parameter mapping can address.
-  const aliasMissing = resolved.boolean_mode && !(item.alias ?? "").trim();
+  // A boolean/count projection's column would otherwise be named after the whole
+  // compiled expression, which no downstream response_parameter mapping can address.
+  const aliasRequired = resolved.boolean_mode || resolved.count_mode;
+  const aliasMissing = aliasRequired && !(item.alias ?? "").trim();
 
   return (
     <div className="builderItemRow">
@@ -132,7 +134,7 @@ export function ReadReturnProjectionRow({
             onSelect={(variable) => {
               // A different schema means a different property, so the value it was
               // compared against no longer applies; the operator choice survives.
-              patchFields(variable, "", { ...booleanInputs, value: "" });
+              patchFields(variable, "", { ...projectionInputs, value: "" });
             }}
             emptyHint={
               bindings.length
@@ -186,8 +188,24 @@ export function ReadReturnProjectionRow({
             onChange={(on) =>
               patchFields(resolved.path_variable, resolved.property_key, {
                 booleanMode: on,
+                countMode: on ? false : resolved.count_mode,
                 operator: on ? DEFAULT_COMPARISON_OPERATOR : undefined,
                 value: ""
+              })
+            }
+          />
+        </div>
+        <div className="builderField">
+          <label>return count</label>
+          <Toggle
+            checked={resolved.count_mode}
+            disabled={!resolved.property_key}
+            onChange={(on) =>
+              patchFields(resolved.path_variable, resolved.property_key, {
+                booleanMode: on ? false : resolved.boolean_mode,
+                countMode: on,
+                operator: on ? undefined : resolved.comparison_operator,
+                value: on ? "" : resolved.comparison_value
               })
             }
           />
@@ -200,7 +218,7 @@ export function ReadReturnProjectionRow({
               onChange={(e) => {
                 const operator = e.target.value as WhereComparisonOperator;
                 patchFields(resolved.path_variable, resolved.property_key, {
-                  ...booleanInputs,
+                  ...projectionInputs,
                   operator,
                   value: comparisonOperatorNeedsValue(operator) ? resolved.comparison_value : ""
                 });
@@ -224,7 +242,7 @@ export function ReadReturnProjectionRow({
               value={resolved.comparison_value}
               onChange={(e) =>
                 patchFields(resolved.path_variable, resolved.property_key, {
-                  ...booleanInputs,
+                  ...projectionInputs,
                   value: e.target.value
                 })
               }
@@ -232,10 +250,16 @@ export function ReadReturnProjectionRow({
           </div>
         ) : null}
         <div className="builderField">
-          <label>{resolved.boolean_mode ? "alias" : "alias (optional)"}</label>
+          <label>{aliasRequired ? "alias" : "alias (optional)"}</label>
           <input
             className="builderMono"
-            placeholder={resolved.boolean_mode ? "e.g. is_active" : "e.g. step1"}
+            placeholder={
+              resolved.boolean_mode
+                ? "e.g. is_active"
+                : resolved.count_mode
+                  ? "e.g. result_count"
+                  : "e.g. step1"
+            }
             value={item.alias ?? ""}
             onChange={(e) => {
               const normalized = normalizeAlias(e.target.value);
@@ -246,7 +270,11 @@ export function ReadReturnProjectionRow({
             <span className="builderCheckMsg error">{ALIAS_NAME_ERROR_MSG}</span>
           ) : null}
           {!aliasError && aliasMissing ? (
-            <span className="builderCheckMsg error">A boolean projection needs an alias.</span>
+            <span className="builderCheckMsg error">
+              {resolved.count_mode
+                ? "A count projection needs an alias."
+                : "A boolean projection needs an alias."}
+            </span>
           ) : null}
         </div>
       </div>
@@ -266,7 +294,7 @@ export function ReadReturnProjectionRow({
           onCancel={() => setShowSchemaParamModal(false)}
           onSave={(param) => {
             setShowSchemaParamModal(false);
-            patchFields(param, "", { ...booleanInputs, value: "" });
+            patchFields(param, "", { ...projectionInputs, value: "" });
           }}
         />
       ) : null}

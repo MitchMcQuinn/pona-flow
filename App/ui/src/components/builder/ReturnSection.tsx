@@ -87,6 +87,7 @@ export function ReturnSection() {
             property_key: undefined,
             entity_role: undefined,
             boolean_mode: undefined,
+            count_mode: undefined,
             comparison_operator: undefined,
             comparison_value: undefined,
             expression: "",

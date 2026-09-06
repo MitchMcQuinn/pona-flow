@@ -242,8 +242,15 @@ export interface ReturnItem {
    * Builder-only hint: project the result of a comparison against the property
    * instead of the property value itself. `expression` stays the sole compiled
    * artifact — left unset when off so pre-existing configs re-save unchanged.
+   * Mutually exclusive with `count_mode`.
    */
   boolean_mode?: boolean;
+  /**
+   * Builder-only hint: project `count(alias.prop)` — the number of matched values —
+   * instead of the property itself. Left unset when off so pre-existing configs
+   * re-save unchanged. Mutually exclusive with `boolean_mode`.
+   */
+  count_mode?: boolean;
   comparison_operator?: WhereComparisonOperator;
   /** Compared-against value: a literal (e.g. "30", "active") or an exact $parameter. */
   comparison_value?: string;

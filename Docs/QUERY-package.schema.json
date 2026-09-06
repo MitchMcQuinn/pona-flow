@@ -803,7 +803,7 @@
         "alias": {
           "type": "string",
           "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
-          "description": "Optional AS alias for this projection. Required when boolean_mode is true."
+          "description": "Optional AS alias for this projection. Required when boolean_mode or count_mode is true."
         },
         "path_variable": {
           "type": "string",
@@ -824,7 +824,11 @@
         },
         "boolean_mode": {
           "type": "boolean",
-          "description": "Builder hint: project the result of comparison_operator/comparison_value against the property instead of the property value. Compiles to coalesce(alias.prop OP value, false) so a missing property yields false rather than null; IS NULL / IS NOT NULL are already total and compile bare."
+          "description": "Builder hint: project the result of comparison_operator/comparison_value against the property instead of the property value. Compiles to coalesce(alias.prop OP value, false) so a missing property yields false rather than null; IS NULL / IS NOT NULL are already total and compile bare. Mutually exclusive with count_mode."
+        },
+        "count_mode": {
+          "type": "boolean",
+          "description": "Builder hint: project count(alias.prop) — the number of matched values of this property — instead of the property value. Compiles to a Cypher integer aggregation. Mutually exclusive with boolean_mode."
         },
         "comparison_operator": {
           "type": "string",

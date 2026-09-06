@@ -486,19 +486,32 @@ export function validateQuery(query: QueryObject, _runtimeEnabled: boolean): str
     if (aliasError) {
       warnings.push(`RETURN projection ${index + 1}: ${aliasError}`);
     }
-    if (!item.boolean_mode) return;
-    // Without an alias the column is named after the whole comparison expression,
-    // which no downstream response_parameter mapping can address.
-    if (!(item.alias ?? "").trim()) {
-      warnings.push(`RETURN projection ${index + 1}: a boolean projection needs an alias.`);
+    if (item.boolean_mode && item.count_mode) {
+      warnings.push(
+        `RETURN projection ${index + 1}: return boolean and return count cannot both be active.`
+      );
     }
-    if (!item.comparison_operator) {
-      warnings.push(`RETURN projection ${index + 1}: select a comparison operator.`);
-    } else if (
-      comparisonOperatorNeedsValue(item.comparison_operator) &&
-      !(item.comparison_value ?? "").trim()
-    ) {
-      warnings.push(`RETURN projection ${index + 1}: enter a value to compare against.`);
+    if (item.boolean_mode) {
+      // Without an alias the column is named after the whole comparison expression,
+      // which no downstream response_parameter mapping can address.
+      if (!(item.alias ?? "").trim()) {
+        warnings.push(`RETURN projection ${index + 1}: a boolean projection needs an alias.`);
+      }
+      if (!item.comparison_operator) {
+        warnings.push(`RETURN projection ${index + 1}: select a comparison operator.`);
+      } else if (
+        comparisonOperatorNeedsValue(item.comparison_operator) &&
+        !(item.comparison_value ?? "").trim()
+      ) {
+        warnings.push(`RETURN projection ${index + 1}: enter a value to compare against.`);
+      }
+    }
+    if (item.count_mode) {
+      // Without an alias the column is named `count(alias.prop)`, which no
+      // downstream response_parameter mapping can address.
+      if (!(item.alias ?? "").trim()) {
+        warnings.push(`RETURN projection ${index + 1}: a count projection needs an alias.`);
+      }
     }
   });
 
