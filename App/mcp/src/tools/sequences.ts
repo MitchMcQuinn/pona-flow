@@ -12,12 +12,15 @@ import {
   assertPreflightClear,
   DEFAULT_STEP_RELATIONSHIP_LABEL,
   normalizeAttributiveLabel,
+  parseSequenceParameterValues,
   runCreate,
   saveSequencePackage,
+  serializeSequenceParameterValues,
   updateSequencePackage,
   type AuthoringContext,
   type BuilderConfig,
   type QueryObject,
+  type SequenceParameterValue,
 } from "@pona-flow/authoring";
 import { connector } from "@pona-flow/connector";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -95,6 +98,71 @@ const loopSchema = z
       ),
   })
   .optional();
+
+const sequenceBindingSchema = z
+  .array(
+    z.object({
+      name: z.string().describe("STEP parameter name without the leading $."),
+      value: z
+        .string()
+        .optional()
+        .describe("Value baked into this sequence. Omit or leave blank to collect it at run time."),
+      value_type: z.string().optional().describe("Ignored; type is owned by the STEP."),
+      is_required: z
+        .boolean()
+        .optional()
+        .describe("Ignored; requiredness is owned by the STEP."),
+    })
+  )
+  .optional()
+  .describe(
+    "Values for STEP parameters this sequence uses. Bound names skip HITL and MCP/webhook " +
+      "input collection; a caller can still override them. Call describe_sequence to see " +
+      "bindable names. Unknown names are rejected."
+  );
+
+async function assertSequenceBindings(
+  spaceId: string,
+  bindings: SequenceParameterValue[],
+  opts: {
+    sequenceId?: string;
+    entryStep?: string;
+    traversal?: "single" | "downstream";
+  }
+): Promise<SequenceParameterValue[]> {
+  const serialized = serializeSequenceParameterValues(bindings);
+  if (!serialized.length) return [];
+  const preview = await connector.previewSequenceParameters({
+    spaceId,
+    sequenceId: opts.sequenceId,
+    entryStep: opts.entryStep,
+    traversal: opts.traversal,
+  });
+  const allowed = new Set(
+    preview.parameters.map((param) => String(param.name || "").trim()).filter(Boolean)
+  );
+  const unknown = serialized.filter((binding) => !allowed.has(binding.name));
+  if (unknown.length) {
+    const available = [...allowed].sort().join(", ") || "(none)";
+    const names = unknown.map((binding) => binding.name).join(", ");
+    throw new Error(
+      `Unknown sequence parameter${unknown.length > 1 ? "s" : ""}: ${names}. ` +
+        `Bindable inputs on this chain: ${available}.`
+    );
+  }
+  return serialized;
+}
+
+function bindingsFromArgs(
+  parameters:
+    | Array<{ name: string; value?: string }>
+    | undefined
+): SequenceParameterValue[] {
+  return (parameters || []).map((param) => ({
+    name: param.name,
+    value: param.value,
+  }));
+}
 
 /** Resolve a STEP node's graph id from its attributive_label, failing with a usable hint. */
 async function stepIdForLabel(spaceId: string, attributiveLabel: string): Promise<string> {
@@ -232,20 +300,7 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
             "'downstream' (default) runs the whole POINTS_TO chain; 'single' runs only the " +
               "entry step even when it has outgoing edges."
           ),
-        parameters: z
-          .array(
-            z.object({
-              name: z.string(),
-              value_type: z.string().optional(),
-              value: z.string().optional(),
-              is_required: z
-                .boolean()
-                .optional()
-                .describe("When true, a manual run pauses here until an operator supplies this value."),
-            })
-          )
-          .optional()
-          .describe("Inputs collected before the run and bound as $name inside the steps."),
+        parameters: sequenceBindingSchema,
         loop: loopSchema,
         space_id: z.string().optional(),
       },
@@ -254,12 +309,17 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
       guard(async () => {
         const spaceId = resolveSpaceId(config, args.space_id);
         await stepIdForLabel(spaceId, args.entry_step);
+        const traversal = args.traversal === "single" ? "single" : "downstream";
+        const parameterValues = await assertSequenceBindings(
+          spaceId,
+          bindingsFromArgs(args.parameters),
+          { entryStep: args.entry_step, traversal }
+        );
         const sequenceId = await connector.generateQueryId();
         const query = buildSequenceQuery({
           id: sequenceId,
           entry_step: args.entry_step,
-          traversal: args.traversal === "single" ? "single" : "downstream",
-          parameters: args.parameters,
+          traversal,
         });
         const ctx: AuthoringContext = { spaceId, query, runtimeEnabled: true };
         const saved = await saveSequencePackage(ctx, {
@@ -268,6 +328,7 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
           groupTitle: args.group_title,
           description: args.description,
           loop: buildLoopConfig(args.loop),
+          parameterValues,
         });
         return { ok: true, sequence_id: saved.id, entry_step: args.entry_step };
       })
@@ -299,19 +360,7 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
         group_title: z.string().optional(),
         description: z.string().optional(),
         traversal: z.enum(["downstream", "single"]).optional(),
-        parameters: z
-          .array(
-            z.object({
-              name: z.string(),
-              value_type: z.string().optional(),
-              value: z.string().optional(),
-              is_required: z
-                .boolean()
-                .optional()
-                .describe("When true, a manual run pauses here until an operator supplies this value."),
-            })
-          )
-          .optional(),
+        parameters: sequenceBindingSchema,
         loop: loopSchema,
         query: z
           .record(z.unknown())
@@ -329,7 +378,7 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
         let query: QueryObject;
         if (args.query) {
           query = args.query as unknown as QueryObject;
-        } else if (args.entry_step || args.traversal || args.parameters) {
+        } else if (args.entry_step || args.traversal) {
           const entryStep = args.entry_step ?? entryStepFrom(stored?.query, pkg.cypher);
           if (!entryStep) {
             throw new Error(
@@ -343,7 +392,6 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
             traversal:
               args.traversal ??
               (stored?.query?.read_traversal === "downstream" ? "downstream" : "single"),
-            parameters: args.parameters,
           });
         } else if (stored?.query) {
           query = stored.query;
@@ -353,6 +401,19 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
           );
         }
         query.id = args.sequence_id;
+
+        const entryStep = entryStepFrom(query, pkg.cypher);
+        const traversal =
+          args.traversal ??
+          (query.read_traversal === "downstream" ? "downstream" : "single");
+        const parameterValues =
+          args.parameters !== undefined
+            ? await assertSequenceBindings(spaceId, bindingsFromArgs(args.parameters), {
+                sequenceId: args.entry_step ? undefined : args.sequence_id,
+                entryStep,
+                traversal,
+              })
+            : parseSequenceParameterValues(pkg.parameters);
 
         const ctx: AuthoringContext = {
           spaceId,
@@ -368,6 +429,7 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
           // Omitting `loop` keeps the saved rule — this is a full-row upsert, so an
           // update that only touched the description would otherwise clear it.
           loop: buildLoopConfig(args.loop ?? (pkg.loop_config as LoopIntent | undefined)),
+          parameterValues,
         });
         return {
           ok: true,

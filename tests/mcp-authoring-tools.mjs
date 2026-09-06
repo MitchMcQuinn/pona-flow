@@ -115,6 +115,21 @@ assert.ok(
   "delay_seconds" in (createSequenceSchema.properties?.loop?.properties || {}),
   "create_sequence loop accepts delay_seconds"
 );
+assert.ok(
+  "parameters" in createSequenceSchema.properties,
+  "create_sequence accepts parameter bindings"
+);
+assert.match(
+  String(createSequenceSchema.properties.parameters.description || ""),
+  /Bound names skip HITL/,
+  "create_sequence parameters are sequence-level bindings, not STEP definitions"
+);
+assert.match(
+  String(updateSequenceSchema.properties.parameters.description || ""),
+  /Bound names skip HITL/,
+  "update_sequence parameters are the same sequence-level bindings"
+);
+assert.match(INSTRUCTIONS, /describe_sequence/);
 
 // --- Argument validation happens before anything reaches the network ---
 
@@ -266,6 +281,11 @@ const single = composer.composeQuery(
 ).cypher;
 assert.match(single, /MATCH \(STEP_A:STEP \{ attributive_label: 'STEP_A' \}\)/);
 assert.doesNotMatch(single, /-\[\*\]/);
+assert.deepEqual(
+  buildSequenceQuery({ id: "seq-1", entry_step: "STEP_A" }).parameters,
+  [],
+  "sequence MATCH does not carry STEP parameter definitions"
+);
 
 // --- Confirmation tokens ---
 

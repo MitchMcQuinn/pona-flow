@@ -416,9 +416,20 @@ export function useSequenceNav(options: {
     }
   }
 
+  async function refreshComposedSequence(): Promise<ComposedSequence | null> {
+    const sequenceId = state.nav.selectedSequenceId;
+    const spaceId = state.spaceId;
+    if (!sequenceId || !spaceId) return null;
+    const composed = await composeSequence(sequenceId, spaceId);
+    setComposedSequence(composed);
+    setComposeError(null);
+    return composed;
+  }
+
   return {
     composedSequence,
     composeError,
+    refreshComposedSequence,
     sequencePreviewLoading,
     sequenceDelete,
     operationDelete,

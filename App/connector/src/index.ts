@@ -35,6 +35,7 @@ import {
   fetchQueryPackage,
   fetchSavedQueries,
   generateQueryId,
+  previewSequenceParameters,
   updateQueryDescription,
   upsertQuery,
 } from "./queries.js";
@@ -150,6 +151,15 @@ export interface ConnectorApi {
   ): Promise<boolean>;
   fetchSavedQueries(apiBase?: string): Promise<SavedQueryRow[]>;
   fetchQueryPackage(id: string, apiBase?: string): Promise<import("./types.js").QueryPackageRow>;
+  previewSequenceParameters(
+    opts: {
+      spaceId: string;
+      sequenceId?: string;
+      entryStep?: string;
+      traversal?: "single" | "downstream";
+    },
+    apiBase?: string
+  ): Promise<import("./queries.js").SequenceParameterPreview>;
   generateQueryId(apiBase?: string): Promise<string>;
   upsertQuery(payload: QueriesUpsertPayload, apiBase?: string): Promise<{ id: string }>;
   updateQueryDescription(
@@ -253,6 +263,7 @@ export const connector: ConnectorApi = {
   checkInstancePropertyExists,
   fetchSavedQueries,
   fetchQueryPackage,
+  previewSequenceParameters,
   generateQueryId,
   upsertQuery,
   updateQueryDescription,

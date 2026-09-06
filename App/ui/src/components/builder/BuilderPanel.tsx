@@ -3,7 +3,9 @@ import connector from "../../services/connector";
 import {
   composeSequence,
   fetchSpaceRecord,
-  type ExecutionAvailableParameters
+  previewSequenceParameters,
+  type ExecutionAvailableParameters,
+  type ExecutionStepParameter
 } from "../../services/api";
 import regexValidator from "../../services/regexValidator";
 import {
@@ -31,9 +33,11 @@ import {
   loopConfigWarnings,
   normalizeAttributiveLabel,
   sanitizeAttributiveLabelInput,
+  parseSequenceParameterValues,
+  serializeSequenceParameterValues,
   sequenceEntryPointWarnings
 } from "@pona-flow/authoring";
-import type { LoopComparisonOperator, LoopConfig } from "@pona-flow/authoring";
+import type { LoopComparisonOperator, LoopConfig, QueryObject } from "@pona-flow/authoring";
 import type { BuilderSeed, RunResult } from "../../state/builder/types";
 import {
   loadStepNodeIntoQuery,
@@ -49,6 +53,11 @@ import {
 import { Picker } from "./Picker";
 import { QueryCard } from "./QueryCard";
 import { SequenceLoopFields } from "./fields/SequenceLoopFields";
+import {
+  bindableStepParameters,
+  bindingToInputString,
+  SequenceParameterValues
+} from "./fields/SequenceParameterValues";
 import { useToast } from "../Toast";
 import "./builder.css";
 
@@ -478,19 +487,40 @@ function CreateSequenceFields({
   );
 }
 
+function sequenceEntryLabel(query: QueryObject): string {
+  const element = query.match?.[0]?.patterns?.[0]?.path?.[0];
+  if (element && element.kind === "node") {
+    return (element.node.attributive_label || "").trim();
+  }
+  return "";
+}
+
+function sequencePreviewTraversal(query: QueryObject): "single" | "downstream" {
+  if (query.read_traversal === "downstream" || query.read_traversal === "network") {
+    return "downstream";
+  }
+  const path = query.match?.[0]?.patterns?.[0]?.path ?? [];
+  if (path.some((element) => element.kind === "relationship")) return "downstream";
+  return "single";
+}
+
 function CreateSequenceActions({
   name,
   groupTitle,
   description,
   loop,
+  parameterValues,
   canCreate,
+  parametersLoading,
   onSequenceCreated
 }: {
   name: string;
   groupTitle: string;
   description: string;
   loop: LoopConfig;
+  parameterValues: ReturnType<typeof serializeSequenceParameterValues>;
   canCreate: boolean;
+  parametersLoading: boolean;
   onSequenceCreated?: (sequenceId: string) => void;
 }) {
   const { state } = useBuilder();
@@ -500,7 +530,7 @@ function CreateSequenceActions({
   const [error, setError] = useState<string | null>(null);
 
   async function onCommit() {
-    if (!canCreate) return;
+    if (!canCreate || parametersLoading) return;
     setBusy(true);
     setError(null);
     try {
@@ -508,7 +538,8 @@ function CreateSequenceActions({
         name: name.trim(),
         groupTitle: groupTitle.trim(),
         description: description.trim(),
-        loop
+        loop,
+        parameterValues
       };
       const result =
         editing && state.editSequence
@@ -549,7 +580,7 @@ function CreateSequenceActions({
           type="button"
           className="btnPrimary"
           data-testid="builder-create-sequence-btn"
-          disabled={!canCreate || busy}
+          disabled={!canCreate || busy || parametersLoading}
           onClick={onCommit}
         >
           {label}
@@ -628,6 +659,11 @@ function BuilderBody({
   // Cycle count, unknown aliases, and the nesting ban are all graph-level facts only
   // compose can check, so its error is surfaced as a builder warning.
   const [loopComposeError, setLoopComposeError] = useState<string | null>(null);
+  const [bindableParameters, setBindableParameters] = useState<ExecutionStepParameter[]>([]);
+  const [bindableParametersLoading, setBindableParametersLoading] = useState(false);
+  const [sequenceParameterValues, setSequenceParameterValues] = useState<Record<string, string>>(
+    {}
+  );
 
   const warnings = useMemo(
     () => [
@@ -690,6 +726,27 @@ function BuilderBody({
     sequenceGroupValid &&
     sequenceWarnings.length === 0 &&
     loopWarnings.length === 0;
+  const serializedParameterValues = useMemo(() => {
+    // While discovery is in flight (or compose failed on edit), keep whatever the
+    // catalog already stored rather than writing `[]` and wiping bindings.
+    if (bindableParametersLoading || (editingSequence && loopComposeError)) {
+      return serializeSequenceParameterValues(
+        Object.entries(sequenceParameterValues).map(([name, value]) => ({ name, value }))
+      );
+    }
+    return serializeSequenceParameterValues(
+      bindableParameters.map((parameter) => ({
+        name: parameter.name,
+        value: sequenceParameterValues[parameter.name] ?? ""
+      }))
+    );
+  }, [
+    bindableParameters,
+    bindableParametersLoading,
+    editingSequence,
+    loopComposeError,
+    sequenceParameterValues
+  ]);
 
   // Entering create-sequence mode starts a fresh read/STEP query. Skipped for an edit session,
   // where the saved sequence's builder_config is hydrated instead (see the edit effect below).
@@ -703,6 +760,8 @@ function BuilderBody({
     setSequenceLoop(DEFAULT_LOOP_CONFIG);
     setLoopAliases([]);
     setLoopComposeError(null);
+    setBindableParameters([]);
+    setSequenceParameterValues({});
   }, [createSequenceMode, dispatch]);
 
   // Edit session: hydrate the builder from the saved sequence's builder_config (its QueryObject
@@ -717,6 +776,12 @@ function BuilderBody({
       .then((pkg) => {
         if (cancelled) return;
         setSequenceLoop(readLoopConfig(pkg.loop_config));
+        const bindings = parseSequenceParameterValues(pkg.parameters);
+        const next: Record<string, string> = {};
+        for (const binding of bindings) {
+          next[binding.name] = bindingToInputString(binding.value);
+        }
+        setSequenceParameterValues(next);
         const config = pkg.builder_config;
         if (isHydratableBuilderConfig(config)) {
           dispatch({
@@ -752,23 +817,62 @@ function BuilderBody({
     const spaceId = state.spaceId;
     if (!sequenceId || !spaceId) return;
     let cancelled = false;
+    setBindableParametersLoading(true);
     composeSequence(sequenceId, spaceId)
       .then((composed) => {
         if (cancelled) return;
         setLoopAliases(composed.package.available_parameters ?? []);
+        setBindableParameters(bindableStepParameters(composed.package));
         setLoopComposeError(null);
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         setLoopAliases([]);
+        setBindableParameters([]);
         setLoopComposeError(
           error instanceof Error ? error.message : "Failed to compose this sequence."
         );
+      })
+      .finally(() => {
+        if (!cancelled) setBindableParametersLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, [editSeed?.sequenceId, state.spaceId]);
+
+  const entryLabel = sequenceEntryLabel(state.query);
+  const previewTraversal = sequencePreviewTraversal(state.query);
+
+  useEffect(() => {
+    if (!createSequenceMode || editingSequence || !state.spaceId) return;
+    if (!entryLabel) {
+      setBindableParameters([]);
+      setBindableParametersLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setBindableParametersLoading(true);
+    previewSequenceParameters({
+      spaceId: state.spaceId,
+      entryStep: entryLabel,
+      traversal: previewTraversal
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setBindableParameters((data.parameters ?? []) as ExecutionStepParameter[]);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setBindableParameters([]);
+      })
+      .finally(() => {
+        if (!cancelled) setBindableParametersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [createSequenceMode, editingSequence, state.spaceId, entryLabel, previewTraversal]);
 
   useEffect(() => {
     if (prevCreateSequenceMode.current && !createSequenceMode) {
@@ -1049,6 +1153,18 @@ function BuilderBody({
           />
         ) : null}
 
+        {createSequenceMode ? (
+          <SequenceParameterValues
+            parameters={bindableParameters}
+            values={sequenceParameterValues}
+            onChange={(name, raw) =>
+              setSequenceParameterValues((current) => ({ ...current, [name]: raw }))
+            }
+            loading={bindableParametersLoading}
+            waitingForEntry={!entryLabel}
+          />
+        ) : null}
+
         <QueryCard />
 
         {createSequenceMode ? null : <AdvancedOptions />}
@@ -1069,6 +1185,7 @@ function BuilderBody({
             createSequenceMode={createSequenceMode}
             sequenceName={sequenceName}
             sequenceGroupTitle={sequenceGroupTitle}
+            sequenceParameterValues={serializedParameterValues}
           />
         ) : null}
       </fieldset>
@@ -1079,7 +1196,9 @@ function BuilderBody({
           groupTitle={sequenceGroupTitle}
           description={sequenceDescription}
           loop={sequenceLoop}
+          parameterValues={serializedParameterValues}
           canCreate={canCreateSequence}
+          parametersLoading={bindableParametersLoading}
           onSequenceCreated={onSequenceCreated}
         />
       ) : state.editOperation ? (

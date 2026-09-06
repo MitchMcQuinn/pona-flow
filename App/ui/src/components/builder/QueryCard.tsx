@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useBuilder } from "../../state/builder/BuilderContext";
-import { hasReferencedParameters } from "@pona-flow/authoring";
 import { syncParametersFromReferences } from "@pona-flow/authoring";
 import { isVectorSearchEnabled } from "@pona-flow/composer";
 import { DeleteSection } from "./DeleteSection";
@@ -19,10 +18,8 @@ export function QueryCard() {
   const { query } = state;
   const op = query.operation;
   const clauseLabel = query.match[0]?.label;
-  // Always available while authoring an operation, so a parameter can be declared before
-  // anything references it. A sequence row's parameters are inert at run time (the engine
-  // collects inputs from the composed steps), so there the card stays reference-driven.
-  const showParameters = createSequenceMode ? hasReferencedParameters(query) : true;
+  // Sequence bindings live on a dedicated card; the MATCH query does not define params.
+  const showParameters = !createSequenceMode;
   // Update SCHEMA/STEP only edits entity config payloads (SQLite); the graph-clause
   // cards (WHERE/SET/RETURN) don't apply.
   const entityConfigUpdate = isEntityConfigUpdate(op, clauseLabel);

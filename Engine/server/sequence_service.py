@@ -74,9 +74,9 @@ def list_runnable_sequences(space_id: str) -> list[dict[str, Any]]:
     Listing uses catalog flags only (``kind == 'sequence'`` and ``runtime_enabled`` /
     ``triggerable``); parameter aggregation is best-effort: it composes each sequence's
     EXECUTION package and unions the parameters across its steps, dropping any satisfied
-    by an upstream step response. A sequence whose graph can't be composed is still
-    listed with an empty parameter list. This shape maps onto an MCP tool's
-    ``inputSchema`` in the next phase.
+    by an upstream step response, minted ``auto_generate`` ids, or sequence-level
+    bindings. A sequence whose graph can't be composed is still listed with an empty
+    parameter list. This shape maps onto an MCP tool's ``inputSchema`` in the next phase.
     """
     sid = (space_id or "").strip()
     sequences: list[dict[str, Any]] = []
@@ -108,24 +108,4 @@ def _aggregate_parameters(space_id: str, sequence_id: str) -> list[dict[str, Any
     except Exception as err:  # compose/graph failures must not break discovery
         sys.stderr.write(f"sequence-params error ({sequence_id}): {err}\n")
         return []
-    response_names = {
-        str(rp.get("parameter") or "").strip()
-        for rp in (package.get("response_parameters") or [])
-        if isinstance(rp, dict)
-    }
-    seen: set[str] = set()
-    params: list[dict[str, Any]] = []
-    for step in package.get("steps") or []:
-        for p in step.get("parameters") or []:
-            if not isinstance(p, dict):
-                continue
-            # auto_generate parameters (create-INSTANCE graph ids) are minted by the
-            # executor per run and are never caller-supplied inputs.
-            if p.get("auto_generate"):
-                continue
-            name = str(p.get("name") or "").strip()
-            if not name or name in seen or name in response_names:
-                continue
-            seen.add(name)
-            params.append(p)
-    return params
+    return execution.caller_facing_parameters(package)

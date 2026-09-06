@@ -7,11 +7,13 @@ import { formatPreviewSqlBlock } from "../../utils/formatSqlForPreview";
 export function LivePreview({
   createSequenceMode = false,
   sequenceName = "",
-  sequenceGroupTitle = ""
+  sequenceGroupTitle = "",
+  sequenceParameterValues = []
 }: {
   createSequenceMode?: boolean;
   sequenceName?: string;
   sequenceGroupTitle?: string;
+  sequenceParameterValues?: Array<{ name: string; value: unknown }>;
 } = {}) {
   const { state } = useBuilder();
   const preview = useMemo(() => composePreview(state), [state]);
@@ -24,10 +26,17 @@ export function LivePreview({
       id: query.id,
       name: sequenceName,
       cypher: preview.composed.cypher,
-      parameters: composer.queryParametersForQueriesCatalog(query),
+      parameters: sequenceParameterValues,
       groupTitle: sequenceGroupTitle
     });
-  }, [createSequenceMode, sequenceName, sequenceGroupTitle, preview.composed.cypher, state.query]);
+  }, [
+    createSequenceMode,
+    sequenceName,
+    sequenceGroupTitle,
+    sequenceParameterValues,
+    preview.composed.cypher,
+    state.query
+  ]);
 
   return (
     <div className="builderStepParams" data-testid="builder-query-preview">

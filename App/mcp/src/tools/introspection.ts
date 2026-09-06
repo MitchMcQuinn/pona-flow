@@ -10,6 +10,7 @@
 import { connector } from "@pona-flow/connector";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { parseSequenceParameterValues } from "@pona-flow/authoring";
 import { resolveSpaceId, type McpConfig } from "../config.js";
 import { guard } from "../result.js";
 
@@ -123,7 +124,8 @@ export function registerIntrospectionTools(server: McpServer, config: McpConfig)
       title: "Describe sequence",
       description:
         "A sequence's saved package plus the STEP chain its read Cypher traverses, so you can " +
-        "see which steps run in what order.",
+        "see which steps run in what order. Also lists bindable STEP parameters and any values " +
+        "already baked into this sequence.",
       inputSchema: {
         sequence_id: z.string().describe("Catalog id of the sequence."),
         ...spaceArg,
@@ -136,7 +138,27 @@ export function registerIntrospectionTools(server: McpServer, config: McpConfig)
         const pkg = await connector.fetchQueryPackage(sequence_id);
         const entryLabel = parseSequenceEntryLabel(pkg.cypher);
         const chain = entryLabel ? await walkStepChain(spaceId, entryLabel) : [];
-        return { ok: true, sequence: pkg, entry_step: entryLabel || null, chain };
+        const parameterValues = parseSequenceParameterValues(pkg.parameters);
+        let stepParameters: Array<Record<string, unknown>> = [];
+        try {
+          const preview = await connector.previewSequenceParameters({
+            spaceId,
+            sequenceId: sequence_id,
+            entryStep: entryLabel || undefined,
+            traversal: sequenceTraversalOf(pkg),
+          });
+          stepParameters = preview.parameters;
+        } catch {
+          // Compose can fail for a suspended or unreachable graph; still return the package.
+        }
+        return {
+          ok: true,
+          sequence: pkg,
+          entry_step: entryLabel || null,
+          chain,
+          step_parameters: stepParameters,
+          parameter_values: parameterValues,
+        };
       })
   );
 
@@ -229,6 +251,19 @@ function parseSequenceEntryLabel(cypher: string[] | string | undefined): string 
     if (match) return match[1].trim();
   }
   return "";
+}
+
+function sequenceTraversalOf(pkg: {
+  cypher?: string[] | string;
+  builder_config?: Record<string, unknown>;
+}): "single" | "downstream" {
+  const config = pkg.builder_config as { query?: { read_traversal?: string } } | undefined;
+  if (config?.query?.read_traversal === "downstream" || config?.query?.read_traversal === "network") {
+    return "downstream";
+  }
+  const statements = typeof pkg.cypher === "string" ? [pkg.cypher] : pkg.cypher || [];
+  if (statements.some((statement) => /-\s*\[/.test(String(statement ?? "")))) return "downstream";
+  return "single";
 }
 
 /** Follow POINTS_TO from the entry step, stopping at the first repeat so a cycle terminates. */

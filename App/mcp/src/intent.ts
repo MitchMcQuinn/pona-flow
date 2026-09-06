@@ -451,7 +451,6 @@ export interface SequenceIntent {
    * single-step sequence must not inherit a longer sequence's chain.
    */
   traversal?: "single" | "downstream";
-  parameters?: ParameterIntent[];
 }
 
 /** Flat loop arguments as an MCP tool receives them (see {@link buildLoopConfig}). */
@@ -503,12 +502,7 @@ export function buildSequenceQuery(intent: SequenceIntent): QueryObject {
   const query = newQuery("read");
   query.id = intent.id;
   query.name = entryStepLabel;
-  query.parameters = parameters({
-    name: "",
-    operation: "read",
-    node_label: "STEP",
-    parameters: intent.parameters,
-  });
+  query.parameters = [];
 
   const clause = newMatchClause("STEP");
   const element = clause.patterns[0].path[0];

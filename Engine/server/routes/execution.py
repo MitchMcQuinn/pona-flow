@@ -164,6 +164,36 @@ async def sequence_compose(
         raise HTTPException(500, str(e))
 
 
+@router.post("/api/sequence/preview-parameters")
+async def sequence_preview_parameters(
+    request: Request, principal: Principal = Depends(auth.current_principal)
+):
+    body = await json_body(request)
+    space_id = require_body_space_id(body)
+    auth.require_flow(principal, space_id, "read", "STEP")
+    sequence_id = str(body.get("sequence_id") or "").strip()
+    entry_step = str(body.get("entry_step") or "").strip()
+    traversal = str(body.get("traversal") or "downstream").strip() or "downstream"
+    if traversal not in ("single", "downstream"):
+        traversal = "downstream"
+    if not sequence_id and not entry_step:
+        raise bad_request("sequence_id or entry_step is required")
+    if sequence_id:
+        auth.require_sequence_run(principal, space_id, sequence_id)
+    try:
+        return execution.preview_sequence_inputs(
+            space_id,
+            sequence_id=sequence_id or None,
+            entry_step=entry_step or None,
+            traversal=traversal,
+        )
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except Exception as e:
+        sys.stderr.write(f"sequence-preview-parameters error: {e}\n")
+        raise HTTPException(500, str(e))
+
+
 @router.post("/api/sequence/run")
 async def sequence_run(
     request: Request, principal: Principal = Depends(auth.current_principal)

@@ -685,6 +685,21 @@ def _merge_caller_params(resolved: dict[str, Any], params: dict[str, Any] | None
         resolved[str(key)] = val
 
 
+def _merge_sequence_bindings(resolved: dict[str, Any], parameter_values: Any) -> None:
+    """Fill missing keys from sequence-level bindings; never overwrite existing state."""
+    if not isinstance(parameter_values, dict):
+        return
+    for key, val in parameter_values.items():
+        name = str(key or "").strip()
+        if not name or name in resolved:
+            continue
+        if val is None or val == "":
+            continue
+        if isinstance(val, (list, tuple)) and len(val) == 0:
+            continue
+        resolved[name] = val
+
+
 def _collect_step_defaults(step: dict[str, Any]) -> dict[str, Any]:
     """A parameter's author-supplied default, keyed by name (non-empty only)."""
     step_defaults: dict[str, Any] = {}
@@ -725,20 +740,25 @@ def _unresolved_required_params(
 
 
 def _pending_step_parameters(
-    step: dict[str, Any], response_param_names: set[str]
+    step: dict[str, Any],
+    response_param_names: set[str],
+    resolved: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """All of a paused step's human-facing fields (optional included).
 
     A required-but-empty parameter triggers the pause, but the operator is shown
     every field for review/override. Response-bound parameters stay excluded since
-    those are populated from upstream steps, not human input.
+    those are populated from upstream steps, not human input. Names already in
+    ``resolved`` (sequence bindings or caller values) are hidden — they are baked
+    in, unlike STEP defaults which still appear for review.
     """
+    already = resolved or {}
     pending_parameters = []
     for p in step.get("parameters") or []:
         if not isinstance(p, dict) or p.get("auto_generate"):
             continue
         pname = str(p.get("name") or "").strip()
-        if not pname or pname in response_param_names:
+        if not pname or pname in response_param_names or pname in already:
             continue
         pending_parameters.append(p)
     return pending_parameters
@@ -1110,6 +1130,7 @@ def run_execution(
 
     progress = row.get("progress") or {}
     resolved: dict[str, Any] = dict(progress.get("resolved") or {})
+    _merge_sequence_bindings(resolved, package.get("parameter_values"))
     _merge_caller_params(resolved, params)
     visited: set[str] = set(progress.get("visited") or [])
     loop_state: dict[str, Any] = dict(progress.get("loop") or {}) or _new_loop_state()
@@ -1216,7 +1237,9 @@ def run_execution(
                 "status": "pending",
                 "state_id": state_id,
                 "step_id": step_id,
-                "parameters": _pending_step_parameters(step, response_param_names),
+                "parameters": _pending_step_parameters(
+                    step, response_param_names, resolved
+                ),
                 "resolved": resolved,
             }
 
@@ -1375,7 +1398,13 @@ def stop_execution(
     one = (state_id or "").strip()
     seq = (sequence_id or "").strip()
     if one:
-        return catalog.request_state_cancel(one)
+        result = catalog.request_state_cancel(one)
+        missing = result.get("status") == "error" and "not found" in str(
+            result.get("message") or ""
+        ).lower()
+        if not missing or not seq:
+            return result
+        # Stale in-flight id (purged row, tab left open): cancel by sequence instead.
     if not seq:
         return {"status": "error", "message": "state_id or sequence_id is required"}
     stopped: list[str] = []

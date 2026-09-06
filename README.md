@@ -1,6 +1,6 @@
 # pona flow
 
-pona flow is a hybrid SQLite/graph-based design system and runtime application for agentic context engineering.
+pona flow is a middleware workspace and runtime engine for graph-based context engineering and workflow execution.
 
 ## Development setup
 

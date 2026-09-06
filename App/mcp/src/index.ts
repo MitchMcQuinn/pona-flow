@@ -44,7 +44,9 @@ Build order (this matters — each stage depends on the previous one existing):
    building block). A chain of STEPs is materialized only — call create_sequence after the
    transitions exist. It does not save a factory that mints more STEPs.
 2. create_step_transition for each edge, referencing STEP nodes by attributive_label.
-3. create_sequence, naming the STEP the chain starts at.
+3. create_sequence, naming the STEP the chain starts at. Optional parameters bake
+   values into existing STEP inputs for that sequence only; bound names skip HITL and
+   runtime MCP/webhook collection. Call describe_sequence to see bindable names.
 Skipping ahead fails: a sequence created before its steps exist matches nothing, and a
 transition cannot attach to a STEP node that has not been created yet.
 

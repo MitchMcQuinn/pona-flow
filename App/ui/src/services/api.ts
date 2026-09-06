@@ -615,6 +615,7 @@ export interface ExecutionPackage {
   steps: ExecutionStep[];
   response_parameters?: ExecutionResponseParameter[];
   available_parameters?: ExecutionAvailableParameters[];
+  parameter_values?: Record<string, unknown>;
   loop?: ExecutionLoop;
 }
 
@@ -636,6 +637,29 @@ export async function composeSequence(
     "/api/sequence/compose",
     { space_id: spaceId, query_id: sequenceId },
     (response, data) => data.detail || `Failed to compose sequence (${response.status})`
+  );
+}
+
+export async function previewSequenceParameters(
+  opts: {
+    spaceId: string;
+    sequenceId?: string;
+    entryStep?: string;
+    traversal?: "single" | "downstream";
+  }
+): Promise<{
+  parameters: ExecutionStepParameter[];
+  parameter_values: Record<string, unknown>;
+}> {
+  return postJson(
+    "/api/sequence/preview-parameters",
+    {
+      space_id: opts.spaceId,
+      sequence_id: opts.sequenceId,
+      entry_step: opts.entryStep,
+      traversal: opts.traversal
+    },
+    (response, data) => data.detail || `Failed to preview sequence parameters (${response.status})`
   );
 }
 
@@ -832,6 +856,16 @@ export async function stopSequenceExecution(
   });
   if (!response.ok) {
     const data = (await response.json().catch(() => ({}))) as { error?: string };
+    if (response.status === 404) {
+      const detail = (data.error || "").trim();
+      return {
+        status: "error",
+        message:
+          detail.toLowerCase() === "state not found"
+            ? "state not found"
+            : "Stop is not available on this engine. Restart the Python API and try again."
+      };
+    }
     return { status: "error", message: data.error || "Failed to stop sequence" };
   }
   return (await response.json()) as ExecutionRunResult;

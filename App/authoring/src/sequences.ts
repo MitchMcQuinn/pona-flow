@@ -20,6 +20,52 @@ import {
 } from "./stepWrapLabel.js";
 import type { AuthoringContext, LoopConfig } from "./types.js";
 
+/** A STEP parameter value baked into this sequence (catalog `queries.parameters`). */
+export interface SequenceParameterValue {
+  name: string;
+  value: unknown;
+}
+
+/** True when a binding should not be persisted or applied at run start. */
+export function isEmptySequenceBindingValue(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value === "string" && value.trim() === "") return true;
+  if (Array.isArray(value) && value.length === 0) return true;
+  return false;
+}
+
+/**
+ * Catalog rows for sequence-level STEP parameter values. Empty names/values are
+ * dropped; the first value for a name wins. These are bindings, not parameter
+ * definitions — type and requiredness stay on the STEP.
+ */
+export function serializeSequenceParameterValues(
+  values: SequenceParameterValue[] | undefined
+): SequenceParameterValue[] {
+  const out: SequenceParameterValue[] = [];
+  const seen = new Set<string>();
+  for (const entry of values || []) {
+    const name = String(entry?.name ?? "").trim();
+    if (!name || seen.has(name) || isEmptySequenceBindingValue(entry.value)) continue;
+    seen.add(name);
+    out.push({ name, value: entry.value });
+  }
+  return out;
+}
+
+/** Load catalog `parameters` back into sequence bindings (legacy full param rows included). */
+export function parseSequenceParameterValues(raw: unknown): SequenceParameterValue[] {
+  if (!Array.isArray(raw)) return [];
+  return serializeSequenceParameterValues(
+    raw
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+      .map((entry) => ({
+        name: String(entry.name ?? ""),
+        value: entry.value
+      }))
+  );
+}
+
 export interface SequenceInput {
   id: string;
   name: string;
@@ -31,6 +77,11 @@ export interface SequenceInput {
    * simply ends the run.
    */
   loop?: LoopConfig;
+  /**
+   * Per-sequence values for STEP parameters this chain uses. Stored on the catalog
+   * `parameters` column; not on QueryObject.parameters (reference-sync would wipe them).
+   */
+  parameterValues?: SequenceParameterValue[];
 }
 
 /** Result of saving or updating a sequence catalog row. */
@@ -111,7 +162,7 @@ export async function saveSequencePackage(
     space_id: ctx.spaceId || undefined,
     cypher: cypherStatementsForExecution(composed.cypher),
     sqlite: [],
-    parameters: composer.queryParametersForQueriesCatalog(query),
+    parameters: serializeSequenceParameterValues(input.parameterValues),
     description: input.description?.trim() || undefined,
     // Declarative builder snapshot so the sequence can be round-tripped back into the
     // create-sequence builder for visual editing (the composer is forward-only).
@@ -158,7 +209,7 @@ export async function updateSequencePackage(
     space_id: ctx.spaceId || undefined,
     cypher: cypherStatementsForExecution(composed.cypher),
     sqlite: [],
-    parameters: composer.queryParametersForQueriesCatalog(query),
+    parameters: serializeSequenceParameterValues(input.parameterValues),
     description: input.description?.trim() || undefined,
     builder_config: serializeBuilderConfig(ctx, true),
     loop_config: normalizeLoopConfig(input.loop)

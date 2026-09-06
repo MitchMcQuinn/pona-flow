@@ -319,6 +319,22 @@ try:
     seq_stop = execution.stop_execution("SP_TEST", sequence_id="SEQ_WAIT")
     check("stop by sequence_id returns a status", seq_stop.get("status") in ("cancelled", "cancelling", "inactive"))
 
+    result, fallback_sid = run(
+        pkg([wait_step("WFALL", duration_seconds=60)], sequence_query_id="SEQ_FALLBACK")
+    )
+    check("fallback setup is waiting", result.get("status") == "waiting")
+    stopped = execution.stop_execution(
+        "SP_TEST", "ID_missing_state", sequence_id="SEQ_FALLBACK"
+    )
+    check(
+        "stop falls back to sequence_id when state_id is missing",
+        stopped.get("status") == "cancelled",
+    )
+    check(
+        "fallback cancelled the waiting row",
+        (catalog.fetch_state_package(fallback_sid) or {}).get("status") == "cancelled",
+    )
+
     # --- scheduler wakes a due duration wait -----------------------------------
     result, sched_sid = run(pkg([wait_step("WK", duration_seconds=90)], sequence_query_id="SEQ_SCHED"))
     expire_wait(sched_sid)
@@ -335,6 +351,33 @@ try:
     ids = {item.get("state_id") for item in listed}
     check("in-flight lists the waiting run in this space", inflight_sid in ids)
     check("in-flight excludes other spaces", other_sid not in ids)
+    parent_pending, parent_sid = run(
+        pkg(
+            [
+                query_step(
+                    "PARENT_HITL",
+                    parameters=[{"name": "note", "is_required": True, "value_type": "string"}],
+                )
+            ],
+            sequence_query_id="SEQ_PARENT_SHARE",
+            space_id="SP_TEST",
+        )
+    )
+    check("parent leftover is pending HITL", parent_pending.get("status") == "pending")
+    listed = catalog.list_in_flight_states("SP_TEST")
+    by_state = {item.get("state_id"): item.get("sequence_id") for item in listed}
+    check(
+        "waiting run keeps its own sequence_id",
+        by_state.get(inflight_sid) == "SEQ_IF",
+    )
+    check(
+        "pending parent is not attributed the waiting sequence_id",
+        by_state.get(parent_sid) == "SEQ_PARENT_SHARE",
+    )
+    check(
+        "waiting run is not listed under the parent sequence",
+        by_state.get(inflight_sid) != "SEQ_PARENT_SHARE",
+    )
     check(
         "in-flight status is waiting",
         any(item.get("state_id") == inflight_sid and item.get("status") == "waiting" for item in listed),

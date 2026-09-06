@@ -109,8 +109,9 @@ curl -X POST "http://127.0.0.1:8765/api/spaces/MARKETING/mcp" \
   -d '{ "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {} }'
 ```
 
-Each tool's `inputSchema` lists the sequence's parameters (all optional — see HITL below)
-plus a `state_id` argument used to resume a paused run.
+Each tool's `inputSchema` lists the sequence's parameters still needed from the caller
+(all optional — see HITL below) plus a `state_id` argument used to resume a paused run.
+Names baked in on the sequence are omitted.
 
 ### tools/call
 
@@ -226,7 +227,7 @@ triggered the run.
 | Tool `name` | Sequence id (e.g. `ID_...`) |
 | Tool `title` | Sequence name |
 | Tool `description` | Sequence description (falls back to name + group) |
-| Tool `inputSchema` | Aggregated sequence parameters (each carrying its description) + `state_id` |
+| Tool `inputSchema` | Aggregated sequence parameters still needed from the caller (each carrying its description) + `state_id`. Names pre-set on the sequence are omitted. |
 | Server `instructions` | Space description |
 | `pending` result + `state_id` | Paused for operator input; resume with those parameters |
 | `waiting` result + `state_id` | Background park (timer / until / event / loop delay); resumes without new params |

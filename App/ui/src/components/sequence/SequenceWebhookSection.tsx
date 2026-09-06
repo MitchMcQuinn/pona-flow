@@ -1,5 +1,10 @@
 import { useState } from "react";
+import { isEmptySequenceBindingValue } from "@pona-flow/authoring";
 import type { ExecutionPackage, ExecutionStepParameter } from "../../services/api";
+import {
+  bindableStepParameters,
+  boundParameterNames
+} from "../builder/fields/SequenceParameterValues";
 
 interface SequenceWebhookSectionProps {
   spaceId: string;
@@ -20,29 +25,14 @@ function shellSingleQuote(value: string): string {
 
 /** Caller-supplied inputs across a sequence's steps — same rules as the webhook discovery list. */
 export function callerInputParameters(pkg: ExecutionPackage): ExecutionStepParameter[] {
-  const responseNames = new Set(
-    (pkg.response_parameters ?? [])
-      .map((responseParam) => (responseParam.parameter || "").trim())
-      .filter((name) => name.length > 0)
-  );
-  const seen = new Set<string>();
-  const params: ExecutionStepParameter[] = [];
-  for (const step of pkg.steps ?? []) {
-    for (const parameter of step.parameters ?? []) {
-      const name = (parameter.name || "").trim();
-      if (!name || seen.has(name) || responseNames.has(name) || parameter.auto_generate) {
-        continue;
-      }
-      seen.add(name);
-      params.push(parameter);
-    }
-  }
-  return params;
+  const bound = boundParameterNames(pkg.parameter_values);
+  return bindableStepParameters(pkg).filter((parameter) => !bound.has(parameter.name));
 }
 
 function paramHasFilledValue(value: unknown): boolean {
   if (value === undefined || value === null) return false;
-  return String(value).trim() !== "";
+  if (typeof value === "string") return value.trim() !== "";
+  return !isEmptySequenceBindingValue(value);
 }
 
 function paramsPayload(

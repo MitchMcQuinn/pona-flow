@@ -124,6 +124,10 @@ transition attaches to STEP nodes **by graph id**. Both need their nodes to alre
 operation. A wait STEP parks a run (`duration` seconds, `until` an ISO datetime, or
 until a catalog `event_id` fires) without blocking the request thread. Sequence `loop`
 accepts `delay_seconds` to park between completed loop passes (not before the first).
+`create_sequence` / `update_sequence` `parameters` bake values into existing STEP inputs
+for that sequence only (`name` + `value`). Bound names skip HITL and runtime MCP/webhook
+collection; a caller can still override them. Call `describe_sequence` first so the names
+match the chain. `is_required` on that argument is ignored — requiredness stays on the STEP.
 
 Getting it wrong fails quietly rather than loudly: a sequence created before its steps exist
 matches nothing and runs as a no-op.
@@ -140,7 +144,7 @@ matches nothing and runs as a no-op.
 | `describe_space` | Connections, registered attributive labels, navigation groups. |
 | `list_operations` | Saved catalog packages, filterable by `kind`. |
 | `get_operation` | One package in full, including its `builder_config` snapshot. |
-| `describe_sequence` | A sequence's package plus the STEP chain its Cypher traverses. |
+| `describe_sequence` | A sequence's package plus the STEP chain its Cypher traverses, bindable STEP inputs (`step_parameters`), and baked-in values (`parameter_values`). |
 | `list_step_nodes` | Every STEP node, what it wraps, and its outgoing `POINTS_TO` edges. |
 | `list_schemas` | Every SCHEMA node. |
 | `describe_schema` | A SCHEMA's property constraints and its edges to other SCHEMAs. |
@@ -156,8 +160,8 @@ already taken.
 | `create_operation` | INSTANCE/SCHEMA/read/update/delete: saves a catalog query, auto-wraps a STEP, and (by default) a one-step sequence. Create STEP: materializes the designed STEP. A single new STEP is published as a one-step sequence by default; a chain is materialized only (`create_sequence` publishes it). Agents can pass `add_as_sequence=false`. `execute=true` also runs a create INSTANCE/SCHEMA package (create STEP always materializes). |
 | `update_operation` | Recompiles and overwrites a package in place. The catalog name always saves and is shared with the paired one-step sequence title; the wrap STEP label follows only when the name is free and no multi-step sequence MATCHES the current wrap. Returns `wrap_retargeted` / `wrap_label`. |
 | `create_step_transition` | Writes a `POINTS_TO` edge between two existing STEP nodes, optionally conditional. |
-| `create_sequence` | Saves a runnable sequence starting at an existing STEP node. |
-| `update_sequence` | Overwrites a sequence in place (title, entry step, traversal, parameters, description). The wrap STEP label follows a new title only when that name is free in the graph. A one-step sequence title and its wrapped operation name are the same value — renaming either writes both. |
+| `create_sequence` | Saves a runnable sequence starting at an existing STEP node. Optional `parameters` bake values into STEP inputs for this sequence only. |
+| `update_sequence` | Overwrites a sequence in place (title, entry step, traversal, parameter values, description). Passing only `parameters` does not rebuild the MATCH query. The wrap STEP label follows a new title only when that name is free in the graph. A one-step sequence title and its wrapped operation name are the same value — renaming either writes both. |
 
 **Intent arguments, not raw QueryObjects.** A QueryObject nests clause → pattern → path →
 node → property → schematic properties, with interdependent fields. Asking a model to emit

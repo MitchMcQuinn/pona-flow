@@ -138,6 +138,119 @@ def _to_step_parameters(raw: Any) -> list[dict[str, Any]]:
     return out
 
 
+def binding_value_empty(value: Any) -> bool:
+    """True when a sequence binding should not seed run state."""
+    if value is None:
+        return True
+    if isinstance(value, str) and value.strip() == "":
+        return True
+    if isinstance(value, (list, tuple)) and len(value) == 0:
+        return True
+    return False
+
+
+def _blocked_binding_names(
+    steps: dict[str, dict[str, Any]] | list[dict[str, Any]],
+    response_parameters: list[dict[str, Any]],
+) -> set[str]:
+    """Names that must not be sequence-bound (outputs / minted ids)."""
+    blocked: set[str] = set()
+    for rp in response_parameters:
+        if isinstance(rp, dict):
+            blocked.add(str(rp.get("parameter") or "").strip())
+    step_list = steps.values() if isinstance(steps, dict) else steps
+    for step in step_list:
+        if not isinstance(step, dict):
+            continue
+        for param in step.get("parameters") or []:
+            if not isinstance(param, dict) or not param.get("auto_generate"):
+                continue
+            blocked.add(str(param.get("name") or "").strip())
+    blocked.discard("")
+    return blocked
+
+
+def sequence_parameter_values(
+    catalog_parameters: Any,
+    steps: dict[str, dict[str, Any]] | list[dict[str, Any]],
+    response_parameters: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Map of non-empty sequence bindings keyed by parameter name.
+
+    Only names that appear on a step are kept. ``auto_generate`` and
+    ``response_parameters`` names are dropped so seeding ``resolved`` cannot
+    block minted ids or upstream output bindings.
+    """
+    step_list = list(steps.values()) if isinstance(steps, dict) else list(steps or [])
+    step_names: set[str] = set()
+    for step in step_list:
+        if not isinstance(step, dict):
+            continue
+        for param in step.get("parameters") or []:
+            if not isinstance(param, dict):
+                continue
+            name = str(param.get("name") or "").strip()
+            if name:
+                step_names.add(name)
+    blocked = _blocked_binding_names(step_list, response_parameters or [])
+    out: dict[str, Any] = {}
+    for entry in catalog_parameters or []:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name") or "").strip()
+        if not name or name in out or name not in step_names or name in blocked:
+            continue
+        value = entry.get("value")
+        if binding_value_empty(value):
+            continue
+        out[name] = value
+    return out
+
+
+def bindable_step_parameters(package: dict[str, Any]) -> list[dict[str, Any]]:
+    """STEP inputs a sequence may bake in: not auto_generate, not response-produced."""
+    response_names = {
+        str(rp.get("parameter") or "").strip()
+        for rp in (package.get("response_parameters") or [])
+        if isinstance(rp, dict)
+    }
+    seen: set[str] = set()
+    params: list[dict[str, Any]] = []
+    for step in package.get("steps") or []:
+        if not isinstance(step, dict):
+            continue
+        for param in step.get("parameters") or []:
+            if not isinstance(param, dict) or param.get("auto_generate"):
+                continue
+            name = str(param.get("name") or "").strip()
+            if not name or name in seen or name in response_names:
+                continue
+            seen.add(name)
+            params.append(param)
+    return params
+
+
+def caller_facing_parameters(package: dict[str, Any]) -> list[dict[str, Any]]:
+    """Union of step inputs a caller still needs to supply.
+
+    Drops ``auto_generate``, names written by ``response_parameters``, and names
+    already baked in via ``parameter_values``.
+    """
+    bound: set[str] = set()
+    raw_values = package.get("parameter_values")
+    if isinstance(raw_values, dict):
+        bound = {
+            str(key).strip()
+            for key, value in raw_values.items()
+            if str(key).strip() and not binding_value_empty(value)
+        }
+    return [
+        param
+        for param in bindable_step_parameters(package)
+        if str(param.get("name") or "").strip() not in bound
+    ]
+
+
 def _load_step_entities(space_id: str) -> dict[str, dict[str, Any]]:
     """Return ``{id: {attributive_label, payload, parameters}}`` for STEP entities."""
     conn = spaces.connect_sqlite_for_space(space_id)
@@ -716,6 +829,13 @@ def compose_execution_package(space_id: str, sequence_query_id: str) -> dict[str
         package["response_parameters"] = response_parameters
     if available_parameters:
         package["available_parameters"] = available_parameters
+    parameter_values = sequence_parameter_values(
+        seq.get("parameters") if seq.get("kind") == "sequence" else [],
+        steps,
+        response_parameters,
+    )
+    if parameter_values:
+        package["parameter_values"] = parameter_values
 
     # The graph supplies the cycle; loop_config supplies the rule that ends it. A
     # `dag` sequence yields no descriptor, so the executor keeps its single-pass walk.
@@ -734,6 +854,99 @@ def compose_execution_package(space_id: str, sequence_query_id: str) -> dict[str
     if loop:
         package["loop"] = loop
     return package
+
+
+def preview_sequence_parameters(
+    space_id: str,
+    entry_step: str,
+    traversal: str = "downstream",
+) -> list[dict[str, Any]]:
+    """Caller-facing STEP inputs reachable from ``entry_step``, without a catalog row.
+
+    Used by the create-sequence builder and MCP authoring to bind values before
+    the sequence exists. ``traversal`` of ``single`` walks only the entry STEP;
+    anything else follows outgoing ``POINTS_TO`` (open downstream).
+    """
+    sid = (space_id or "").strip()
+    label = (entry_step or "").strip()
+    if not sid or not label:
+        return []
+    walk = _StepWalk(sid, "")
+    step_id = walk.step_id_for_label(label)
+    if not step_id:
+        return []
+    walk.queue.append(step_id)
+    traverse = (traversal or "downstream").strip() != "single"
+
+    steps: dict[str, dict[str, Any]] = {}
+    response_parameters: list[dict[str, Any]] = []
+    seen_response: set[tuple[str, str]] = set()
+    query_cache: dict[str, dict[str, Any] | None] = {}
+
+    def fetch_query(query_id: str) -> dict[str, Any] | None:
+        qid = (query_id or "").strip()
+        if not qid:
+            return None
+        if qid not in query_cache:
+            query_cache[qid] = catalog.fetch_query_for_compose(qid)
+        return query_cache[qid]
+
+    for node_id, entity in walk.steps():
+        steps[node_id] = _build_step(
+            node_id, entity, walk.adjacency, fetch_query, walk.allow_edge
+        )
+        payload = entity.get("payload") or {}
+        for rp in payload.get("response_parameters") or []:
+            if not isinstance(rp, dict):
+                continue
+            property_path = str(rp.get("property_path") or "").strip()
+            parameter = str(rp.get("parameter") or "").strip()
+            if not property_path or not parameter:
+                continue
+            key = (property_path, parameter)
+            if key in seen_response:
+                continue
+            seen_response.add(key)
+            response_parameters.append(
+                {"property_path": property_path, "parameter": parameter}
+            )
+        if traverse:
+            walk.enqueue_targets(node_id)
+
+    package: dict[str, Any] = {"steps": list(steps.values())}
+    if response_parameters:
+        package["response_parameters"] = response_parameters
+    return bindable_step_parameters(package)
+
+
+def preview_sequence_inputs(
+    space_id: str,
+    sequence_id: str | None = None,
+    entry_step: str | None = None,
+    traversal: str = "downstream",
+) -> dict[str, Any]:
+    """Discover bindable STEP inputs for a saved sequence or an unsaved entry STEP.
+
+    A ``sequence_id`` uses the same compose walk as a run (path/open/single). When
+    compose fails and ``entry_step`` is supplied, falls back to the unsaved walk.
+    """
+    sid = (space_id or "").strip()
+    seq_id = (sequence_id or "").strip()
+    label = (entry_step or "").strip()
+    if seq_id:
+        try:
+            package = compose_execution_package(sid, seq_id)
+            return {
+                "parameters": bindable_step_parameters(package),
+                "parameter_values": dict(package.get("parameter_values") or {}),
+            }
+        except Exception:
+            if not label:
+                raise
+    return {
+        "parameters": preview_sequence_parameters(sid, label, traversal),
+        "parameter_values": {},
+    }
 
 
 def enumerate_sequence_operation_ids(space_id: str, sequence_query_id: str) -> set[str]:

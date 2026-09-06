@@ -23,6 +23,7 @@ import { useEventsNav } from "./hooks/useEventsNav";
 import { usePersistedViewRestore } from "./hooks/usePersistedViewRestore";
 import { useSequenceNav } from "./hooks/useSequenceNav";
 import { useSpacesLifecycle } from "./hooks/useSpacesLifecycle";
+import { navActivitySequenceIds } from "./state/inFlight";
 import { appReducer, initialState } from "./state/reducer";
 import { selectors } from "./state/selectors";
 import type { BuilderSeed, RunResult } from "./state/builder/types";
@@ -88,8 +89,14 @@ export default function App() {
     maybeRestoreSequence,
     bumpSpaceLabelsVersion
   });
-  const { composedSequence, composeError, sequencePreviewLoading, sequenceDelete, operationDelete } =
-    sequenceNav;
+  const {
+    composedSequence,
+    composeError,
+    refreshComposedSequence,
+    sequencePreviewLoading,
+    sequenceDelete,
+    operationDelete
+  } = sequenceNav;
 
   const eventsNav = useEventsNav({ state, dispatch, maybeRestoreEvent });
 
@@ -381,25 +388,30 @@ export default function App() {
       return;
     }
     const isResume = state.run.awaitingParams || inflight?.status === "pending";
-    const runStateId = (isResume && inflight?.state_id) || composedSequence?.state_id;
-    if (!runStateId) {
-      dispatch({
-        type: "RUN_FAILED",
-        error: composeError
-          ? `Sequence failed to compose: ${composeError}`
-          : "Sequence is still composing; try again."
-      });
-      return;
-    }
     // A resume continues a paused (pending) run with the inputs gathered so far; a fresh run
     // starts from a clean slate. On a fresh run we clear the progressively-revealed inputs and
     // resolved values and send no params, so the executor pauses at the first step that needs
-    // input and we reveal each step's parameters as it's reached.
+    // input and we reveal each step's parameters as it's reached. Fresh runs also re-compose so
+    // STEP payload edits (Wait kind, bindings) are in the package, not a stale state row.
     if (!isResume) {
       dispatch({ type: "RUN_INPUTS_RESET" });
     }
     dispatch({ type: "RUN_REQUESTED" });
     try {
+      let runStateId = (isResume && inflight?.state_id) || composedSequence?.state_id;
+      if (!isResume) {
+        const composed = await refreshComposedSequence();
+        runStateId = composed?.state_id || runStateId;
+      }
+      if (!runStateId) {
+        dispatch({
+          type: "RUN_FAILED",
+          error: composeError
+            ? `Sequence failed to compose: ${composeError}`
+            : "Sequence is still composing; try again."
+        });
+        return;
+      }
       const result = await runSequenceExecution(
         state.spaceId,
         runStateId,
@@ -646,7 +658,7 @@ export default function App() {
             userTimezone={state.me?.timezone ?? null}
             onSaveTimezone={handleSaveTimezone}
             onLogout={handleLogout}
-            inFlightSequenceIds={state.inFlight.map((run) => run.sequence_id)}
+            inFlightSequenceIds={navActivitySequenceIds(state.inFlight)}
           />
         }
         visualization={

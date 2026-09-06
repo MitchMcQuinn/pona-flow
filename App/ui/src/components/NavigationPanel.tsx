@@ -53,7 +53,7 @@ interface NavigationPanelProps {
   userTimezone: string | null;
   onSaveTimezone: (timezone: string) => void;
   onLogout: () => void;
-  /** Sequence ids that currently have an active, pending, or waiting run. */
+  /** Catalog sequence ids with a background run (waiting or active — not HITL pending). */
   inFlightSequenceIds?: string[];
 }
 

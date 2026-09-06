@@ -34,10 +34,13 @@ flowchart TB
 Key ideas:
 
 - A **sequence** is a stored workflow of steps. Some steps require parameters that can only
-  come from a caller (the human-in-the-loop case).
+  come from a caller (the human-in-the-loop case). A sequence can also **pre-set** those
+  STEP parameter values at authoring time; baked-in names are omitted from the webhook
+  discovery list and do not pause the run (a caller can still override them in `params`).
 - The webhook **composes and runs** a sequence in a single call. If a step needs input the
-  caller has not supplied, the run **pauses** and returns the required parameters plus a
-  `state_id`. The caller answers by calling again with that `state_id`.
+  caller has not supplied (and the sequence has not pre-set), the run **pauses** and returns
+  the required parameters plus a `state_id`. The caller answers by calling again with that
+  `state_id`.
 - **Agent keys** map to an `agent` principal that is a member of exactly one space, so the
   same per-sequence permission checks used by the UI apply to agents unchanged.
 

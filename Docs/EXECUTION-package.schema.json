@@ -276,6 +276,11 @@
         "description": "Per-step catalogue of the names the sequence's steps publish into run state. Consumed by the builder's loop pickers and by compose-time validation of a loop config; the executor does not read it.",
         "items": { "$ref": "#/$defs/availableParameters" }
       },
+      "parameter_values": {
+        "type": "object",
+        "description": "Sequence-level bindings for STEP parameters, keyed by parameter name. Seeded into run state before caller params; names present here are omitted from caller-facing input schemas and do not pause for HITL.",
+        "additionalProperties": true
+      },
       "loop": { "$ref": "#/$defs/loop" }
     }
   }

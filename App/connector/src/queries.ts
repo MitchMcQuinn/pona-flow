@@ -52,6 +52,44 @@ export async function fetchQueryPackage(id: string, apiBase?: string): Promise<Q
   return data;
 }
 
+export interface SequenceParameterPreview {
+  parameters: Array<Record<string, unknown>>;
+  parameter_values: Record<string, unknown>;
+}
+
+/**
+ * Bindable STEP inputs for a saved sequence or an unsaved entry STEP, plus any
+ * values already baked into the sequence catalog.
+ */
+export async function previewSequenceParameters(
+  opts: {
+    spaceId: string;
+    sequenceId?: string;
+    entryStep?: string;
+    traversal?: "single" | "downstream";
+  },
+  apiBase?: string
+): Promise<SequenceParameterPreview> {
+  const data = await requestJson<SequenceParameterPreview>("/api/sequence/preview-parameters", {
+    method: "POST",
+    body: {
+      space_id: opts.spaceId,
+      sequence_id: opts.sequenceId,
+      entry_step: opts.entryStep,
+      traversal: opts.traversal,
+    },
+    apiBase,
+    errorLabel: "previewing sequence parameters",
+  });
+  return {
+    parameters: Array.isArray(data.parameters) ? data.parameters : [],
+    parameter_values:
+      data.parameter_values && typeof data.parameter_values === "object" && !Array.isArray(data.parameter_values)
+        ? data.parameter_values
+        : {},
+  };
+}
+
 /**
  * Insert or replace a catalog queries row (operation or sequence). The composed
  * cypher/sqlite/parameters and the declarative builder_config snapshot all travel
