@@ -471,6 +471,9 @@ def list_graph_nodes_by_label(space_id: str, node_label: str) -> list[dict[str, 
                         )
                     node["sequencial_properties"] = sequencial
                     node["parameters"] = _fetch_entity_parameters(space_id, entity_id, "STEP")
+                elif str(payload.get("kind") or "").strip() == "join":
+                    node["sequencial_properties"] = {"step_type": "join"}
+                    node["parameters"] = _fetch_entity_parameters(space_id, entity_id, "STEP")
                 else:
                     headers = payload.get("headers")
                     # Custom-endpoint STEP nodes are editable in the update flow, so

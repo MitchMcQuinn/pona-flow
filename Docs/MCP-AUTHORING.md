@@ -113,21 +113,25 @@ transition attaches to STEP nodes **by graph id**. Both need their nodes to alre
 
 - **INSTANCE / SCHEMA / read / update / delete:** saving a catalog query auto-wraps a STEP
   (and, by default, a one-step sequence). That wrap is what later sequences MATCH.
-- **Create STEP (HTTP / Local LLM / Wait):** `create_operation` materializes the designed STEP.
+- **Create STEP (HTTP / Local LLM / Wait / Join):** `create_operation` materializes the designed STEP.
   A **single new STEP** (no hops) is published as a one-step sequence by default. A chain
   of STEPs is materialized only — call `create_sequence` after the transitions exist. It
   does not save a factory whose wrap STEP would mint more STEPs when run. Pass
   `add_as_sequence=false` for a STEP-only building block. `add_as_sequence=true` on a
   multi-step create is rejected.
 
-`http_step`, `local_llm_step`, and `wait_step` are mutually exclusive on create/update
+`http_step`, `local_llm_step`, `wait_step`, and `join_step` are mutually exclusive on create/update
 operation. A wait STEP parks a run (`duration` seconds, `until` an ISO datetime, or
-until a catalog `event_id` fires) without blocking the request thread. HTTP and Local
+until a catalog `event_id` fires) without blocking the request thread. A join STEP is a
+barrier: incoming `POINTS_TO` edges are the arms, the outgoing edge is then, and default
+diamonds (no join box) still run on first arrival. HTTP and Local
 LLM STEPs publish `ok` (HTTP also publishes `status`) into run state for `POINTS_TO`
 conditions. They accept `timeout_seconds` (HTTP default 30, Local LLM default 300, cap
 300), `max_attempts` (default 1), and `backoff_seconds` (0 retries immediately; `>0`
 parks as `retry_backoff`). Sequence `loop` accepts `delay_seconds` to park between
-completed loop passes (not before the first).
+completed loop passes (not before the first). `loop.collect` accumulates named scalars
+across those passes (`from` / `as` / optional `reduce` of `list` or `count`) so a later
+step can use every id, not just the last pass.
 `create_sequence` / `update_sequence` `parameters` bake values into existing STEP inputs
 for that sequence only (`name` + `value`). Bound names skip HITL and runtime MCP/webhook
 collection; a caller can still override them. Call `describe_sequence` first so the names

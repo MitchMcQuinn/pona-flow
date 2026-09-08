@@ -130,7 +130,9 @@ export function StepSequencialConfig({
         ? "local_llm"
         : sp.step_type === "wait"
           ? "wait"
-          : "http";
+          : sp.step_type === "join"
+            ? "join"
+            : "http";
   const waitMode: WaitMode =
     sp.wait_mode === "until" || sp.wait_mode === "event" ? sp.wait_mode : "duration";
 
@@ -312,6 +314,10 @@ export function StepSequencialConfig({
       commitSequencial({ step_type: "wait", wait_mode: waitMode || "duration" });
       return;
     }
+    if (next === "join") {
+      commitSequencial({ step_type: "join" });
+      return;
+    }
     commitSequencial({ step_type: next });
   }
 
@@ -368,7 +374,8 @@ export function StepSequencialConfig({
               options={[
                 { value: "http", label: "HTTP request" },
                 { value: "local_llm", label: "Local LLM" },
-                { value: "wait", label: "Wait" }
+                { value: "wait", label: "Wait" },
+                { value: "join", label: "Join" }
               ]}
               onChange={switchStepType}
             />
@@ -508,6 +515,13 @@ export function StepSequencialConfig({
                 </div>
               ) : null}
             </>
+          ) : stepType === "join" ? (
+            <p className="muted">
+              A join continues only after every inbound arm that actually ran has finished.
+              Draw the arms into this step; the outgoing edge is what happens next. Unused
+              conditional branches do not block it. Arms still run one at a time — this is a
+              meeting point, not parallel execution.
+            </p>
           ) : (
             <>
               <div className="builderField">
@@ -583,7 +597,7 @@ export function StepSequencialConfig({
         </>
       )}
 
-      {stepType === "wait" ? null : (
+      {stepType === "wait" || stepType === "join" ? null : (
         <StepResponseParametersSection
           items={sp.response_parameters ?? []}
           onChange={setResponseParameters}

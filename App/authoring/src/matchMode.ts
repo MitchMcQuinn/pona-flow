@@ -258,7 +258,12 @@ function isCustomEndpointNode(node: NodePattern): boolean {
   const sp = node.sequencial_properties;
   if (!sp) return false;
   if (sp.query_id && String(sp.query_id).trim()) return false;
-  if (sp.step_type === "local_llm" || sp.step_type === "wait" || sp.step_type === "code") {
+  if (
+    sp.step_type === "local_llm" ||
+    sp.step_type === "wait" ||
+    sp.step_type === "join" ||
+    sp.step_type === "code"
+  ) {
     return true;
   }
   const hasResponseParameter = (sp.response_parameters ?? []).some(

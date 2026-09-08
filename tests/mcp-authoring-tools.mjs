@@ -103,6 +103,7 @@ assert.ok(
   "create_operation accepts local_llm_step"
 );
 assert.ok("wait_step" in createSchema.properties, "create_operation accepts wait_step");
+assert.ok("join_step" in createSchema.properties, "create_operation accepts join_step");
 assert.equal(
   "code_step" in createSchema.properties,
   false,
@@ -128,6 +129,10 @@ const createSequenceSchema = byName.get("create_sequence").inputSchema;
 assert.ok(
   "delay_seconds" in (createSequenceSchema.properties?.loop?.properties || {}),
   "create_sequence loop accepts delay_seconds"
+);
+assert.ok(
+  "collect" in (createSequenceSchema.properties?.loop?.properties || {}),
+  "create_sequence loop accepts collect"
 );
 assert.ok(
   "parameters" in createSequenceSchema.properties,
@@ -176,7 +181,7 @@ assert.ok(
   INSTRUCTIONS.indexOf("1. create_operation") < INSTRUCTIONS.indexOf("3. create_sequence"),
   "the instructions must present the stages in dependency order"
 );
-assert.match(INSTRUCTIONS, /HTTP call, or a Local LLM call/);
+assert.match(INSTRUCTIONS, /HTTP call, a Local LLM call, a wait, or a join/);
 assert.match(
   INSTRUCTIONS,
   /default to NEXT/,
@@ -332,6 +337,21 @@ const intentPayload = JSON.parse(composer.stepEntityPayload(httpSp));
 assert.equal(intentPayload.timeout_seconds, 20);
 assert.equal(intentPayload.max_attempts, 4);
 assert.equal(intentPayload.backoff_seconds, 8);
+
+const joinIntent = buildOperationQuery(
+  {
+    name: "Meet",
+    operation: "create",
+    node_label: "STEP",
+    attributive_label: "JOIN_ARMS",
+    join_step: {},
+  },
+  { queryId: "q-join", entityIds: ["step-join"] }
+);
+assert.deepEqual(validateQuery(joinIntent, true), [], "join STEP intent must pass validation");
+const joinSp = joinIntent.match[0].patterns[0].path[0].node.sequencial_properties;
+assert.equal(joinSp.step_type, "join");
+assert.deepEqual(JSON.parse(composer.stepEntityPayload(joinSp)), { kind: "join" });
 
 // A transition MATCHes both endpoints by graph id, then MERGEs the edge between them —
 // this is what stops it from creating two empty STEP nodes instead of wiring the real ones.

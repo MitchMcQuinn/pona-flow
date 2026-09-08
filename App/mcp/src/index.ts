@@ -30,7 +30,7 @@ SCHEMAs, INSTANCEs, STEP nodes, and sequences that the engine then runs.
 Vocabulary:
 - SCHEMA: a property contract (which keys exist, their types, which are required or unique).
 - INSTANCE: one record satisfying a SCHEMA.
-- STEP: an executable unit — a saved query, an HTTP call, or a Local LLM call.
+- STEP: an executable unit — a saved query, an HTTP call, a Local LLM call, a wait, or a join.
 - POINTS_TO: an edge between two STEP nodes; optionally conditional, which is how branching works.
 - Sequence: a saved, runnable entry point naming the STEP the run starts at. One-step sequences
   are still sequences; they share the Sequences list with multi-step sequences.
@@ -39,7 +39,7 @@ Build order (this matters — each stage depends on the previous one existing):
 1. create_operation for each step.
    For INSTANCE/SCHEMA/read/update/delete: saves a catalog query, auto-wraps a STEP, and (by
    default) a one-step sequence.
-   For create STEP (HTTP / Local LLM): materializes that STEP in the graph. A single new STEP
+   For create STEP (HTTP / Local LLM / Wait / Join): materializes that STEP in the graph. A single new STEP
    is published as a one-step sequence by default (add_as_sequence=false for a STEP-only
    building block). A chain of STEPs is materialized only — call create_sequence after the
    transitions exist. It does not save a factory that mints more STEPs.

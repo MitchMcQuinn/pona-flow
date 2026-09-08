@@ -67,7 +67,7 @@ const intentSchema = {
     .enum(["STEP", "SCHEMA", "INSTANCE"])
     .describe(
         "Primary node label. SCHEMA defines a property contract, INSTANCE is data satisfying " +
-        "one, STEP is an executable unit (a custom endpoint, Local LLM call, or wait)."
+        "one, STEP is an executable unit (a custom endpoint, Local LLM call, wait, or join)."
     ),
   attributive_label: z
     .string()
@@ -166,7 +166,7 @@ const intentSchema = {
     })
     .optional()
     .describe(
-      "Creates a custom-endpoint STEP node. Mutually exclusive with local_llm_step and wait_step. Publishes ok (boolean) and status (HTTP code) into run state for edge conditions."
+      "Creates a custom-endpoint STEP node. Mutually exclusive with local_llm_step, wait_step, and join_step. Publishes ok (boolean) and status (HTTP code) into run state for edge conditions."
     ),
   local_llm_step: z
     .object({
@@ -182,7 +182,7 @@ const intentSchema = {
         "optional parameters that override the saved config for that run: `system_prompt`, " +
         "`response_format` (text|json_schema), `json_schema` (JSON text), `temperature`, " +
         "`top_p`, `top_k`, `min_p`, `repeat_penalty`, `num_ctx`, `num_predict`, `seed`, `stop`. " +
-        "Publishes ok into run state. Mutually exclusive with http_step and wait_step."
+        "Publishes ok into run state. Mutually exclusive with http_step, wait_step, and join_step."
     ),
   wait_step: z
     .object({
@@ -210,7 +210,16 @@ const intentSchema = {
     .optional()
     .describe(
       "Creates a Wait STEP that parks the run without blocking the request thread. " +
-        "Mutually exclusive with http_step and local_llm_step."
+        "Mutually exclusive with http_step, local_llm_step, and join_step."
+    ),
+  join_step: z
+    .object({})
+    .optional()
+    .describe(
+      "Creates a Join STEP: a barrier that continues only after every taken inbound arm " +
+        "has finished. Incoming POINTS_TO edges are the arms; the outgoing edge is then. " +
+        "Does not run arms in parallel. Mutually exclusive with http_step, local_llm_step, " +
+        "and wait_step."
     ),
   where: z
     .array(

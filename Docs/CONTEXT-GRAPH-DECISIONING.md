@@ -640,6 +640,15 @@ first value, and a create step would MERGE onto the same node every pass instead
 making a new one. Caller input and anything accumulated outside the cycle survive, so a
 human answer given on the first pass is not asked for again.
 
+A loop may also **collect** named scalars across passes (`loop_config.collect`). Each
+row names a `from` alias present at the tail and an `as` name that is *not* dropped at
+the iteration boundary. `reduce: list` (default) appends each scalar; `reduce: count`
+increments when `from` is truthy (so `from: ok` counts successes). After the loop, last-pass
+overwrite is unchanged **and** the collect names hold every pass — so a later HTTP step
+can send every id, not just the last. An empty / skipped body seeds `[]` or `0` so the
+next step does not pause for a missing name. Omit `collect` and behaviour matches
+sequences authored before it existed.
+
 Because visited steps, resolved parameters, and the iteration cursor all live on the
 state row, a loop can pause mid-iteration (e.g. waiting for human input) and resume on
 the pass it stopped on.
@@ -651,6 +660,14 @@ the stored queue mid-chain. A loop may also park between completed passes via
 `loop.delay_seconds`. Human-in-the-loop remains `pending` (needs operator input);
 clock and event parks are `waiting` so callers do not treat a timer as a form to fill.
 
+A **Join STEP** is a different kind of meeting point. The walk is still serial; the join
+does not park and does not run arms in parallel. When a predecessor would enqueue the
+join, the executor records the arrival (`progress.joins`) and holds the join off the
+queue until no remaining queued step can still reach it. Untaken conditional arms never
+run, so they cannot deadlock the barrier. A diamond *without* a join STEP is unchanged:
+the first inbound path to run the fan-in node wins, and later arrivals hit `visited` and
+skip. Compose rejects a join inside a loop body and a join that can reach another join.
+
 HTTP and Local LLM steps publish `ok` (and HTTP `status`) into run state after each
 call, so a `POINTS_TO` condition on `ok` can escalate a failed call. They may retry
 without a loop: `max_attempts` (default 1) with optional parked `backoff_seconds`
@@ -659,12 +676,14 @@ without a loop: `max_attempts` (default 1) with optional parked `backoff_seconds
 failed, retryable attempt. Query steps set `ok=true` on success; Neo4j errors still
 abort the run.
 
-```1187:1192:Engine/server/execution_run.py
+```1139:1147:Engine/server/execution_run.py
 def _progress_snapshot(
     queue: list[str],
     resolved: dict[str, Any],
     visited: set[str],
     loop_state: dict[str, Any] | None = None,
+    wait_state: dict[str, Any] | None = None,
+    join_arrivals: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
 ```
 

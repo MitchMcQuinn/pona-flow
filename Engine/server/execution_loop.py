@@ -20,6 +20,7 @@ to route the back-edge versus the exit edges (see
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # ``dag`` is the default: steps are walked once, so a back-edge terminates rather
@@ -47,6 +48,10 @@ COMPARISON_OPERATORS = (
 _STRING_OPERATORS = ("CONTAINS", "STARTS WITH", "ENDS WITH")
 _TRUTHY_TOKENS = ("true", "1", "yes")
 _FALSY_TOKENS = ("false", "0", "no")
+
+# Collect ``as`` names bind like RETURN aliases (see execution_run._RETURN_COLUMN_NAME_RE).
+COLLECT_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+COLLECT_REDUCE = ("list", "count")
 
 
 # --- config -------------------------------------------------------------------------
@@ -105,7 +110,29 @@ def normalize_loop_config(raw: Any) -> dict[str, Any]:
     delay_seconds = _as_positive_int(config.get("delay_seconds"))
     if delay_seconds:
         out["delay_seconds"] = delay_seconds
+    collect = _normalize_collect(config.get("collect"))
+    if collect:
+        out["collect"] = collect
     return out
+
+
+def _normalize_collect(raw: Any) -> list[dict[str, str]]:
+    """Keep well-shaped collect rows; drop blanks. Unknown reduce is left for validate."""
+    if not isinstance(raw, list):
+        return []
+    items: list[dict[str, str]] = []
+    for row in raw:
+        if not isinstance(row, dict):
+            continue
+        source = str(row.get("from") or "").strip()
+        published = str(row.get("as") or "").strip()
+        if not source and not published:
+            continue
+        item = {"from": source, "as": published}
+        reduce = str(row.get("reduce") or "list").strip().lower() or "list"
+        item["reduce"] = reduce
+        items.append(item)
+    return items
 
 
 def validate_loop_config(
@@ -159,6 +186,37 @@ def validate_loop_config(
                 f"for/each iterates {source!r}, which is not a RETURN alias projected by "
                 "any of this sequence's steps."
             )
+
+    seen_as: set[str] = set()
+    for item in config.get("collect") or []:
+        if not isinstance(item, dict):
+            continue
+        source = str(item.get("from") or "").strip()
+        published = str(item.get("as") or "").strip()
+        reduce = str(item.get("reduce") or "list").strip().lower() or "list"
+        if not source:
+            problems.append("A collect row needs a name to read from.")
+        elif source not in available:
+            problems.append(
+                f"collect reads {source!r}, which is not a parameter of this sequence "
+                "or a name published by any of its steps."
+            )
+        if not published:
+            problems.append("A collect row needs a name to publish as.")
+        elif not COLLECT_NAME_RE.match(published):
+            problems.append(
+                f"Collect name {published!r} must be a letter-or-underscore identifier."
+            )
+        elif published in seen_as:
+            problems.append(f"Collect publishes {published!r} more than once.")
+        else:
+            seen_as.add(published)
+        if source and published and source == published:
+            problems.append(
+                f"Collect cannot publish {source!r} onto itself — pick a new name."
+            )
+        if reduce not in COLLECT_REDUCE:
+            problems.append("Collect reduce must be list or count.")
     return problems
 
 

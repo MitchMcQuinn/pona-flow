@@ -37,7 +37,7 @@ import {
   serializeSequenceParameterValues,
   sequenceEntryPointWarnings
 } from "@pona-flow/authoring";
-import type { LoopComparisonOperator, LoopConfig, QueryObject } from "@pona-flow/authoring";
+import type { LoopCollectItem, LoopComparisonOperator, LoopConfig, QueryObject } from "@pona-flow/authoring";
 import type { BuilderSeed, RunResult } from "../../state/builder/types";
 import {
   loadStepNodeIntoQuery,
@@ -95,6 +95,19 @@ function readLoopConfig(raw: unknown): LoopConfig {
   if (typeof stored.count === "number") loop.count = stored.count;
   if (typeof stored.source === "string") loop.source = stored.source;
   if (typeof stored.max_iterations === "number") loop.max_iterations = stored.max_iterations;
+  if (typeof stored.delay_seconds === "number") loop.delay_seconds = stored.delay_seconds;
+  if (Array.isArray(stored.collect)) {
+    loop.collect = stored.collect
+      .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
+      .map((row) => {
+        const item: LoopCollectItem = {
+          from: String(row.from ?? ""),
+          as: String(row.as ?? "")
+        };
+        if (row.reduce === "count" || row.reduce === "list") item.reduce = row.reduce;
+        return item;
+      });
+  }
   if (stored.condition && typeof stored.condition === "object") {
     const condition = stored.condition as Record<string, unknown>;
     loop.condition = {

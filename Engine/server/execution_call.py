@@ -34,7 +34,7 @@ def is_retryable_step(step: dict[str, Any]) -> bool:
     kind = str(step.get("kind") or "").strip()
     if kind == "local_llm":
         return True
-    if kind in ("wait", "code"):
+    if kind in ("wait", "join", "code"):
         return False
     return bool(str(step.get("endpoint") or "").strip())
 

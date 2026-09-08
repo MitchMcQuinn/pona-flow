@@ -23,6 +23,7 @@ from typing import Any, Iterator
 
 from . import catalog
 from . import cypher_utils
+from . import execution_join
 from . import execution_loop
 from . import graph
 from . import local_llms
@@ -516,6 +517,8 @@ def _build_step(
             step["event_id"] = str(payload.get("event_id") or "").strip()
         else:
             step["duration_seconds"] = payload.get("duration_seconds", 0)
+    elif kind == "join":
+        step["kind"] = "join"
     else:
         _attach_call_policy(step, payload)
     return step
@@ -548,7 +551,7 @@ def _step_return_aliases(payload: dict[str, Any], fetch_query: Any) -> list[str]
             for alias in cypher_utils.return_aliases(referenced.get("cypher") or []):
                 add(alias)
         add("ok")
-    elif kind in ("local_llm", "wait", "code"):
+    elif kind in ("local_llm", "wait", "join", "code"):
         add("ok")
     else:
         add("ok")
@@ -873,8 +876,23 @@ def compose_execution_package(space_id: str, sequence_query_id: str) -> dict[str
     loop = execution_loop.analyze_loop(
         steps, loop_config, next(iter(steps), None), alias_steps
     )
+    execution_join.reject_join_policy(steps, loop)
     if loop:
         package["loop"] = loop
+        collect_aliases: list[str] = []
+        seen_collect: set[str] = set()
+        for item in loop.get("collect") or []:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("as") or "").strip()
+            if name and name not in seen_collect:
+                seen_collect.add(name)
+                collect_aliases.append(name)
+        if collect_aliases:
+            available_parameters.append(
+                {"step_id": "", "label": "loop", "aliases": collect_aliases}
+            )
+            package["available_parameters"] = available_parameters
     return package
 
 

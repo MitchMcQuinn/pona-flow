@@ -106,8 +106,8 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["local_llm", "wait"],
-            "description": "\"local_llm\" runs a saved Ollama config. \"wait\" parks the run for a duration, until a timestamp, or until an Event fires. Omitted for query/endpoint steps."
+            "enum": ["local_llm", "wait", "join"],
+            "description": "\"local_llm\" runs a saved Ollama config. \"wait\" parks the run for a duration, until a timestamp, or until an Event fires. \"join\" continues only after every taken inbound arm has finished. Omitted for query/endpoint steps."
           },
           "config_id": {
             "type": "string",
@@ -267,6 +267,32 @@
             "type": "integer",
             "minimum": 0,
             "description": "Seconds to park between completed loop passes (not before the first). Omitted or 0 = no delay."
+          },
+          "collect": {
+            "type": "array",
+            "description": "Names to accumulate across passes. After the loop, each `as` holds the full list (or a count). Omitted collect leaves last-pass overwrite as the only survivor.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["from", "as"],
+              "properties": {
+                "from": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Alias or parameter present in run state at the loop tail."
+                },
+                "as": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "New name published after (and across) every pass. Survives the iteration boundary. Must not equal from."
+                },
+                "reduce": {
+                  "type": "string",
+                  "enum": ["list", "count"],
+                  "description": "list (default) appends each scalar. count increments when from is truthy."
+                }
+              }
+            }
           }
         }
       }

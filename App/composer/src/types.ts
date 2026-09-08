@@ -72,8 +72,8 @@ export interface StepResponseParameter {
   default_value?: string;
 }
 
-/** Custom STEP execution kind: HTTP request (default/legacy), leftover code, local LLM, or wait. */
-export type StepType = "http" | "code" | "local_llm" | "wait";
+/** Custom STEP execution kind: HTTP request (default/legacy), leftover code, local LLM, wait, or join. */
+export type StepType = "http" | "code" | "local_llm" | "wait" | "join";
 export type CodeLanguage = "python" | "javascript";
 /** How a wait STEP parks the run. */
 export type WaitMode = "duration" | "until" | "event";
@@ -82,7 +82,7 @@ export type WaitDurationUnit = "seconds" | "minutes" | "hours";
 
 export interface SequencialProperties {
   query_id?: string;
-  /** Omitted/"http" -> endpoint step (legacy payloads); "code" -> leftover archived kind; "local_llm" -> named Ollama config; "wait" -> park the run. */
+  /** Omitted/"http" -> endpoint step (legacy payloads); "code" -> leftover archived kind; "local_llm" -> named Ollama config; "wait" -> park the run; "join" -> barrier until taken arms finish. */
   step_type?: StepType;
   endpoint?: string;
   method?: HttpMethod;
@@ -421,6 +421,22 @@ export interface LoopCondition {
   value: string;
 }
 
+/** How a loop collect row reduces per-pass values into one name after (and across) passes. */
+export type LoopCollectReduce = "list" | "count";
+
+/**
+ * Accumulate a name from each loop pass into a new name that survives the iteration
+ * boundary. Last-pass overwrite of `from` is unchanged; `as` keeps every pass.
+ */
+export interface LoopCollectItem {
+  /** Alias or parameter present in run state at the loop tail. */
+  from: string;
+  /** New name published after (and across) passes; not dropped at the iteration boundary. */
+  as: string;
+  /** `list` (default) appends each scalar; `count` increments when `from` is truthy. */
+  reduce?: LoopCollectReduce;
+}
+
 export interface LoopConfig {
   /**
    * "dag" never re-enters a step, so a back-edge simply ends the run — the default,
@@ -438,6 +454,11 @@ export interface LoopConfig {
   max_iterations?: number;
   /** Seconds to park between completed passes (not before the first). Omitted or 0 = no delay. */
   delay_seconds?: number;
+  /**
+   * Names to accumulate across passes. Omitted collect leaves last-pass overwrite
+   * as the only survivor, matching sequences authored before collect.
+   */
+  collect?: LoopCollectItem[];
 }
 
 export interface QueryObject {

@@ -45,6 +45,13 @@ export function isStepWait(
   return Boolean(sp && sp.query_id === undefined && sp.step_type === "wait");
 }
 
+/** True for a custom STEP that waits until every taken inbound arm has finished. */
+export function isStepJoin(
+  sp: SequencialProperties | null | undefined
+): boolean {
+  return Boolean(sp && sp.query_id === undefined && sp.step_type === "join");
+}
+
 export function attachCallPolicy(
   payload: Record<string, unknown>,
   sp: SequencialProperties | null | undefined
@@ -100,6 +107,9 @@ export function stepEntityPayload(sp: SequencialProperties | null | undefined): 
       payload.event_id = String(sp?.wait_event_id || "").trim();
     }
     return JSON.stringify(payload);
+  }
+  if (isStepJoin(sp)) {
+    return JSON.stringify({ kind: "join" });
   }
   const payload: Record<string, unknown> = {
     endpoint: sp?.endpoint || "",

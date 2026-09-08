@@ -138,6 +138,47 @@ assert.equal(loopConfigWarnings({ type: "for_each" }).length, 1);
 assert.equal(loopConfigWarnings({ type: "for_each", source: "   " }).length, 1);
 assert.deepEqual(loopConfigWarnings({ type: "for_each", source: "entityId" }), []);
 
+assert.deepEqual(
+  normalizeLoopConfig({
+    type: "for_each",
+    source: "entityId",
+    collect: [{ from: "entityId", as: "created_ids" }],
+  }),
+  {
+    type: "for_each",
+    source: "entityId",
+    collect: [{ from: "entityId", as: "created_ids" }],
+  },
+  "collect rows persist on a looping config"
+);
+assert.equal(
+  normalizeLoopConfig({
+    type: "for",
+    count: 2,
+    collect: [{ from: "", as: "" }],
+  }).collect,
+  undefined,
+  "blank collect rows are dropped"
+);
+assert.match(
+  loopConfigWarnings({
+    type: "for",
+    count: 1,
+    collect: [{ from: "ok", as: "ok" }],
+  })[0],
+  /onto itself/,
+  "collect cannot publish a name onto itself"
+);
+assert.match(
+  loopConfigWarnings({
+    type: "for",
+    count: 1,
+    collect: [{ from: "ok", as: "1bad" }],
+  })[0],
+  /identifier/,
+  "collect as must be identifier-shaped"
+);
+
 // --- MCP arguments -> loop_config ---
 
 assert.equal(buildLoopConfig(undefined), undefined, "no loop argument means a dag");
@@ -166,6 +207,19 @@ assert.deepEqual(buildLoopConfig({ type: "for_each", source: "entityId" }), {
   type: "for_each",
   source: "entityId",
 });
+assert.deepEqual(
+  buildLoopConfig({
+    type: "for_each",
+    source: "entityId",
+    collect: [{ from: "entityId", as: "created_ids", reduce: "list" }],
+  }),
+  {
+    type: "for_each",
+    source: "entityId",
+    collect: [{ from: "entityId", as: "created_ids", reduce: "list" }],
+  },
+  "MCP collect rows reach loop_config"
+);
 
 // A stored loop_config round-trips through the same translator, which is how
 // update_sequence preserves the rule when its `loop` argument is omitted.

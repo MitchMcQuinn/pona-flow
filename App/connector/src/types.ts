@@ -38,7 +38,7 @@ export interface GraphNodeRow {
   // strict types as the composer (HTTP verb union; object body) rather than string/unknown.
   sequencial_properties?: {
     query_id?: string;
-    step_type?: "http" | "code" | "local_llm" | "wait";
+    step_type?: "http" | "code" | "local_llm" | "wait" | "join";
     endpoint?: string;
     method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     headers?: Record<string, unknown>;

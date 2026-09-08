@@ -12,7 +12,13 @@
  * Compose reports both, and the builder surfaces them from the compose response.
  */
 
-import type { LoopComparisonOperator, LoopConfig, LoopType } from "./types.js";
+import type {
+  LoopCollectItem,
+  LoopCollectReduce,
+  LoopComparisonOperator,
+  LoopConfig,
+  LoopType
+} from "./types.js";
 
 export const LOOP_TYPES: readonly LoopType[] = ["dag", "for", "for_while", "for_each"];
 
@@ -33,6 +39,12 @@ export const LOOP_COMPARISON_OPERATORS: readonly LoopComparisonOperator[] = [
 export const DEFAULT_MAX_ITERATIONS = 1000;
 
 export const DEFAULT_LOOP_CONFIG: LoopConfig = { type: "dag" };
+
+/** Mirrors execution_loop.COLLECT_REDUCE. */
+export const LOOP_COLLECT_REDUCE: readonly LoopCollectReduce[] = ["list", "count"];
+
+/** Mirrors execution_run._RETURN_COLUMN_NAME_RE — collect `as` names must bind like aliases. */
+const COLLECT_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Human-readable name for each type, for the builder's selector. */
 export const LOOP_TYPE_LABELS: Record<LoopType, string> = {
@@ -96,7 +108,25 @@ export function normalizeLoopConfig(loop: LoopConfig | undefined): LoopConfig | 
   } else if (type === "for_each") {
     out.source = (loop!.source || "").trim();
   }
+  const collect = normalizeCollect(loop!.collect);
+  if (collect) out.collect = collect;
   return out;
+}
+
+function normalizeCollect(raw: LoopConfig["collect"]): LoopCollectItem[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const items: LoopCollectItem[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const from = (row.from || "").trim();
+    const as = (row.as || "").trim();
+    if (!from && !as) continue;
+    const item: LoopCollectItem = { from, as };
+    const reduce = row.reduce;
+    if (reduce === "count" || reduce === "list") item.reduce = reduce;
+    items.push(item);
+  }
+  return items.length ? items : undefined;
 }
 
 /**
@@ -108,8 +138,6 @@ export function loopConfigWarnings(loop: LoopConfig | undefined): string[] {
   const warnings: string[] = [];
   const type = loop!.type;
 
-  // A zero cap is dropped by normalizeLoopConfig, so it means "unset" here too —
-  // otherwise a cleared input would make every count look like an overrun.
   // A zero cap is dropped by normalizeLoopConfig, so it means "unset" here too —
   // otherwise a cleared input would make every count look like an overrun.
   const maxIterations = positiveInt(loop!.max_iterations) || DEFAULT_MAX_ITERATIONS;
@@ -139,7 +167,7 @@ export function loopConfigWarnings(loop: LoopConfig | undefined): string[] {
     ) {
       warnings.push("A for/while loop needs a comparison operator.");
     }
-  } else   if (type === "for_each") {
+  } else if (type === "for_each") {
     if (!(loop!.source || "").trim()) {
       warnings.push("A for/each loop needs a RETURN alias to iterate.");
     }
@@ -148,6 +176,31 @@ export function loopConfigWarnings(loop: LoopConfig | undefined): string[] {
   const delayGiven = String(loop!.delay_seconds ?? "").trim() !== "";
   if (delayGiven && positiveInt(loop!.delay_seconds) === null) {
     warnings.push("Loop delay must be a whole number of seconds.");
+  }
+
+  const seenAs = new Set<string>();
+  for (const item of loop!.collect ?? []) {
+    const from = (item.from || "").trim();
+    const as = (item.as || "").trim();
+    if (!from) {
+      warnings.push("A collect row needs a name to read from.");
+    }
+    if (!as) {
+      warnings.push("A collect row needs a name to publish as.");
+    } else if (!COLLECT_NAME_RE.test(as)) {
+      warnings.push(`Collect name ${as} must be a letter-or-underscore identifier.`);
+    } else if (seenAs.has(as)) {
+      warnings.push(`Collect publishes ${as} more than once.`);
+    } else {
+      seenAs.add(as);
+    }
+    if (from && as && from === as) {
+      warnings.push(`Collect cannot publish ${from} onto itself — pick a new name.`);
+    }
+    const reduce = item.reduce ?? "list";
+    if (!(LOOP_COLLECT_REDUCE as readonly string[]).includes(reduce)) {
+      warnings.push("Collect reduce must be list or count.");
+    }
   }
 
   return warnings;

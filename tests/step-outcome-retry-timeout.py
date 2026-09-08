@@ -197,6 +197,10 @@ try:
     )
     check("wait available_parameters includes ok", "ok" in wait_aliases)
 
+    join_aliases = execution._step_return_aliases({"kind": "join"}, lambda *_: None)
+    check("join available_parameters includes ok", "ok" in join_aliases)
+    check("join available_parameters omits status", "status" not in join_aliases)
+
     query_aliases = execution._step_return_aliases(
         {"query_id": "Q1"},
         lambda _qid: {"kind": "operation", "cypher": ["RETURN 1 AS n"]},

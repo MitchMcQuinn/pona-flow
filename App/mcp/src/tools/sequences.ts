@@ -96,6 +96,36 @@ const loopSchema = z
       .describe(
         "Seconds to park between completed loop passes (not before the first). Zero or omitted = no delay."
       ),
+    collect: z
+      .array(
+        z.object({
+          from: z
+            .string()
+            .describe(
+              "Alias or parameter present in run state at the loop tail (a RETURN column, " +
+                "ok, a minted id, or a for_each row column)."
+            ),
+          as: z
+            .string()
+            .describe(
+              "New name published after (and across) every pass. Survives the iteration " +
+                "boundary that drops last-pass overwrite names. Must not equal `from`."
+            ),
+          reduce: z
+            .enum(["list", "count"])
+            .optional()
+            .describe(
+              "'list' (default) appends each scalar. 'count' increments when `from` is truthy " +
+                "(so from: ok counts successes)."
+            ),
+        })
+      )
+      .optional()
+      .describe(
+        "Accumulate names across loop passes. After the loop, the `as` names hold the full " +
+          "list (or a count) so a later step can use every id, not just the last pass. " +
+          "Omit to keep last-pass overwrite only."
+      ),
   })
   .optional();
 

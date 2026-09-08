@@ -49,6 +49,8 @@ export type {
   LoopType,
   LoopComparisonOperator,
   LoopCondition,
+  LoopCollectReduce,
+  LoopCollectItem,
   LoopConfig,
   ComposedQuery,
 } from "@pona-flow/composer";

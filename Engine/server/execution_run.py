@@ -53,6 +53,7 @@ from . import credentials
 from . import cypher_utils
 from . import embeddings
 from . import execution_call
+from . import execution_join
 from . import execution_loop
 from . import execution_wait
 from . import graph
@@ -509,6 +510,8 @@ def _execute_step(
         return _execute_local_llm_step(space_id, step, resolved)
     if kind == "wait":
         return {"_ok": True}
+    if kind == "join":
+        return {"_ok": True}
     if str(step.get("endpoint") or "").strip():
         return _execute_endpoint_step(space_id, step, resolved)
     return {}
@@ -548,7 +551,7 @@ def _bind_transport_outcome(
     if query_id:
         resolved["ok"] = True
         return
-    if kind == "wait":
+    if kind == "wait" or kind == "join":
         resolved["ok"] = True
         return
     if kind == "local_llm" or kind == "code":
@@ -905,10 +908,22 @@ def _passing_targets(step: dict[str, Any], resolved: dict[str, Any]) -> list[str
 
 
 def _enqueue_transitions(
-    step: dict[str, Any], resolved: dict[str, Any], queue: list[str]
+    step: dict[str, Any],
+    resolved: dict[str, Any],
+    queue: list[str],
+    steps_by_id: dict[str, dict[str, Any]],
+    visited: set[str],
+    join_arrivals: dict[str, list[str]],
 ) -> None:
     """Advance the executed step's outgoing transitions onto the queue."""
-    queue.extend(_passing_targets(step, resolved))
+    execution_join.enqueue_from(
+        step,
+        _passing_targets(step, resolved),
+        queue,
+        steps_by_id,
+        visited,
+        join_arrivals,
+    )
 
 
 # --- looping sequences ---------------------------------------------------------------
@@ -933,6 +948,7 @@ def _new_loop_state() -> dict[str, Any]:
         "item_index": 0,
         "derived": [],
         "inherited": [],
+        "accumulators": [],
     }
 
 
@@ -1037,13 +1053,87 @@ def _clear_iteration_state(
 
     Body steps leave ``visited`` so they can run again, while steps outside stay
     visited — that is what keeps a fan-in *before* or *after* the loop running exactly
-    once.
+    once. Collect ``as`` names (``accumulators``) are never dropped: they hold every
+    pass, not just the last.
     """
+    protected = set(state.get("accumulators") or [])
     for name in state.get("derived") or []:
+        if name in protected:
+            continue
         resolved.pop(name, None)
     state["derived"] = []
     for step_id in loop.get("body") or []:
         visited.discard(str(step_id))
+
+
+def _collect_items(loop: dict[str, Any]) -> list[dict[str, Any]]:
+    return [row for row in (loop.get("collect") or []) if isinstance(row, dict)]
+
+
+def _seed_loop_collect(
+    loop: dict[str, Any],
+    state: dict[str, Any],
+    resolved: dict[str, Any],
+) -> None:
+    """Publish empty collect names so skip-body and the first pass have them.
+
+    Seeding here (before the inherited snapshot) also marks them inherited, so a
+    body step that happens to bind the same name cannot drop the accumulator.
+    """
+    accumulators = state.setdefault("accumulators", [])
+    for item in _collect_items(loop):
+        published = str(item.get("as") or "").strip()
+        if not published:
+            continue
+        if published not in accumulators:
+            accumulators.append(published)
+        reduce = str(item.get("reduce") or "list").strip().lower()
+        if published in resolved:
+            continue
+        resolved[published] = 0 if reduce == "count" else []
+
+
+def _collect_loop_values(
+    loop: dict[str, Any],
+    state: dict[str, Any],
+    resolved: dict[str, Any],
+) -> None:
+    """Append or count this pass's values into collect names.
+
+    Called at the tail on every pass (continue and exit) after binds and before
+    ``_clear_iteration_state``. Scalars only; ``None`` is skipped. List length is
+    capped at ``max_iterations``.
+    """
+    items = _collect_items(loop)
+    if not items:
+        return
+    accumulators = state.setdefault("accumulators", [])
+    cap = int(loop.get("max_iterations") or execution_loop.DEFAULT_MAX_ITERATIONS)
+    for item in items:
+        source = str(item.get("from") or "").strip()
+        published = str(item.get("as") or "").strip()
+        if not source or not published:
+            continue
+        if published not in accumulators:
+            accumulators.append(published)
+        reduce = str(item.get("reduce") or "list").strip().lower()
+        if reduce == "count":
+            current = resolved.get(published)
+            if isinstance(current, bool) or not isinstance(current, int):
+                current = 0
+            if _truthy(resolved.get(source)):
+                current += 1
+            resolved[published] = current
+            continue
+        current = resolved.get(published)
+        if not isinstance(current, list):
+            current = []
+        if source in resolved:
+            value = resolved[source]
+            if value is not None and isinstance(value, (bool, int, float, str)):
+                if len(current) < cap:
+                    current.append(value)
+        resolved[published] = current
 
 
 def _progress_snapshot(
@@ -1052,13 +1142,15 @@ def _progress_snapshot(
     visited: set[str],
     loop_state: dict[str, Any] | None = None,
     wait_state: dict[str, Any] | None = None,
+    join_arrivals: dict[str, list[str]] | None = None,
     cancel_requested: bool = False,
 ) -> dict[str, Any]:
     """The resume payload stored on the state row.
 
     ``loop`` is omitted for a non-looping run, so those progress rows keep exactly
     the shape they have always had. ``wait`` is the parked timer/event; it is
-    omitted when the run is not waiting.
+    omitted when the run is not waiting. ``joins`` is arrival bookkeeping for
+    join STEPs; omitted when no join has been offered an arm yet.
     """
     snapshot: dict[str, Any] = {
         "queue": queue,
@@ -1069,6 +1161,8 @@ def _progress_snapshot(
         snapshot["loop"] = loop_state
     if wait_state:
         snapshot["wait"] = wait_state
+    if join_arrivals:
+        snapshot["joins"] = join_arrivals
     if cancel_requested:
         snapshot["cancel_requested"] = True
     return snapshot
@@ -1098,10 +1192,13 @@ def _park_waiting(
     loop_progress: dict[str, Any] | None,
     wait_state: dict[str, Any],
     step_id: str | None = None,
+    join_arrivals: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     catalog.update_state_progress(
         state_id,
-        _progress_snapshot(queue, resolved, visited, loop_progress, wait_state),
+        _progress_snapshot(
+            queue, resolved, visited, loop_progress, wait_state, join_arrivals
+        ),
     )
     catalog.update_state_status(state_id, "waiting")
     try:
@@ -1193,6 +1290,12 @@ def run_execution(
     wait_state: dict[str, Any] = (
         dict(progress.get("wait") or {}) if isinstance(progress.get("wait"), dict) else {}
     )
+    join_arrivals: dict[str, list[str]] = {}
+    raw_joins = progress.get("joins")
+    if isinstance(raw_joins, dict):
+        for key, value in raw_joins.items():
+            if isinstance(value, list):
+                join_arrivals[str(key)] = [str(item) for item in value]
     stored_queue = progress.get("queue")
 
     if stored_queue is not None and wait_state and not execution_wait.wait_due(wait_state):
@@ -1254,6 +1357,7 @@ def run_execution(
                     loop_progress,
                     wait_state,
                     step_id=queue[0] if queue else None,
+                    join_arrivals=join_arrivals,
                 )
             if str(wait_state.get("kind") or "") == "retry_backoff":
                 try:
@@ -1276,11 +1380,21 @@ def run_execution(
         if loop and step_id == loop_entry and not loop_state.get("entered"):
             loop_state["entered"] = True
             if not _should_enter_loop_body(loop, loop_state, resolved):
+                _seed_loop_collect(loop, loop_state, resolved)
                 queue.pop(0)
-                queue.extend(_loop_exit_targets(loop, steps_by_id, resolved))
+                tail = steps_by_id.get(loop_tail) or {"id": loop_tail, "next": []}
+                execution_join.enqueue_from(
+                    tail,
+                    _loop_exit_targets(loop, steps_by_id, resolved),
+                    queue,
+                    steps_by_id,
+                    visited,
+                    join_arrivals,
+                )
                 continue
             # What the loop inherits: caller input plus anything the steps before it
             # resolved. These are off-limits to iteration-boundary clearing.
+            _seed_loop_collect(loop, loop_state, resolved)
             loop_state["inherited"] = sorted(resolved)
             _bind_loop_item(loop, loop_state, resolved)
 
@@ -1293,7 +1407,9 @@ def run_execution(
         if unresolved:
             catalog.update_state_progress(
                 state_id,
-                _progress_snapshot(queue, resolved, visited, loop_progress, wait_state),
+                _progress_snapshot(
+                    queue, resolved, visited, loop_progress, wait_state, join_arrivals
+                ),
             )
             catalog.update_state_status(state_id, "pending")
             return {
@@ -1332,13 +1448,16 @@ def run_execution(
                     loop_progress,
                     spec,
                     step_id=step_id,
+                    join_arrivals=join_arrivals,
                 )
 
         minted = _mint_auto_ids(step, resolved)
         if minted:
             catalog.update_state_progress(
                 state_id,
-                _progress_snapshot(queue, resolved, visited, loop_progress, wait_state),
+                _progress_snapshot(
+                    queue, resolved, visited, loop_progress, wait_state, join_arrivals
+                ),
             )
 
         retryable = execution_call.is_retryable_step(step)
@@ -1400,6 +1519,7 @@ def run_execution(
                             loop_progress,
                             spec,
                             step_id=step_id,
+                            join_arrivals=join_arrivals,
                         )
                 continue
             retry_attempt_by_step.pop(step_id, None)
@@ -1419,6 +1539,8 @@ def run_execution(
             executed_entry["config_id"] = str(step.get("config_id") or "")
         elif str(step.get("kind") or "").strip() == "wait":
             executed_entry["kind"] = "wait"
+        elif str(step.get("kind") or "").strip() == "join":
+            executed_entry["kind"] = "join"
         if loop and step_id in loop_body:
             # A body step appears once per pass; stamp the pass so a repeated entry
             # in the trace is readable.
@@ -1435,12 +1557,14 @@ def run_execution(
                 # Only values a body step *introduced* are dropped at the boundary; a
                 # value bound before the loop (or by the caller) has to survive.
                 inherited = set(loop_state.get("inherited") or [])
+                accumulators = set(loop_state.get("accumulators") or [])
                 derived = loop_state.setdefault("derived", [])
-                for name in sorted((bound | minted) - inherited):
+                for name in sorted((bound | minted) - inherited - accumulators):
                     if name not in derived:
                         derived.append(name)
 
         if loop and step_id == loop_tail:
+            _collect_loop_values(loop, loop_state, resolved)
             passing = _passing_targets(step, resolved)
             # The back-edge's own condition still gates it, so an author can stop the
             # loop with an edge guard as well as with the sequence's rule.
@@ -1482,13 +1606,21 @@ def run_execution(
                         loop_progress,
                         delay_spec,
                         step_id=loop_entry,
+                        join_arrivals=join_arrivals,
                     )
             else:
-                queue.extend(
-                    target for target in passing if target != loop_entry
+                execution_join.enqueue_from(
+                    step,
+                    [target for target in passing if target != loop_entry],
+                    queue,
+                    steps_by_id,
+                    visited,
+                    join_arrivals,
                 )
         else:
-            _enqueue_transitions(step, resolved, queue)
+            _enqueue_transitions(
+                step, resolved, queue, steps_by_id, visited, join_arrivals
+            )
 
     final_result = (
         _classify_final_response(final_step, final_response)

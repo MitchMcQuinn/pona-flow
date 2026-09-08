@@ -19,7 +19,7 @@ export const MAX_ATTEMPTS = 20;
 export function isHttpOrLlmStep(sp: SequencialProperties | null | undefined): boolean {
   if (!sp || sp.query_id !== undefined) return false;
   const kind = sp.step_type;
-  if (kind === "wait" || kind === "code") return false;
+  if (kind === "wait" || kind === "join" || kind === "code") return false;
   return true;
 }
 

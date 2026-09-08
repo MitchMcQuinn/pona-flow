@@ -25,6 +25,7 @@ import {
   type GraphNodeLabel,
   type LiteralOrParameter,
   type LoopComparisonOperator,
+  type LoopCollectItem,
   type LoopConfig,
   type Operation,
   type Parameter,
@@ -106,6 +107,10 @@ export interface StepWaitIntent {
   event_id?: string;
 }
 
+export interface StepJoinIntent {
+  /** Join STEPs have no fields; incoming POINTS_TO edges are the arms. */
+}
+
 function callPolicyFromStep(step: {
   timeout_seconds?: number | string;
   max_attempts?: number;
@@ -138,6 +143,7 @@ export interface OperationIntent {
   http_step?: StepHttpIntent;
   local_llm_step?: StepLocalLlmIntent;
   wait_step?: StepWaitIntent;
+  join_step?: StepJoinIntent;
   where?: WhereIntent[];
   return_items?: ReturnIntent[];
   /**
@@ -325,6 +331,8 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
             ? { wait_event_id: intent.wait_step.event_id ?? "" }
             : { wait_duration_seconds: intent.wait_step.duration_seconds ?? 0 }),
       };
+    } else if (intent.join_step) {
+      element.node.sequencial_properties = { step_type: "join" };
     }
   } else {
     const where = whereGroup(intent);
@@ -489,6 +497,7 @@ export interface LoopIntent {
   source?: string;
   max_iterations?: number;
   delay_seconds?: number;
+  collect?: Array<{ from?: string; as?: string; reduce?: string }>;
 }
 
 /**
@@ -517,6 +526,16 @@ export function buildLoopConfig(intent: LoopIntent | undefined): LoopConfig | un
     };
   } else if (type === "for_each") {
     loop.source = (intent?.source || "").trim();
+  }
+  if (Array.isArray(intent?.collect) && intent.collect.length > 0) {
+    loop.collect = intent.collect.map((row) => {
+      const item: LoopCollectItem = {
+        from: (row.from || "").trim(),
+        as: (row.as || "").trim(),
+      };
+      if (row.reduce === "count" || row.reduce === "list") item.reduce = row.reduce;
+      return item;
+    });
   }
   return normalizeLoopConfig(loop);
 }

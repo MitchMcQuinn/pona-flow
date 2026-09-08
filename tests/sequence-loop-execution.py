@@ -200,6 +200,46 @@ check(
     and problems({"type": "for_each", "source": "rows"}, {"rows"}, {"rows"}) == [],
 )
 check(
+    "collect rows survive normalize",
+    execution_loop.normalize_loop_config(
+        {
+            "type": "for_each",
+            "source": "entityId",
+            "collect": [{"from": "entityId", "as": "created_ids"}],
+        }
+    ).get("collect")
+    == [{"from": "entityId", "as": "created_ids", "reduce": "list"}],
+)
+check(
+    "blank collect rows are dropped",
+    "collect"
+    not in execution_loop.normalize_loop_config(
+        {"type": "for", "count": 1, "collect": [{"from": "", "as": ""}]}
+    ),
+)
+check(
+    "collect from an unknown name is rejected",
+    any("collect reads" in msg for msg in problems(
+        {"type": "for", "count": 1, "collect": [{"from": "nope", "as": "ids"}]},
+        set(),
+    )),
+)
+check(
+    "collect from a known name passes",
+    problems(
+        {"type": "for", "count": 1, "collect": [{"from": "entityId", "as": "created_ids"}]},
+        {"entityId"},
+    )
+    == [],
+)
+check(
+    "collect cannot publish a name onto itself",
+    any("onto itself" in msg for msg in problems(
+        {"type": "for", "count": 1, "collect": [{"from": "ok", "as": "ok"}]},
+        {"ok"},
+    )),
+)
+check(
     "an unrecognized type degrades to dag rather than failing",
     execution_loop.normalize_loop_config({"type": "spiral"})["type"] == "dag",
 )
@@ -245,7 +285,7 @@ config.catalog_sqlite_path = lambda: Path(tmpdir) / "data.db"  # type: ignore[as
 observed: list[tuple[str, dict]] = []
 # Per-step canned responses, keyed by step id. A callable is invoked with the pass index.
 responses: dict = {}
-WATCH = ("entityId", "role", "id__new", "note", "hasMore")
+WATCH = ("entityId", "role", "id__new", "note", "hasMore", "flag", "created_ids")
 
 
 def fake_execute_step(space_id: str, step_row: dict, resolved: dict) -> dict:
@@ -466,6 +506,83 @@ try:
     result, _ = run(for_each_package([]))
     check("for_each: an empty result set skips the body", trace(result) == ["A", "D"])
 
+    # --- collect across passes ---------------------------------------------
+    observed.clear()
+    responses.clear()
+    collect_pkg = for_each_package(ROWS)
+    collect_pkg["loop"]["collect"] = [
+        {"from": "entityId", "as": "created_ids", "reduce": "list"}
+    ]
+    result, _ = run(collect_pkg)
+    check(
+        "collect: every pass's id is kept",
+        result["resolved"].get("created_ids") == ["E1", "E2", "E3"],
+    )
+    check(
+        "collect: last-pass overwrite is unchanged",
+        result["resolved"].get("entityId") == "E3",
+    )
+    check(
+        "collect: a name that is not collected is still last-pass only",
+        result["resolved"].get("role") == "object",
+    )
+
+    observed.clear()
+    responses.clear()
+    empty_collect = for_each_package([])
+    empty_collect["loop"]["collect"] = [
+        {"from": "entityId", "as": "created_ids", "reduce": "list"}
+    ]
+    result, _ = run(empty_collect)
+    check(
+        "collect: an empty for_each seeds an empty list",
+        result["resolved"].get("created_ids") == [],
+    )
+
+    observed.clear()
+    responses.clear()
+    responses["C"] = lambda index: {"records": [{"flag": index < 2}]}
+    count_pkg = loop_package(
+        {
+            "type": "for",
+            "count": 3,
+            "collect": [{"from": "flag", "as": "successes", "reduce": "count"}],
+        }
+    )
+    result, _ = run(count_pkg)
+    check(
+        "collect: count increments when from is truthy",
+        result["resolved"].get("successes") == 2,
+    )
+    check(
+        "collect: a non-collected derived name does not leak into the next pass",
+        all("flag" not in values for sid, values in observed if sid == "B"),
+    )
+
+    observed.clear()
+    responses.clear()
+    hitl_collect = for_each_package(ROWS)
+    hitl_collect["loop"]["collect"] = [
+        {"from": "entityId", "as": "created_ids", "reduce": "list"}
+    ]
+    for row in hitl_collect["steps"]:
+        if row["id"] == "B":
+            row["parameters"] = [{"name": "note", "is_required": True, "value_type": "string"}]
+    paused, state_id = run(hitl_collect, trigger="manual")
+    check("collect: HITL still pauses inside the body", paused["status"] == "pending")
+    progress = (catalog.fetch_state_package(state_id).get("progress") or {})
+    check(
+        "collect: accumulators persist across HITL",
+        "created_ids" in ((progress.get("loop") or {}).get("accumulators") or []),
+    )
+    resumed = execution.run_execution(
+        "SP_TEST", state_id, params={"note": "answered"}, trigger="manual"
+    )
+    check(
+        "collect: HITL resume still accumulates every pass",
+        resumed["resolved"].get("created_ids") == ["E1", "E2", "E3"],
+    )
+
     # --- fan-in outside the cycle ------------------------------------------
     # A -> B -> C; C loops to B, exits to D and E; both D and E point at F.
     # F must run once at the end, not once per pass.
@@ -660,6 +777,36 @@ try:
     check(
         "compose pins a for_each source to the step that projects it",
         for_each_package["loop"]["source_step"] == "B",
+    )
+
+    collect_package = compose_space(
+        {
+            "type": "for_each",
+            "source": "entityId",
+            "collect": [{"from": "entityId", "as": "created_ids"}],
+        },
+        CYCLE,
+    )
+    check(
+        "compose carries collect onto the loop descriptor",
+        collect_package["loop"].get("collect")
+        == [{"from": "entityId", "as": "created_ids", "reduce": "list"}],
+    )
+    check(
+        "compose publishes collect names for later-step pickers",
+        {"step_id": "", "label": "loop", "aliases": ["created_ids"]}
+        in collect_package["available_parameters"],
+    )
+    check(
+        "collect from an unknown name is rejected at compose",
+        "collect reads"
+        in compose_error(
+            {
+                "type": "for",
+                "count": 2,
+                "collect": [{"from": "nope", "as": "ids"}],
+            }
+        ),
     )
 
     # --- nesting ban -------------------------------------------------------

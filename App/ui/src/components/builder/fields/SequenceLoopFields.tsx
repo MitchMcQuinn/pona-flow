@@ -1,12 +1,15 @@
 import { useMemo } from "react";
 import {
   DEFAULT_MAX_ITERATIONS,
+  LOOP_COLLECT_REDUCE,
   LOOP_COMPARISON_OPERATORS,
   LOOP_TYPES,
   LOOP_TYPE_LABELS,
   isDagLoop
 } from "@pona-flow/authoring";
 import type {
+  LoopCollectItem,
+  LoopCollectReduce,
   LoopComparisonOperator,
   LoopConfig,
   LoopType
@@ -75,6 +78,12 @@ export function SequenceLoopFields({
 
   function patch(next: Partial<LoopConfig>) {
     onLoop({ ...loop, ...next });
+  }
+
+  function patchCollect(index: number, next: Partial<LoopCollectItem>) {
+    const rows = [...(loop.collect ?? [])];
+    rows[index] = { ...rows[index], ...next };
+    patch({ collect: rows });
   }
 
   return (
@@ -208,7 +217,75 @@ export function SequenceLoopFields({
       ) : null}
 
       {looping ? (
-        <DurationField
+        <div className="builderField">
+          <div className="createSequenceLabelRow">
+            <label>collect across passes (optional)</label>
+            <button
+              type="button"
+              className="builderTinyBtn builderAddBtn"
+              disabled={disabled}
+              onClick={() =>
+                patch({
+                  collect: [...(loop.collect ?? []), { from: "", as: "", reduce: "list" }]
+                })
+              }
+            >
+              Add
+            </button>
+          </div>
+          {(loop.collect ?? []).map((item, index) => (
+            <div key={index} className="createSequenceCollectRow">
+              <Picker
+                value={item.from}
+                placeholder={unsaved ? "Save the sequence first" : "from"}
+                disabled={disabled || unsaved}
+                options={aliasOptions}
+                emptyHint="No aliases found on this sequence's steps."
+                onSelect={(value) => patchCollect(index, { from: value })}
+              />
+              <input
+                className="builderMono"
+                value={item.as}
+                placeholder="as"
+                disabled={disabled}
+                onChange={(e) => patchCollect(index, { as: e.target.value })}
+              />
+              <select
+                value={item.reduce ?? "list"}
+                disabled={disabled}
+                onChange={(e) =>
+                  patchCollect(index, { reduce: e.target.value as LoopCollectReduce })
+                }
+              >
+                {LOOP_COLLECT_REDUCE.map((reduce) => (
+                  <option key={reduce} value={reduce}>
+                    {reduce}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="builderTinyBtn builderDanger"
+                disabled={disabled}
+                onClick={() =>
+                  patch({
+                    collect: (loop.collect ?? []).filter((_, i) => i !== index)
+                  })
+                }
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <span className="createSequenceHint">
+            Last-pass overwrite is unchanged. These names keep every pass, so a later step
+            can use every id — not just the last one.
+          </span>
+        </div>
+      ) : null}
+
+      {looping ? (
+        <DurationField>
           label="delay between iterations (optional)"
           value={loop.delay_seconds ?? 0}
           disabled={disabled}
