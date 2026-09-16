@@ -25,10 +25,10 @@ function runResultHasContent(result: RunResult): boolean {
 
 function shouldShowBuilderResult(state: AppState, builderResult?: RunResult | null): boolean {
   if (!builderResult || !runResultHasContent(builderResult)) return false;
-  if (state.createSequence || state.createEvent || state.spacePanelOpen || state.localLlmsPanelOpen)
+  if (state.createSequence || state.createEvent || state.spacePanelOpen)
     return false;
   const mode = state.view.rightPanelMode;
-  return mode !== "space" && mode !== "event" && mode !== "localLlms";
+  return mode !== "space" && mode !== "event";
 }
 
 function selectedIsSingleStep(state: AppState): boolean {

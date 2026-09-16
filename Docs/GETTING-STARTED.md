@@ -249,6 +249,7 @@ to add you.
 
 | If you want to… | Read… |
 |-----------------|-------|
+| Understand the pains pona flow solves, and how it compares to alternatives | [WHY-PONA-FLOW.md](WHY-PONA-FLOW.md) |
 | Understand security in plain language | [SECURITY-GUIDE.md](SECURITY-GUIDE.md) |
 | Deploy or operate an instance yourself | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | See why architectural choices were made | [DECISIONS.md](DECISIONS.md) |

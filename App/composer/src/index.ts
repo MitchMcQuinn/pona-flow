@@ -23,7 +23,6 @@ import {
   composeStepWrapGraphCypher,
   isStepCodeExecution,
   isStepCustomEndpoint,
-  isStepLocalLlm,
   isStepWait,
   isStepJoin,
   stepEntityPayload
@@ -182,7 +181,6 @@ export interface ComposerApi {
     sp: { query_id?: string; endpoint?: string; body?: unknown } | null | undefined
   ): boolean;
   isStepCodeExecution(sp: SequencialProperties | null | undefined): boolean;
-  isStepLocalLlm(sp: SequencialProperties | null | undefined): boolean;
   isStepWait(sp: SequencialProperties | null | undefined): boolean;
   isStepJoin(sp: SequencialProperties | null | undefined): boolean;
   stepEntityPayload(sp: SequencialProperties | null | undefined): string;
@@ -222,7 +220,6 @@ export const composer: ComposerApi = {
   instanceCreateIdParamName,
   isStepCustomEndpoint,
   isStepCodeExecution,
-  isStepLocalLlm,
   isStepWait,
   isStepJoin,
   composeStepWrapEntitySql,

@@ -1,6 +1,10 @@
 # pona flow
 
-pona flow is a middleware workspace and runtime engine for graph-based context engineering and workflow execution.
+A dedicated-instance runtime where **domain types, records, and workflows** share one graph. Humans run sequences from a dashboard. Agents run the same sequences as MCP tools. Missing inputs pause the run instead of disappearing into a prompt.
+
+**Five-minute architecture** (start here): [Docs/5-MINUTE-ARCHITECTURE.md](Docs/5-MINUTE-ARCHITECTURE.md)
+
+Buyer-facing comparison to n8n, LangGraph, RAG, Temporal, and BPM: [Docs/WHY-PONA-FLOW.md](Docs/WHY-PONA-FLOW.md)
 
 ## Development setup
 
@@ -154,29 +158,47 @@ At the highest level of abstraction pona flow implements a minimalist ontology c
 
 A **sequence** is a saved, runnable entry point that names the STEP the run starts at. At run time the executor walks outgoing `POINTS_TO` edges. An edge may be unconditional, or gated on a parameter (optionally compared to an expected boolean, which is how two sibling edges branch).
 
-Saving a catalog operation auto-wraps it in a STEP node. A STEP that does not wrap an operation is a custom step: an outbound HTTP call, or a Local LLM call. Build order matters — operations (and their wrapping STEPs) first, then transitions, then the sequence. A sequence created before its STEPs exist matches nothing and runs as a no-op.
+Saving a catalog operation auto-wraps it in a STEP node. A STEP that does not wrap an operation is a custom step: an outbound HTTP call (including a call to [local-llm-server](https://github.com/MitchMcQuinn/local-llm-server)), a wait, or a join. Build order matters — operations (and their wrapping STEPs) first, then transitions, then the sequence. A sequence created before its STEPs exist matches nothing and runs as a no-op.
 
 ### STEPs
 
-Every STEP is one of three kinds. The executor (`Engine/server/execution_run.py`) picks the runner from the step payload: a `query_id` runs a saved operation; `kind: "local_llm"` runs a saved Ollama config; an `endpoint` URL runs an HTTP request.
+Every STEP is one of three kinds. The executor (`Engine/server/execution_run.py`) picks the runner from the step payload: a `query_id` runs a saved operation; an `endpoint` URL runs an HTTP request; `kind: "wait"` / `"join"` park or barrier the walk.
 
 | Kind | How it is authored | What runs |
 | --- | --- | --- |
 | **Saved operation** | QUERY builder (create / read / update / delete on STEP, SCHEMA, or INSTANCE). Save wraps a STEP that stores the catalog `query_id`. | The stored Cypher (and any SQLite) against the space's Neo4j / per-space SQLite. Parameters declared on the catalog row are supplied by the sequence; required ones pause the run as `pending` until a human or an upstream step fills them. |
-| **HTTP (custom endpoint)** | STEP create with an endpoint URL, method, headers, and JSON body. Body fields may contain `$parameter` tokens; headers and body may contain `$secret.NAME` tokens resolved from the space credential store at request time. | An outbound HTTP request. Loopback, link-local, and other non-public addresses are blocked (D7) — HTTP STEPs cannot call Ollama or the engine itself. |
-| **Local LLM** | STEP create with `step_type: "local_llm"` and a saved Ollama config id. The sequence parameter `prompt` is required at run time. | The engine calls local Ollama with the saved config (and optional per-run overrides). JSON output can be mapped into downstream parameters via `response_parameters`. |
+| **HTTP (custom endpoint)** | STEP create with an endpoint URL, method, headers, and JSON body. Body fields may contain `$parameter` tokens; headers and body may contain `$secret.NAME` tokens resolved from the space credential store at request time. | An outbound HTTP request. Loopback, link-local, and other non-public addresses are blocked (D7) unless the host is on `PONA_FLOW_OUTBOUND_ALLOWLIST`. Allowlist `127.0.0.1` to call [local-llm-server](https://github.com/MitchMcQuinn/local-llm-server) (`POST /configs/<id>/generate`, timeout 300). Do not allowlist Ollama itself. |
+| **Wait / Join** | STEP create with `step_type: "wait"` or `"join"`. | Wait parks the run; join continues after every taken inbound arm finishes. |
 
-`response_parameters` on an HTTP or Local LLM STEP map a JSON path in the result onto a parameter name so a later STEP (or a condition on a `POINTS_TO` edge) can use it. That is how an HTTP or Local LLM step can populate `$searchTerm` for a downstream vector-search read.
+`response_parameters` on an HTTP STEP map a JSON path in the result onto a parameter name so a later STEP (or a condition on a `POINTS_TO` edge) can use it. That is how an HTTP step can populate `$searchTerm` for a downstream vector-search read, or map local-llm-server `response` / `parsed` into later parameters.
 
 Sequences are run from the dashboard, from `POST /api/spaces/{space_id}/sequences/{sequence_id}/run`, or as MCP tools. All three share `Engine/server/sequence_service.py`.
 
 ### Vector search
 
-Local nearest-neighbour search over opted-in INSTANCE records. There is no sidecar vector database: Ollama embeds the text, Neo4j stores the vector on the node (and on INSTANCE-to-INSTANCE `POINTS_TO` edges), and a hit *is* the record.
+Local nearest-neighbour search over opted-in INSTANCE records. There is no sidecar vector database: Ollama embeds the text, Neo4j stores the vector on the node (and on INSTANCE-to-INSTANCE `POINTS_TO` edges), and a hit *is* the record. A sequence that wants "find similar, then traverse" does two steps — search, then `MATCH` — because the search itself never walks `POINTS_TO`.
 
-A SCHEMA opts in with `is_vectorized`; individual properties opt in with `is_embedded` (the display-label property is the default). Reindex writes the vectors. Walkthrough: [Docs/VECTORIZATION-SETUP.md](Docs/VECTORIZATION-SETUP.md). Design notes: [Docs/VECTORIZATION-VISION.md](Docs/VECTORIZATION-VISION.md).
+This is not a document-chunk RAG engine, not a per-SCHEMA embedding model, and not vectorization of STEP or SCHEMA nodes. v1 is local Ollama only; HTTP STEPs cannot call it (D7). Do not allowlist Ollama (`:11434`).
 
-In the QUERY builder, a **read INSTANCE** can flip `vector_search` on. That replaces the MATCH with `CALL db.index.vector.queryNodes(...)`, filters on the selected `attributive_label` (unless **Search all types** is on), and returns the node plus a `score`. Two author-facing inputs:
+**How a record becomes a vector.** A SCHEMA opts in with `is_vectorized`. Each property opts into the embedded text with `is_embedded`; with nothing marked, the display-label property is used. Embedding every field of every type is the fastest way to make similarity results look random, so ids, emails, and tax IDs usually stay off. The engine serializes the included keys as `KEY: value` lines in schema order, truncates over-long text (one vector per record — no summarization, no chunk nodes), and writes the result onto reserved graph properties `embedding` and `embedding_stale`. Authors cannot declare those keys on a SCHEMA; `embedding` is stripped from default viz / `RETURN *`.
+
+Because every data node is `:INSTANCE` and every data edge is `:POINTS_TO`, a space gets **one** node vector index and **one** relationship vector index. That forces a single embedding model (and therefore a single dimension) per space. Relationship statements match `(:INSTANCE)-[:POINTS_TO]->(:INSTANCE)` only, so STEP and SCHEMA pattern edges are never indexed.
+
+**Turn it on.** Need Neo4j 2025.01+ (or 5.18+ on leftover 5.x) for vector indexes, and a dedicated embedding model in a local Ollama — a chat model fails the health check:
+
+```bash
+ollama pull nomic-embed-text
+```
+
+Then either set instance-wide defaults in `.env` (`PONA_FLOW_OLLAMA_URL`, `PONA_FLOW_OLLAMA_EMBED_MODEL`) and restart, or open **Space → Embeddings**, enable the feature, set the URL (`http://127.0.0.1:11434`) and the exact model name from `ollama list`, and Save. Saving probes the model and stores its vector width. A space that has never saved Embeddings settings inherits the env, so naming a model there enables vector search instance-wide. The URL is loopback-only unless `PONA_FLOW_OLLAMA_ALLOWED_HOSTS` lists another host.
+
+Changing the model later drops the indexes and clears stored vectors (they are not comparable across models) — reindex after. Turning the space toggle **off** is destructive to stored vectors, not to SCHEMA opt-in flags.
+
+**Writes vs reindex.** Create/update does not embed inline. A new record has no vector yet; an update of an already-indexed type sets `embedding_stale`. Graph writes never fail because Ollama is down: the write succeeds and the record waits. **Space → Embeddings → Reindex space** (or the periodic sweep, `PONA_FLOW_EMBEDDING_REINDEX_SECONDS`, default 300; `0` is button-only) walks `is_vectorized` types, calls Ollama, and `SET`s the vector. Changing a SCHEMA’s `is_embedded` include list or `is_vectorized` itself marks matching records stale so the next reindex refills them.
+
+**Search from a read.** In the QUERY builder, a **read INSTANCE** can flip `vector_search` on. That replaces the MATCH with `CALL db.index.vector.queryNodes(...)`, filters on the selected `attributive_label` (unless **Search all types** is on), and returns the node plus a `score`. Scope is a single INSTANCE node with no hops, and (unless searching all types) a literal `attributive_label` whose SCHEMA is `is_vectorized`. Per-node WHERE still applies *after* the index returns candidates, so a tight filter can return fewer than `k` rows. The builder hides RETURN projections, DISTINCT, ORDER BY, and SKIP/LIMIT while the toggle is on — `k` is the limit and score is the order.
+
+Two author-facing inputs:
 
 | Field | Literal | Parameter |
 | --- | --- | --- |
@@ -185,7 +207,11 @@ In the QUERY builder, a **read INSTANCE** can flip `vector_search` on. That repl
 
 Author-named parameters are what let two vector searches coexist in one sequence — under the reserved names they would both read the same `vector_query_text`. Once either field is parameterized the builder **Run** button hides (there is no value until a sequence supplies one); save the operation and drive it from a sequence.
 
-The engine fills `$vector_query` (the embedding), `$vector_index`, and `$vector_overfetch` immediately before Cypher runs. Those names are reserved; they are never sent by the client. Ollama is reached only from `Engine/server/embeddings.py` — HTTP STEPs cannot call it.
+The engine fills `$vector_query` (the embedding), `$vector_index`, and `$vector_overfetch` immediately before Cypher runs. Those names are reserved; they are never sent by the client. Ollama is reached only from `Engine/server/embeddings.py`. If Ollama is down at query time, search fails (503) — writes can degrade to stale; a similarity query cannot.
+
+**Search all types** drops the label filter and can return a mix of vectorized types. A broad search names no SCHEMA in its Cypher, so SCHEMA-delete blast radius and template export will not treat it as bound to one type. Prefer a concrete `attributive_label`; mixed-type cosine across `CUSTOMER` and `NOTE` in the shared index is usually noise.
+
+The engine search API (`POST /api/spaces/{space_id}/embeddings/search`) returns the same primitive as scalar hits (`id`, `attributive_label`, `display_label`, `score`). It is also the only way to search relationship vectors (`kind: "relationship"`), which the builder toggle does not cover. Reindex and config save need space manage; search needs `read:INSTANCE`.
 
 ### The SQLite Database Structure
 

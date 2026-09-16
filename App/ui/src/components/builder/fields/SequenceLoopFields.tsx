@@ -285,7 +285,7 @@ export function SequenceLoopFields({
       ) : null}
 
       {looping ? (
-        <DurationField>
+        <DurationField
           label="delay between iterations (optional)"
           value={loop.delay_seconds ?? 0}
           disabled={disabled}

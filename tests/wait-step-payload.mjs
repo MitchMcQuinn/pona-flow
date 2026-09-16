@@ -8,7 +8,7 @@ import { isStepWait, stepEntityPayload } from "../App/composer/src/step/endpoint
 
 assert.equal(isStepWait({ step_type: "wait", wait_mode: "duration" }), true);
 assert.equal(isStepWait({ step_type: "http" }), false);
-assert.equal(isStepWait({ step_type: "local_llm" }), false);
+assert.equal(isStepWait({ step_type: "code" }), false);
 
 const duration = JSON.parse(
   stepEntityPayload({

@@ -5,7 +5,6 @@ import { updateSequenceDescription, type ExecutionPackage } from "../services/ap
 import { BuilderPanel } from "./builder/BuilderPanel";
 import { EventBuilder } from "./events/EventBuilder";
 import { SpaceConfigPanel } from "./space/SpaceConfigPanel";
-import { LocalLlmsPanel } from "./localLlms/LocalLlmsPanel";
 import { SequenceWebhookSection } from "./sequence/SequenceWebhookSection";
 import { TypedValueInput } from "./builder/fields/TypedValueInput";
 import { parseCheckboxSelection } from "@pona-flow/authoring";
@@ -41,7 +40,6 @@ interface ConfigPanelProps {
   onDeleteSpace: () => void;
   onLoadAuditLog: () => void;
   onSpacePanelClose: () => void;
-  onLocalLlmsPanelClose?: () => void;
   /** Composed EXECUTION package for the selected sequence (webhook curl + input list). */
   executionPackage?: ExecutionPackage | null;
   composeError?: string | null;
@@ -280,7 +278,6 @@ export function ConfigPanel({
   onDeleteSpace,
   onLoadAuditLog,
   onSpacePanelClose,
-  onLocalLlmsPanelClose,
   executionPackage = null,
   composeError = null
 }: ConfigPanelProps) {
@@ -451,15 +448,6 @@ export function ConfigPanel({
         onDeleteSpace={onDeleteSpace}
         onLoadAuditLog={onLoadAuditLog}
         onClose={onSpacePanelClose}
-      />
-    );
-  }
-
-  if (rightPanelMode === "localLlms") {
-    return (
-      <LocalLlmsPanel
-        spaceId={state.spaceId}
-        onClose={onLocalLlmsPanelClose ?? onSpacePanelClose}
       />
     );
   }

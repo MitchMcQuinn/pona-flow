@@ -9,12 +9,12 @@ state machine:
      any response_parameter mapping (i.e. it can only come from a human). In
      that case the run pauses as "pending" and returns *all* of the step's fields
      to prompt (optional included), so the operator can review/override them.
-  3. Execute the step (query against Neo4j, HTTP endpoint, or local LLM),
-     then bind values for downstream steps: HTTP/LLM/wait publish ``ok`` (and
+  3. Execute the step (query against Neo4j or HTTP endpoint),
+     then bind values for downstream steps: HTTP/wait publish ``ok`` (and
      HTTP ``status``) into resolved; a successful query sets ``ok=True``; a query
      step's scalar RETURN columns fill in names not already resolved; and
      response_parameter mappings apply afterwards so an explicit mapping can
-     still overwrite one. HTTP and Local LLM may retry (``max_attempts``) with
+     still overwrite one. HTTP may retry (``max_attempts``) with
      an optional parked ``backoff_seconds`` before the step is marked visited.
   4. Follow outgoing transitions whose condition_parameter is empty. When a
      condition_parameter is set, gate on it: with a condition_expected boolean,
@@ -57,7 +57,6 @@ from . import execution_join
 from . import execution_loop
 from . import execution_wait
 from . import graph
-from . import local_llms
 from . import schema_currency
 
 # Credential reference token ``$secret.<NAME>`` (see cypher_utils.SECRET_REF_RE).
@@ -303,6 +302,11 @@ def _validate_outbound_url(endpoint: str) -> None:
     if os.environ.get("PONA_FLOW_ALLOW_PRIVATE_OUTBOUND", "").strip() in ("1", "true", "TRUE"):
         return
 
+    # An allowlisted host may be private/loopback (e.g. a self-hosted local-llm-server
+    # on 127.0.0.1). Empty allowlist keeps the public-only default.
+    if allowlist and host.lower() in allowlist:
+        return
+
     # Resolve and reject private / loopback / link-local / reserved addresses.
     try:
         infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == "https" else 80))
@@ -429,74 +433,6 @@ def _execute_code_step(
     }
 
 
-def _local_llm_overrides(resolved: dict[str, Any]) -> dict[str, Any]:
-    """This run's optional Local LLM settings, taken from the resolved parameters.
-
-    A parameter left blank never reaches ``resolved`` (the resolve loop skips
-    empties), so an absent key means "keep the saved config's value".
-    """
-    out: dict[str, Any] = {}
-    for key in local_llms.OVERRIDE_KEYS:
-        if key not in resolved:
-            continue
-        value = resolved[key]
-        if value is None or value == "":
-            continue
-        out[key] = value
-    return out
-
-
-def _execute_local_llm_step(
-    space_id: str, step: dict[str, Any], resolved: dict[str, Any]
-) -> dict[str, Any]:
-    """Run a saved local LLM config against Ollama using the sequence ``prompt`` param."""
-    config_id = str(step.get("config_id") or "").strip()
-    if not config_id:
-        return {"_ok": False, "_error": "Local LLM step has no config_id configured."}
-    prompt = resolved.get("prompt")
-    if prompt is None or (isinstance(prompt, str) and not prompt.strip()):
-        return {
-            "_ok": False,
-            "_error": "Local LLM step requires a non-empty sequence parameter named 'prompt'.",
-        }
-    prompt_text = prompt if isinstance(prompt, str) else str(prompt)
-    try:
-        timeout = execution_call.timeout_seconds(
-            step, resolved, execution_call.LLM_DEFAULT_TIMEOUT_SECONDS
-        )
-    except ValueError as e:
-        return {"_ok": False, "_error": str(e)}
-    try:
-        result = local_llms.run_config(
-            space_id,
-            config_id,
-            prompt_text,
-            _local_llm_overrides(resolved),
-            timeout_seconds=timeout,
-        )
-    except local_llms.ConfigNotFound as e:
-        return {"_ok": False, "_error": str(e)}
-    except local_llms.LocalLlmUnavailable as e:
-        return {"_ok": False, "_error": str(e)}
-    except ValueError as e:
-        return {"_ok": False, "_error": str(e)}
-    except Exception as e:  # noqa: BLE001
-        return {"_ok": False, "_error": f"Local LLM step failed: {e}"}
-    out = dict(result)
-    out["_ok"] = True
-    out["_raw_text"] = json.dumps(
-        {
-            "config_id": result.get("config_id"),
-            "model": result.get("model"),
-            "response": result.get("response"),
-            "parsed": result.get("parsed"),
-            "done_reason": result.get("done_reason"),
-            "eval_count": result.get("eval_count"),
-        }
-    )
-    return out
-
-
 def _execute_step(
     space_id: str, step: dict[str, Any], resolved: dict[str, Any]
 ) -> dict[str, Any]:
@@ -506,8 +442,6 @@ def _execute_step(
     kind = str(step.get("kind") or "").strip()
     if kind == "code":
         return _execute_code_step(space_id, step, resolved)
-    if kind == "local_llm":
-        return _execute_local_llm_step(space_id, step, resolved)
     if kind == "wait":
         return {"_ok": True}
     if kind == "join":
@@ -541,9 +475,10 @@ def _bind_transport_outcome(
     """Publish this step's transport outcome into ``resolved`` for POINTS_TO / loops.
 
     Overwrites a previous step's ``ok`` / ``status`` so a later condition always sees
-    the latest call. HTTP ``status`` is 0 on a network error; Local LLM and wait do
-    not invent ``status``. A successful query sets ``ok=True`` and leaves ``status``
-    alone. Explicit ``response_parameters`` mappings run afterwards and may override.
+    the latest call. HTTP ``status`` is 0 on a network error; leftover code and
+    wait do not invent ``status``. A successful query sets ``ok=True`` and leaves
+    ``status`` alone. Explicit ``response_parameters`` mappings run afterwards and
+    may override.
     """
     resp = response if isinstance(response, dict) else {}
     query_id = str(step.get("query_id") or "").strip()
@@ -554,7 +489,7 @@ def _bind_transport_outcome(
     if kind == "wait" or kind == "join":
         resolved["ok"] = True
         return
-    if kind == "local_llm" or kind == "code":
+    if kind == "code":
         resolved["ok"] = bool(resp.get("_ok"))
         return
     if str(step.get("endpoint") or "").strip() or "_ok" in resp or "_status" in resp:
@@ -1534,9 +1469,6 @@ def run_execution(
         if str(step.get("kind") or "").strip() == "code":
             executed_entry["kind"] = "code"
             executed_entry["resource_id"] = str(step.get("resource_id") or "")
-        elif str(step.get("kind") or "").strip() == "local_llm":
-            executed_entry["kind"] = "local_llm"
-            executed_entry["config_id"] = str(step.get("config_id") or "")
         elif str(step.get("kind") or "").strip() == "wait":
             executed_entry["kind"] = "wait"
         elif str(step.get("kind") or "").strip() == "join":

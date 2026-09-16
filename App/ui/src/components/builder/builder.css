@@ -160,6 +160,11 @@
   gap: 8px;
 }
 
+/* Toggle on the left, trailing action (e.g. Remove) on the right. */
+.builderRowActionsSpread {
+  justify-content: space-between;
+}
+
 /* Add buttons anchored to the bottom of a card, below child items. */
 .builderCardFooter {
   display: flex;

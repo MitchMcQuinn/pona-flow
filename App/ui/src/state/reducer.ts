@@ -57,7 +57,6 @@ export const initialState: AppState = {
   me: null,
   permissions: null,
   spacePanelOpen: false,
-  localLlmsPanelOpen: false,
   nav: {
     sequences: [],
     groups: [],
@@ -89,7 +88,6 @@ function computeAllValid(validity: Record<string, boolean>, schemaLength: number
 function nextRightPanelMode(state: AppState): AppState["view"]["rightPanelMode"] {
   if (state.editor.selectedElement) return "inspect";
   if (state.spacePanelOpen) return "space";
-  if (state.localLlmsPanelOpen) return "localLlms";
   if (state.createEvent || state.events.selectedEventId) return "event";
   if (state.nav.selectedSequenceId) return "params";
   return "builder";
@@ -103,7 +101,6 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         spaceId: event.spaceId,
         permissions: null,
         spacePanelOpen: false,
-        localLlmsPanelOpen: false,
         nav: {
           ...state.nav,
           selectedSequenceId: null,
@@ -239,7 +236,6 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         results: emptyResults(),
         createSequence: false,
         spacePanelOpen: false,
-        localLlmsPanelOpen: false,
         events: {
           ...state.events,
           selectedEventId: null
@@ -379,8 +375,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
           ...state.view,
           rightPanelMode: "inspect"
         },
-        spacePanelOpen: false,
-        localLlmsPanelOpen: false
+        spacePanelOpen: false
       };
 
     case "INSPECT_CLOSED": {
@@ -418,7 +413,6 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         results: emptyResults(),
         createSequence: false,
         spacePanelOpen: false,
-        localLlmsPanelOpen: false,
         events: {
           ...state.events,
           selectedEventId: null
@@ -447,7 +441,6 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         results: emptyResults(),
         createSequence: true,
         spacePanelOpen: false,
-        localLlmsPanelOpen: false,
         events: {
           ...state.events,
           selectedEventId: null
@@ -504,7 +497,6 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         },
         createSequence: false,
         spacePanelOpen: false,
-        localLlmsPanelOpen: false,
         events: {
           ...state.events,
           selectedEventId: null
@@ -532,7 +524,6 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         },
         createSequence: false,
         spacePanelOpen: false,
-        localLlmsPanelOpen: false,
         events: {
           ...state.events,
           selectedEventId: event.eventId
@@ -586,7 +577,6 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
           selectedEventId: null
         },
         spacePanelOpen: true,
-        localLlmsPanelOpen: false,
         view: {
           ...state.view,
           rightPanelMode: "space",
@@ -606,45 +596,6 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
       };
     }
 
-    case "LOCAL_LLMS_PANEL_OPENED":
-      return {
-        ...state,
-        nav: {
-          ...state.nav,
-          selectedSequenceId: null
-        },
-        sequence: emptySequence(),
-        editor: {
-          ...state.editor,
-          selectedElement: null
-        },
-        createSequence: false,
-        createEvent: false,
-        events: {
-          ...state.events,
-          selectedEventId: null
-        },
-        spacePanelOpen: false,
-        localLlmsPanelOpen: true,
-        view: {
-          ...state.view,
-          rightPanelMode: "localLlms",
-          visualMode: "empty"
-        },
-        results: emptyResults()
-      };
-
-    case "LOCAL_LLMS_PANEL_CLOSED": {
-      const closed = { ...state, localLlmsPanelOpen: false };
-      return {
-        ...closed,
-        view: {
-          ...state.view,
-          rightPanelMode: nextRightPanelMode(closed)
-        }
-      };
-    }
-
     case "AUDIT_LOG_OPENED":
       return {
         ...state,
@@ -660,7 +611,6 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         createSequence: false,
         createEvent: false,
         spacePanelOpen: false,
-        localLlmsPanelOpen: false,
         events: {
           ...state.events,
           selectedEventId: null

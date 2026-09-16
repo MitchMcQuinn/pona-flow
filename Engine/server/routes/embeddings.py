@@ -5,7 +5,7 @@ space-manage) and **search** (a read, so the ordinary ``read:INSTANCE`` flow). A
 that wants "find similar, then traverse" calls search, takes the ids, and does its own
 ``MATCH`` — the search itself never walks ``POINTS_TO``.
 
-See Docs/VECTORIZATION-VISION.md. Embedding work is an engine primitive rather than an
+See README.md § Vector search. Embedding work is an engine primitive rather than an
 authorable sequence: it reads SCHEMA payloads from SQLite, writes reserved graph
 properties, and talks to a localhost service that endpoint STEPs are barred from (D7).
 """

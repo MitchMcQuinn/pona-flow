@@ -94,13 +94,14 @@ assert.ok(
   "http_step accepts max_attempts"
 );
 assert.ok(
-  "backoff_seconds" in (createSchema.properties.local_llm_step?.properties || {}),
-  "local_llm_step accepts backoff_seconds"
+  "backoff_seconds" in (createSchema.properties.http_step?.properties || {}),
+  "http_step accepts backoff_seconds"
 );
 assert.ok("unwind" in createSchema.properties, "create_operation accepts unwind");
-assert.ok(
+assert.equal(
   "local_llm_step" in createSchema.properties,
-  "create_operation accepts local_llm_step"
+  false,
+  "Local LLM STEPs are extracted; create_operation must not accept local_llm_step"
 );
 assert.ok("wait_step" in createSchema.properties, "create_operation accepts wait_step");
 assert.ok("join_step" in createSchema.properties, "create_operation accepts join_step");
@@ -181,7 +182,7 @@ assert.ok(
   INSTRUCTIONS.indexOf("1. create_operation") < INSTRUCTIONS.indexOf("3. create_sequence"),
   "the instructions must present the stages in dependency order"
 );
-assert.match(INSTRUCTIONS, /HTTP call, a Local LLM call, a wait, or a join/);
+assert.match(INSTRUCTIONS, /HTTP call, a wait, or a join/);
 assert.match(
   INSTRUCTIONS,
   /default to NEXT/,
@@ -290,18 +291,6 @@ assert.equal(
   undefined,
   "omitted max_attempts is not persisted"
 );
-
-const llmPayload = JSON.parse(
-  stepEntityPayload({
-    step_type: "local_llm",
-    local_llm_config_id: "cfg-1",
-    timeout_seconds: "$limit",
-    max_attempts: 2,
-  })
-);
-assert.equal(llmPayload.kind, "local_llm");
-assert.equal(llmPayload.timeout_seconds, "$limit");
-assert.equal(llmPayload.max_attempts, 2);
 
 assert.deepEqual(
   callStepWarnings({

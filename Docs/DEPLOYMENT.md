@@ -122,8 +122,8 @@ deploy/upgrade; per-space `entities` tables migrate on first space access.
 Sequence "endpoint" steps make outbound HTTP calls. By default the server blocks
 private/loopback/link-local/reserved targets. Tighten further per instance:
 
-- `PONA_FLOW_OUTBOUND_ALLOWLIST` — comma-separated host allowlist (recommended in prod).
-- `PONA_FLOW_ALLOW_PRIVATE_OUTBOUND=1` — only for trusted self-hosted callbacks; leave off otherwise.
+- `PONA_FLOW_OUTBOUND_ALLOWLIST` — comma-separated host allowlist (recommended in prod). Hosts on this list may be private or loopback, so a self-hosted [local-llm-server](https://github.com/MitchMcQuinn/local-llm-server) can be reached as `PONA_FLOW_OUTBOUND_ALLOWLIST=127.0.0.1`. Do not allowlist Ollama (`:11434`).
+- `PONA_FLOW_ALLOW_PRIVATE_OUTBOUND=1` — opens every private/loopback target; only for trusted self-hosted callbacks. Prefer the allowlist exception above.
 
 ## 7. Admin surface
 

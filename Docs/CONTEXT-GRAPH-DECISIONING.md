@@ -8,7 +8,7 @@ document describes the categories of *decisioning problems* where a context grap
 with concrete examples drawn from the product's own model.
 
 > **The pona flow model in one paragraph.** Everything is one of three node types —
-> `STEP` (sequential: conditional, branching, looping operations), `SCHEMA`
+> `STEP` (sequential: step by step, conditional, branching, looping operations), `SCHEMA`
 > (schematic: taxonomies and ontologies), and `INSTANCE` (spatial: the actual data
 > records) — and nodes connect only to others of their own type through a single
 > `POINTS_TO` relationship. The graph carries the *relationships*; per-entity SQLite
@@ -19,26 +19,32 @@ with concrete examples drawn from the product's own model.
 
 ---
 
+
+
 ## How to read the examples
 
 Each section below follows the same shape:
 
 - **The decisioning problem** — the question or routing choice that has to be made.
 - **Why non-graph solutions struggle** — relational tables, flat JSON/documents, or
-  vector stores.
+vector stores.
 - **The context-graph approach** — how pona flow's `STEP`/`SCHEMA`/`INSTANCE` +
-  `POINTS_TO` model expresses it directly.
+`POINTS_TO` model expresses it directly.
 
 A quick decoder for the comparison points:
 
-| Non-graph approach | What it is | Where it hurts for decisioning |
-|--------------------|-----------|--------------------------------|
-| **Relational tables** | Rows + foreign keys + JOINs | Relationship depth is unknown at query time; recursion is awkward and slow |
-| **Document store / flat JSON** | Nested blobs keyed by id | Cross-entity relationships get duplicated or denormalized; no traversal |
-| **Vector store / embeddings** | Similarity over text chunks | Great at "what's *similar*", blind to "what's *connected* and by what rule" |
-| **Hardcoded app logic** | `if/else` and state in code | The decision logic is invisible to the data layer; not inspectable or reusable |
+
+| Non-graph approach             | What it is                  | Where it hurts for decisioning                                                 |
+| ------------------------------ | --------------------------- | ------------------------------------------------------------------------------ |
+| **Relational tables**          | Rows + foreign keys + JOINs | Relationship depth is unknown at query time; recursion is awkward and slow     |
+| **Document store / flat JSON** | Nested blobs keyed by id    | Cross-entity relationships get duplicated or denormalized; no traversal        |
+| **Vector store / embeddings**  | Similarity over text chunks | Great at "what's *similar*", blind to "what's *connected* and by what rule"    |
+| **Hardcoded app logic**        | `if/else` and state in code | The decision logic is invisible to the data layer; not inspectable or reusable |
+
 
 ---
+
+
 
 ## Decisions a context graph is particularly equipped to make
 
@@ -50,73 +56,87 @@ section numbers point to where it is explained in detail.
 ### Reachability and impact
 
 - **Is A connected to B (directly or indirectly)?** — eligibility, access, or influence
-  that depends on a chain of links, not a single field. *(§1)*
+that depends on a chain of links, not a single field. *(§1)*
 - **What is the full downstream impact of changing or removing X?** — blast-radius and
-  dependency analysis. *(§1)*
+dependency analysis. *(§1)*
 - **Who is the ultimate owner or authority for this entity?** — walk the delegation or
-  reporting chain to the root. *(§1)*
+reporting chain to the root. *(§1)*
 - **Which records are in scope for this matter?** — the connected neighborhood around a
-  case, account, or project. *(§1, §4)*
+case, account, or project. *(§1, §4)*
+
+
 
 ### Routing and process control
 
 - **Which step should run next?** — follow the `STEP` edge whose guard condition matches
-  the current parameters. *(§2)*
+the current parameters. *(§2)*
 - **Approve, reject, escalate, or retry?** — branch on a runtime value without
-  hardcoded workflow code. *(§2)*
+hardcoded workflow code. *(§2)*
 - **Should this run pause for human input?** — the executor stops when a required
-  parameter can only come from a person. *(§7)*
+parameter can only come from a person. *(§7)*
 - **When should a loop exit?** — take the back-edge until an exit condition on a sibling
-  edge is satisfied. *(§7)*
+edge is satisfied. *(§7)*
+
+
 
 ### Classification, policy, and rules
 
 - **What kind of thing is this, and what rules apply?** — classify by `SCHEMA`
-  ancestors and inherit constraints from the taxonomy. *(§3)*
+ancestors and inherit constraints from the taxonomy. *(§3)*
 - **Does this record satisfy the schema for its type?** — validation is tied to the
-  schema node the instance points to. *(§3)*
+schema node the instance points to. *(§3)*
 - **Which policies apply when an entity has multiple parents?** — gather rules from every
-  reachable schema ancestor (heterarchy). *(§3)*
+reachable schema ancestor (heterarchy). *(§3)*
 - **Has the governing rule set changed since this was last evaluated?** — compare the
-  current schema subgraph to what was in effect at decision time. *(§3, §5)*
+current schema subgraph to what was in effect at decision time. *(§3, §5)*
+
+
 
 ### Context and relevance
 
 - **What context should we show before deciding?** — assemble the bounded subgraph
-  linked to the subject, not the whole database. *(§4)*
+linked to the subject, not the whole database. *(§4)*
 - **Which related records must an agent see to answer safely?** — traverse `INSTANCE` and
-  `SCHEMA` links to build an explainable context window. *(§4)*
+`SCHEMA` links to build an explainable context window. *(§4)*
 - **Is this record relevant to the current task, or merely similar?** — structural
-  relatedness (linked) vs. semantic similarity (lookalike). *(§4)*
+relatedness (linked) vs. semantic similarity (lookalike). *(§4)*
+
+
 
 ### Structure, dependencies, and risk
 
 - **Are there circular dependencies that block progress?** — detect cycles in the task or
-  component graph before committing. *(§7, §8)*
+component graph before committing. *(§7, §8)*
 - **What is the critical path through this network?** — longest or bottleneck path
-  through connected `STEP` or `INSTANCE` nodes. *(§1, §8)*
+through connected `STEP` or `INSTANCE` nodes. *(§1, §8)*
 - **Does this subgraph match a known risky pattern?** — fraud rings, mutual referral
-  loops, diamond dependencies. *(§8)*
+loops, diamond dependencies. *(§8)*
 - **Who else is affected by the same upstream failure?** — shared-ancestor or
-  shared-dependency grouping. *(§1, §8)*
+shared-dependency grouping. *(§1, §8)*
+
+
 
 ### Provenance and accountability
 
 - **Why was this outcome reached?** — replay the path of steps and edges the run
-  followed. *(§5)*
+followed. *(§5)*
 - **Which rule or condition actually fired?** — the matching edge condition is the
-  rationale. *(§5)*
+rationale. *(§5)*
 - **What was the state of the graph when the decision was made?** — audit against the
-  traversed subgraph, not just the final row. *(§5)*
+traversed subgraph, not just the final row. *(§5)*
+
+
 
 ### Evolution and discovery
 
 - **Can we start using a new relationship type immediately?** — add a `POINTS_TO` edge
-  and include it in the next traversal; no migration required. *(§6)*
+and include it in the next traversal; no migration required. *(§6)*
 - **What new decisions become possible once this link exists?** — every new edge
-  potentially unlocks reachability, routing, and pattern questions. *(§6)*
+potentially unlocks reachability, routing, and pattern questions. *(§6)*
 - **Who or what should we connect next?** — find isolated nodes, weak bridges, or
-  missing links in the network. *(§6, §8)*
+missing links in the network. *(§6, §8)*
+
+
 
 ### A simple test
 
@@ -128,6 +148,8 @@ like something else**, reach for SQL or vectors instead — see
 [When a context graph is *not* the better tool](#when-a-context-graph-is-not-the-better-tool).
 
 ---
+
+
 
 ## 1. Decisions that depend on *chains* of relationships (multi-hop reasoning)
 
@@ -153,15 +175,17 @@ returns the whole subgraph:
 ```
 
 - **CRM example:** "Show every contact, deal, and task reachable from *Acme Corp*."
-  One traversal from the `Acme Corp` `INSTANCE` returns the neighborhood regardless of
-  how deep it goes — no pre-declared join depth.
+One traversal from the `Acme Corp` `INSTANCE` returns the neighborhood regardless of
+how deep it goes — no pre-declared join depth.
 - **DSS / impact analysis example:** "If we deprecate this component, what breaks?"
-  Walk `POINTS_TO` downstream and the affected set *is* the result.
+Walk `POINTS_TO` downstream and the affected set *is* the result.
 
 The decision ("eligible", "impacted", "owned-by") becomes a question about
 **reachability and paths**, which graphs answer natively and tables answer painfully.
 
 ---
+
+
 
 ## 2. Branching and conditional *workflow* decisions (routing)
 
@@ -204,15 +228,17 @@ whose condition matches:
 ```
 
 - **AMS example:** An approval workflow where `amount_over_threshold` routes to either a
-  "manager sign-off" `STEP` or an "auto-approve" `STEP`. Changing the rule is editing an
-  edge condition, not redeploying code.
+"manager sign-off" `STEP` or an "auto-approve" `STEP`. Changing the rule is editing an
+edge condition, not redeploying code.
 - **Agentic example:** An agent's tool-use plan where the result of one call decides the
-  next. The branch logic is data the agent (or a human) can read and reason about.
+next. The branch logic is data the agent (or a human) can read and reason about.
 
 The routing decision lives **in the graph next to the steps it routes**, so it is
 visible, editable, and reusable instead of trapped in code.
 
 ---
+
+
 
 ## 3. Classification and inheritance decisions (taxonomy / ontology)
 
@@ -235,17 +261,19 @@ schema graph. Because `SCHEMA` defines the shape that `INSTANCE` rows must follo
 the classification decision and the validation rules it implies live in one place.
 
 - **CMS example:** A content taxonomy where an "Interview" is both "Editorial" and
-  "Video". Publishing rules attached to either ancestor apply, found by traversal rather
-  than copied onto every article.
+"Video". Publishing rules attached to either ancestor apply, found by traversal rather
+than copied onto every article.
 - **DSS example:** Policy inheritance — "which compliance rules apply to this account
-  type?" is answered by the schema ancestors it points to, and a new rule is a new
-  `POINTS_TO` edge, not a migration.
+type?" is answered by the schema ancestors it points to, and a new rule is a new
+`POINTS_TO` edge, not a migration.
 
 For six full domain walkthroughs (healthcare, finance, CMS, procurement, IT ops, legal)
 with side-by-side comparisons to relational, document, and vector approaches, see
 [Ontology examples](#ontology-examples-how-schema-context-beats-other-methods) below.
 
 ---
+
+
 
 ## Ontology examples: how SCHEMA context beats other methods
 
@@ -278,11 +306,13 @@ relationship payload).
 
 **The decision.** *Should we prescribe insulin for this patient?*
 
-| Approach | What context it provides | Why it falls short |
-|----------|-------------------------|-------------------|
-| **Relational tables** | `patients`, `diagnoses`, `medications`, `contraindications` joined on foreign keys | You must know every table to join upfront. A new contraindication type means a new table or column. "Is heart failure contraindicated for insulin?" is buried in a join path, not visible as domain knowledge. |
-| **Document / EHR blob** | A patient summary JSON with nested conditions and meds | Rules are copied into the document or live in application code. If the contraindication policy changes, every stale summary is wrong until regenerated. No shared definition of "what insulin therapy *means*." |
-| **Vector search** | Chunks of similar case notes ("patients like this received metformin") | Finds *similar narratives*, not *defined clinical relationships*. May miss a hard contraindication that uses different vocabulary. Cannot inherit rules from a type hierarchy. |
+
+| Approach                | What context it provides                                                           | Why it falls short                                                                                                                                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Relational tables**   | `patients`, `diagnoses`, `medications`, `contraindications` joined on foreign keys | You must know every table to join upfront. A new contraindication type means a new table or column. "Is heart failure contraindicated for insulin?" is buried in a join path, not visible as domain knowledge.  |
+| **Document / EHR blob** | A patient summary JSON with nested conditions and meds                             | Rules are copied into the document or live in application code. If the contraindication policy changes, every stale summary is wrong until regenerated. No shared definition of "what insulin therapy *means*." |
+| **Vector search**       | Chunks of similar case notes ("patients like this received metformin")             | Finds *similar narratives*, not *defined clinical relationships*. May miss a hard contraindication that uses different vocabulary. Cannot inherit rules from a type hierarchy.                                  |
+
 
 **What the ontology provides.** Traverse from the patient's `INSTANCE` to its
 `Condition` schemas, then to `Treatment` and any `Contraindicated` links. The decision
@@ -290,15 +320,17 @@ context is:
 
 - The patient *is* classified as diabetic (schema link, not a string match).
 - `Insulin Therapy` inherits requirements from its schema ancestors (required labs,
-  monitoring rules).
+monitoring rules).
 - An active `Heart Failure` instance linked through the contraindication schema *blocks*
-  the path — a structural fact, not a keyword.
+the path — a structural fact, not a keyword.
 
 An agent or clinician sees **the governing types and their inherited rules**, not a pile
 of rows or similar notes. The rationale is explainable: "blocked because
 `Heart Failure` → `Contraindicated` for `Insulin Therapy`."
 
 ---
+
+
 
 ### Example 2 — AML / enhanced due diligence (financial compliance)
 
@@ -317,11 +349,13 @@ of rows or similar notes. The rationale is explainable: "blocked because
 **The decision.** *Does this wire transfer require enhanced due diligence (EDD) before
 release?*
 
-| Approach | What context it provides | Why it falls short |
-|----------|-------------------------|-------------------|
+
+| Approach              | What context it provides                                               | Why it falls short                                                                                                                                                                                     |
+| --------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Relational tables** | `transactions.amount`, `customers.risk_tier`, lookup table `edd_rules` | Rules live in a separate rules engine or `if amount > 10000 AND tier = 'PEP'` code. PEP status and jurisdiction rules are disconnected tables; combining them means more joins and more deployed code. |
-| **Documents** | A compliance checklist PDF or per-transaction JSON snapshot | Checklist is static. Jurisdiction-specific rules (EU vs. US) are duplicated per region or maintained in spreadsheets outside the transaction record. |
-| **Vector search** | Similar past transactions and their outcomes | "Transactions like this were flagged" is anecdotal, not binding. Regulators want *which rule applied*, not *what looked similar*. |
+| **Documents**         | A compliance checklist PDF or per-transaction JSON snapshot            | Checklist is static. Jurisdiction-specific rules (EU vs. US) are duplicated per region or maintained in spreadsheets outside the transaction record.                                                   |
+| **Vector search**     | Similar past transactions and their outcomes                           | "Transactions like this were flagged" is anecdotal, not binding. Regulators want *which rule applied*, not *what looked similar*.                                                                      |
+
 
 **What the ontology provides.** From the transaction `INSTANCE`, walk to
 `Wire Transfer` → `High-Value` → `Requires-EDD`, *and* from the customer `INSTANCE`
@@ -334,6 +368,8 @@ When regulators ask "why EDD?", the answer is the schema path — auditable and
 versionable — not a similarity score or a buried `CASE` statement.
 
 ---
+
+
 
 ### Example 3 — Editorial publishing (CMS)
 
@@ -354,11 +390,13 @@ inherits publishing rules from **both** ancestors.
 
 **The decision.** *Can this interview be published without additional review?*
 
-| Approach | What context it provides | Why it falls short |
-|----------|-------------------------|-------------------|
-| **Relational tables** | `articles.type = 'interview'`, `articles.format = 'video'`, boolean flags `needs_legal`, `needs_exec` | Multiple inheritance is awkward: is an "interview" that is also "video" one row or two? Adding a new content type means ALTER TABLE and updating every flag combination in code. |
-| **Documents** | Frontmatter tags: `{ "type": "interview", "format": "video" }` | Tags are flat strings. "Interview + Video" inherits legal review *and* video-specific transcoding rules only if someone remembered to encode that matrix in the template. |
-| **Vector search** | Similar published articles | Might surface articles that *look* like this one but were published under a different policy regime (pre-legal-review rule). Similarity ignores *when* and *under which schema* something was approved. |
+
+| Approach              | What context it provides                                                                              | Why it falls short                                                                                                                                                                                      |
+| --------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Relational tables** | `articles.type = 'interview'`, `articles.format = 'video'`, boolean flags `needs_legal`, `needs_exec` | Multiple inheritance is awkward: is an "interview" that is also "video" one row or two? Adding a new content type means ALTER TABLE and updating every flag combination in code.                        |
+| **Documents**         | Frontmatter tags: `{ "type": "interview", "format": "video" }`                                        | Tags are flat strings. "Interview + Video" inherits legal review *and* video-specific transcoding rules only if someone remembered to encode that matrix in the template.                               |
+| **Vector search**     | Similar published articles                                                                            | Might surface articles that *look* like this one but were published under a different policy regime (pre-legal-review rule). Similarity ignores *when* and *under which schema* something was approved. |
+
 
 **What the ontology provides.** Traverse from the article `INSTANCE` up through
 `Interview` to both `Video` and `Editorial`. Collect every `Policy` schema reachable
@@ -370,6 +408,8 @@ Change the rule once on the `Editorial` schema node and every future `Interview`
 every other editorial subtype) picks it up without touching individual articles.
 
 ---
+
+
 
 ### Example 4 — Vendor qualification (procurement / supply chain)
 
@@ -391,11 +431,13 @@ every other editorial subtype) picks it up without touching individual articles.
 
 **The decision.** *Can we award this federal contract to Vendor X?*
 
-| Approach | What context it provides | Why it falls short |
-|----------|-------------------------|-------------------|
+
+| Approach              | What context it provides                                         | Why it falls short                                                                                                                                              |
+| --------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Relational tables** | `vendors.country`, `certifications` join table, `contracts.type` | Qualification is a multi-table EXISTS query rewritten for each contract type. Adding "Small Business set-aside" means new columns and new application branches. |
-| **Documents** | Vendor profile PDF + cert scans attached to a folder | Certs expire silently; nothing links "this cert satisfies *that* contract requirement" structurally. A human must re-read documents for every award decision. |
-| **Vector search** | "Vendors similar to ones we've used on federal work" | Past usage is not qualification. A similar vendor may lack the specific certification chain the contract type requires. |
+| **Documents**         | Vendor profile PDF + cert scans attached to a folder             | Certs expire silently; nothing links "this cert satisfies *that* contract requirement" structurally. A human must re-read documents for every award decision.   |
+| **Vector search**     | "Vendors similar to ones we've used on federal work"             | Past usage is not qualification. A similar vendor may lack the specific certification chain the contract type requires.                                         |
+
 
 **What the ontology provides.** From `Federal Contract`, traverse to its requirements
 (`Requires: Federal-Eligible + ISO-9001`). From Vendor X's `INSTANCE`, traverse its
@@ -409,6 +451,8 @@ downstream eligibility decision reflects it on the next traversal — no hunting
 document folders.
 
 ---
+
+
 
 ### Example 5 — IT change management (operations)
 
@@ -429,11 +473,13 @@ document folders.
 **The decision.** *Does this production database migration require CAB approval before
 execution?*
 
-| Approach | What context it provides | Why it falls short |
-|----------|-------------------------|-------------------|
+
+| Approach              | What context it provides                                          | Why it falls short                                                                                                                                                        |
+| --------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Relational tables** | `changes.category`, `changes.environment`, workflow state columns | Routing rules in a workflow engine config file, disconnected from the change record. "Emergency + Production" is a special case added as another `WHEN` clause somewhere. |
-| **Documents** | Change request form with dropdowns | Dropdown values drift from actual policy. An engineer picks "Standard" because the form allows it, even though the target environment makes it `CAB-Required`. |
-| **Vector search** | Similar past changes and whether CAB was involved | Historical inconsistency ("we skipped CAB last time") is not policy. Similarity normalizes bad precedents. |
+| **Documents**         | Change request form with dropdowns                                | Dropdown values drift from actual policy. An engineer picks "Standard" because the form allows it, even though the target environment makes it `CAB-Required`.            |
+| **Vector search**     | Similar past changes and whether CAB was involved                 | Historical inconsistency ("we skipped CAB last time") is not policy. Similarity normalizes bad precedents.                                                                |
+
 
 **What the ontology provides.** The change `INSTANCE` links to `Normal Change`; its
 target environment `INSTANCE` links to `Production`. Traverse
@@ -445,6 +491,8 @@ The decision context for the engineer, the agent, and the auditor is identical: 
 schema subgraph, not three different interpretations of a form.
 
 ---
+
+
 
 ### Example 6 — Contract terms selection (legal)
 
@@ -467,11 +515,13 @@ schema subgraph, not three different interpretations of a form.
 **The decision.** *Which standard terms and data-processing clauses must be included in
 this agreement?*
 
-| Approach | What context it provides | Why it falls short |
-|----------|-------------------------|-------------------|
-| **Relational tables** | `agreements.type`, `customers.jurisdiction`, `clauses` lookup | Clause selection is a Cartesian product maintained in code or a spreadsheet. A new regulation (e.g. a US state privacy law) means updating multiple tables and redeploying selection logic. |
-| **Documents** | Template library with "EU MSA v3", "US SOW v2" | Templates multiply combinatorially (type × jurisdiction × data regime). Picking the wrong template is easy; the link between *this deal's facts* and *that template's assumptions* is implicit. |
-| **Vector search** | "Agreements similar to this deal" | Surfaces deals with similar *language*, not deals governed by the same *rule set*. A US deal and an EU deal may read similarly but carry different obligations. |
+
+| Approach              | What context it provides                                      | Why it falls short                                                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Relational tables** | `agreements.type`, `customers.jurisdiction`, `clauses` lookup | Clause selection is a Cartesian product maintained in code or a spreadsheet. A new regulation (e.g. a US state privacy law) means updating multiple tables and redeploying selection logic.     |
+| **Documents**         | Template library with "EU MSA v3", "US SOW v2"                | Templates multiply combinatorially (type × jurisdiction × data regime). Picking the wrong template is easy; the link between *this deal's facts* and *that template's assumptions* is implicit. |
+| **Vector search**     | "Agreements similar to this deal"                             | Surfaces deals with similar *language*, not deals governed by the same *rule set*. A US deal and an EU deal may read similarly but carry different obligations.                                 |
+
 
 **What the ontology provides.** From the deal's `INSTANCE`, traverse through `MSA` →
 `SOW`, pick up `EU Law` and `GDPR-Covered` from the customer's jurisdiction link, and
@@ -485,28 +535,26 @@ inherits the update.
 
 ---
 
+
+
 ### What these examples have in common
 
 Across every domain, the ontology-as-context pattern repeats:
 
 1. **The decision is about membership and inheritance**, not attribute lookup alone.
-   "Is this vendor qualified?" and "Does this change need CAB?" are questions about
+  "Is this vendor qualified?" and "Does this change need CAB?" are questions about
    which types apply and what those types imply.
-
 2. **Context is assembled by traversal**, not by guessing which tables, tags, or
-   documents to open. The same operation — walk `POINTS_TO` from the subject — works
+  documents to open. The same operation — walk `POINTS_TO` from the subject — works
    in healthcare, finance, publishing, and legal.
-
 3. **Rules live on the types, not on the instances.** Changing policy means editing a
-   `SCHEMA` node (or adding an edge), not rewriting thousands of records or redeploying
+  `SCHEMA` node (or adding an edge), not rewriting thousands of records or redeploying
    application code.
-
 4. **Heterarchy is native.** Real domains don't fit one tree. An Interview that is
-   both Editorial and Video, or a Contractor who is both Person and Vendor, inherits
+  both Editorial and Video, or a Contractor who is both Person and Vendor, inherits
    from all applicable parents without schema migrations.
-
 5. **The rationale travels with the context.** "We required EDD because
-   `Wire Transfer` → `High-Value` → `Requires-EDD`" is inspectable. A vector
+  `Wire Transfer` → `High-Value` → `Requires-EDD`" is inspectable. A vector
    similarity score or a hardcoded `if` statement is not.
 
 In pona flow, this is the `SCHEMA`/`INSTANCE` split doing its job: schemas define the
@@ -514,6 +562,8 @@ In pona flow, this is the `SCHEMA`/`INSTANCE` split doing its job: schemas defin
 sequences (`STEP` chains) are the *actions* that fire once the ontology context is clear.
 
 ---
+
+
 
 ## 4. Assembling *relevant context* for an agent or model
 
@@ -535,15 +585,17 @@ engineering*: the graph is the substrate for assembling state, memory, tools, an
 working context, while SQLite payloads hold the nested detail the graph shouldn't carry.
 
 - **PKM example:** "Give me everything I know that bears on this decision" returns the
-  linked notes, people, and events — not a list of documents that merely share words.
+linked notes, people, and events — not a list of documents that merely share words.
 - **Agentic example:** A support agent answering about an order gets the order, its
-  customer, the customer's plan, and the policy schema for that plan — a precise context
-  window assembled by traversal instead of guessed by similarity.
+customer, the customer's plan, and the policy schema for that plan — a precise context
+window assembled by traversal instead of guessed by similarity.
 
 Crucially, structure-based retrieval is **explainable**: you can say *why* each record
 was included (it was linked, by this edge), which similarity scores can't.
 
 ---
+
+
 
 ## 5. Explaining and auditing *why* a decision was made (provenance)
 
@@ -573,11 +625,13 @@ followed the edge whose `condition_expected` matched the parameter. The decision
 justification share one representation.
 
 - **DSS / compliance example:** "Show the decision path for claim #1234" replays the
-  exact `STEP` sequence and the conditions that selected each branch.
+exact `STEP` sequence and the conditions that selected each branch.
 - **AMS example:** "Why did this task auto-approve?" — the executed-steps trail plus the
-  edge conditions are a built-in rationale.
+edge conditions are a built-in rationale.
 
 ---
+
+
 
 ## 6. Evolving, heterogeneous relationships without migrations
 
@@ -596,11 +650,13 @@ entities a new way, and traversals immediately pick them up. The single relation
 type keeps the model uniform while edge/payload properties carry the specifics.
 
 - **CRM example:** Introduce a "referred-by" relationship between contacts and start
-  answering "who drives our referrals?" the same day — no table changes.
+answering "who drives our referrals?" the same day — no table changes.
 - **AMS example:** Add a "blocks" link between tasks and dependency/decisioning queries
-  work immediately.
+work immediately.
 
 ---
+
+
 
 ## 7. Cycles, feedback loops, and recursive processes
 
@@ -619,12 +675,14 @@ is chosen without redrawing it.
 
 A sequence picks one of four types (`queries.loop_config`):
 
-| Type | Termination |
-|------|-------------|
-| `dag` | Never re-enters a step, so a back-edge simply ends the run. The default, and how every sequence authored before loops behaves. |
-| `for` | A fixed number of passes. |
-| `for_while` | A condition tested before each pass, against whatever the steps have resolved so far. |
-| `for_each` | One pass per row of a result set a step returned. |
+
+| Type        | Termination                                                                                                                    |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `dag`       | Never re-enters a step, so a back-edge simply ends the run. The default, and how every sequence authored before loops behaves. |
+| `for`       | A fixed number of passes.                                                                                                      |
+| `for_while` | A condition tested before each pass, against whatever the steps have resolved so far.                                          |
+| `for_each`  | One pass per row of a result set a step returned.                                                                              |
+
 
 The three looping types require exactly one cycle, and the back-edge is found
 structurally rather than marked by the author (`execution_loop.analyze_loop`). While
@@ -668,13 +726,13 @@ run, so they cannot deadlock the barrier. A diamond *without* a join STEP is unc
 the first inbound path to run the fan-in node wins, and later arrivals hit `visited` and
 skip. Compose rejects a join inside a loop body and a join that can reach another join.
 
-HTTP and Local LLM steps publish `ok` (and HTTP `status`) into run state after each
-call, so a `POINTS_TO` condition on `ok` can escalate a failed call. They may retry
-without a loop: `max_attempts` (default 1) with optional parked `backoff_seconds`
+HTTP steps publish `ok` and `status` into run state after each call, so a `POINTS_TO`
+condition on `ok` can escalate a failed call. They may retry without a loop:
+`max_attempts` (default 1) with optional parked `backoff_seconds`
 (`progress.wait.kind = retry_backoff`). Call timeout is authorable per step
-(`timeout_seconds`; HTTP default 30s, Local LLM default 300s, cap 300s). A timeout is a
-failed, retryable attempt. Query steps set `ok=true` on success; Neo4j errors still
-abort the run.
+(`timeout_seconds`; HTTP default 30s, cap 300s). A timeout is a failed, retryable
+attempt. Query steps set `ok=true` on success; Neo4j errors still abort the run.
+Call a local model through an HTTP STEP to local-llm-server (allowlist `127.0.0.1`).
 
 ```1139:1147:Engine/server/execution_run.py
 def _progress_snapshot(
@@ -691,14 +749,16 @@ Every looping run is bounded by `max_iterations`, so a condition that never goes
 aborts with an error instead of spinning against the graph.
 
 - **AMS example:** A review loop that cycles "request changes → revise → re-review" and
-  exits on an `approved` parameter — the cycle is two edges, not a cron job.
+exits on an `approved` parameter — the cycle is two edges, not a cron job.
 - **Agentic example:** A reasoning loop that retries a tool until a success flag flips,
-  with the loop boundary and exit condition both visible in the graph.
+with the loop boundary and exit condition both visible in the graph.
 - **PKM example:** A `for_each` over the statements a read step returned, connecting each
-  subject/predicate/object entity to a notebook — one pass per row, with fresh ids per
-  pass.
+subject/predicate/object entity to a notebook — one pass per row, with fresh ids per
+pass.
 
 ---
+
+
 
 ## 8. Structural pattern decisions (subgraph matching)
 
@@ -734,11 +794,13 @@ export interface RelationshipPattern {
 ```
 
 - **DSS / risk example:** Detect mutually-connected clusters by matching the cyclic
-  pattern directly rather than joining a transactions table to itself repeatedly.
+pattern directly rather than joining a transactions table to itself repeatedly.
 - **CRM example:** "Customers connected to two or more churned accounts" is a pattern
-  match, not a stack of joins.
+match, not a stack of joins.
 
 ---
+
+
 
 ## When a context graph is *not* the better tool
 
@@ -746,13 +808,13 @@ Honesty makes the rest credible. Graphs are not universally superior, and pona f
 deliberately *hybrid* because of it:
 
 - **Bulk attribute queries and aggregations** ("sum revenue by month") are a relational
-  strength; do them in SQL.
+strength; do them in SQL.
 - **Querying deeply nested arrays/objects inside a single entity** is precisely where
-  graph databases are weak — which is why pona flow keeps that data in **SQLite
-  payloads** alongside the graph rather than forcing it into nodes and edges. The
-  `entities` table stores each node's nested `payload` as JSON for exactly this reason.
+graph databases are weak — which is why pona flow keeps that data in **SQLite
+payloads** alongside the graph rather than forcing it into nodes and edges. The
+`entities` table stores each node's nested `payload` as JSON for exactly this reason.
 - **Pure semantic similarity over free text** is a vector-store job. A context graph
-  complements it (structure + provenance) rather than replacing it.
+complements it (structure + provenance) rather than replacing it.
 
 The design rule: **use the graph for relationships and routing, use SQLite for the
 nested data within an entity, and reach for vectors when the question is "what's
@@ -761,18 +823,22 @@ be both *connected* and *detailed*.
 
 ---
 
+
+
 ## Summary
 
-| Decisioning problem | Graph wins because… | Non-graph pain |
-|---------------------|---------------------|----------------|
-| Multi-hop eligibility / impact | Reachability & variable-length paths are native | Unknown-depth self-joins |
-| Workflow routing / branching | Conditions live on edges next to the steps | Logic hardcoded in app/`CASE` |
-| Classification & inheritance | Taxonomy/heterarchy via `POINTS_TO`; rules inherited by traversal | Rigid single hierarchy; migrations |
-| Context assembly for agents | Neighborhood traversal returns *related*, explainable context | Similarity ≠ relatedness |
-| Explainability / audit | The traversed path *is* the rationale | Outcome stored, route lost |
-| Evolving relationships | New edges need no migration | Schema change per relationship |
-| Loops / recursion | Loop = back-edge with a guarded exit; resumable state | Simulated in code/cron |
-| Structural patterns | Match the shape directly | Combinatorial self-joins |
+
+| Decisioning problem            | Graph wins because…                                               | Non-graph pain                     |
+| ------------------------------ | ----------------------------------------------------------------- | ---------------------------------- |
+| Multi-hop eligibility / impact | Reachability & variable-length paths are native                   | Unknown-depth self-joins           |
+| Workflow routing / branching   | Conditions live on edges next to the steps                        | Logic hardcoded in app/`CASE`      |
+| Classification & inheritance   | Taxonomy/heterarchy via `POINTS_TO`; rules inherited by traversal | Rigid single hierarchy; migrations |
+| Context assembly for agents    | Neighborhood traversal returns *related*, explainable context     | Similarity ≠ relatedness           |
+| Explainability / audit         | The traversed path *is* the rationale                             | Outcome stored, route lost         |
+| Evolving relationships         | New edges need no migration                                       | Schema change per relationship     |
+| Loops / recursion              | Loop = back-edge with a guarded exit; resumable state             | Simulated in code/cron             |
+| Structural patterns            | Match the shape directly                                          | Combinatorial self-joins           |
+
 
 Across all eight, the throughline is the same: **decisions are about relationships, and a
 context graph stores relationships as first-class, queryable, inspectable structure.**

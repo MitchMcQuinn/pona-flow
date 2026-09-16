@@ -1,8 +1,8 @@
 # Archived: sandboxed code-execution STEPs
 
 This folder is a parking lot for the **Code execution** custom STEP kind. It is not
-wired into the running product. Saved operations, HTTP STEPs, and Local LLM STEPs
-are the supported kinds.
+wired into the running product. Saved operations and HTTP STEPs (including calls to
+local-llm-server) are the supported custom kinds.
 
 Do not import these modules from `Engine/` or `App/` while they live here. Paths
 below are relative to this folder; restore by copying them back to the same paths

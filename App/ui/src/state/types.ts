@@ -3,8 +3,7 @@ export type RightPanelMode =
   | "inspect"
   | "params"
   | "event"
-  | "space"
-  | "localLlms";
+  | "space";
 
 /** The authenticated principal's identity + server-level capabilities (from /api/me). */
 export interface Me {
@@ -201,8 +200,6 @@ export interface AppState {
   me: Me | null;
   permissions: SpacePermissions | null;
   spacePanelOpen: boolean;
-  /** Right panel shows Local LLMs config management (left-nav section). */
-  localLlmsPanelOpen: boolean;
   nav: {
     sequences: SequenceSummary[];
     groups: string[];

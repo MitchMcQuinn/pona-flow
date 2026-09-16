@@ -31,13 +31,6 @@ export function isStepCodeExecution(
   return Boolean(sp && sp.query_id === undefined && sp.step_type === "code");
 }
 
-/** True for a custom STEP that runs a saved local LLM config via Ollama. */
-export function isStepLocalLlm(
-  sp: SequencialProperties | null | undefined
-): boolean {
-  return Boolean(sp && sp.query_id === undefined && sp.step_type === "local_llm");
-}
-
 /** True for a custom STEP that parks the run (duration / until / event). */
 export function isStepWait(
   sp: SequencialProperties | null | undefined
@@ -82,17 +75,6 @@ export function stepEntityPayload(sp: SequencialProperties | null | undefined): 
     if (response_parameters.length > 0) {
       payload.response_parameters = response_parameters;
     }
-    return JSON.stringify(payload);
-  }
-  if (isStepLocalLlm(sp)) {
-    const payload: Record<string, unknown> = {
-      kind: "local_llm",
-      config_id: sp?.local_llm_config_id || ""
-    };
-    if (response_parameters.length > 0) {
-      payload.response_parameters = response_parameters;
-    }
-    attachCallPolicy(payload, sp);
     return JSON.stringify(payload);
   }
   if (isStepWait(sp)) {

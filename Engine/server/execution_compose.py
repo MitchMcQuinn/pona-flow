@@ -26,7 +26,6 @@ from . import cypher_utils
 from . import execution_join
 from . import execution_loop
 from . import graph
-from . import local_llms
 from . import sequence_scope
 from . import spaces
 
@@ -334,81 +333,6 @@ def _load_step_adjacency(
     return out
 
 
-# Value types for the optional Local LLM setting overrides, mirroring the authoring
-# declarations in App/authoring/src/parameterRefs.ts. Which keys exist is owned by
-# local_llms.OVERRIDE_KEYS; this map only says how each one is collected.
-_LOCAL_LLM_OVERRIDE_VALUE_TYPES = {
-    "system_prompt": "string",
-    "response_format": "radio",
-    "json_schema": "string",
-    "temperature": "number",
-    "top_p": "number",
-    "top_k": "integer",
-    "min_p": "number",
-    "repeat_penalty": "number",
-    "num_ctx": "integer",
-    "num_predict": "integer",
-    "seed": "integer",
-    "stop": "array",
-}
-_LOCAL_LLM_RESPONSE_FORMAT_OPTIONS = ("text", "json_schema")
-
-
-def _local_llm_override_param(name: str) -> dict[str, Any]:
-    param: dict[str, Any] = {
-        "name": name,
-        "value_type": _LOCAL_LLM_OVERRIDE_VALUE_TYPES[name],
-        "is_required": False,
-    }
-    if name == "response_format":
-        param["options"] = list(_LOCAL_LLM_RESPONSE_FORMAT_OPTIONS)
-    return param
-
-
-def _ensure_local_llm_params(parameters: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Local LLM steps always expose ``prompt`` plus the optional setting overrides.
-
-    ``prompt`` is forced required so interactive runs pause for it; the overrides stay
-    optional and fall back to the saved config when left blank. Injecting the missing
-    ones here means STEP entities saved before these parameters existed still accept
-    them, while author-saved rows keep their own default value.
-    """
-    out: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for param in parameters:
-        pname = str(param.get("name") or "").strip()
-        merged = dict(param)
-        if pname == "prompt":
-            merged["name"] = pname
-            merged["is_required"] = True
-            if not str(merged.get("value_type") or "").strip():
-                merged["value_type"] = "string"
-        elif pname in _LOCAL_LLM_OVERRIDE_VALUE_TYPES:
-            merged["name"] = pname
-            merged["is_required"] = False
-            merged["value_type"] = _LOCAL_LLM_OVERRIDE_VALUE_TYPES[pname]
-            if pname == "response_format":
-                merged["options"] = list(_LOCAL_LLM_RESPONSE_FORMAT_OPTIONS)
-        if pname:
-            seen.add(pname)
-        out.append(merged)
-    if "prompt" not in seen:
-        out.insert(
-            0,
-            {
-                "name": "prompt",
-                "value_type": "string",
-                "value": "",
-                "is_required": True,
-                "description": "Prompt sent to the local LLM.",
-            },
-        )
-    for name in local_llms.OVERRIDE_KEYS:
-        if name not in seen:
-            out.append(_local_llm_override_param(name))
-    return out
-
-
 def _transition_condition_parameter(edge: dict[str, Any]) -> str:
     """A transition's gate is the parameter named on the relationship condition."""
     if edge.get("condition_type") == "parameter":
@@ -426,7 +350,7 @@ def _transition_condition_expected(edge: dict[str, Any]) -> bool | None:
 
 
 def _attach_call_policy(step: dict[str, Any], payload: dict[str, Any]) -> None:
-    """Copy HTTP/LLM timeout and retry fields from the entity payload onto the composed step."""
+    """Copy HTTP timeout and retry fields from the entity payload onto the composed step."""
     for key in ("timeout_seconds", "max_attempts", "backoff_seconds"):
         if key not in payload:
             continue
@@ -500,13 +424,6 @@ def _build_step(
         # executor can refuse it instead of treating it as an empty HTTP call.
         step["kind"] = "code"
         step["resource_id"] = resource_id
-    elif kind == "local_llm":
-        step["kind"] = "local_llm"
-        step["config_id"] = str(payload.get("config_id") or "").strip()
-        # Always require ``prompt`` and expose the optional setting overrides, even
-        # when the STEP entity was saved before those parameters were declared.
-        step["parameters"] = _ensure_local_llm_params(parameters)
-        _attach_call_policy(step, payload)
     elif kind == "wait":
         step["kind"] = "wait"
         mode = str(payload.get("mode") or "duration").strip() or "duration"
@@ -530,7 +447,7 @@ def _step_return_aliases(payload: dict[str, Any], fetch_query: Any) -> list[str]
 
     For an operation-backed step those are its scalar RETURN aliases (the executor
     binds them automatically) plus ``ok`` after a successful query; for an
-    endpoint/LLM/wait step they are ``ok`` (and HTTP ``status``) plus the
+    endpoint/wait step they are ``ok`` (and HTTP ``status``) plus the
     parameters its ``response_parameters`` mappings write. Together this is the
     vocabulary a loop condition or for-each source may draw on.
     """
@@ -551,7 +468,7 @@ def _step_return_aliases(payload: dict[str, Any], fetch_query: Any) -> list[str]
             for alias in cypher_utils.return_aliases(referenced.get("cypher") or []):
                 add(alias)
         add("ok")
-    elif kind in ("local_llm", "wait", "join", "code"):
+    elif kind in ("wait", "join", "code"):
         add("ok")
     else:
         add("ok")

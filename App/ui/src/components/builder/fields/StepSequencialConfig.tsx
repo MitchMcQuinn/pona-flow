@@ -3,7 +3,6 @@ import {
   callStepWarnings,
   formatStepBodyJson,
   HTTP_DEFAULT_TIMEOUT_SECONDS,
-  LLM_DEFAULT_TIMEOUT_SECONDS,
   validateStepBodyJson,
   waitStepWarnings,
   type WaitMode
@@ -17,7 +16,7 @@ import type {
   StepResponseParameter,
   StepType
 } from "../../../state/builder/types";
-import { fetchEvents, fetchLocalLlmConfigs } from "../../../services/api";
+import { fetchEvents } from "../../../services/api";
 import type { EventSummary } from "../../../state/types";
 import { SegmentToggle } from "../SegmentToggle";
 import { DurationField } from "./DurationField";
@@ -126,23 +125,17 @@ export function StepSequencialConfig({
   const stepType: StepType =
     sp.step_type === "code"
       ? "code"
-      : sp.step_type === "local_llm"
-        ? "local_llm"
-        : sp.step_type === "wait"
-          ? "wait"
-          : sp.step_type === "join"
-            ? "join"
-            : "http";
+      : sp.step_type === "wait"
+        ? "wait"
+        : sp.step_type === "join"
+          ? "join"
+          : "http";
   const waitMode: WaitMode =
     sp.wait_mode === "until" || sp.wait_mode === "event" ? sp.wait_mode : "duration";
 
   const [bodyRaw, setBodyRaw] = useState(() => formatStepBodyJson(sp.body));
   const [headersRaw, setHeadersRaw] = useState(() => formatHeadersJson(sp.headers));
   const [headersError, setHeadersError] = useState<string | null>(null);
-  const [localLlmConfigs, setLocalLlmConfigs] = useState<
-    Array<{ id: string; name: string; model: string }>
-  >([]);
-  const [localLlmLoadError, setLocalLlmLoadError] = useState<string | null>(null);
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [eventsLoadError, setEventsLoadError] = useState<string | null>(null);
 
@@ -239,17 +232,6 @@ export function StepSequencialConfig({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepType]);
 
-  // Local LLM mode: require a selected config.
-  useEffect(() => {
-    if (stepType !== "local_llm") return;
-    const ok = Boolean((sp.local_llm_config_id ?? "").trim());
-    reportCheck({
-      valid: ok,
-      message: ok ? "valid" : "required"
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepType, sp.local_llm_config_id]);
-
   useEffect(() => {
     if (stepType !== "wait") return;
     const warnings = waitStepWarnings({ ...sp, step_type: "wait" });
@@ -265,29 +247,6 @@ export function StepSequencialConfig({
     sp.wait_until,
     sp.wait_event_id
   ]);
-
-  useEffect(() => {
-    if (stepType !== "local_llm" || !state.spaceId) return;
-    let cancelled = false;
-    setLocalLlmLoadError(null);
-    fetchLocalLlmConfigs(state.spaceId)
-      .then((list) => {
-        if (cancelled) return;
-        setLocalLlmConfigs(
-          list.map((c) => ({ id: c.id, name: c.name, model: c.model }))
-        );
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setLocalLlmLoadError(
-          err instanceof Error ? err.message : "Could not load local LLM configs."
-        );
-        setLocalLlmConfigs([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [stepType, state.spaceId]);
 
   useEffect(() => {
     if (stepType !== "wait" || !state.spaceId) return;
@@ -322,10 +281,8 @@ export function StepSequencialConfig({
   }
 
   const bodyCheck = bodyCheckKey ? state.checks[bodyCheckKey] : undefined;
-  const localLlmMissing = !(sp.local_llm_config_id ?? "").trim();
   const waitWarnings = stepType === "wait" ? waitStepWarnings({ ...sp, step_type: "wait" }) : [];
-  const callWarnings =
-    stepType === "http" || stepType === "local_llm" ? callStepWarnings({ ...sp, step_type: stepType }) : [];
+  const callWarnings = stepType === "http" ? callStepWarnings({ ...sp, step_type: stepType }) : [];
   const selectedWaitEvent = events.find((event) => event.id === (sp.wait_event_id ?? "").trim());
   const waitEventAlsoTargetsThis =
     Boolean(state.query.id) &&
@@ -353,14 +310,10 @@ export function StepSequencialConfig({
       {stepType === "code" ? (
         <div className="builderField">
           <p className="muted">
-            This STEP was a code-execution step, which is no longer supported. Convert it to
-            an HTTP request or Local LLM step, or delete it.
+            This STEP was a code-execution step, which is no longer supported. Convert it to an HTTP request, or delete it.
           </p>
           <button type="button" onClick={() => switchStepType("http")}>
             Convert to HTTP request
-          </button>
-          <button type="button" onClick={() => switchStepType("local_llm")}>
-            Convert to Local LLM
           </button>
         </div>
       ) : (
@@ -373,58 +326,13 @@ export function StepSequencialConfig({
               testId="builder-step-type"
               options={[
                 { value: "http", label: "HTTP request" },
-                { value: "local_llm", label: "Local LLM" },
                 { value: "wait", label: "Wait" },
                 { value: "join", label: "Join" }
               ]}
               onChange={switchStepType}
             />
           </div>
-          {stepType === "local_llm" ? (
-            <>
-              <div className="builderField">
-                <label>
-                  local LLM config
-                  {localLlmLoadError ? (
-                    <span className="builderCheckMsg error">{localLlmLoadError}</span>
-                  ) : localLlmMissing ? (
-                    <span className="builderCheckMsg error">required</span>
-                  ) : bodyCheck?.status === "ok" ? (
-                    <span className="builderCheckMsg ok">{bodyCheck.message}</span>
-                  ) : null}
-                </label>
-                <select
-                  value={sp.local_llm_config_id ?? ""}
-                  onChange={(e) => commitSequencial({ local_llm_config_id: e.target.value })}
-                >
-                  <option value="" disabled>
-                    Select a saved config
-                  </option>
-                  {localLlmConfigs.map((config) => (
-                    <option key={config.id} value={config.id}>
-                      {config.name} ({config.model})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <p className="muted">
-                At run time this step calls Ollama with the saved config. The prompt is always the
-                sequence parameter <code>prompt</code> (<code>$prompt</code>). The optional
-                parameters <code>system_prompt</code>, <code>response_format</code>,{" "}
-                <code>json_schema</code>, <code>temperature</code>, <code>top_p</code>,{" "}
-                <code>top_k</code>, <code>min_p</code>, <code>repeat_penalty</code>,{" "}
-                <code>num_ctx</code>, <code>num_predict</code>, <code>seed</code> and{" "}
-                <code>stop</code> override the saved config for a single run — leave one blank to
-                keep the config&apos;s value.
-              </p>
-              <CallRetryFields
-                sp={sp}
-                timeoutDefault={LLM_DEFAULT_TIMEOUT_SECONDS}
-                warnings={callWarnings}
-                onCommit={commitSequencial}
-              />
-            </>
-          ) : stepType === "wait" ? (
+          {stepType === "wait" ? (
             <>
               <div className="builderField builderSegmentField">
                 <label id="builder-wait-mode-label">wait for</label>

@@ -8,7 +8,7 @@ local Ollama model, and store the vector on the record itself so a similarity qu
 returns the graph nodes/relationships directly. Sequences take those hits and traverse
 ``POINTS_TO`` as usual — "find similar, then traverse" is two steps, not one read.
 
-Design constraints (see Docs/VECTORIZATION-VISION.md)
+Design constraints (see README.md § Vector search)
 -----------------------------------------------------
 - **Neo4j holds the vectors.** No sidecar vector database, so a hit *is* the record.
   Because every data node is ``:INSTANCE`` and every data edge is ``:POINTS_TO``, a space

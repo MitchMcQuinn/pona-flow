@@ -168,7 +168,7 @@ export async function saveQueryOperation(
 }
 
 /**
- * Materialize a create-STEP query as the designed STEP (HTTP / Local LLM / query-backed)
+ * Materialize a create-STEP query as the designed STEP (HTTP / query-backed)
  * and optionally wrap *that* node in a one-step sequence. Unlike `saveQueryOperation`,
  * this does not save the create-query as a catalog factory or mint a second wrap STEP.
  * Only a single new STEP (no hops) can publish this way; a chain uses Create sequence.

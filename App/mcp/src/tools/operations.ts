@@ -40,7 +40,7 @@ const callPolicySchema = {
     .union([z.number().min(1).max(300), z.string()])
     .optional()
     .describe(
-      "Call timeout in seconds, or exactly $name. HTTP default 30, Local LLM default 300. Range 1–300. A timeout is a failed retryable attempt."
+      "Call timeout in seconds, or exactly $name. HTTP default 30. Range 1–300. A timeout is a failed retryable attempt."
     ),
   max_attempts: z
     .number()
@@ -49,7 +49,7 @@ const callPolicySchema = {
     .max(20)
     .optional()
     .describe(
-      "Tries including the first. Default 1 (no retry). After the last HTTP/LLM failure, ok=false and the walk continues so a POINTS_TO condition on ok can escalate."
+      "Tries including the first. Default 1 (no retry). After the last HTTP failure, ok=false and the walk continues so a POINTS_TO condition on ok can escalate."
     ),
   backoff_seconds: z
     .union([z.number().min(0), z.string()])
@@ -67,7 +67,7 @@ const intentSchema = {
     .enum(["STEP", "SCHEMA", "INSTANCE"])
     .describe(
         "Primary node label. SCHEMA defines a property contract, INSTANCE is data satisfying " +
-        "one, STEP is an executable unit (a custom endpoint, Local LLM call, wait, or join)."
+        "one, STEP is an executable unit (a custom endpoint, wait, or join)."
     ),
   attributive_label: z
     .string()
@@ -166,23 +166,7 @@ const intentSchema = {
     })
     .optional()
     .describe(
-      "Creates a custom-endpoint STEP node. Mutually exclusive with local_llm_step, wait_step, and join_step. Publishes ok (boolean) and status (HTTP code) into run state for edge conditions."
-    ),
-  local_llm_step: z
-    .object({
-      config_id: z
-        .string()
-        .describe("Id of a saved Local LLM config in this space (from the Local LLMs panel)."),
-      response_parameters: z.array(responseParameterSchema).optional(),
-      ...callPolicySchema,
-    })
-    .optional()
-    .describe(
-      "Creates a Local LLM STEP node. Uses sequence parameter `prompt` at run time, plus " +
-        "optional parameters that override the saved config for that run: `system_prompt`, " +
-        "`response_format` (text|json_schema), `json_schema` (JSON text), `temperature`, " +
-        "`top_p`, `top_k`, `min_p`, `repeat_penalty`, `num_ctx`, `num_predict`, `seed`, `stop`. " +
-        "Publishes ok into run state. Mutually exclusive with http_step, wait_step, and join_step."
+      "Creates a custom-endpoint STEP node. Mutually exclusive with wait_step and join_step. Publishes ok (boolean) and status (HTTP code) into run state for edge conditions. Use this to call local-llm-server (POST /configs/<id>/generate)."
     ),
   wait_step: z
     .object({
@@ -210,7 +194,7 @@ const intentSchema = {
     .optional()
     .describe(
       "Creates a Wait STEP that parks the run without blocking the request thread. " +
-        "Mutually exclusive with http_step, local_llm_step, and join_step."
+        "Mutually exclusive with http_step and join_step."
     ),
   join_step: z
     .object({})
@@ -218,8 +202,7 @@ const intentSchema = {
     .describe(
       "Creates a Join STEP: a barrier that continues only after every taken inbound arm " +
         "has finished. Incoming POINTS_TO edges are the arms; the outgoing edge is then. " +
-        "Does not run arms in parallel. Mutually exclusive with http_step, local_llm_step, " +
-        "and wait_step."
+        "Does not run arms in parallel. Mutually exclusive with http_step and wait_step."
     ),
   where: z
     .array(
@@ -326,7 +309,7 @@ export function registerOperationTools(server: McpServer, config: McpConfig): vo
       title: "Create operation",
       description:
         "Save a catalog query (read/create/update/delete of INSTANCE or SCHEMA) and auto-wrap " +
-        "it in a STEP so it can be used in a sequence. For create STEP (HTTP or Local LLM), " +
+        "it in a STEP so it can be used in a sequence. For create STEP (HTTP), " +
         "this materializes the designed STEP in the graph. A single new STEP is published as a " +
         "one-step sequence by default; a chain of STEPs is materialized only — use " +
         "create_sequence to publish it. It does not save a factory that mints more STEPs. " +

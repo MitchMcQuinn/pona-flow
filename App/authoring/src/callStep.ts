@@ -1,5 +1,5 @@
 /**
- * HTTP / Local LLM call-policy helpers: timeout, retry budget, backoff.
+ * HTTP call-policy helpers: timeout, retry budget, backoff.
  *
  * Persisted on the STEP entity payload. Runtime lives in Engine execution_call.py —
  * keep the caps in step with that module.
@@ -12,14 +12,15 @@ import type { SequencialProperties } from "./types.js";
 export const MIN_TIMEOUT_SECONDS = 1;
 export const MAX_TIMEOUT_SECONDS = 300;
 export const HTTP_DEFAULT_TIMEOUT_SECONDS = 30;
-export const LLM_DEFAULT_TIMEOUT_SECONDS = 300;
 export const DEFAULT_MAX_ATTEMPTS = 1;
 export const MAX_ATTEMPTS = 20;
 
 export function isHttpOrLlmStep(sp: SequencialProperties | null | undefined): boolean {
   if (!sp || sp.query_id !== undefined) return false;
   const kind = sp.step_type;
-  if (kind === "wait" || kind === "join" || kind === "code") return false;
+  if (kind === "wait" || kind === "join" || kind === "code") {
+    return false;
+  }
   return true;
 }
 

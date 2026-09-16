@@ -1,5 +1,5 @@
 """
-HTTP / Local LLM call policy: timeout, retry budget, and backoff.
+HTTP call policy: timeout, retry budget, and backoff.
 
 Authoring stores these on the STEP payload. This module is the runtime side:
 resolve ``$parameter`` values, apply caps, and decide the default timeout for a
@@ -13,7 +13,6 @@ from typing import Any
 from . import execution_wait
 
 HTTP_DEFAULT_TIMEOUT_SECONDS = 30
-LLM_DEFAULT_TIMEOUT_SECONDS = 300
 MIN_TIMEOUT_SECONDS = 1
 MAX_TIMEOUT_SECONDS = 300
 DEFAULT_MAX_ATTEMPTS = 1
@@ -28,20 +27,16 @@ def _resolve_raw(raw: Any, resolved: dict[str, Any]) -> Any:
 
 
 def is_retryable_step(step: dict[str, Any]) -> bool:
-    """True for HTTP endpoint and Local LLM steps (not query / wait / leftover code)."""
+    """True for HTTP endpoint steps (not query / wait / leftover code)."""
     if str(step.get("query_id") or "").strip():
         return False
     kind = str(step.get("kind") or "").strip()
-    if kind == "local_llm":
-        return True
     if kind in ("wait", "join", "code"):
         return False
     return bool(str(step.get("endpoint") or "").strip())
 
 
-def default_timeout_seconds(step: dict[str, Any]) -> int:
-    if str(step.get("kind") or "").strip() == "local_llm":
-        return LLM_DEFAULT_TIMEOUT_SECONDS
+def default_timeout_seconds(_step: dict[str, Any]) -> int:
     return HTTP_DEFAULT_TIMEOUT_SECONDS
 
 

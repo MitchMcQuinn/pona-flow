@@ -314,23 +314,6 @@ function validateStepSequencialProperties(
     );
     return;
   }
-  if (sp.step_type === "local_llm") {
-    if (!(sp.local_llm_config_id ?? "").trim()) {
-      pushPatternWarning(
-        warnings,
-        patternIndex,
-        patternCount,
-        "Local LLM STEP node requires a saved config."
-      );
-    }
-    validateStepResponseParameters(sp.response_parameters).forEach((message) => {
-      pushPatternWarning(warnings, patternIndex, patternCount, message);
-    });
-    callStepWarnings(sp).forEach((message) => {
-      pushPatternWarning(warnings, patternIndex, patternCount, message);
-    });
-    return;
-  }
   if (sp.step_type === "wait") {
     waitStepWarnings(sp).forEach((message) => {
       pushPatternWarning(warnings, patternIndex, patternCount, message);

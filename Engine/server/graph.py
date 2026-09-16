@@ -40,7 +40,7 @@ NEO4J_AVAILABLE = GraphDatabase is not None
 
 
 def _call_policy_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """HTTP / Local LLM timeout and retry fields stored on the STEP entity payload."""
+    """HTTP timeout and retry fields stored on the STEP entity payload."""
     out: dict[str, Any] = {}
     for key in ("timeout_seconds", "max_attempts", "backoff_seconds"):
         if payload.get(key) is not None and payload.get(key) != "":
@@ -447,14 +447,6 @@ def list_graph_nodes_by_label(space_id: str, node_label: str) -> list[dict[str, 
                         "step_type": "code",
                         "resource_id": str(payload.get("resource_id") or ""),
                         "response_parameters": payload.get("response_parameters") or [],
-                    }
-                    node["parameters"] = _fetch_entity_parameters(space_id, entity_id, "STEP")
-                elif str(payload.get("kind") or "").strip() == "local_llm":
-                    node["sequencial_properties"] = {
-                        "step_type": "local_llm",
-                        "local_llm_config_id": str(payload.get("config_id") or ""),
-                        "response_parameters": payload.get("response_parameters") or [],
-                        **_call_policy_from_payload(payload),
                     }
                     node["parameters"] = _fetch_entity_parameters(space_id, entity_id, "STEP")
                 elif str(payload.get("kind") or "").strip() == "wait":

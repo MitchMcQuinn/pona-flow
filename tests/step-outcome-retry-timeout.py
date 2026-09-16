@@ -1,5 +1,5 @@
 """
-Diagnostic test for HTTP/LLM outcome binding, per-step retry, and authorable timeouts.
+Diagnostic test for HTTP outcome binding, per-step retry, and authorable timeouts.
 
 Covers:
   - compose lists ``ok`` / ``status`` for HTTP and copies timeout/retry fields;
@@ -105,7 +105,6 @@ config.catalog_sqlite_path = lambda: tmp_db  # type: ignore[assignment]
 _original_execute = execution_run._execute_step
 _original_validate = execution_run._validate_outbound_url
 _original_urlopen = execution_run.urllib.request.urlopen
-_original_run_config = execution_run.local_llms.run_config
 
 http_calls: list[dict[str, Any]] = []
 canned: dict[str, Any] = {}
@@ -164,33 +163,11 @@ try:
     check("compose omits default max_attempts", "max_attempts" not in omitted)
     check("compose omits default timeout", "timeout_seconds" not in omitted)
 
-    llm_built = execution._build_step(
-        "L",
-        {
-            "payload": {
-                "kind": "local_llm",
-                "config_id": "CFG",
-                "timeout_seconds": 90,
-                "max_attempts": 2,
-            },
-            "parameters": [],
-        },
-        {},
-    )
-    check("compose copies LLM timeout_seconds", llm_built.get("timeout_seconds") == 90)
-    check("compose copies LLM max_attempts", llm_built.get("max_attempts") == 2)
-
     http_aliases = execution._step_return_aliases(
         {"endpoint": "https://example.test/hook"}, lambda *_: None
     )
     check("HTTP available_parameters includes ok", "ok" in http_aliases)
     check("HTTP available_parameters includes status", "status" in http_aliases)
-
-    llm_aliases = execution._step_return_aliases(
-        {"kind": "local_llm", "config_id": "CFG"}, lambda *_: None
-    )
-    check("LLM available_parameters includes ok", "ok" in llm_aliases)
-    check("LLM available_parameters omits status", "status" not in llm_aliases)
 
     wait_aliases = execution._step_return_aliases(
         {"kind": "wait", "mode": "duration", "duration_seconds": 1}, lambda *_: None
@@ -221,7 +198,6 @@ try:
     )
 
     check("HTTP default timeout is 30", execution_call.HTTP_DEFAULT_TIMEOUT_SECONDS == 30)
-    check("LLM default timeout is 300", execution_call.LLM_DEFAULT_TIMEOUT_SECONDS == 300)
     check(
         "omitted max_attempts is 1",
         execution_call.max_attempts({}) == 1,
@@ -526,40 +502,6 @@ try:
         [e.get("step_id") for e in result.get("executed") or []] == ["HTIME"],
     )
 
-    # --- Local LLM timeout is passed through -----------------------------------
-    llm_timeout: dict[str, Any] = {}
-
-    def fake_run_config(*_a: Any, **kwargs: Any) -> dict[str, Any]:
-        llm_timeout.update(kwargs)
-        return {
-            "config_id": "CFG",
-            "model": "m",
-            "response": "hi",
-            "parsed": None,
-            "done_reason": "stop",
-            "eval_count": 1,
-        }
-
-    execution_run.local_llms.run_config = fake_run_config  # type: ignore[assignment]
-    llm_out = execution_run._execute_local_llm_step(
-        "SP_TEST",
-        {"kind": "local_llm", "config_id": "CFG", "timeout_seconds": 11},
-        {"prompt": "hello"},
-    )
-    check("LLM success still sets _ok", llm_out.get("_ok") is True)
-    check("LLM timeout_seconds is passed to run_config", llm_timeout.get("timeout_seconds") == 11)
-
-    llm_timeout.clear()
-    execution_run._execute_local_llm_step(
-        "SP_TEST",
-        {"kind": "local_llm", "config_id": "CFG"},
-        {"prompt": "hello"},
-    )
-    check(
-        "omitted LLM timeout defaults to 300",
-        llm_timeout.get("timeout_seconds") == 300,
-    )
-
     # --- wait step publishes ok=true -------------------------------------------
     execution_run._execute_step = fake_execute_step  # type: ignore[assignment]
     canned.clear()
@@ -602,7 +544,6 @@ finally:
     execution_run._execute_step = _original_execute  # type: ignore[assignment]
     execution_run._validate_outbound_url = _original_validate  # type: ignore[assignment]
     execution_run.urllib.request.urlopen = _original_urlopen  # type: ignore[assignment]
-    execution_run.local_llms.run_config = _original_run_config  # type: ignore[assignment]
     config.catalog_sqlite_path = _original_path  # type: ignore[assignment]
 
 

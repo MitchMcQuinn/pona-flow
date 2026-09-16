@@ -38,7 +38,6 @@ _CATALOG_DDL_FILES = (
     "agent-keys-table.sql",
     "space-credentials-table.sql",
     "template-imports-table.sql",
-    "local-llm-configs-table.sql",
 )
 
 
@@ -98,6 +97,7 @@ def run_startup_migrations() -> None:
     try:
         for filename in _CATALOG_DDL_FILES:
             _apply_sql_file(conn, filename)
+        conn.execute("DROP TABLE IF EXISTS local_llm_configs")
         conn.commit()
         # Add the events.external_package column on catalogs that predate external triggers.
         _ensure_events_external_column(conn)

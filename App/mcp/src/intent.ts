@@ -92,14 +92,6 @@ export interface StepHttpIntent {
   backoff_seconds?: number | string;
 }
 
-export interface StepLocalLlmIntent {
-  config_id: string;
-  response_parameters?: Array<{ property_path: string; parameter: string; default_value?: string }>;
-  timeout_seconds?: number | string;
-  max_attempts?: number;
-  backoff_seconds?: number | string;
-}
-
 export interface StepWaitIntent {
   mode: "duration" | "until" | "event";
   duration_seconds?: number | string;
@@ -141,7 +133,6 @@ export interface OperationIntent {
   is_vectorized?: boolean;
   instance_properties?: InstancePropertyIntent[];
   http_step?: StepHttpIntent;
-  local_llm_step?: StepLocalLlmIntent;
   wait_step?: StepWaitIntent;
   join_step?: StepJoinIntent;
   where?: WhereIntent[];
@@ -312,13 +303,6 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
         body: intent.http_step.body ?? {},
         response_parameters: intent.http_step.response_parameters ?? [],
         ...callPolicyFromStep(intent.http_step),
-      };
-    } else if (intent.local_llm_step) {
-      element.node.sequencial_properties = {
-        step_type: "local_llm",
-        local_llm_config_id: intent.local_llm_step.config_id,
-        response_parameters: intent.local_llm_step.response_parameters ?? [],
-        ...callPolicyFromStep(intent.local_llm_step),
       };
     } else if (intent.wait_step) {
       const mode = intent.wait_step.mode;

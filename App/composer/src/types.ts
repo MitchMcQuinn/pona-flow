@@ -72,8 +72,8 @@ export interface StepResponseParameter {
   default_value?: string;
 }
 
-/** Custom STEP execution kind: HTTP request (default/legacy), leftover code, local LLM, wait, or join. */
-export type StepType = "http" | "code" | "local_llm" | "wait" | "join";
+/** Custom STEP execution kind: HTTP request (default/legacy), leftover archived code, wait, or join. */
+export type StepType = "http" | "code" | "wait" | "join";
 export type CodeLanguage = "python" | "javascript";
 /** How a wait STEP parks the run. */
 export type WaitMode = "duration" | "until" | "event";
@@ -82,7 +82,7 @@ export type WaitDurationUnit = "seconds" | "minutes" | "hours";
 
 export interface SequencialProperties {
   query_id?: string;
-  /** Omitted/"http" -> endpoint step (legacy payloads); "code" -> leftover archived kind; "local_llm" -> named Ollama config; "wait" -> park the run; "join" -> barrier until taken arms finish. */
+  /** Omitted/"http" -> endpoint step (legacy payloads); "code" -> leftover archived kind; "wait" -> park the run; "join" -> barrier until taken arms finish. */
   step_type?: StepType;
   endpoint?: string;
   method?: HttpMethod;
@@ -95,8 +95,6 @@ export interface SequencialProperties {
   language?: CodeLanguage;
   /** Code text held in builder state only; persisted via the resources API, not the entity payload. */
   code?: string;
-  /** Local LLM: catalog `local_llm_configs` row id. Prompt comes from sequence param `prompt`. */
-  local_llm_config_id?: string;
   response_parameters?: StepResponseParameter[];
   /** Wait STEP: duration, until a timestamp, or until an Event fires. */
   wait_mode?: WaitMode;
@@ -106,11 +104,11 @@ export interface SequencialProperties {
   wait_until?: string;
   /** Catalog event id whose fire resumes this run. */
   wait_event_id?: string;
-  /** HTTP / Local LLM: call timeout in seconds, or exactly `$name`. */
+  /** HTTP: call timeout in seconds, or exactly `$name`. */
   timeout_seconds?: number | string;
-  /** HTTP / Local LLM: tries including the first. Default 1 (no retry). */
+  /** HTTP: tries including the first. Default 1 (no retry). */
   max_attempts?: number;
-  /** HTTP / Local LLM: pause between retries in seconds, or `$name`. 0 retries immediately. */
+  /** HTTP: pause between retries in seconds, or `$name`. 0 retries immediately. */
   backoff_seconds?: number | string;
 }
 

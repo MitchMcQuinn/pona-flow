@@ -259,7 +259,6 @@ function isCustomEndpointNode(node: NodePattern): boolean {
   if (!sp) return false;
   if (sp.query_id && String(sp.query_id).trim()) return false;
   if (
-    sp.step_type === "local_llm" ||
     sp.step_type === "wait" ||
     sp.step_type === "join" ||
     sp.step_type === "code"

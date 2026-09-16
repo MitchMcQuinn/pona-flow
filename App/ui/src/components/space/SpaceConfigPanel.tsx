@@ -15,7 +15,6 @@ import { CredentialsPanel } from "../credentials/CredentialsPanel";
 import { EmbeddingsPanel } from "../embeddings/EmbeddingsPanel";
 import { TemplatesPanel } from "../templates/TemplatesPanel";
 import { UsersPanel } from "../users/UsersPanel";
-import { LocalLlmsPanel } from "../localLlms/LocalLlmsPanel";
 import "../builder/builder.css";
 
 type SpaceConfigTab =
@@ -25,7 +24,6 @@ type SpaceConfigTab =
   | "credentials"
   | "embeddings"
   | "templates"
-  | "localLlms"
   | "audit";
 
 interface SpaceConfigPanelProps {
@@ -294,16 +292,6 @@ export function SpaceConfigPanel({
               Templates
             </button>
           ) : null}
-          {canManageSpace ? (
-            <button
-              type="button"
-              className={tab === "localLlms" ? "active" : undefined}
-              data-testid="space-tab-local-llms"
-              onClick={() => setTab("localLlms")}
-            >
-              Local LLMs
-            </button>
-          ) : null}
           <button
             type="button"
             className={tab === "audit" ? "active" : undefined}
@@ -415,14 +403,6 @@ export function SpaceConfigPanel({
 
         {tab === "templates" && canManageSpace ? (
           <TemplatesPanel spaceId={spaceId} />
-        ) : null}
-
-        {tab === "localLlms" && canManageSpace ? (
-          <LocalLlmsPanel
-            spaceId={spaceId}
-            embedded
-            onClose={() => setTab("settings")}
-          />
         ) : null}
 
         {tab === "audit" ? (
