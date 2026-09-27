@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>pona flow</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="view-agency">
+  <div class="above">
+  <header class="nav">
+    <a class="wordmark" href="#">pona flow</a>
+    <nav>
+      <div class="view-toggle" role="group" aria-label="Audience">
+        <button type="button" data-view="agency" aria-pressed="true">Agency</button>
+        <button type="button" data-view="dev" aria-pressed="false">Developer</button>
+      </div>
+      <a href="#how">How it works</a>
+      <a class="btn btn-nav" href="#close">Talk about a routine</a>
+    </nav>
+  </header>
+
+  <section class="hero hero-ask for-agency" id="top">
+    <p class="eyebrow">For agencies</p>
+    <h1>Have agents <em>actually</em> reduced your workload?</h1>
+    <p class="ask">…or did they only migrate it?</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="#close">Talk about a routine</a>
+      <a class="btn btn-ghost" href="#pitch">Watch the 2-minute pitch</a>
+    </div>
+  </section>
+
+  <section class="hero hero-ask for-dev">
+    <p class="eyebrow">For developers</p>
+    <h1>Have agents <em>actually</em> reduced your workload?</h1>
+    <p class="ask">…or did they only migrate it?</p>
+    <p class="payoff">Retrieval moved the reading. Acting still reconstructs the world in someone’s head.</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="#close">Talk about a routine</a>
+      <a class="btn btn-ghost" href="../Docs/5-MINUTE-ARCHITECTURE.md">Five-minute architecture</a>
+    </div>
+  </section>
+
+  <aside class="callout for-agency">
+    <div class="callout-inner">
+      <figure class="aside-photo">
+        <img src="seats-capybara-cat.png" alt="A capybara and a house cat sharing a bench." />
+      </figure>
+      <div>
+        <p class="label">The work changed seats</p>
+        <p>
+          You still babysit every send, because the account still lives in someone’s head —
+          the client, the rule, what happens next. Drafting moved to the bot. The watching
+          did not.
+        </p>
+      </div>
+    </div>
+  </aside>
+
+  <aside class="callout for-dev">
+    <p class="label">The work changed seats</p>
+    <p>
+      Retrieval moved the reading. Relatedness did not. Embeddings answer what text is
+      nearby; they cannot follow a defined link or inherit a rule from a type. Call time
+      is still reconstruction — in your head, or in a prompt you re-type.
+    </p>
+  </aside>
+  </div>
+
+  <section class="section for-agency" id="problem">
+    <h2>The context is scattered</h2>
+    <p class="lead">Your routines are stable. The context around each run is not.</p>
+    <div class="tiles">
+      <article>
+        <h3>Answering is cheap</h3>
+        <p>A bot that drafts from the knowledge base is a prompt and a folder. Agencies already have that.</p>
+      </article>
+      <article>
+        <h3>Acting needs a babysitter</h3>
+        <p>Send, file, book — someone who holds the account in their head still checks every step, or the agent just finishes.</p>
+      </article>
+      <article>
+        <h3>Changing the steps is a deploy</h3>
+        <p>Who approves, what waits on a file: that lives in a zap or in code. Ops can see it. Ops cannot edit it.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="section for-dev">
+    <h2>The reconstruction stack</h2>
+    <p class="lead">You already know each layer. The failure is that they do not share a model.</p>
+    <div class="tiles">
+      <article>
+        <h3>Info vs action</h3>
+        <p>Q&amp;A is retrieval. A write needs a bound principal, a tool, and a stop. Silent policy violations have no tool error.</p>
+      </article>
+      <article>
+        <h3>HITL is bolted on</h3>
+        <p>Slack, <code>interrupt()</code>, a second task system. Resume state and required parameters get reinvented per integration.</p>
+      </article>
+      <article>
+        <h3>The graph is code</h3>
+        <p>LangGraph and filter stacks can draw a flow. Changing a branch is a release. Operators cannot open the artifact agents run.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="section for-agency" id="product">
+    <h2>One workspace. This account.</h2>
+    <p>
+      A private workspace where <strong>what things mean</strong>, <strong>the records</strong>,
+      and <strong>the work</strong> share one model.
+    </p>
+    <p>
+      Someone on the team names the client, the approver, and the rule once. After that
+      the producer and the assistant use the same ones. If the file is not here yet,
+      the same piece of work holds.
+    </p>
+    <blockquote>
+      It does not invent the file. It does not finish last hour’s retainer.
+    </blockquote>
+  </section>
+
+  <section class="section for-dev">
+    <h2>One model. Three node kinds.</h2>
+    <p>
+      <strong>SCHEMA</strong> is the contract. <strong>INSTANCE</strong> is a record that satisfies it.
+      <strong>STEP</strong> is an executable unit. A sequence is a walk of guarded
+      <code>POINTS_TO</code> edges. Nested payloads sit in SQLite; the graph holds
+      relationships and routing.
+    </p>
+    <blockquote>
+      The path through the graph is the explanation.
+    </blockquote>
+  </section>
+
+  <section class="section example for-agency" id="example">
+    <div>
+      <h2>Example: campaign approval</h2>
+      <p>
+        The run reads <em>this</em> account. It may ask <em>this</em> approver.
+        It may follow <em>this</em> brand rule. A missing file pauses the run — it does not guess.
+      </p>
+      <p class="caption">
+        Not a smarter search over your docs. A neighborhood you can walk, and a gate a human still owns.
+      </p>
+    </div>
+    <ol class="steps">
+      <li><span>Read</span> this account</li>
+      <li><span>Ask</span> this approver</li>
+      <li><span>Follow</span> this brand rule</li>
+      <li class="wait"><span>Wait</span> — file not here yet</li>
+    </ol>
+  </section>
+
+  <section class="section example for-dev">
+    <div>
+      <h2>Same primitive, three transports</h2>
+      <p>
+        Dashboard, <code>POST …/sequences/{id}/run</code>, and
+        <code>/api/spaces/{id}/mcp</code> share one executor. Required parameters
+        return <code>pending</code> and a <code>state_id</code>. A clock is
+        <code>waiting</code> — not a form.
+      </p>
+      <p class="caption">Keep n8n for connectors. Use this when the next step depends on what the record <em>is</em>.</p>
+    </div>
+    <ol class="steps">
+      <li><span>Human</span> dashboard run</li>
+      <li><span>HTTP</span> sequence webhook</li>
+      <li><span>Agent</span> MCP tool = the sequence</li>
+      <li class="wait"><span>Pause</span> pending + state_id</li>
+    </ol>
+  </section>
+
+  <section class="section" id="show">
+    <h2 class="for-agency">How we’d show it</h2>
+    <h2 class="for-dev">How we’d show it</h2>
+    <p class="lead for-agency">The process <em>is</em> the walk — not a SOP in Notion plus a zap. We do not map the whole agency. We map what one routine touches.</p>
+    <p class="lead for-dev">SCHEMA / INSTANCE, then STEP, then the same sequence on three doors. Bounded — not a CMS of everything.</p>
+    <ol class="walk">
+      <li>
+        <h3>1. Map a little</h3>
+        <p class="for-agency">Client, approver, rate, brand rule, file — the nodes that approval actually uses. Not teams, discounts, and the whole org chart.</p>
+        <p class="for-dev">A handful of SCHEMA nodes and the INSTANCE neighborhood for one account. Traversal, not top-k.</p>
+      </li>
+      <li>
+        <h3>2. Map the walk</h3>
+        <p class="for-agency">Onboarding or campaign approval as a chain that <em>reads those nodes</em>, branches, and pauses for a person.</p>
+        <p class="for-dev">STEPS joined by guarded <code>POINTS_TO</code>. Changing who approves is an edge condition — not a deploy.</p>
+      </li>
+      <li>
+        <h3>3. Same run, three doors</h3>
+        <p class="for-agency">A button on a dashboard, an assistant with the same routine as a tool, or an API call from something you already have.</p>
+        <p class="for-dev">UI, webhook, MCP. One <code>sequence_service</code>. Authoring MCP writes the same builder snapshot.</p>
+      </li>
+    </ol>
+    <p class="for-agency"><a class="text-cta" href="#close">That’s the first conversation. Talk about yours →</a></p>
+  </section>
+
+  <section class="section" id="audience">
+    <h2>Who this is for</h2>
+    <div class="split">
+      <div>
+        <p class="label">For</p>
+        <p class="for-agency">
+          Agency owners and ops leads whose week is still kickoff / revision / approval / publish
+          from memory — and who have already tried letting an assistant take a step.
+        </p>
+        <p class="for-dev">
+          Teams whose agents need related, governed context, not only retrieved prose.
+          Operators who need to change a rule without a deploy. One artifact that is a
+          dashboard workflow, a webhook, and an MCP tool.
+        </p>
+      </div>
+      <div>
+        <p class="label">Not for</p>
+        <p class="for-agency">
+          A hundred SaaS connectors and no domain model (keep the glue tool).
+          An agent you are still inventing (a notebook is cheaper).
+        </p>
+        <p class="for-dev">
+          Warehouses, Zapier-scale connector catalogs, or exploratory LangGraph with no
+          stable types yet. GraphRAG on documents is not a runnable HITL sequence.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="close" id="close">
+    <h2 class="for-agency">One repeating routine. That’s the first conversation.</h2>
+    <h2 class="for-dev">One sequence worth keeping. That’s the first conversation.</h2>
+    <p class="for-agency">
+      You describe what repeats, what waits on what, and where a human still has to step in.
+      No platform tour.
+    </p>
+    <p class="for-dev">
+      We start from a type, a record neighborhood, and one guarded walk — not a slide of the ontology.
+    </p>
+    <a class="btn btn-primary" href="mailto:hello@localhost?subject=One%20repeating%20routine">Talk about a routine</a>
+    <p class="hint">Replace the mailto in <code>index.html</code> when you have a real inbox.</p>
+  </section>
+
+  <section class="pitch for-agency" id="pitch">
+    <p class="label">2-minute pitch</p>
+    <p>
+      Script lives in the product repo as <code>Docs/video/AGENCY-PITCH.md</code>.
+      Drop <code>agency-pitch.mp4</code> next to this page when you want the cut to play here.
+    </p>
+  </section>
+
+  <footer id="how">
+    <p class="for-agency">
+      Similarity search still exists. It is not asked to stand in for “what is connected to this account.”
+      Meaning, records, and the run live in one graph. Humans and agents start the same sequence.
+      A required value pauses the run instead of the model filling the gap.
+    </p>
+    <p class="for-dev">
+      Dedicated instance. Space-scoped keys. Clerk for humans, hashed agent keys for machines.
+      See the executor, the composer, and the MCP gateway in the repo.
+    </p>
+    <p>
+      <a href="../Docs/5-MINUTE-ARCHITECTURE.md">Five-minute architecture</a>
+      · local draft · not the product app
+    </p>
+  </footer>
+
+  <script src="view.js"></script>
+</body>
+</html>
