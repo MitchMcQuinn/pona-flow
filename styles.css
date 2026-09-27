@@ -251,6 +251,21 @@ h3 {
 
 .section { padding: 64px 0 8px; }
 
+.explain {
+  margin: 28px 0 0;
+  padding: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.explain img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.example .explain { margin: 0; }
+
 .tiles {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

@@ -70,6 +70,9 @@
   <section class="section for-agency" id="problem">
     <h2>The context is scattered</h2>
     <p class="lead">Your routines are stable. The context around each run is not.</p>
+    <figure class="explain">
+      <img src="visuals/agency-01-pain.png" alt="Client list, thread, brand doc, files, project tool, and a person’s head. The routine stops here." />
+    </figure>
     <div class="tiles">
       <article>
         <h3>Answering is cheap</h3>
@@ -116,6 +119,9 @@
       the producer and the assistant use the same ones. If the file is not here yet,
       the same piece of work holds.
     </p>
+    <figure class="explain">
+      <img src="visuals/agency-02-middleware.png" alt="Dashboard, chatbot, and a service start pona flow, which holds the client, people, rules, and related work." />
+    </figure>
     <blockquote>
       It does not invent the file. It does not finish last hour’s retainer.
     </blockquote>
@@ -129,6 +135,9 @@
       <code>POINTS_TO</code> edges. Nested payloads sit in SQLite; the graph holds
       relationships and routing.
     </p>
+    <figure class="explain">
+      <img src="visuals/02-three-node-kinds.png" alt="SCHEMA, INSTANCE, and STEP each connect only to their own kind through POINTS_TO." />
+    </figure>
     <blockquote>
       The path through the graph is the explanation.
     </blockquote>
@@ -145,12 +154,9 @@
         Not a smarter search over your docs. A neighborhood you can walk, and a gate a human still owns.
       </p>
     </div>
-    <ol class="steps">
-      <li><span>Read</span> this account</li>
-      <li><span>Ask</span> this approver</li>
-      <li><span>Follow</span> this brand rule</li>
-      <li class="wait"><span>Wait</span> — file not here yet</li>
-    </ol>
+    <figure class="explain">
+      <img src="visuals/agency-03-routine.png" alt="Campaign approval tied to the client, the approver, the brand rule, and a file that arrives later." />
+    </figure>
   </section>
 
   <section class="section example for-dev">
@@ -164,12 +170,9 @@
       </p>
       <p class="caption">Keep n8n for connectors. Use this when the next step depends on what the record <em>is</em>.</p>
     </div>
-    <ol class="steps">
-      <li><span>Human</span> dashboard run</li>
-      <li><span>HTTP</span> sequence webhook</li>
-      <li><span>Agent</span> MCP tool = the sequence</li>
-      <li class="wait"><span>Pause</span> pending + state_id</li>
-    </ol>
+    <figure class="explain">
+      <img src="visuals/04-one-run-three-doors.png" alt="Dashboard, webhook, and a chat tool start the same checklist and the same run." />
+    </figure>
   </section>
 
   <section class="section" id="show">
@@ -194,6 +197,12 @@
         <p class="for-dev">UI, webhook, MCP. One <code>sequence_service</code>. Authoring MCP writes the same builder snapshot.</p>
       </li>
     </ol>
+    <figure class="explain for-agency">
+      <img src="visuals/agency-05-allowed.png" alt="Dashboard, chatbot, or a service start this account, then ask this approver, follow this brand rule, or wait for this file." />
+    </figure>
+    <figure class="explain for-dev">
+      <img src="visuals/03-execution-walk.png" alt="A branch is a choice the checklist already understands. A pause is a missing fact that resumes the same run." />
+    </figure>
     <p class="for-agency"><a class="text-cta" href="#close">That’s the first conversation. Talk about yours →</a></p>
   </section>
 
