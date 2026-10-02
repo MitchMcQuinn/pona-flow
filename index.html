@@ -6,23 +6,18 @@
   <title>pona flow</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="view-agency">
+<body>
   <div class="above">
   <header class="nav">
-    <a class="wordmark" href="#">pona flow</a>
+    <a class="wordmark" href="#"><img src="pona-flow-logo.svg" alt="pona flow" /></a>
     <nav>
-      <div class="view-toggle" role="group" aria-label="Audience">
-        <button type="button" data-view="agency" aria-pressed="true">Agency</button>
-        <button type="button" data-view="dev" aria-pressed="false">Developer</button>
-      </div>
       <a href="#how">How it works</a>
       <a class="btn btn-nav" href="#close">Talk about a routine</a>
     </nav>
   </header>
 
-  <section class="hero hero-ask for-agency" id="top">
-    <p class="eyebrow">For agencies</p>
-    <h1>Have agents <em>actually</em> reduced your workload?</h1>
+  <section class="hero hero-ask" id="top">
+    <h1>Have agents <em class="actually">actually</em> reduced your workload?</h1>
     <p class="ask">…or did they only migrate it?</p>
     <div class="actions">
       <a class="btn btn-primary" href="#close">Talk about a routine</a>
@@ -30,180 +25,166 @@
     </div>
   </section>
 
-  <section class="hero hero-ask for-dev">
-    <p class="eyebrow">For developers</p>
-    <h1>Have agents <em>actually</em> reduced your workload?</h1>
-    <p class="ask">…or did they only migrate it?</p>
-    <p class="payoff">Retrieval moved the reading. Acting still reconstructs the world in someone’s head.</p>
-    <div class="actions">
-      <a class="btn btn-primary" href="#close">Talk about a routine</a>
-      <a class="btn btn-ghost" href="../Docs/5-MINUTE-ARCHITECTURE.md">Five-minute architecture</a>
-    </div>
-  </section>
-
-  <aside class="callout for-agency">
+  <aside class="callout">
     <div class="callout-inner">
-      <figure class="aside-photo">
-        <img src="seats-capybara-cat.png" alt="A capybara and a house cat sharing a bench." />
+      <figure class="aside-photo aside-diagram">
+        <img src="visuals/agency-01-scattered-you.png" alt="You at the center, with tools, files, policies, process, and comm circling around." />
       </figure>
       <div>
-        <p class="label">The work changed seats</p>
+        <h2>Agents didn’t really take over the work</h2>
         <p>
-          You still babysit every send, because the account still lives in someone’s head —
-          the client, the rule, what happens next. Drafting moved to the bot. The watching
-          did not.
+          They just left you watching every send and filling in the gaps. You’re
+          stuck continually supplying the vital context, the part that turns
+          generic copy into something relevant, because that context is implicit
+          and lives mostly in your head or scattered across a dozen tools.
         </p>
       </div>
     </div>
   </aside>
-
-  <aside class="callout for-dev">
-    <p class="label">The work changed seats</p>
-    <p>
-      Retrieval moved the reading. Relatedness did not. Embeddings answer what text is
-      nearby; they cannot follow a defined link or inherit a rule from a type. Call time
-      is still reconstruction — in your head, or in a prompt you re-type.
-    </p>
-  </aside>
   </div>
 
-  <section class="section for-agency" id="problem">
-    <h2>The context is scattered</h2>
-    <p class="lead">Your routines are stable. The context around each run is not.</p>
-    <figure class="explain">
-      <img src="visuals/agency-01-pain.png" alt="Client list, thread, brand doc, files, project tool, and a person’s head. The routine stops here." />
-    </figure>
+  <section class="section" id="problem">
+    <h2>You want a chauffeur but end up with a backseat driver</h2>
+    <p class="lead">
+      ...and worse yet, your context is informal. It lives in prose: a brief,
+      a thread, a note. Not in a place the agent can <em>deterministically</em> act from, and so you run into the same headaches over and over again.
+    </p>
     <div class="tiles">
       <article>
+        <div class="tile-head">
+        <span class="tile-icon" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8.5h20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H13l-5 4.5V22.5H6a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2z" />
+            <path d="M10 13.5h12M10 17.5h8" />
+          </svg>
+        </span>
         <h3>Answering is cheap</h3>
-        <p>A bot that drafts from the knowledge base is a prompt and a folder. Agencies already have that.</p>
+        </div>
+        <p>A bot that drafts from the knowledge base is a prompt and a folder, but it is incapable of taking deliberate action.</p>
       </article>
       <article>
+        <div class="tile-head">
+        <span class="tile-icon" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 16s5-8 12-8 12 8 12 8-5 8-12 8-12-8-12-8z" />
+            <circle cx="16" cy="16" r="3.2" />
+          </svg>
+        </span>
         <h3>Acting needs a babysitter</h3>
-        <p>Send, file, book — someone who holds the account in their head still checks every step, or the agent just finishes.</p>
+        </div>
+        <p>Send, file, book: someone still has to be there to manually tell the agent what to do next and too often, how to do it.</p>
       </article>
       <article>
-        <h3>Changing the steps is a deploy</h3>
-        <p>Who approves, what waits on a file: that lives in a zap or in code. Ops can see it. Ops cannot edit it.</p>
+        <div class="tile-head">
+        <span class="tile-icon" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="7" cy="16" r="3" />
+            <circle cx="25" cy="16" r="3" />
+            <path d="M10 16h3.2M18.8 16H22" />
+            <path d="M15.2 13.2 16.8 18.8" />
+          </svg>
+        </span>
+        <h3>The process is fragile</h3>
+        </div>
+        <p>Dependencies, approvals, notifications: those live in a zap or in code. You can see them but cannot easily edit them.</p>
       </article>
     </div>
   </section>
 
-  <section class="section for-dev">
-    <h2>The reconstruction stack</h2>
-    <p class="lead">You already know each layer. The failure is that they do not share a model.</p>
-    <div class="tiles">
-      <article>
-        <h3>Info vs action</h3>
-        <p>Q&amp;A is retrieval. A write needs a bound principal, a tool, and a stop. Silent policy violations have no tool error.</p>
-      </article>
-      <article>
-        <h3>HITL is bolted on</h3>
-        <p>Slack, <code>interrupt()</code>, a second task system. Resume state and required parameters get reinvented per integration.</p>
-      </article>
-      <article>
-        <h3>The graph is code</h3>
-        <p>LangGraph and filter stacks can draw a flow. Changing a branch is a release. Operators cannot open the artifact agents run.</p>
-      </article>
+  <section class="section band" id="product">
+    <div class="map-split">
+      <span class="map-icon" aria-hidden="true">
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 16 26 12l12 6 18-8v38l-18 8-12-6-18 4V16z" />
+          <path d="M26 12v38M38 18v38" />
+          <path d="M14 28c4-1 7 2 10 1M32 30c4 1 8-2 12 0M16 38c5 1 8-2 13 0" />
+          <circle cx="44" cy="30" r="4" />
+          <path d="M44 34v7" />
+        </svg>
+      </span>
+      <div>
+        <h2>What you’re missing is a map</h2>
+        <p>
+          Your agent has access to your documentation, your records, and the services you
+          use, but it doesn’t understand the bigger picture of how it all fits together.
+          This is where Pona flow comes in.
+        </p>
+        <p>
+          Pona flow provides a graph-based map of your agency that explicitly declares
+          the context surrounding your working environment, your records, and your workflows. This gives the agent a holistic view of your agency that reflects your implicit knowledge and the tools to act on it.
+        </p>
+      </div>
     </div>
   </section>
 
-  <section class="section for-agency" id="product">
-    <h2>One workspace. This account.</h2>
-    <p>
-      A private workspace where <strong>what things mean</strong>, <strong>the records</strong>,
-      and <strong>the work</strong> share one model.
-    </p>
-    <p>
-      Someone on the team names the client, the approver, and the rule once. After that
-      the producer and the assistant use the same ones. If the file is not here yet,
-      the same piece of work holds.
-    </p>
-    <figure class="explain">
-      <img src="visuals/agency-02-middleware.png" alt="Dashboard, chatbot, and a service start pona flow, which holds the client, people, rules, and related work." />
-    </figure>
-    <blockquote>
-      It does not invent the file. It does not finish last hour’s retainer.
-    </blockquote>
-  </section>
-
-  <section class="section for-dev">
-    <h2>One model. Three node kinds.</h2>
-    <p>
-      <strong>SCHEMA</strong> is the contract. <strong>INSTANCE</strong> is a record that satisfies it.
-      <strong>STEP</strong> is an executable unit. A sequence is a walk of guarded
-      <code>POINTS_TO</code> edges. Nested payloads sit in SQLite; the graph holds
-      relationships and routing.
-    </p>
-    <figure class="explain">
-      <img src="visuals/02-three-node-kinds.png" alt="SCHEMA, INSTANCE, and STEP each connect only to their own kind through POINTS_TO." />
-    </figure>
-    <blockquote>
-      The path through the graph is the explanation.
-    </blockquote>
-  </section>
-
-  <section class="section example for-agency" id="example">
+  <section class="section example lanes" id="example">
     <div>
-      <h2>Example: campaign approval</h2>
+      <h2>Mapping the environment</h2>
       <p>
-        The run reads <em>this</em> account. It may ask <em>this</em> approver.
-        It may follow <em>this</em> brand rule. A missing file pauses the run — it does not guess.
+        Mapping your environment is essential. Here we describe not your data, but
+        its <em>shape</em>. This is not a flowchart you keep for reference. It is an
+        explicit, bounded environment your agent can act in and take meaning from.
       </p>
-      <p class="caption">
-        Not a smarter search over your docs. A neighborhood you can walk, and a gate a human still owns.
+      <div class="map-split">
+        <span class="map-icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 8h22l10 10v38H16z" />
+            <path d="M38 8v10h10" />
+            <path d="M24 28h16M24 34h16M24 40h9" />
+            <circle cx="46" cy="46" r="11" />
+            <path d="M41 46.5 44.2 50 52 40" />
+          </svg>
+        </span>
+        <div>
+          <h3>Example: considering an ad campaign approval</h3>
+          <p>
+            Here is a small slice of that map, in relation to a campaign approval
+            workflow. It shows the types involved, the properties of those types, and
+            the connections between them.
+          </p>
+          <p>We’ll assume an ad campaign proposal that is:</p>
+          <ul>
+            <li>Submitted by a team lead</li>
+            <li>Mapped to specific regions</li>
+            <li>In a highly regulated domain</li>
+          </ul>
+        </div>
+      </div>
+      <p>
+        The proposal needs approval from a department manager, an account manager,
+        a domain specialist, a regional authority representative for each region,
+        and the client’s primary point of contact.
       </p>
     </div>
-    <figure class="explain">
-      <img src="visuals/agency-03-routine.png" alt="Campaign approval tied to the client, the approver, the brand rule, and a file that arrives later." />
+    <figure class="explain explain-dark">
+      <img src="visuals/agency-03-environment.png" alt="Environment map for an ad campaign approval: person, phone, email, client, department, team, domain, campaign, region, and authority, with named links and fields." />
     </figure>
-  </section>
-
-  <section class="section example for-dev">
-    <div>
-      <h2>Same primitive, three transports</h2>
-      <p>
-        Dashboard, <code>POST …/sequences/{id}/run</code>, and
-        <code>/api/spaces/{id}/mcp</code> share one executor. Required parameters
-        return <code>pending</code> and a <code>state_id</code>. A clock is
-        <code>waiting</code> — not a form.
-      </p>
-      <p class="caption">Keep n8n for connectors. Use this when the next step depends on what the record <em>is</em>.</p>
-    </div>
-    <figure class="explain">
-      <img src="visuals/04-one-run-three-doors.png" alt="Dashboard, webhook, and a chat tool start the same checklist and the same run." />
-    </figure>
+    <p class="caption">
+      This is a graph database, and represents a fundemental transformation in data architecture that is better equipped for complex, relationally dynamic systems than a traditional database. Unlike a traditional system, the value compounds as complexity increases, and is ideal for agentic orchestration as it provides a traceable path for contextualizing data.
+    </p>
   </section>
 
   <section class="section" id="show">
-    <h2 class="for-agency">How we’d show it</h2>
-    <h2 class="for-dev">How we’d show it</h2>
-    <p class="lead for-agency">The process <em>is</em> the walk — not a SOP in Notion plus a zap. We do not map the whole agency. We map what one routine touches.</p>
-    <p class="lead for-dev">SCHEMA / INSTANCE, then STEP, then the same sequence on three doors. Bounded — not a CMS of everything.</p>
+    <h2>How we’d show it</h2>
+    <p class="lead">The process <em>is</em> the walk, not a SOP in Notion plus a zap. We do not map the whole agency. We map what one routine touches.</p>
     <ol class="walk">
       <li>
         <h3>1. Map a little</h3>
-        <p class="for-agency">Client, approver, rate, brand rule, file — the nodes that approval actually uses. Not teams, discounts, and the whole org chart.</p>
-        <p class="for-dev">A handful of SCHEMA nodes and the INSTANCE neighborhood for one account. Traversal, not top-k.</p>
+        <p>The types this approval uses, how they connect, and which fields matter. Person, team, department, domain, region, authority, client. Not the whole org. What this proposal touches.</p>
       </li>
       <li>
         <h3>2. Map the walk</h3>
-        <p class="for-agency">Onboarding or campaign approval as a chain that <em>reads those nodes</em>, branches, and pauses for a person.</p>
-        <p class="for-dev">STEPS joined by guarded <code>POINTS_TO</code>. Changing who approves is an edge condition — not a deploy.</p>
+        <p>Then the records that fill those types, and the workflow as a chain that reads them, branches, and pauses for a person.</p>
       </li>
       <li>
         <h3>3. Same run, three doors</h3>
-        <p class="for-agency">A button on a dashboard, an assistant with the same routine as a tool, or an API call from something you already have.</p>
-        <p class="for-dev">UI, webhook, MCP. One <code>sequence_service</code>. Authoring MCP writes the same builder snapshot.</p>
+        <p>A button on a dashboard, an assistant with the same routine as a tool, or an API call from something you already have.</p>
       </li>
     </ol>
-    <figure class="explain for-agency">
+    <figure class="explain">
       <img src="visuals/agency-05-allowed.png" alt="Dashboard, chatbot, or a service start this account, then ask this approver, follow this brand rule, or wait for this file." />
     </figure>
-    <figure class="explain for-dev">
-      <img src="visuals/03-execution-walk.png" alt="A branch is a choice the checklist already understands. A pause is a missing fact that resumes the same run." />
-    </figure>
-    <p class="for-agency"><a class="text-cta" href="#close">That’s the first conversation. Talk about yours →</a></p>
+    <p><a class="text-cta" href="#close">That’s the first conversation. Talk about yours →</a></p>
   </section>
 
   <section class="section" id="audience">
@@ -211,45 +192,32 @@
     <div class="split">
       <div>
         <p class="label">For</p>
-        <p class="for-agency">
+        <p>
           Agency owners and ops leads whose week is still kickoff / revision / approval / publish
-          from memory — and who have already tried letting an assistant take a step.
-        </p>
-        <p class="for-dev">
-          Teams whose agents need related, governed context, not only retrieved prose.
-          Operators who need to change a rule without a deploy. One artifact that is a
-          dashboard workflow, a webhook, and an MCP tool.
+          from memory, and who have already tried letting an assistant take a step.
         </p>
       </div>
       <div>
         <p class="label">Not for</p>
-        <p class="for-agency">
+        <p>
           A hundred SaaS connectors and no domain model (keep the glue tool).
           An agent you are still inventing (a notebook is cheaper).
-        </p>
-        <p class="for-dev">
-          Warehouses, Zapier-scale connector catalogs, or exploratory LangGraph with no
-          stable types yet. GraphRAG on documents is not a runnable HITL sequence.
         </p>
       </div>
     </div>
   </section>
 
   <section class="close" id="close">
-    <h2 class="for-agency">One repeating routine. That’s the first conversation.</h2>
-    <h2 class="for-dev">One sequence worth keeping. That’s the first conversation.</h2>
-    <p class="for-agency">
+    <h2>One repeating routine. That’s the first conversation.</h2>
+    <p>
       You describe what repeats, what waits on what, and where a human still has to step in.
       No platform tour.
-    </p>
-    <p class="for-dev">
-      We start from a type, a record neighborhood, and one guarded walk — not a slide of the ontology.
     </p>
     <a class="btn btn-primary" href="mailto:hello@localhost?subject=One%20repeating%20routine">Talk about a routine</a>
     <p class="hint">Replace the mailto in <code>index.html</code> when you have a real inbox.</p>
   </section>
 
-  <section class="pitch for-agency" id="pitch">
+  <section class="pitch" id="pitch">
     <p class="label">2-minute pitch</p>
     <p>
       Script lives in the product repo as <code>Docs/video/AGENCY-PITCH.md</code>.
@@ -258,21 +226,15 @@
   </section>
 
   <footer id="how">
-    <p class="for-agency">
+    <p>
       Similarity search still exists. It is not asked to stand in for “what is connected to this account.”
       Meaning, records, and the run live in one graph. Humans and agents start the same sequence.
       A required value pauses the run instead of the model filling the gap.
-    </p>
-    <p class="for-dev">
-      Dedicated instance. Space-scoped keys. Clerk for humans, hashed agent keys for machines.
-      See the executor, the composer, and the MCP gateway in the repo.
     </p>
     <p>
       <a href="../Docs/5-MINUTE-ARCHITECTURE.md">Five-minute architecture</a>
       · local draft · not the product app
     </p>
   </footer>
-
-  <script src="view.js"></script>
 </body>
 </html>
