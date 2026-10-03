@@ -355,11 +355,6 @@ h3 {
 
 .example li:last-child { margin-bottom: 0; }
 
-.explain-dark {
-  background: #111;
-  border-color: #1c1915;
-}
-
 .explain-photo,
 .explain-graph {
   background: transparent;
