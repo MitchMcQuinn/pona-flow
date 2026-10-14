@@ -9,6 +9,8 @@ export type RightPanelMode =
 export interface Me {
   principalId: string;
   email: string | null;
+  /** Human label resolved server-side (local account name or Clerk profile). */
+  displayName: string | null;
   principalType: string;
   isSuperadmin: boolean;
   canCreateSpaces: boolean;

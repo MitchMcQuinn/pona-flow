@@ -1,0 +1,69 @@
+.authRoot {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.authCard {
+  max-width: 420px;
+  width: 100%;
+  background: linear-gradient(145deg, var(--panel), var(--panel2));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-out), var(--edge-hi);
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.authCard h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.authCard p {
+  margin: 0;
+}
+
+.authLogo {
+  height: 28px;
+  width: auto;
+  align-self: flex-start;
+  margin-bottom: 4px;
+}
+
+.authCard .field {
+  margin-bottom: 0;
+}
+
+.authCard .field span {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.authCard .btnPrimary {
+  margin-top: 6px;
+  padding: 9px 16px;
+}
+
+.authError {
+  color: var(--danger, #ff6b6b);
+  font-size: 13px;
+}
+
+.authSwitch {
+  font-size: 13px;
+  text-align: center;
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  box-shadow: none;
+}

@@ -103,7 +103,7 @@ export function CreateSpaceModal({
         <h3 style={{ marginTop: 0 }}>{isEdit ? "Edit space" : "Create space"}</h3>
         <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>
           {required
-            ? "Create a space to get started. Connection env keys are derived from the name."
+            ? "You're in. Create your first space to start building. A space is a working environment (a project, a team, a client); it uses the instance's Neo4j connection unless you configure a space-specific one later."
             : isEdit
               ? "Update the space name or endpoint. Renaming recomputes connection env keys."
               : "Add a working environment to the catalog spaces table."}

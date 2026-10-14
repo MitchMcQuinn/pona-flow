@@ -1066,23 +1066,34 @@ export function permsToApi(p: RolePermissions): PermsApi {
   };
 }
 
-export async function fetchMe(): Promise<Me> {
-  const data = await getJson<{
-    principal_id?: string;
-    email?: string | null;
-    principal_type?: string;
-    is_superadmin?: boolean;
-    can_create_spaces?: boolean;
-    timezone?: string | null;
-  }>("/api/me", "Failed to load principal", { cache: "no-store" });
+/** Raw `/api/me` payload shape (also returned by the built-in auth routes on sign-in). */
+export type MePayload = {
+  principal_id?: string;
+  email?: string | null;
+  display_name?: string | null;
+  principal_type?: string;
+  is_superadmin?: boolean;
+  can_create_spaces?: boolean;
+  timezone?: string | null;
+};
+
+export function meFromPayload(data: MePayload): Me {
   return {
     principalId: data.principal_id || "",
     email: data.email ?? null,
+    displayName: data.display_name ?? null,
     principalType: data.principal_type || "user",
     isSuperadmin: Boolean(data.is_superadmin),
     canCreateSpaces: Boolean(data.can_create_spaces),
     timezone: data.timezone ?? null
   };
+}
+
+export async function fetchMe(): Promise<Me> {
+  const data = await getJson<MePayload>("/api/me", "Failed to load principal", {
+    cache: "no-store"
+  });
+  return meFromPayload(data);
 }
 
 /** Persist the signed-in principal's preferred timezone (null clears it). */

@@ -28,6 +28,7 @@ _SCHEMA_DIR = config.ROOT / "Engine" / "schema"
 # NOTE: ``space-members`` is intentionally absent — its table can require a rebuild
 # from the legacy (space_id, user_id) shape, so it is owned by ``rbac.ensure_rbac_schema``.
 _CATALOG_DDL_FILES = (
+    "spaces-table.sql",
     "regex-table.sql",
     "state-table.sql",
     "queries-table.sql",

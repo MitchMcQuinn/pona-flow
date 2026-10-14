@@ -16,6 +16,7 @@ type TokenGetter = () => Promise<string | null>;
 
 let tokenGetter: TokenGetter | null = null;
 let onUnauthorized: (() => void) | null = null;
+let cookieSession = false;
 let installed = false;
 
 export function setTokenGetter(getter: TokenGetter | null): void {
@@ -24,6 +25,18 @@ export function setTokenGetter(getter: TokenGetter | null): void {
 
 export function setUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorized = handler;
+}
+
+/**
+ * Built-in auth mode: the browser authenticates with an HttpOnly cookie, so no bearer
+ * header is sent and a 401 on any non-auth API call means the session is gone.
+ */
+export function setCookieSessionMode(enabled: boolean): void {
+  cookieSession = enabled;
+}
+
+function isAuthRoute(url: string): boolean {
+  return url.startsWith("/api/auth/") || url.includes("/api/auth/");
 }
 
 function isApiRequest(input: RequestInfo | URL): boolean {
@@ -64,10 +77,13 @@ export function installAuthFetch(): void {
     }
 
     const response = await originalFetch(input, { ...init, headers });
-    // Only sign out when we sent a token and the server still rejected it — not when
-    // a request raced ahead of Clerk token registration on first mount.
-    if (response.status === 401 && onUnauthorized && headers.has("Authorization")) {
-      onUnauthorized();
+    // Only sign out when we sent a token (or rely on the session cookie) and the server
+    // still rejected it — not when a request raced ahead of Clerk token registration on
+    // first mount, and never for the auth routes themselves (a failed login is a 401).
+    if (response.status === 401 && onUnauthorized) {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const authenticated = headers.has("Authorization") || (cookieSession && !isAuthRoute(url));
+      if (authenticated) onUnauthorized();
     }
     return response;
   };

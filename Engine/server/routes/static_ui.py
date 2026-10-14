@@ -13,8 +13,13 @@ router = APIRouter()
 _CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
     ".js": "application/javascript; charset=utf-8",
+    ".mjs": "application/javascript; charset=utf-8",
     ".json": "application/json; charset=utf-8",
     ".css": "text/css; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+    ".woff2": "font/woff2",
 }
 
 
@@ -47,6 +52,12 @@ def _serve_static_file(path: str) -> Response:
 @router.get("/")
 def root():
     return _serve_static_file("/")
+
+
+@router.get("/assets/{rest:path}")
+def root_assets(rest: str):
+    """Hashed bundle assets referenced relatively from ``/`` (``./assets/...``)."""
+    return _serve_static_file(f"/App/ui/dist/assets/{rest}")
 
 
 @router.get("/App/{rest:path}")
