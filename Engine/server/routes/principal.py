@@ -7,7 +7,7 @@ import sys
 from fastapi import APIRouter, Depends, Request
 from fastapi.exceptions import HTTPException
 
-from .. import auth, rbac
+from .. import auth, local_auth, rbac
 from ..auth import Principal
 from ..http_utils import (
     bad_request,
@@ -27,10 +27,12 @@ def whoami(principal: Principal = Depends(auth.current_principal)):
     return {
         "principal_id": principal.user_id,
         "email": principal.email,
+        "display_name": principal.display_name,
         "principal_type": principal.principal_type,
         "is_superadmin": principal.is_superadmin,
         "can_create_spaces": principal.can_create_spaces,
         "timezone": principal.timezone,
+        "auth_mode": local_auth.auth_mode(),
     }
 
 

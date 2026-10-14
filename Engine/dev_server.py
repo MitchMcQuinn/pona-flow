@@ -27,8 +27,10 @@ from server.ui_build import warn_if_ui_dist_stale
 
 def main() -> None:
     config.load_env_file(config.ROOT / ".env")
-    host = os.environ.get("FORM_BRIDGE_HOST", "127.0.0.1")
-    port = int(os.environ.get("FORM_BRIDGE_PORT", "8765"))
+    host = os.environ.get("PONA_FLOW_HOST") or os.environ.get("FORM_BRIDGE_HOST", "127.0.0.1")
+    port = int(os.environ.get("PONA_FLOW_PORT") or os.environ.get("FORM_BRIDGE_PORT", "8765"))
+    # Let the app's startup guard see the bind address (see server.app._configured_bind_host).
+    os.environ["PONA_FLOW_HOST"] = host
 
     warn_if_ui_dist_stale(config.APP_DIR)
     print(f"React UI (built):  http://{host}:{port}/App/ui/dist/index.html", flush=True)

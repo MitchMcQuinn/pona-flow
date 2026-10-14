@@ -24,6 +24,7 @@ to match the original server (the React client reads ``data.error``).
 
 from __future__ import annotations
 
+import os
 import sys
 from contextlib import asynccontextmanager
 
@@ -31,12 +32,30 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import config, graph, mcp_gateway, migrations, routes, scheduler
+from . import auth, config, graph, mcp_gateway, migrations, routes, scheduler
+
+
+def _configured_bind_host() -> str | None:
+    """Best-effort bind host for the startup bypass guard.
+
+    ``dev_server.py`` and the container image export the host they bind to. A bare
+    ``uvicorn`` invocation does not, so we fall back to uvicorn's own default
+    (loopback) unless we can tell we are inside a container, where the listener is
+    always reachable from outside the process namespace.
+    """
+    for key in ("PONA_FLOW_HOST", "FORM_BRIDGE_HOST"):
+        value = (os.environ.get(key) or "").strip()
+        if value:
+            return value
+    if os.environ.get("PONA_FLOW_DATA_DIR") or os.path.exists("/.dockerenv"):
+        return "0.0.0.0"
+    return "127.0.0.1"
 
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
     config.load_env_file(config.ROOT / ".env")
+    auth.assert_dev_bypass_safe(_configured_bind_host())
     migrations.run_startup_migrations()
     if not graph.NEO4J_AVAILABLE:
         sys.stderr.write(
@@ -65,7 +84,12 @@ def create_app() -> FastAPI:
     @app.exception_handler(StarletteHTTPException)
     async def _http_exc(_request: Request, exc: StarletteHTTPException):
         # Preserve the {"error": ...} contract for API clients; static 404s pass through too.
-        return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+        # Forward any headers the raiser attached (WWW-Authenticate, Retry-After, ...).
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": exc.detail},
+            headers=dict(exc.headers or {}),
+        )
 
     for router in routes.ALL_ROUTERS:
         app.include_router(router)

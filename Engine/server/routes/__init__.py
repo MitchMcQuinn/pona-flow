@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from . import (
     agent_keys,
+    auth,
     credentials,
     db_editor,
     embeddings,
@@ -27,6 +28,7 @@ from . import (
 )
 
 ALL_ROUTERS = (
+    auth.router,
     principal.router,
     spaces.router,
     rbac.router,

@@ -38,6 +38,8 @@ _CATALOG_DDL_FILES = (
     "agent-keys-table.sql",
     "space-credentials-table.sql",
     "template-imports-table.sql",
+    "local-credentials-table.sql",
+    "sessions-table.sql",
 )
 
 

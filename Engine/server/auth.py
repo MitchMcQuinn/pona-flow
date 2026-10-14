@@ -1,23 +1,31 @@
 """
-Authentication (Clerk JWT or agent API key) and authorization (RBAC) for the FastAPI app.
+Authentication (built-in session, Clerk JWT, or agent API key) and authorization (RBAC).
 
 Purpose in the project
 ----------------------
 This module is the security boundary the original ``http.server`` handler never had.
 See ``Docs/DEPLOYMENT.md``:
 
-- **Authentication** is delegated to Clerk for humans. Clients send a Clerk session JWT
-  as ``Authorization: Bearer <token>``. We verify it against Clerk's JWKS (signature +
-  expiry), then map the Clerk user (``sub``) to a local ``users`` row. Agents (sequence
-  webhooks, the MCP gateway) authenticate instead with a per-space ``stg_`` API key
-  (see ``agent_keys.py``) resolved to an agent principal.
+- **Authentication** for humans depends on ``PONA_FLOW_AUTH_MODE``:
+    * ``local`` (default, self-hosted): email + password accounts managed by
+      ``local_auth.py``. The browser holds a ``pfs_`` session token in an HttpOnly cookie
+      (scripts may send it as ``Authorization: Bearer``). Cookie-authenticated unsafe
+      requests must also pass a same-origin check (``Origin`` / ``Sec-Fetch-Site``).
+    * ``clerk``: clients send a Clerk session JWT as ``Authorization: Bearer <token>``.
+      We verify it against Clerk's JWKS (signature + expiry), then map the Clerk user
+      (``sub``) to a local ``users`` row.
+  Agents (sequence webhooks, the MCP gateway) authenticate in either mode with a
+  per-space ``stg_`` API key (see ``agent_keys.py``) resolved to an agent principal.
 - **Authorization** is the hybrid RBAC layer in ``rbac.py``: space membership with
   per-space roles, flow permissions (``<operation>:<element>``), per-sequence run
-  allowlists, and a ``manage_space`` capability. Space owners and the env-defined
-  superadmin get full access; a separate instance-admin flag gates instance-wide
-  operations and the raw catalog DB editor.
+  allowlists, and a ``manage_space`` capability. Space owners and instance admins get
+  full access; the instance-admin flag also gates instance-wide operations and the raw
+  catalog DB editor.
 
-Bootstrap: the superadmin is defined by environment (SUPERADMIN_CLERK_ID / SUPERADMIN_EMAIL).
+Bootstrap: the instance admin flag lives on the ``users`` row. In local mode the account
+created on the first-run setup page gets it; in Clerk mode the first human to sign in on
+an empty instance gets it, and ``SUPERADMIN_CLERK_ID`` / ``SUPERADMIN_EMAIL`` remain an
+environment override that grants it to a specific identity.
 
 Exposed FastAPI dependencies
 ----------------------------
@@ -36,11 +44,13 @@ Helpers used inside route handlers (after ``space_id`` is known):
 from __future__ import annotations
 
 import hmac
+import ipaddress
+import logging
 import os
 import sqlite3
-import sys
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -53,7 +63,9 @@ try:  # PyJWT with crypto extra
 except Exception:  # pragma: no cover - import guard
     _JWT_AVAILABLE = False
 
-from . import agent_keys, clerk_api, config, id_generator, rbac
+from . import agent_keys, clerk_api, config, id_generator, local_auth, rbac
+
+log = logging.getLogger("pona_flow.auth")
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +77,7 @@ DEV_LOCAL_CLERK_ID = "dev-local-user"
 
 
 def _auth_disabled() -> bool:
-    """Whether Clerk auth is bypassed for local development (``PONA_FLOW_DISABLE_AUTH``).
+    """Whether auth is bypassed for local development (``PONA_FLOW_DISABLE_AUTH``).
 
     Read fresh from the environment on each call (no caching) so toggling it in ``.env``
     takes effect on the next request. Accepts ``1``/``true``/``yes``/``on`` (any case).
@@ -73,6 +85,54 @@ def _auth_disabled() -> bool:
     """
     raw = (os.environ.get("PONA_FLOW_DISABLE_AUTH") or "").strip().lower()
     return raw in ("1", "true", "yes", "on")
+
+
+def dev_bypass_configured() -> bool:
+    """True when either development bypass (auth or DB editor token) is set."""
+    return _auth_disabled() or bool((os.environ.get("DEV_DB_EDITOR_TOKEN") or "").strip())
+
+
+def is_loopback_host(host: str | None) -> bool:
+    """Whether a bind/host string is a loopback address or ``localhost``."""
+    h = (host or "").strip().strip("[]").lower()
+    if not h:
+        return False
+    if h == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(h).is_loopback
+    except ValueError:
+        return False
+
+
+def assert_dev_bypass_safe(bind_host: str | None) -> None:
+    """Refuse to run a development bypass on a non-loopback bind address.
+
+    Called at startup with the configured bind host. ``PONA_FLOW_DISABLE_AUTH`` and
+    ``DEV_DB_EDITOR_TOKEN`` hand out administrator access to anyone who can reach the
+    port, so they are only tolerated when the server is bound to loopback.
+    """
+    if not dev_bypass_configured():
+        return
+    if bind_host is not None and is_loopback_host(bind_host):
+        return
+    raise RuntimeError(
+        "Refusing to start: PONA_FLOW_DISABLE_AUTH / DEV_DB_EDITOR_TOKEN is set but the "
+        f"server would bind to {bind_host or 'a non-loopback address'}. These bypasses "
+        "grant admin access without credentials. Unset them, or bind to 127.0.0.1."
+    )
+
+
+def _dev_bypass_allowed_for(request: Request) -> bool:
+    """Per-request belt-and-braces: the bypass only applies on a loopback listener."""
+    server = request.scope.get("server")
+    host = server[0] if isinstance(server, (tuple, list)) and server else None
+    if host is None or is_loopback_host(str(host)):
+        return True
+    log.error(
+        "Development auth bypass ignored: server is bound to %s (not loopback).", host
+    )
+    return False
 
 
 def _dev_local_principal() -> Principal:
@@ -170,7 +230,7 @@ def verify_clerk_token(token: str) -> dict[str, Any]:
     except Exception as e:
         # Log the specific failure server-side only; the client gets a generic message
         # so token internals (expiry, issuer, signature details) are not disclosed.
-        print(f"clerk-token-verify-error: {e}", file=sys.stderr)
+        log.warning("clerk-token-verify-error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token.",
@@ -203,6 +263,7 @@ class Principal:
     can_create_spaces: bool = False
     principal_type: str = "user"
     timezone: str | None = None
+    display_name: str | None = None
 
 
 def _catalog_conn() -> sqlite3.Connection:
@@ -210,7 +271,7 @@ def _catalog_conn() -> sqlite3.Connection:
 
 
 def _is_superadmin(clerk_user_id: str, email: str | None) -> bool:
-    """The single server superadmin is defined by env, not by signup order."""
+    """Environment override: a specific identity that is always an instance admin."""
     sa_clerk = config.superadmin_clerk_id()
     if sa_clerk and clerk_user_id and clerk_user_id == sa_clerk:
         return True
@@ -220,11 +281,53 @@ def _is_superadmin(clerk_user_id: str, email: str | None) -> bool:
     return False
 
 
+def _no_human_users(conn: sqlite3.Connection) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM users WHERE principal_type = 'user' "
+        "  AND clerk_user_id IS NOT 'dev-local-user' LIMIT 1"
+    ).fetchone()
+    return row is None
+
+
+def principal_from_user_id(user_id: str) -> Principal | None:
+    """Build a ``Principal`` from a ``users`` row (built-in sessions use this path)."""
+    uid = (user_id or "").strip()
+    if not uid:
+        return None
+    conn = _catalog_conn()
+    try:
+        row = conn.execute(
+            "SELECT id, clerk_user_id, email, display_name, can_create_spaces, "
+            "       principal_type, timezone, is_instance_admin "
+            "FROM users WHERE id = ?",
+            (uid,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return None
+    is_admin = bool(row["is_instance_admin"]) or _is_superadmin(
+        str(row["clerk_user_id"] or ""), row["email"]
+    )
+    return Principal(
+        user_id=str(row["id"]),
+        clerk_user_id=str(row["clerk_user_id"] or ""),
+        email=row["email"],
+        is_instance_admin=is_admin,
+        is_superadmin=is_admin,
+        can_create_spaces=bool(row["can_create_spaces"]) or is_admin,
+        principal_type=row["principal_type"] or "user",
+        timezone=row["timezone"],
+        display_name=row["display_name"],
+    )
+
+
 def get_or_create_user(clerk_user_id: str, email: str | None) -> Principal:
     """Resolve the local principal for a Clerk subject, creating it on first sight.
 
-    The single superadmin is determined by environment (see :func:`_is_superadmin`),
-    decoupled from signup order. On each sign-in, any pending email invites for this
+    The instance-admin flag is stored on the ``users`` row. The first human to sign in
+    on an empty instance receives it; the ``SUPERADMIN_*`` environment override grants it
+    to a specific identity as well. On each sign-in, any pending email invites for this
     principal are claimed.
     """
     cid = (clerk_user_id or "").strip()
@@ -250,19 +353,22 @@ def get_or_create_user(clerk_user_id: str, email: str | None) -> Principal:
             stored_name = row["display_name"]
             stored_admin = bool(row["is_instance_admin"])
         else:
+            # First human on an empty instance bootstraps as the instance admin.
+            bootstrap_admin = _no_human_users(conn)
             user_id = id_generator.generate_id()
             conn.execute(
-                "INSERT INTO users (id, clerk_user_id, email, is_instance_admin) "
-                "VALUES (?, ?, ?, ?)",
-                (user_id, cid, email, 0),
+                "INSERT INTO users (id, clerk_user_id, email, is_instance_admin, "
+                "                   can_create_spaces) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (user_id, cid, email, 1 if bootstrap_admin else 0, 1 if bootstrap_admin else 0),
             )
             conn.commit()
-            can_create = False
+            can_create = bootstrap_admin
             principal_type = "user"
             timezone = None
             stored_email = email
             stored_name = None
-            stored_admin = False
+            stored_admin = bootstrap_admin
 
         # Resolve a human identity from Clerk's Backend API when the token didn't carry
         # one. The email matters beyond display: pending invites are claimed by email.
@@ -274,12 +380,13 @@ def get_or_create_user(clerk_user_id: str, email: str | None) -> Principal:
                 resolved_email = resolved_email or identity.get("email")
                 resolved_name = resolved_name or identity.get("name")
 
-        # Superadmin is env-derived. Session JWTs often omit email, so evaluate only after
-        # the Clerk Backend API backfill above (see SUPERADMIN_EMAIL / SUPERADMIN_CLERK_ID).
-        is_super = _is_superadmin(cid, resolved_email)
+        # Instance admin is the stored flag OR the environment override. Session JWTs
+        # often omit email, so the override is evaluated only after the Clerk Backend
+        # API backfill above (see SUPERADMIN_EMAIL / SUPERADMIN_CLERK_ID).
+        is_super = stored_admin or _is_superadmin(cid, resolved_email)
 
-        # Persist any changes: email backfill, display name, and the env-derived
-        # superadmin status (the source of truth) so admin listings stay accurate.
+        # Persist any changes: email backfill, display name, and an env-granted admin
+        # flag so admin listings stay accurate.
         updates: list[str] = []
         args: list[Any] = []
         if resolved_email and resolved_email != stored_email:
@@ -288,9 +395,8 @@ def get_or_create_user(clerk_user_id: str, email: str | None) -> Principal:
         if resolved_name and resolved_name != stored_name:
             updates.append("display_name = ?")
             args.append(resolved_name)
-        if stored_admin != is_super:
-            updates.append("is_instance_admin = ?")
-            args.append(1 if is_super else 0)
+        if is_super and not stored_admin:
+            updates.append("is_instance_admin = 1")
         if updates:
             args.append(user_id)
             conn.execute(
@@ -316,6 +422,7 @@ def get_or_create_user(clerk_user_id: str, email: str | None) -> Principal:
         can_create_spaces=can_create or is_super,
         principal_type=principal_type,
         timezone=timezone,
+        display_name=resolved_name,
     )
 
 
@@ -362,14 +469,103 @@ def _principal_from_credentials(credentials: HTTPAuthorizationCredentials) -> Pr
     return get_or_create_user(str(claims.get("sub") or ""), _claim_email(claims))
 
 
-async def current_principal(request: Request) -> Principal:
-    """Verify the Clerk token and return the resolved local Principal.
+# ---------------------------------------------------------------------------
+# Built-in sessions (PONA_FLOW_AUTH_MODE=local)
+# ---------------------------------------------------------------------------
 
-    When ``PONA_FLOW_DISABLE_AUTH`` is set (local development only), skips Clerk entirely
-    and returns a synthetic superadmin principal so no session token is required.
+_UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def _session_token_from_request(request: Request) -> tuple[str | None, bool]:
+    """Return ``(token, from_cookie)`` for a built-in session token on the request.
+
+    The cookie is the normal browser path. ``Authorization: Bearer pfs_...`` is accepted
+    for scripts; bearer-presented tokens are not subject to the CSRF check because a
+    cross-site page cannot set that header.
     """
-    if _auth_disabled():
+    authz = (request.headers.get("Authorization") or "").strip()
+    if authz.lower().startswith("bearer "):
+        candidate = authz[7:].strip()
+        if candidate.startswith(local_auth.SESSION_PREFIX):
+            return candidate, False
+    cookie = (request.cookies.get(local_auth.SESSION_COOKIE) or "").strip()
+    if cookie:
+        return cookie, True
+    return None, False
+
+
+def _request_host(request: Request) -> str:
+    return (request.headers.get("host") or "").strip().lower()
+
+
+def same_origin_request(request: Request) -> bool:
+    """CSRF guard for cookie-authenticated state changes.
+
+    Modern browsers attach ``Sec-Fetch-Site`` to every request and ``Origin`` to every
+    cross-origin or non-GET request. We reject when either header says the request did
+    not come from our own origin. Requests carrying neither header (curl, old clients)
+    pass: a browser is the only thing that can be tricked into a CSRF, and browsers send
+    the headers. ``SameSite=Lax`` on the cookie is the first line of defense; this is
+    the second.
+    """
+    if request.method not in _UNSAFE_METHODS:
+        return True
+    fetch_site = (request.headers.get("sec-fetch-site") or "").strip().lower()
+    if fetch_site and fetch_site not in ("same-origin", "none"):
+        return False
+    origin = (request.headers.get("origin") or "").strip()
+    if origin and origin.lower() != "null":
+        origin_host = (urlsplit(origin).netloc or "").lower()
+        if origin_host and origin_host != _request_host(request):
+            return False
+    elif origin.lower() == "null":
+        return False
+    return True
+
+
+def _principal_from_session(request: Request) -> Principal | None:
+    token, from_cookie = _session_token_from_request(request)
+    if not token:
+        return None
+    if from_cookie and not same_origin_request(request):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cross-site request rejected.",
+        )
+    user_id = local_auth.resolve_session(token)
+    if not user_id:
+        return None
+    return principal_from_user_id(user_id)
+
+
+def session_cookie_secure(request: Request) -> bool:
+    """Whether the session cookie should carry the ``Secure`` flag for this request."""
+    if request.url.scheme == "https":
+        return True
+    if (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower() == "https":
+        return True
+    public = (os.environ.get("PONA_FLOW_PUBLIC_URL") or "").strip().lower()
+    return public.startswith("https://")
+
+
+async def current_principal(request: Request) -> Principal:
+    """Authenticate a human and return the resolved local Principal.
+
+    Local mode: a built-in session (cookie or ``Bearer pfs_...``). Clerk mode: a Clerk
+    session JWT. When ``PONA_FLOW_DISABLE_AUTH`` is set (local development only, loopback
+    bind only) returns a synthetic superadmin principal so no credentials are required.
+    """
+    if _auth_disabled() and _dev_bypass_allowed_for(request):
         return _dev_local_principal()
+    if local_auth.auth_mode() == local_auth.MODE_LOCAL:
+        principal = _principal_from_session(request)
+        if principal is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not signed in.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return principal
     credentials = await _bearer(request)
     return _principal_from_credentials(credentials)
 
@@ -441,8 +637,13 @@ def authenticate_request(request: Request) -> Principal | None:
     token = _agent_token_from_request(request)
     if token:
         return _principal_from_agent_key(token)
-    if _auth_disabled():
+    if _auth_disabled() and _dev_bypass_allowed_for(request):
         return _dev_local_principal()
+    if local_auth.auth_mode() == local_auth.MODE_LOCAL:
+        try:
+            return _principal_from_session(request)
+        except HTTPException:
+            return None
     authz = (request.headers.get("Authorization") or "").strip()
     if authz.lower().startswith("bearer "):
         candidate = authz[7:].strip()
@@ -488,10 +689,10 @@ async def require_db_editor_admin(request: Request) -> Principal:
     ``X-Dev-DB-Token`` header, access is granted as a synthetic admin without Clerk. The
     env var is never set in production, so the bypass is inert there.
     """
-    if _auth_disabled():
+    if _auth_disabled() and _dev_bypass_allowed_for(request):
         return _dev_local_principal()
     dev_token = _dev_db_editor_token()
-    if dev_token:
+    if dev_token and _dev_bypass_allowed_for(request):
         supplied = (request.headers.get(DEV_DB_EDITOR_TOKEN_HEADER) or "").strip()
         if supplied and hmac.compare_digest(supplied, dev_token):
             return Principal(
