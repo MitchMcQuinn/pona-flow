@@ -4,7 +4,7 @@ FastAPI application assembly — lifespan, error contract, and router registrati
 Purpose in the project
 ----------------------
 This replaces the stdlib ``http.server`` handler (``handler.py``) as the browser- and
-agent-facing boundary (see Docs/DECISIONS.md D4). It preserves every route and JSON
+agent-facing boundary. It preserves every route and JSON
 contract of the original server, but adds:
 
 - **Authentication** on all ``/api/*`` routes via a verified Clerk JWT (``server.auth``).

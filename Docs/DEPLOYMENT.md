@@ -1,8 +1,8 @@
 # Deployment & Operations
 
-pona flow is delivered as a **dedicated single-tenant instance** per client (see
-[DECISIONS.md](DECISIONS.md)). Each instance runs the FastAPI/ASGI app behind Cloudflare,
-authenticates users via Clerk, and owns its own Neo4j + SQLite data.
+pona flow is delivered as a **dedicated single-tenant instance** per client. Each instance
+runs the FastAPI/ASGI app behind Cloudflare, authenticates users via Clerk, and owns its
+own Neo4j + SQLite data. Backup and restore: [OPERATOR-BACKUP.md](OPERATOR-BACKUP.md).
 
 **End-user onboarding (non-technical):** share [GETTING-STARTED.md](GETTING-STARTED.md) with
 customers who only need to sign in and use the product — this document is for operators.
@@ -63,8 +63,7 @@ cd App/ui && npm install && npm run build
 
 ## 2. Edge: Cloudflare (TLS / CORS / rate limiting)
 
-The application **does not** terminate TLS or set CORS headers — Cloudflare owns these
-(DECISIONS.md D3):
+The application **does not** terminate TLS or set CORS headers — Cloudflare owns these:
 
 - Put the instance hostname behind Cloudflare with TLS (Full/Strict).
 - Restrict the origin so only Cloudflare can reach the app port (Cloudflare Tunnel or an
@@ -99,7 +98,8 @@ designated owner sign in first.
 (`NEO4J_URI`, `NEO4J_PASSWORD`, per-space `*_NEO4J_`*, `SQLITE_DATABASE_PATH`, etc.)
 via the host's secret store / environment. Do **not** commit a production `.env`.
 - The catalog database (`data.db`) holds `spaces`, `queries`, `state`, `users`,
-`space_members`, and `regex`. Back it up alongside the per-space SQLite files and Neo4j.
+`space_members`, and `regex`. Back it up with per-space SQLite and Neo4j — procedure in
+[OPERATOR-BACKUP.md](OPERATOR-BACKUP.md).
 - **User-managed credentials** (Credentials tab) follow the same indirection: the catalog
 `space_credentials` table stores only metadata (name, env key, description) — never the
 value. The value backend is selected by `PONA_FLOW_CREDENTIAL_BACKEND`
@@ -141,4 +141,6 @@ authenticated admin context, or keep it for local development.
 4. Put the instance behind Cloudflare (TLS, origin lock, CORS, rate limit).
 5. Start the server; have the client owner sign in first (becomes instance admin).
 6. Owner creates spaces (creator becomes space owner) and adds members.
+7. Take a backup and **restore it once** on purpose ([OPERATOR-BACKUP.md](OPERATOR-BACKUP.md))
+  before any client data is treated as irreplaceable.
 

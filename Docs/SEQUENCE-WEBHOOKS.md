@@ -4,10 +4,10 @@ This guide is for **developers** integrating external systems or AI agents with 
 It covers the inbound **sequence webhook** (run any sequence over HTTP) and the **agent API
 keys** that authenticate non-human callers.
 
-For the architectural rationale, see [DECISIONS.md](DECISIONS.md) (D8). For the broader
-security model, see [SECURITY-GUIDE.md](SECURITY-GUIDE.md). To have an *external* system fire
-sequences from an inbound payload (no agent key, matched/mapped by the event), see the
-generic receiver in [EXTERNAL-EVENTS.md](EXTERNAL-EVENTS.md) instead.
+TLS, CORS, and rate limiting in production: [DEPLOYMENT.md](DEPLOYMENT.md). Outbound
+HTTP from endpoint steps: `PONA_FLOW_OUTBOUND_ALLOWLIST` in the same document. To have an
+*external* system fire sequences from an inbound payload (no agent key, matched/mapped by the
+event), see [EXTERNAL-EVENTS.md](EXTERNAL-EVENTS.md) instead.
 
 > **One-sentence version:** Every triggerable sequence in a space is callable at
 > `POST /api/spaces/{space_id}/sequences/{sequence_id}/run`, authenticated by either a
@@ -251,7 +251,7 @@ HTTP status (`400` bad request, `401` invalid/revoked key, `403` not permitted, 
   principal and its audit history remain intact.
 - **Outbound steps are still guarded.** Sequences that call external URLs go through the
   same SSRF controls (`PONA_FLOW_OUTBOUND_ALLOWLIST`, private-range blocking) regardless of
-  who triggered the run (see [DECISIONS.md](DECISIONS.md) D7).
+  who triggered the run (see [DEPLOYMENT.md](DEPLOYMENT.md) §6).
 - **Edge protections apply.** In production, Cloudflare still fronts the instance for TLS and
   rate limiting (D3) — agent traffic is not exempt.
 
@@ -288,4 +288,4 @@ nearly one-to-one:
 | `pending` + `parameters[]` | Elicitation / "needs input" |
 | Agent key + `require_sequence_run` | Tool authorization |
 
-The MCP gateway itself is a commercial feature (see [DECISIONS.md](DECISIONS.md) D1).
+The MCP gateway is a thin transport over the same `sequence_service` primitives.

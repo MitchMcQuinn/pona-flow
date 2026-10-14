@@ -4,7 +4,7 @@ pona flow development server — internal package.
 This package implements the FastAPI/ASGI server that backs the App HTML tools
 (React dashboard, SQLite catalog editor). It wires browser UIs and authenticated API
 clients to the catalog database, per-space SQLite, and Neo4j. TLS/CORS are handled by
-Cloudflare in front of each instance (see Docs/DECISIONS.md).
+Cloudflare in front of each instance (see Docs/DEPLOYMENT.md).
 
 Modules:
   config        — project paths, .env loading, SQLite helpers

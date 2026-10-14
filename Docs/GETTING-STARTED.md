@@ -4,9 +4,8 @@ Welcome! This guide is for **people who want to use pona flow**, not necessarily
 who build or host it. If you're evaluating the product, onboarding a team, or opening your
 instance for the first time, start here.
 
-For technical deployment (servers, databases, security configuration), see
-[DEPLOYMENT.md](DEPLOYMENT.md). For a plain-English explanation of how security works, see
-[SECURITY-GUIDE.md](SECURITY-GUIDE.md).
+For technical deployment (servers, databases, backups), see
+[DEPLOYMENT.md](DEPLOYMENT.md) and [OPERATOR-BACKUP.md](OPERATOR-BACKUP.md).
 
 ---
 
@@ -241,7 +240,7 @@ to add you.
 - You sign in through a **professional login service**; pona flow does not store your
   password.
 - Traffic to your instance is **encrypted** in transit (the padlock in your browser).
-- For more detail, see [SECURITY-GUIDE.md](SECURITY-GUIDE.md).
+- Sign-in, TLS, and instance isolation are described for operators in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
 
@@ -250,9 +249,8 @@ to add you.
 | If you want to… | Read… |
 |-----------------|-------|
 | Understand the pains pona flow solves, and how it compares to alternatives | [WHY-PONA-FLOW.md](WHY-PONA-FLOW.md) |
-| Understand security in plain language | [SECURITY-GUIDE.md](SECURITY-GUIDE.md) |
 | Deploy or operate an instance yourself | [DEPLOYMENT.md](DEPLOYMENT.md) |
-| See why architectural choices were made | [DECISIONS.md](DECISIONS.md) |
+| Back up and restore an instance | [OPERATOR-BACKUP.md](OPERATOR-BACKUP.md) |
 | Develop or customize the product | [FIRST-TIME-SETUP.md](FIRST-TIME-SETUP.md) then [README.md](../README.md) |
 
 ---

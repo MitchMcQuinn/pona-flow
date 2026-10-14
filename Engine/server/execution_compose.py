@@ -647,7 +647,7 @@ def compose_execution_package(space_id: str, sequence_query_id: str) -> dict[str
         return {"steps": [], "response_parameters": []}
 
     # Enforce catalog runtime policy: a sequence may only be composed/run when it is
-    # both runtime-enabled and triggerable (see Docs/DECISIONS.md). These flags were
+    # both runtime-enabled and triggerable. These flags were
     # previously stored but never enforced.
     if not int(seq.get("runtime_enabled", 1)):
         raise PermissionError(

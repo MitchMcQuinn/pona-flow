@@ -4,7 +4,7 @@ Authentication (Clerk JWT or agent API key) and authorization (RBAC) for the Fas
 Purpose in the project
 ----------------------
 This module is the security boundary the original ``http.server`` handler never had.
-See ``Docs/DECISIONS.md`` (D3, D5, D8):
+See ``Docs/DEPLOYMENT.md``:
 
 - **Authentication** is delegated to Clerk for humans. Clients send a Clerk session JWT
   as ``Authorization: Bearer <token>``. We verify it against Clerk's JWKS (signature +

@@ -234,7 +234,7 @@ def _outbound_allowlist() -> list[str]:
 def _validate_outbound_url(endpoint: str) -> None:
     """SSRF guard: only http(s), no private/loopback/link-local targets, optional allowlist.
 
-    Raises ValueError when the endpoint is not allowed. See Docs/DECISIONS.md (D7).
+    Raises ValueError when the endpoint is not allowed. See Docs/DEPLOYMENT.md §6.
     Disable host-range checks for trusted self-hosted targets only via
     PONA_FLOW_ALLOW_PRIVATE_OUTBOUND=1.
     """

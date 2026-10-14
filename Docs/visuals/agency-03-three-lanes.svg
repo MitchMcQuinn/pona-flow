@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 400" role="img" aria-labelledby="lanes-title lanes-desc">
+  <title id="lanes-title">Campaign approval as environment, records, and workflow</title>
+  <desc id="lanes-desc">Three lanes. Environment: Account, Brand rule, Person, Campaign file. Records: this client, this brand rule, this approver, this file later. Workflow: read this account, follow this brand rule, ask this approver, wait for this file.</desc>
+
+  <path d="M20 128h880" fill="none" stroke="#d4cbbd" stroke-width="1" />
+  <path d="M20 248h880" fill="none" stroke="#d4cbbd" stroke-width="1" />
+
+  <g font-family="Georgia, 'Iowan Old Style', Palatino, serif" font-size="12" font-style="italic" fill="#5c564c">
+    <text x="24" y="76">Environment</text>
+    <text x="24" y="196">Records</text>
+    <text x="24" y="316">Workflow</text>
+  </g>
+
+  <g font-family="Georgia, 'Iowan Old Style', Palatino, serif" font-size="13" fill="#1c1915">
+    <g transform="translate(168 52)">
+      <rect width="136" height="36" rx="18" fill="#fffdf8" stroke="#1c1915" stroke-width="1.4" />
+      <text x="68" y="23" text-anchor="middle">Account</text>
+    </g>
+    <g transform="translate(344 52)">
+      <rect width="136" height="36" rx="18" fill="#fffdf8" stroke="#1c1915" stroke-width="1.4" />
+      <text x="68" y="23" text-anchor="middle">Brand rule</text>
+    </g>
+    <g transform="translate(520 52)">
+      <rect width="136" height="36" rx="18" fill="#fffdf8" stroke="#1c1915" stroke-width="1.4" />
+      <text x="68" y="23" text-anchor="middle">Person</text>
+    </g>
+    <g transform="translate(696 52)">
+      <rect width="148" height="36" rx="18" fill="#fffdf8" stroke="#1c1915" stroke-width="1.4" />
+      <text x="74" y="23" text-anchor="middle">Campaign file</text>
+    </g>
+  </g>
+  <path d="M236 88c0 22 352 22 352 0" fill="none" stroke="#1c1915" stroke-width="1.15" stroke-linecap="round" />
+
+  <g font-family="Georgia, 'Iowan Old Style', Palatino, serif" font-size="13" fill="#1c1915">
+    <g transform="translate(168 172)">
+      <rect width="136" height="36" rx="18" fill="#fffdf8" stroke="#1c1915" stroke-width="1.4" />
+      <text x="68" y="23" text-anchor="middle">This client</text>
+    </g>
+    <g transform="translate(344 172)">
+      <rect width="136" height="36" rx="18" fill="#fffdf8" stroke="#1c1915" stroke-width="1.4" />
+      <text x="68" y="23" text-anchor="middle">This brand rule</text>
+    </g>
+    <g transform="translate(520 172)">
+      <rect width="136" height="36" rx="18" fill="#fffdf8" stroke="#1c1915" stroke-width="1.4" />
+      <text x="68" y="23" text-anchor="middle">This approver</text>
+    </g>
+    <g transform="translate(696 172)">
+      <rect width="148" height="36" rx="18" fill="#fffdf8" stroke="#9a3412" stroke-width="1.6" />
+      <text x="74" y="23" text-anchor="middle">This file, later</text>
+    </g>
+  </g>
+  <g fill="none" stroke="#1c1915" stroke-width="1.2" stroke-linecap="round">
+    <path d="M304 190h40" />
+    <path d="M480 190h40" />
+  </g>
+  <path d="M236 208c0 22 534 22 534 0" fill="none" stroke="#9a3412" stroke-width="1.15" stroke-dasharray="3 4" stroke-linecap="round" />
+
+  <g font-family="Georgia, 'Iowan Old Style', Palatino, serif" font-size="12" fill="#1c1915">
+    <g transform="translate(152 292)">
+      <rect width="152" height="40" rx="6" fill="#fffdf8" stroke="#1c1915" stroke-width="1.4" />
+      <text x="76" y="25" text-anchor="middle">Read this account</text>
+    </g>
+    <g transform="translate(336 292)">
+      <rect width="152" height="40" rx="6" fill="#fffdf8" stroke="#1c1915" stroke-width="1.4" />
+      <text x="76" y="25" text-anchor="middle">Follow this brand rule</text>
+    </g>
+    <g transform="translate(520 292)">
+      <rect width="152" height="40" rx="6" fill="#fffdf8" stroke="#1c1915" stroke-width="1.4" />
+      <text x="76" y="25" text-anchor="middle">Ask this approver</text>
+    </g>
+    <g transform="translate(704 292)">
+      <rect width="152" height="40" rx="6" fill="#fffdf8" stroke="#9a3412" stroke-width="1.6" />
+      <text x="76" y="25" text-anchor="middle">Wait for this file</text>
+    </g>
+  </g>
+  <g fill="none" stroke="#1c1915" stroke-width="1.3" stroke-linecap="round">
+    <path d="M304 312h32" />
+    <path d="M488 312h32" />
+    <path d="M672 312h32" />
+  </g>
+</svg>

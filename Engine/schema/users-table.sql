@@ -1,5 +1,5 @@
 -- Catalog table: local principal records (data.db).
--- Identity/passwords for human users are delegated to Clerk (see Docs/DECISIONS.md D3);
+-- Identity/passwords for human users are delegated to Clerk (see Docs/DEPLOYMENT.md);
 -- this table maps a Clerk user (clerk_user_id = JWT `sub`) to a local id used for space
 -- membership. It is also the future home of agent principals (principal_type = 'agent'),
 -- which authenticate via API keys rather than Clerk, hence clerk_user_id is nullable.

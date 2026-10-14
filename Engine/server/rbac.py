@@ -4,7 +4,7 @@ permission resolution used by the auth guards.
 
 Purpose in the project
 ----------------------
-The original model (see Docs/DECISIONS.md D5) was binary: a principal was either a space
+The original model was binary: a principal was either a space
 member (full access) or not, plus a single instance admin. This module implements a
 hybrid RBAC layer on top of the catalog ``data.db``:
 

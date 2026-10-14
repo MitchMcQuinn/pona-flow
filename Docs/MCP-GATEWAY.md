@@ -5,8 +5,7 @@ Desktop, IDE assistants, custom agents) to pona flow. It explains how each space
 as a **Model Context Protocol (MCP) server** whose **tools are that space's sequences**.
 
 It builds directly on the webhook layer — see [SEQUENCE-WEBHOOKS.md](SEQUENCE-WEBHOOKS.md)
-for the underlying run/resume contract — and on the architecture decision in
-[DECISIONS.md](DECISIONS.md) (D9).
+for the underlying run/resume contract.
 
 > **One-sentence version:** Point an MCP client at `https://<host>/api/spaces/{space_id}/mcp`
 > with an agent API key, and the space's runnable sequences appear as callable tools — each
@@ -14,7 +13,7 @@ for the underlying run/resume contract — and on the architecture decision in
 > without new parameters.
 
 For the companion server that *creates* those sequences rather than running them, see
-[MCP-AUTHORING.md](MCP-AUTHORING.md) (D11).
+[MCP-AUTHORING.md](MCP-AUTHORING.md).
 
 ---
 
@@ -206,7 +205,7 @@ python Engine/dev_server.py
 ## 7. Transport security
 
 By default the SDK's DNS-rebinding / Host-header validation is **disabled**: in production
-Cloudflare validates the Host and terminates TLS (see [DECISIONS.md](DECISIONS.md) D3), and
+Cloudflare validates the Host and terminates TLS (see [DEPLOYMENT.md](DEPLOYMENT.md)), and
 the agent key is the real authorization gate. To enable strict Host validation in front of
 the gateway, set a comma-separated allowlist:
 

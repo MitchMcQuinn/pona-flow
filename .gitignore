@@ -231,6 +231,23 @@ __marimo__/
 App/data-db-editor.html
 App/js/data-db-editor.js
 
+# Throwaway local job-search tracker (not part of the product)
+/_scratch/
+
+# Landing page drafts (may become a separate repo later)
+/_landing/
+
+# Pitch video renders are too large for git; the scripts (Docs/video/*.md) are tracked.
+/Docs/video/*.mp4
+
+# Private working notes live outside the repo (../private-notes); never commit them.
+/Docs/hot-takes.md
+/Docs/notes-delete-me.md
+/Docs/landing-pitch.md
+
+# Runtime data directory used by the Docker image / PONA_FLOW_DATA_DIR
+/data/
+
 # Historical on-disk scripts from archived code-execution STEPs (see
 # Docs/code-execution/). Never commit user code if this folder still exists.
 /resources/

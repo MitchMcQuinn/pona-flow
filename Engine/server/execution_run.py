@@ -9,7 +9,7 @@ state machine:
      any response_parameter mapping (i.e. it can only come from a human). In
      that case the run pauses as "pending" and returns *all* of the step's fields
      to prompt (optional included), so the operator can review/override them.
-  3. Execute the step (query against Neo4j or HTTP endpoint),
+  3. Execute the step (wait, join, query against Neo4j, or HTTP endpoint),
      then bind values for downstream steps: HTTP/wait publish ``ok`` (and
      HTTP ``status``) into resolved; a successful query sets ``ok=True``; a query
      step's scalar RETURN columns fill in names not already resolved; and
@@ -284,7 +284,7 @@ def _outbound_allowlist() -> list[str]:
 def _validate_outbound_url(endpoint: str) -> None:
     """SSRF guard: only http(s), no private/loopback/link-local targets, optional allowlist.
 
-    Raises ValueError when the endpoint is not allowed. See Docs/DECISIONS.md (D7).
+    Raises ValueError when the endpoint is not allowed. See Docs/DEPLOYMENT.md §6.
     Disable host-range checks for trusted self-hosted targets only via
     PONA_FLOW_ALLOW_PRIVATE_OUTBOUND=1.
     """

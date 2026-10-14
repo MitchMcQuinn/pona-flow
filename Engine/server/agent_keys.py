@@ -4,7 +4,7 @@ Agent API keys — minting, verification, and lifecycle for non-Clerk principals
 Purpose in the project
 ----------------------
 Clerk authenticates humans; agents (AI tools calling sequence webhooks, and the future
-per-space MCP server) authenticate with a per-space API key instead (see Docs/DECISIONS.md).
+per-space MCP server) authenticate with a per-space API key instead.
 
 Each key:
   - belongs to one space and one agent principal (a ``users`` row with

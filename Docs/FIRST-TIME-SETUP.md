@@ -348,6 +348,5 @@ cd App/ui && npm run dev                    # terminal 2 → http://127.0.0.1:51
 
 - [README.md](../README.md) — project overview, module map, and local vector search  
 - [DEPLOYMENT.md](DEPLOYMENT.md) — production checklist  
-- [SECURITY-GUIDE.md](SECURITY-GUIDE.md) — auth model in plain language  
-- [DECISIONS.md](DECISIONS.md) — why Clerk, single-tenant, credential backends, etc.
+- [OPERATOR-BACKUP.md](OPERATOR-BACKUP.md) — backup and restore  
 - [SEQUENCE-WEBHOOKS.md](SEQUENCE-WEBHOOKS.md) / [MCP-GATEWAY.md](MCP-GATEWAY.md) — agent surfaces after the app is up  

@@ -8,8 +8,7 @@ document describes the categories of *decisioning problems* where a context grap
 with concrete examples drawn from the product's own model.
 
 > **The pona flow model in one paragraph.** Everything is one of three node types —
-> `STEP` (sequential: step by step, conditional, branching, looping operations), `SCHEMA`
-> (schematic: taxonomies and ontologies), and `INSTANCE` (spatial: the actual data
+> `STEP` (sequential: step by step, conditional, branching, looping operations), `SCHEMA` (schematic: taxonomies, categories, and ontologies), and `INSTANCE` (spatial: the actual data
 > records) — and nodes connect only to others of their own type through a single
 > `POINTS_TO` relationship. The graph carries the *relationships*; per-entity SQLite
 > payloads carry the *nested/array data* the graph is bad at querying. A small

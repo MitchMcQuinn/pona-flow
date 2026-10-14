@@ -6,6 +6,14 @@ A dedicated-instance runtime where **domain types, records, and workflows** shar
 
 Buyer-facing comparison to n8n, LangGraph, RAG, Temporal, and BPM: [Docs/WHY-PONA-FLOW.md](Docs/WHY-PONA-FLOW.md)
 
+Pitch, with the infographics and a worked example: [Docs/PITCH.md](Docs/PITCH.md)
+
+Agency pitch (the assistant, the account, and when it must stop): [Docs/video/AGENCY-PITCH.md](Docs/video/AGENCY-PITCH.md)
+
+Technical pitch (schema, instance, step, the walk): [Docs/video/TECHNICAL-PITCH.md](Docs/video/TECHNICAL-PITCH.md)
+
+Infographics on their own: [Docs/VISUALS.md](Docs/VISUALS.md)
+
 ## Development setup
 
 **First-time local instance (clone → env → Neo4j → run):** follow
@@ -25,7 +33,7 @@ Copy `.env.example` to `.env` and set Neo4j / SQLite values **and Clerk auth val
 (`CLERK_ISSUER` for the server; `VITE_CLERK_PUBLISHABLE_KEY` in `App/ui/.env` for the UI).
 The server now requires a verified Clerk session token on every `/api/*` route, so a
 Clerk app (the free development instance is fine) is needed even for local development.
-See [Docs/DECISIONS.md](Docs/DECISIONS.md) and [Docs/DEPLOYMENT.md](Docs/DEPLOYMENT.md).
+See [Docs/DEPLOYMENT.md](Docs/DEPLOYMENT.md) and [Docs/OPERATOR-BACKUP.md](Docs/OPERATOR-BACKUP.md).
 New users (non-technical onboarding): [Docs/GETTING-STARTED.md](Docs/GETTING-STARTED.md).
 
 Then run the development server (FastAPI/ASGI via uvicorn):
@@ -117,8 +125,8 @@ tab of a space's settings (which also shows the MCP URL and webhook base), or vi
 `/api/spaces/{space_id}/agent-keys`. A key maps to an `agent` principal whose space role
 governs which sequences it may run, reusing the existing RBAC allowlist. The MCP gateway
 requires the optional `mcp` dependency (in `requirements.txt`); without it the gateway is
-inert and the rest of the API is unaffected. Architecture: [Docs/DECISIONS.md](Docs/DECISIONS.md)
-(D8, D9).
+inert and the rest of the API is unaffected. See [Docs/MCP-GATEWAY.md](Docs/MCP-GATEWAY.md)
+and [Docs/SEQUENCE-WEBHOOKS.md](Docs/SEQUENCE-WEBHOOKS.md).
 
 ## Design Philosophy
 

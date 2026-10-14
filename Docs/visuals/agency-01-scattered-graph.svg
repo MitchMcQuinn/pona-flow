@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" role="img" aria-labelledby="scattered-title scattered-desc">
+  <title id="scattered-title">The context is scattered</title>
+  <desc id="scattered-desc">A messy graph of loosely connected nodes around a person's head: client list, thread, brand doc, files, project tool.</desc>
+  <g fill="none" stroke="#1c1915" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M118 92 Q 250 28 362 188" />
+    <path d="M118 92 Q 400 70 678 86" stroke="#9a3412" stroke-width="0.9" opacity="0.7" />
+    <path d="M678 86 Q 560 160 438 198" stroke-dasharray="3 5" opacity="0.55" />
+    <path d="M72 228 Q 180 250 358 220" />
+    <path d="M148 348 Q 260 300 378 248" opacity="0.75" />
+    <path d="M148 348 Q 430 410 708 292" stroke="#9a3412" stroke-width="0.9" opacity="0.55" />
+    <path d="M708 292 Q 590 250 442 228" />
+    <path d="M622 402 Q 500 340 430 250" opacity="0.6" />
+    <path d="M248 58 Q 300 140 378 198" stroke-dasharray="2 6" opacity="0.4" />
+    <path d="M528 96 Q 490 170 430 198" opacity="0.35" />
+    <path d="M198 404 Q 310 360 148 348" opacity="0.4" />
+    <path d="M72 228 Q 90 140 118 92" opacity="0.35" />
+    <path d="M708 292 Q 740 180 678 86" opacity="0.3" />
+  </g>
+
+  <g fill="#1c1915">
+    <circle cx="248" cy="58" r="3.2" />
+    <circle cx="528" cy="96" r="2.4" />
+    <circle cx="198" cy="404" r="2.6" />
+    <circle cx="500" cy="378" r="2.2" opacity="0.55" />
+    <circle cx="310" cy="120" r="1.8" opacity="0.4" />
+    <circle cx="560" cy="320" r="1.8" opacity="0.4" />
+  </g>
+
+  <g font-family="Georgia, 'Iowan Old Style', Palatino, serif" font-size="13" fill="#1c1915">
+    <g transform="translate(118 92)">
+      <circle r="5.5" fill="#f4efe6" stroke="#1c1915" stroke-width="1.2" />
+      <text x="12" y="-8">Client list</text>
+    </g>
+    <g transform="translate(678 86)">
+      <circle r="5" fill="#f4efe6" stroke="#9a3412" stroke-width="1.2" />
+      <text x="-58" y="-10">Thread</text>
+    </g>
+    <g transform="translate(72 228)">
+      <circle r="6" fill="#f4efe6" stroke="#1c1915" stroke-width="1.2" />
+      <text x="12" y="5">Project tool</text>
+    </g>
+    <g transform="translate(148 348)">
+      <circle r="5.2" fill="#f4efe6" stroke="#1c1915" stroke-width="1.2" />
+      <text x="12" y="16">Brand doc</text>
+    </g>
+    <g transform="translate(708 292)">
+      <circle r="5.5" fill="#f4efe6" stroke="#1c1915" stroke-width="1.2" />
+      <text x="-42" y="20">Files</text>
+    </g>
+    <g transform="translate(622 402)">
+      <circle r="4.4" fill="#f4efe6" stroke="#1c1915" stroke-width="1.1" />
+      <text x="-52" y="18">Last send</text>
+    </g>
+  </g>
+
+  <g transform="translate(400 220)" fill="none" stroke="#1c1915" stroke-width="1.35" stroke-linecap="round">
+    <ellipse cx="6" cy="-8" rx="36" ry="44" />
+    <ellipse cx="-28" cy="-4" rx="7" ry="10" />
+    <path d="M-4 34 Q 4 52 10 68" />
+    <path d="M18 32 Q 16 50 20 68" />
+    <circle cx="16" cy="-12" r="2.1" fill="#1c1915" stroke="none" />
+    <path d="M22 -4 Q 28 -2 24 6" />
+    <path d="M12 10 Q 18 14 14 16" />
+  </g>
+  <text x="400" y="312" text-anchor="middle" font-family="Georgia, 'Iowan Old Style', Palatino, serif" font-size="12" font-style="italic" fill="#5c564c">someone's head</text>
+</svg>

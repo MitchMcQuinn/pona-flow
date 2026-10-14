@@ -4,8 +4,7 @@ This guide is for **developers** wiring an external system (Slack, Zapier, an em
 gateway, a CI pipeline, ...) to trigger a pona flow sequence when something happens *outside*
 the instance — receiving a message, an email, a deploy, etc.
 
-For the architectural rationale, see [DECISIONS.md](DECISIONS.md) (D10). For triggering a
-specific sequence directly as an authenticated agent, see
+For triggering a specific sequence directly as an authenticated agent, see
 [SEQUENCE-WEBHOOKS.md](SEQUENCE-WEBHOOKS.md) instead.
 
 > **One-sentence version:** An event of type `external` gives you a single inbound URL —
@@ -129,7 +128,7 @@ no mapped/fixed value falls back to the step default rather than pausing.
   ```
 
 - **Edge protections apply.** In production Cloudflare still fronts the instance for TLS and
-  rate limiting (see [DECISIONS.md](DECISIONS.md) D3).
+  rate limiting (see [DEPLOYMENT.md](DEPLOYMENT.md)).
 - **Outbound steps are still guarded.** Sequences that call external URLs go through the same
   SSRF controls regardless of how the run was triggered (D7).
 

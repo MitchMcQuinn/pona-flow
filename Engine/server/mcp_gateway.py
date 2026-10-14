@@ -3,7 +3,7 @@ MCP gateway — serve each space's sequences as Model Context Protocol tools.
 
 Purpose in the project
 ----------------------
-This is the per-space MCP server promised in Docs/DECISIONS.md. It is a thin transport
+This is the per-space MCP server. It is a thin transport
 wrapper over ``sequence_service`` (the same primitive the inbound webhook uses), so the
 protocol layer adds no new domain logic:
 

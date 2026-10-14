@@ -5,7 +5,7 @@ pona flow server entry point — FastAPI/ASGI app served by uvicorn.
 Serves the static App/ tools (React dashboard, SQLite catalog editor) and the JSON API.
 Unlike the original stdlib http.server, every /api/* route requires a verified Clerk
 session token, and space-scoped routes enforce membership (see server/auth.py and
-Docs/DECISIONS.md). TLS and CORS are handled by Cloudflare in front of the instance.
+Docs/DEPLOYMENT.md). TLS and CORS are handled by Cloudflare in front of the instance.
 
   python Engine/dev_server.py
   # React UI (built): http://127.0.0.1:8765/App/ui/dist/index.html

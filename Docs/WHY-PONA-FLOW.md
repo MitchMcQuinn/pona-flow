@@ -10,8 +10,10 @@ description is solving, and how pona flow compares to the tools teams usually st
 together instead.
 
 If you want the deep *why a graph* argument, read
-[CONTEXT-GRAPH-DECISIONING.md](CONTEXT-GRAPH-DECISIONING.md). If you want to open the
-product, start at [GETTING-STARTED.md](GETTING-STARTED.md).
+[CONTEXT-GRAPH-DECISIONING.md](CONTEXT-GRAPH-DECISIONING.md). If you want the same
+ideas as a story with pictures, see [PITCH.md](PITCH.md). The pictures alone are in
+[VISUALS.md](VISUALS.md). If you want to open the product, start at
+[GETTING-STARTED.md](GETTING-STARTED.md).
 
 ---
 
