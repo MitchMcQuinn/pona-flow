@@ -3,7 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>pona flow</title>
+  <title>pona flow — self-hosted workflows for humans and agents</title>
+  <meta name="description" content="Open-source, self-hosted runtime where your domain types, records, and workflows share one graph. Humans run sequences from a dashboard; agents run the same sequences as MCP tools." />
+  <meta property="og:title" content="pona flow" />
+  <meta property="og:description" content="Self-hosted workflows that humans and agents run the same way. Docker compose up, ten minutes." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://mitchmcquinn.github.io/pona-flow/" />
+  <link rel="icon" href="pona-flow-logo.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -12,7 +18,8 @@
     <a class="wordmark" href="#"><img src="pona-flow-logo.svg" alt="pona flow" /></a>
     <nav>
       <a href="#how">How it works</a>
-      <a class="btn btn-nav" href="#close">Talk about a routine</a>
+      <a href="https://github.com/MitchMcQuinn/pona-flow">GitHub</a>
+      <a class="btn btn-nav" href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/SELF-HOSTING.md">Get started (self-host)</a>
     </nav>
   </header>
 
@@ -20,9 +27,10 @@
     <h1>Have agents <em class="actually">actually</em> reduced your workload?</h1>
     <p class="ask">…or did they only migrate it?</p>
     <div class="actions">
-      <a class="btn btn-primary" href="#close">Talk about a routine</a>
-      <a class="btn btn-ghost" href="#pitch">Watch the 2-minute pitch</a>
+      <a class="btn btn-primary" href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/SELF-HOSTING.md">Get started (self-host)</a>
+      <a class="btn btn-ghost" href="https://github.com/MitchMcQuinn/pona-flow">View on GitHub</a>
     </div>
+    <p class="hint hero-hint">Open source. Runs on your machine with Docker in about ten minutes. <a href="#close">Hosted version coming soon.</a></p>
   </section>
 
   <aside class="callout">
@@ -184,7 +192,7 @@
     <figure class="explain">
       <img src="visuals/agency-05-allowed.png" alt="Dashboard, chatbot, or a service start this account, then ask this approver, follow this brand rule, or wait for this file." />
     </figure>
-    <p><a class="text-cta" href="#close">That’s the first conversation. Talk about yours →</a></p>
+    <p><a class="text-cta" href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/SELF-HOSTING.md">Run it on your own machine in ten minutes →</a></p>
   </section>
 
   <section class="section" id="audience">
@@ -208,21 +216,29 @@
   </section>
 
   <section class="close" id="close">
-    <h2>One repeating routine. That’s the first conversation.</h2>
+    <h2>Run it yourself today.</h2>
     <p>
-      You describe what repeats, what waits on what, and where a human still has to step in.
-      No platform tour.
+      pona flow is open source and self-hosted. One <code>docker compose up</code> gives you the
+      app, a graph database, and the first admin account. Your data never leaves your machine.
     </p>
-    <a class="btn btn-primary" href="mailto:hello@localhost?subject=One%20repeating%20routine">Talk about a routine</a>
-    <p class="hint">Replace the mailto in <code>index.html</code> when you have a real inbox.</p>
-  </section>
+    <div class="actions">
+      <a class="btn btn-primary" href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/SELF-HOSTING.md">Get started (self-host)</a>
+      <a class="btn btn-ghost" href="https://github.com/MitchMcQuinn/pona-flow">View on GitHub</a>
+    </div>
 
-  <section class="pitch" id="pitch">
-    <p class="label">2-minute pitch</p>
-    <p>
-      Script lives in the product repo as <code>Docs/video/AGENCY-PITCH.md</code>.
-      Drop <code>agency-pitch.mp4</code> next to this page when you want the cut to play here.
-    </p>
+    <div class="notify" id="hosted">
+      <p class="label">Hosted version coming soon</p>
+      <p>
+        Prefer to sign in and skip the servers? Leave an email and we’ll tell you when the
+        hosted version opens. Nothing else is sent.
+      </p>
+      <form class="notify-form" id="notify-form" novalidate>
+        <label class="visually-hidden" for="notify-email">Email</label>
+        <input id="notify-email" name="email" type="email" required placeholder="you@company.com" autocomplete="email" />
+        <button class="btn btn-primary" type="submit">Notify me</button>
+      </form>
+      <p class="hint" id="notify-hint">Or <a href="https://github.com/MitchMcQuinn/pona-flow/releases">watch releases on GitHub</a>.</p>
+    </div>
   </section>
 
   <footer id="how">
@@ -232,9 +248,64 @@
       A required value pauses the run instead of the model filling the gap.
     </p>
     <p>
-      <a href="../Docs/5-MINUTE-ARCHITECTURE.md">Five-minute architecture</a>
-      · local draft · not the product app
+      <a href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/5-MINUTE-ARCHITECTURE.md">Five-minute architecture</a>
+      · <a href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/SELF-HOSTING.md">Self-hosting guide</a>
+      · <a href="https://github.com/MitchMcQuinn/pona-flow">Source</a>
     </p>
   </footer>
+
+  <script>
+    // Email capture for the hosted waitlist.
+    //
+    // Default: opens the visitor's mail client addressed to CONTACT_EMAIL with the entered
+    // address in the body. To collect into a list instead, set FORM_ENDPOINT to a form
+    // service URL (Formspree, Buttondown, your own endpoint) that accepts a POST with an
+    // `email` field; the mailto fallback is then skipped.
+    (function () {
+      var CONTACT_EMAIL = "";      // e.g. "hello@yourdomain.com"
+      var FORM_ENDPOINT = "";      // e.g. "https://formspree.io/f/xxxxxxxx"
+
+      var form = document.getElementById("notify-form");
+      var input = document.getElementById("notify-email");
+      var hint = document.getElementById("notify-hint");
+      if (!form || !input || !hint) return;
+
+      function say(text) { hint.textContent = text; }
+
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var email = (input.value || "").trim();
+        if (!email || !input.checkValidity()) {
+          say("Enter a valid email address.");
+          input.focus();
+          return;
+        }
+        if (FORM_ENDPOINT) {
+          fetch(FORM_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ email: email })
+          }).then(function (r) {
+            if (!r.ok) throw new Error(String(r.status));
+            form.reset();
+            say("Thanks. We’ll email you when the hosted version opens.");
+          }).catch(function () {
+            say("That didn’t go through. Try again, or watch releases on GitHub.");
+          });
+          return;
+        }
+        if (CONTACT_EMAIL) {
+          var subject = encodeURIComponent("Hosted pona flow: notify me");
+          var body = encodeURIComponent("Please let me know when the hosted version opens.\n\nEmail: " + email);
+          window.location.href = "mailto:" + CONTACT_EMAIL + "?subject=" + subject + "&body=" + body;
+          say("Your mail client should open with the message ready to send.");
+          return;
+        }
+        // No inbox configured yet: point at the one channel that exists today.
+        window.open("https://github.com/MitchMcQuinn/pona-flow/releases", "_blank", "noopener");
+        say("Sign-ups open soon. For now, watch releases on GitHub to hear first.");
+      });
+    })();
+  </script>
 </body>
 </html>
