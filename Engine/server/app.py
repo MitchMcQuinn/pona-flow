@@ -24,15 +24,18 @@ to match the original server (the React client reads ``data.error``).
 
 from __future__ import annotations
 
+import logging
 import os
-import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import auth, config, graph, mcp_gateway, migrations, routes, scheduler
+from . import auth, config, graph, local_auth, mcp_gateway, migrations, routes, scheduler
+from .logsetup import configure_logging
+
+log = logging.getLogger("pona_flow.app")
 
 
 def _configured_bind_host() -> str | None:
@@ -54,13 +57,22 @@ def _configured_bind_host() -> str | None:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    config.load_env_file(config.ROOT / ".env")
+    config.load_env_files()
+    configure_logging()
     auth.assert_dev_bypass_safe(_configured_bind_host())
     migrations.run_startup_migrations()
+    log.info(
+        "pona flow ready: auth_mode=%s data_dir=%s catalog=%s",
+        local_auth.auth_mode(),
+        config.data_dir(),
+        config.catalog_sqlite_path(),
+    )
+    if local_auth.auth_mode() == local_auth.MODE_LOCAL and local_auth.setup_required():
+        log.info("No accounts yet: open the app in a browser to create the first admin.")
     if not graph.NEO4J_AVAILABLE:
-        sys.stderr.write(
-            "WARNING: neo4j package not installed — graph checks and CREATE will fail. "
-            "Run: pip install neo4j\n"
+        log.warning(
+            "neo4j package not installed — graph checks and CREATE will fail. "
+            "Run: pip install neo4j"
         )
     # Start the in-process event scheduler: recover missed timers, then fire on schedule.
     await scheduler.start()
@@ -90,6 +102,26 @@ def create_app() -> FastAPI:
             content={"error": exc.detail},
             headers=dict(exc.headers or {}),
         )
+
+    @app.middleware("http")
+    async def _security_headers(request: Request, call_next):
+        # Baseline browser hardening that is safe regardless of the reverse proxy in
+        # front. CSP is deliberately not set here: the SPA loads Google Fonts and inline
+        # SVG, and operators who want a strict policy should set it at the edge.
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+        )
+        if request.url.scheme == "https" or (
+            request.headers.get("x-forwarded-proto", "").split(",")[0].strip() == "https"
+        ):
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=15552000; includeSubDomains"
+            )
+        return response
 
     for router in routes.ALL_ROUTERS:
         app.include_router(router)

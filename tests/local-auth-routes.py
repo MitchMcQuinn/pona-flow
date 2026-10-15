@@ -154,8 +154,11 @@ class LocalAuthRoutesTest(unittest.TestCase):
         self.assertEqual(r.status_code, 403)
         # Invite the email into a space, then signup succeeds and the invite is claimed.
         conn = config.connect_sqlite(self.db_path)
-        conn.execute("CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, name TEXT)")
-        conn.execute("INSERT INTO spaces (id, name) VALUES ('S1', 'S1')")
+        conn.execute(
+            "INSERT INTO spaces (id, name, neo4j_uri_key, neo4j_user_key, neo4j_password_key, "
+            "sqlite_database_path_key) VALUES ('S1', 'S1', 'NEO4J_URI', 'NEO4J_USER', "
+            "'NEO4J_PASSWORD', 'SQLITE_DATABASE_PATH')"
+        )
         conn.commit()
         conn.close()
         rbac.seed_default_roles("S1")

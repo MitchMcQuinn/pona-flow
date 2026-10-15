@@ -37,6 +37,39 @@ APP_DIR = ROOT / "App"
 
 # Default .env key whose value is the catalog SQLite file path.
 DEFAULT_CATALOG_SQLITE_ENV_KEY = "SQLITE_DATABASE_PATH"
+# File name used for the catalog when SQLITE_DATABASE_PATH is not set at all.
+DEFAULT_CATALOG_SQLITE_FILENAME = "data.db"
+
+
+def data_dir() -> Path:
+    """Directory holding runtime state: catalog ``data.db``, per-space SQLite, and the
+    writable ``.env`` used by the ``local`` credential backend.
+
+    ``PONA_FLOW_DATA_DIR`` (the container image sets ``/data``); defaults to the
+    repository root so a source checkout behaves exactly as before. Created on demand.
+    """
+    raw = (os.environ.get("PONA_FLOW_DATA_DIR") or "").strip()
+    path = Path(raw).expanduser() if raw else ROOT
+    if not path.is_absolute():
+        path = ROOT / path
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    return path
+
+
+def load_env_files() -> None:
+    """Load the project ``.env`` and then the data-directory ``.env`` (setdefault only).
+
+    Real environment variables always win; the project file is for source checkouts, the
+    data-directory file is where the ``local`` credential backend persists values inside
+    a container volume.
+    """
+    load_env_file(ROOT / ".env")
+    dd = data_dir()
+    if dd != ROOT:
+        load_env_file(dd / ".env")
 
 # Credential store backend selector (see Engine/server/credentials.py).
 #   passthrough -> read-only os.environ (default; today's behavior, never writes .env)
@@ -72,8 +105,13 @@ def load_env_file(path: Path) -> None:
 
 
 def env_file_path() -> Path:
-    """Absolute path to the project ``.env`` file (it may not exist yet)."""
-    return ROOT / ".env"
+    """Absolute path to the writable ``.env`` file (it may not exist yet).
+
+    This is the file the ``local`` credential backend edits: ``<data_dir>/.env``. For a
+    plain source checkout that is the project ``.env``; in the container it lives on the
+    ``/data`` volume so credentials survive image upgrades.
+    """
+    return data_dir() / ".env"
 
 
 def _format_env_line(key: str, value: str) -> str:
@@ -205,10 +243,10 @@ def env_value(env_key_name: str, fallback_key: str | None = None) -> str:
 
 
 def sqlite_path_for_env_key(env_key_name: str, fallback_key: str | None = None) -> Path:
-    """Resolve a SQLite file path from an .env key (absolute or relative to ROOT)."""
+    """Resolve a SQLite file path from an .env key (absolute or relative to the data dir)."""
     raw = env_value(env_key_name, fallback_key=fallback_key)
-    p = Path(raw)
-    return p if p.is_absolute() else ROOT / p
+    p = Path(raw).expanduser()
+    return p if p.is_absolute() else data_dir() / p
 
 
 def catalog_sqlite_env_key() -> str:
@@ -220,8 +258,15 @@ def catalog_sqlite_env_key() -> str:
 
 
 def catalog_sqlite_path() -> Path:
-    """Path to the DB that holds the spaces registry and catalog tables (e.g. data.db)."""
-    return sqlite_path_for_env_key(catalog_sqlite_env_key())
+    """Path to the DB that holds the spaces registry and catalog tables (e.g. data.db).
+
+    Falls back to ``<data_dir>/data.db`` when the configured key is unset, so a
+    zero-configuration start (container, first clone) works without editing ``.env``.
+    """
+    try:
+        return sqlite_path_for_env_key(catalog_sqlite_env_key())
+    except KeyError:
+        return data_dir() / DEFAULT_CATALOG_SQLITE_FILENAME
 
 
 def connect_sqlite(path: Path) -> sqlite3.Connection:

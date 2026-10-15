@@ -59,10 +59,7 @@ def main() -> int:
     parser.add_argument("--password", help="new password (prompted when omitted)")
     args = parser.parse_args()
 
-    config.load_env_file(config.ROOT / ".env")
-    data_dir_env = config.data_dir() / ".env" if hasattr(config, "data_dir") else None
-    if data_dir_env is not None:
-        config.load_env_file(data_dir_env)
+    config.load_env_files()
 
     if args.list:
         return _list_accounts()

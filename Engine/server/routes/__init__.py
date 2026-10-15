@@ -16,6 +16,7 @@ from . import (
     events,
     execution,
     graph,
+    health,
     principal,
     queries,
     rbac,
@@ -28,6 +29,7 @@ from . import (
 )
 
 ALL_ROUTERS = (
+    health.router,
     auth.router,
     principal.router,
     spaces.router,

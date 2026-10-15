@@ -15,6 +15,8 @@ inline in every handler of the monolithic ``app.py``:
 
 from __future__ import annotations
 
+import logging
+import os
 import re
 import sqlite3
 from contextlib import contextmanager
@@ -25,6 +27,8 @@ from fastapi.exceptions import HTTPException
 
 from . import auth, clerk_api, config, rbac
 from .auth import Principal
+
+log = logging.getLogger("pona_flow.http")
 
 # Exception types produced by the domain layer that map to a 500 with the message
 # as the error body (the React client reads ``data.error``).
@@ -51,13 +55,31 @@ async def json_body(request: Request) -> dict[str, Any]:
     return data
 
 
+def _debug_errors() -> bool:
+    """``PONA_FLOW_DEBUG_ERRORS=1`` echoes raw exception text in 500 bodies (dev only)."""
+    raw = (os.environ.get("PONA_FLOW_DEBUG_ERRORS") or "").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
+def internal_error(exc: BaseException) -> HTTPException:
+    """Log a domain failure server-side and return a 500 whose body does not leak it.
+
+    Driver and SQLite messages can include file paths, hostnames, and query fragments.
+    Operators read the log; the browser gets a stable, generic message (or the raw text
+    when ``PONA_FLOW_DEBUG_ERRORS`` is on, which the dev server docs recommend locally).
+    """
+    log.error("request failed: %s: %s", type(exc).__name__, exc, exc_info=_debug_errors())
+    detail = str(exc) if _debug_errors() else "Internal server error. Check the server log."
+    return HTTPException(500, detail)
+
+
 @contextmanager
 def domain_500():
     """Map ``DOMAIN_ERRORS`` raised by the wrapped domain call to an HTTP 500."""
     try:
         yield
     except DOMAIN_ERRORS as e:
-        raise HTTPException(500, str(e))
+        raise internal_error(e)
 
 
 @contextmanager
@@ -68,7 +90,7 @@ def value_400_domain_500():
     except ValueError as e:
         raise bad_request(str(e))
     except DOMAIN_ERRORS as e:
-        raise HTTPException(500, str(e))
+        raise internal_error(e)
 
 
 def require_body_space_id(body: dict[str, Any], *, allow_id: bool = False) -> str:

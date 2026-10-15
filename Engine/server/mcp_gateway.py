@@ -280,14 +280,25 @@ def _build_server() -> Any:
 def _security_settings() -> Any:
     """Resolve transport DNS-rebinding protection from the environment.
 
-    Disabled by default: the app sits behind Cloudflare (which validates Host) and agent
-    keys are the real gate. Set ``PONA_FLOW_MCP_ALLOWED_HOSTS`` (comma-separated) to
-    enable strict Host-header validation in front of the gateway.
+    ``PONA_FLOW_MCP_ALLOWED_HOSTS`` (comma-separated) enables strict Host-header
+    validation for the listed hosts. When it is unset but ``PONA_FLOW_PUBLIC_URL`` is,
+    the public hostname (plus loopback for local tooling) is used, so a self-hosted
+    instance that declares its address gets the protection without extra settings.
+    With neither set the check is off, which is only appropriate behind a proxy that
+    validates ``Host`` itself; agent keys remain the real gate in every case.
     """
     raw = (os.environ.get("PONA_FLOW_MCP_ALLOWED_HOSTS") or "").strip()
-    if not raw:
-        return TransportSecuritySettings(enable_dns_rebinding_protection=False)
     hosts = [h.strip() for h in raw.split(",") if h.strip()]
+    if not hosts:
+        public = (os.environ.get("PONA_FLOW_PUBLIC_URL") or "").strip()
+        if public:
+            from urllib.parse import urlsplit
+
+            netloc = urlsplit(public if "//" in public else f"//{public}").netloc
+            if netloc:
+                hosts = [netloc, "127.0.0.1:*", "localhost:*"]
+    if not hosts:
+        return TransportSecuritySettings(enable_dns_rebinding_protection=False)
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True, allowed_hosts=hosts
     )

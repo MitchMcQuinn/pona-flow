@@ -42,7 +42,7 @@ _VENV_PYTHON = Path(__file__).resolve().parents[1] / ".venv" / "bin" / "python"
 
 
 def _load_env() -> None:
-    config.load_env_file(config.ROOT / ".env")
+    config.load_env_files()
 
 
 def _space_ids() -> list[str]:

@@ -19,6 +19,8 @@ FILTER="${1:-}"
 EXTERNAL_TESTS=(
   diag-affected-ids.py
   diag-instance-currency.py
+  diag-delete-pillar.py
+  diag-delete-pillar-run.py
   connector-api-path.mjs
   step-flow-query-filter.mjs
 )
@@ -65,9 +67,13 @@ for f in "$ROOT"/tests/*.py; do
   run_one "$f" "$PYTHON"
 done
 
+# tsx resolves the @pona-flow/* workspace packages via App/ui/tsconfig.json "paths", which
+# it only reads when App/ui is the working directory.
+cd "$ROOT/App/ui"
 for f in "$ROOT"/tests/*.mjs; do
   run_one "$f" "$TSX"
 done
+cd "$ROOT"
 
 echo
 echo "== ${pass} passed, ${fail} failed, ${skip} skipped =="
