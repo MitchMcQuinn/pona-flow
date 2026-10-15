@@ -1,5 +1,7 @@
 {
   "name": "pona-flow",
+  "private": true,
+  "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "npm run dev --prefix App/ui",
     "dev:e2e": "npm run dev:e2e --prefix App/ui"

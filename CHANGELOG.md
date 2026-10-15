@@ -5,6 +5,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Repository licensed under **AGPL-3.0-only** (`LICENSE`); README documents contribution /
+  CLA intent for a future hosted product.
+
 ## [0.1.0] - 2026-10-14
 
 First public, self-hostable release.

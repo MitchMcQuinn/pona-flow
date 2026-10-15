@@ -291,3 +291,11 @@ The schedule table holds data pertaining to custom trigger events for workflow e
 | ----------- | ----------- | ------------------ | -------------------------------------------------------------------------------------------------------------------- | --------------------------- | --------------------------- |
 | UID         | UID         | string             | JSON                                                                                                                 | ISO 8601                    | ISO 8601                    |
 | `s8hm2nq74` | `e3kg5mg34` | `daily_digest_9am` | `{ "date": [], "time": ["T09:00:00Z"], "datetime": [], "weekday": ["1", "2", "3", "4", "5"], "day": [], "month": [], "year": [] }` | `2026-04-30T11:53:24-04:00` | `2026-05-01T08:12:03-04:00` |
+
+## License
+
+[AGPL-3.0-only](LICENSE). You can run, modify, and self-host pona flow freely. If you
+modify it and offer that modified version as a network service, you must publish your
+source under the same license. Contributions are welcome; we may ask for a CLA before
+accepting outside PRs so the project can keep a dual-license option for a future hosted
+product.
