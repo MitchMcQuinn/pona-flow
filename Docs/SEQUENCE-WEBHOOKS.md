@@ -11,7 +11,7 @@ event), see [EXTERNAL-EVENTS.md](EXTERNAL-EVENTS.md) instead.
 
 > **One-sentence version:** Every triggerable sequence in a space is callable at
 > `POST /api/spaces/{space_id}/sequences/{sequence_id}/run`, authenticated by either a
-> human's Clerk session or an agent's `stg_` API key, and it returns either the list of
+> human's signed-in session or an agent's `stg_` API key, and it returns either the list of
 > parameters it still needs (human-in-the-loop) or the final result.
 
 ---
@@ -117,9 +117,10 @@ or as a Bearer token (useful for clients that only set the standard header):
 Authorization: Bearer stg_xKQ...
 ```
 
-Humans continue to send their Clerk session JWT as `Authorization: Bearer <jwt>`; the same
-routes accept both. A token starting with `stg_` is treated as an agent key; anything else
-is verified as a Clerk JWT.
+Humans keep using their session (the browser cookie, or `Authorization: Bearer pfs_...`
+with a built-in account; a Clerk JWT in Clerk mode); the same routes accept both. A token
+starting with `stg_` is treated as an agent key, `pfs_` as a local session, anything else
+as a Clerk JWT.
 
 ### 3.2 Discover what you can run
 

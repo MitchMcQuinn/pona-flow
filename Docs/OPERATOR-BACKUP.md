@@ -2,16 +2,16 @@
 
 One instance, one client. If you cannot restore this, do not put their records on the host.
 
-You are the host until someone else is. Rehearsal means: a **remote** machine (VPS, small VM), Clerk on, `PONA_FLOW_DISABLE_AUTH` **unset**, Cloudflare in front of `:8765` — not another folder on your laptop. Practice backup and restore **on that host** (or a second host) before a client depends on it.
+You are the host until someone else is. Rehearsal means: a **remote** machine (VPS, small VM), real accounts, `PONA_FLOW_DISABLE_AUTH` **unset**, a TLS proxy in front of `:8765` — not another folder on your laptop. Practice backup and restore **on that host** (or a second host) before a client depends on it.
 
 What to copy, every time:
 
 | Piece | What it is | Typical location |
 | ----- | ---------- | ---------------- |
-| Catalog SQLite | Spaces, members, saved queries, run `state`, credential *names* | `$SQLITE_DATABASE_PATH` (often `data.db` at the repo root) |
-| Per-space SQLite | Nested entity payloads for that space | Env value of each space’s `sqlite_database_path_key` |
+| Catalog SQLite | Spaces, members, accounts, saved queries, run `state`, credential *names* | `$PONA_FLOW_DATA_DIR/data.db` (`/data` in Docker; repo root for a source checkout) |
+| Per-space SQLite | Nested entity payloads for that space | Env value of each space’s `sqlite_database_path_key`, relative to the data directory |
 | Neo4j | SCHEMA / INSTANCE / STEP graph | Env value of each space’s `neo4j_uri_key` (often the instance default `NEO4J_URI`) |
-| Secret store | Credential *values*, Neo4j passwords, Clerk | Host env / secret manager — **not** the SQLite files |
+| Secret store | Credential *values*, Neo4j passwords | `$PONA_FLOW_DATA_DIR/.env` with the `local` backend; host env / secret manager with `passthrough` |
 
 `space_credentials` stores metadata and env key names only. Restoring SQLite without restoring those env values means HTTP steps that use `$secret.NAME` will fail.
 
@@ -66,4 +66,4 @@ If that rehearsal fails, fix the procedure before a client’s data is on the bo
 
 Daily backup of catalog + space SQLite + Neo4j is enough for a first client; keep at least seven days. After a schema-heavy session, take an extra copy. Test restore when you first provision the host, not when the disk dies.
 
-Operator checklist for the rest of the instance (Clerk, Cloudflare, outbound allowlist, first user = admin): [DEPLOYMENT.md](DEPLOYMENT.md) §8.
+Operator checklist for the rest of the instance (auth, proxy, outbound allowlist, first user = admin): [DEPLOYMENT.md](DEPLOYMENT.md) §9. Docker volumes: [SELF-HOSTING.md](SELF-HOSTING.md) § Back up.

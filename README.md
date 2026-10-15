@@ -1,53 +1,53 @@
 # pona flow
 
-A dedicated-instance runtime where **domain types, records, and workflows** share one graph. Humans run sequences from a dashboard. Agents run the same sequences as MCP tools. Missing inputs pause the run instead of disappearing into a prompt.
+A self-hosted runtime where **domain types, records, and workflows** share one graph. Humans run sequences from a dashboard. Agents run the same sequences as MCP tools. Missing inputs pause the run instead of disappearing into a prompt.
 
-**Five-minute architecture** (start here): [Docs/5-MINUTE-ARCHITECTURE.md](Docs/5-MINUTE-ARCHITECTURE.md)
+[![CI](https://github.com/MitchMcQuinn/pona-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/MitchMcQuinn/pona-flow/actions/workflows/ci.yml)
 
-Buyer-facing comparison to n8n, LangGraph, RAG, Temporal, and BPM: [Docs/WHY-PONA-FLOW.md](Docs/WHY-PONA-FLOW.md)
+## Get started (self-host)
 
-Pitch, with the infographics and a worked example: [Docs/PITCH.md](Docs/PITCH.md)
+```bash
+curl -fsSL https://github.com/MitchMcQuinn/pona-flow/releases/latest/download/pona-flow-selfhost.tar.gz | tar xz
+cd pona-flow-selfhost
+cp .env.docker.example .env      # set NEO4J_PASSWORD
+docker compose up -d
+open http://localhost:8765       # create the first admin account
+```
 
-Agency pitch (the assistant, the account, and when it must stop): [Docs/video/AGENCY-PITCH.md](Docs/video/AGENCY-PITCH.md)
+That is the whole install: the app container plus a bundled Neo4j, data in two Docker
+volumes, built-in email/password accounts. The full guide, including HTTPS, upgrades,
+backups, and bring-your-own Neo4j, is [Docs/SELF-HOSTING.md](Docs/SELF-HOSTING.md).
 
-Technical pitch (schema, instance, step, the walk): [Docs/video/TECHNICAL-PITCH.md](Docs/video/TECHNICAL-PITCH.md)
+A hosted version (sign in, no servers) is coming; self-hosting is the supported path today.
 
-Infographics on their own: [Docs/VISUALS.md](Docs/VISUALS.md)
+**Learn the model:** [Docs/5-MINUTE-ARCHITECTURE.md](Docs/5-MINUTE-ARCHITECTURE.md) (start here) ·
+[Docs/WHY-PONA-FLOW.md](Docs/WHY-PONA-FLOW.md) (vs. n8n, LangGraph, RAG, Temporal, BPM) ·
+[Docs/PITCH.md](Docs/PITCH.md) · [Docs/VISUALS.md](Docs/VISUALS.md) ·
+[Docs/GETTING-STARTED.md](Docs/GETTING-STARTED.md) (using the dashboard)
 
 ## Development setup
 
-**First-time local instance (clone → env → Neo4j → run):** follow
-[Docs/FIRST-TIME-SETUP.md](Docs/FIRST-TIME-SETUP.md) end to end. The short version below is
-the same path in compressed form.
-
-macOS Homebrew Python does not allow `pip install` globally (PEP 668). Use a project virtual environment:
+**First-time local instance (clone → venv → Neo4j → run):** follow
+[Docs/FIRST-TIME-SETUP.md](Docs/FIRST-TIME-SETUP.md) end to end. The compressed version:
 
 ```bash
-cd pona-flow
-python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+git clone https://github.com/MitchMcQuinn/pona-flow && cd pona-flow
+python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+cp .env.example .env            # set NEO4J_URI / NEO4J_USER / NEO4J_PASSWORD
+(cd App/ui && npm ci && npm run build)
+python Engine/dev_server.py     # http://127.0.0.1:8765 → setup page creates the admin
 ```
 
-Copy `.env.example` to `.env` and set Neo4j / SQLite values **and Clerk auth values**
-(`CLERK_ISSUER` for the server; `VITE_CLERK_PUBLISHABLE_KEY` in `App/ui/.env` for the UI).
-The server now requires a verified Clerk session token on every `/api/*` route, so a
-Clerk app (the free development instance is fine) is needed even for local development.
-See [Docs/DEPLOYMENT.md](Docs/DEPLOYMENT.md) and [Docs/OPERATOR-BACKUP.md](Docs/OPERATOR-BACKUP.md).
-New users (non-technical onboarding): [Docs/GETTING-STARTED.md](Docs/GETTING-STARTED.md).
+Auth defaults to built-in accounts (`PONA_FLOW_AUTH_MODE=local`); no third-party service is
+needed. Clerk remains available as an alternative provider
+([Docs/DEPLOYMENT.md](Docs/DEPLOYMENT.md) § Clerk). For UI work run `cd App/ui && npm run dev`
+and open `http://127.0.0.1:5173` (Vite proxies `/api` to 8765). Rebuild (`npm run build`)
+before the Python server picks up UI changes.
 
-Then run the development server (FastAPI/ASGI via uvicorn):
-
-```bash
-source .venv/bin/activate
-python Engine/dev_server.py
-# React dashboard (rebuild after UI edits: cd App/ui && npm run build):
-#   http://127.0.0.1:8765/App/ui/dist/index.html
-# React live dev (API still on 8765): cd App/ui && npm run dev → http://127.0.0.1:5173
-# SQLite catalog editor (instance-admin only): http://127.0.0.1:8765/App/data-db-editor.html
-```
-
-Activate the venv in each new terminal before running Python tools (`dev_server.py`, etc.).
+Tests: `SKIP_EXTERNAL=1 bash tests/run-all.sh` runs the Python and composer suites
+(`SKIP_EXTERNAL` skips the ones that need a live Neo4j). Operations:
+[Docs/DEPLOYMENT.md](Docs/DEPLOYMENT.md) · [Docs/OPERATOR-BACKUP.md](Docs/OPERATOR-BACKUP.md).
 
 ## Query composer (`App/composer/`)
 
@@ -81,23 +81,24 @@ npm run test:connector
 npm run typecheck:connector
 ```
 
-## Development server (`Engine/dev_server.py`)
+## Engine (`Engine/`)
 
-The dev server is a local HTTP process for browser-based tools under `App/`. It is **not** a production deployment stack. It serves static HTML/JS and JSON APIs that read and write the **catalog** SQLite file (typically `data.db`) and, for a selected **space**, that space’s Neo4j graph and per-space SQLite database.
+The engine is a FastAPI app served by uvicorn. It serves the built React UI and JSON APIs that read and write the **catalog** SQLite file (`data.db`) and, for a selected **space**, that space’s Neo4j graph and per-space SQLite database. `Engine/dev_server.py` is the convenience launcher for a source checkout; the container image runs `uvicorn server.app:app` directly.
 
 | Module | Role |
 |--------|------|
-| [`Engine/dev_server.py`](Engine/dev_server.py) | Entry point: load `.env`, bind `FORM_BRIDGE_HOST` / `FORM_BRIDGE_PORT` (default `127.0.0.1:8765`), start uvicorn serving the FastAPI app. |
-| [`Engine/server/config.py`](Engine/server/config.py) | Project paths (`ROOT`, `App/`), `.env` loading, catalog DB path resolution, SQLite connections. |
+| [`Engine/dev_server.py`](Engine/dev_server.py) | Dev launcher: load `.env`, bind `PONA_FLOW_HOST` / `PONA_FLOW_PORT` (default `127.0.0.1:8765`), start uvicorn serving the FastAPI app. |
+| [`Engine/server/config.py`](Engine/server/config.py) | Project paths (`ROOT`, `App/`, `PONA_FLOW_DATA_DIR`), `.env` loading, catalog DB path resolution, SQLite connections. |
+| [`Engine/server/local_auth.py`](Engine/server/local_auth.py) | Built-in accounts: scrypt password hashing, cookie sessions, first-run setup, invite-gated sign-up, login throttling. |
 | [`Engine/server/id_generator.py`](Engine/server/id_generator.py) | `ID_<uuid>` entity id generation (`GET /api/generate-id`). CLI: `python Engine/server/id_generator.py`. |
 | [`Engine/server/spaces.py`](Engine/server/spaces.py) | `spaces` table: list environments, resolve each row’s `*_key` columns to real Neo4j/SQLite settings in `.env`. |
 | [`Engine/server/graph.py`](Engine/server/graph.py) | Neo4j: run Cypher, check global `id` / `attributive_label` uniqueness, list nodes for form pickers. Requires `pip install neo4j`. |
 | [`Engine/server/catalog.py`](Engine/server/catalog.py) | Catalog DB: table metadata and row CRUD (`/api/db/*`), `queries` upsert, `regex` auto-migration, saved query list. |
 | [`Engine/server/packages.py`](Engine/server/packages.py) | `POST /api/execute-create`: run composed Cypher + per-space SQLite + optional catalog `queries` upsert. |
-| [`Engine/server/auth.py`](Engine/server/auth.py) | Clerk JWT verification and space-membership authorization (FastAPI dependencies). |
+| [`Engine/server/auth.py`](Engine/server/auth.py) | Principal resolution (local session, Clerk JWT, or agent key) and space-membership authorization (FastAPI dependencies). |
 | [`Engine/server/migrations.py`](Engine/server/migrations.py) | Deterministic, ordered catalog schema application at startup. |
 | [`Engine/server/sequence_service.py`](Engine/server/sequence_service.py) | Transport-agnostic run primitive (`run_sequence_once`, `list_runnable_sequences`) shared by the webhook and MCP gateway. |
-| [`Engine/server/agent_keys.py`](Engine/server/agent_keys.py) | Agent API keys: mint/verify/revoke (`stg_` tokens, stored as SHA-256 hashes) for non-Clerk principals. |
+| [`Engine/server/agent_keys.py`](Engine/server/agent_keys.py) | Agent API keys: mint/verify/revoke (`stg_` tokens, stored as SHA-256 hashes) for non-human principals. |
 | [`Engine/server/mcp_gateway.py`](Engine/server/mcp_gateway.py) | Per-space Model Context Protocol server (Streamable HTTP); exposes sequences as agent-callable tools. |
 | [`Engine/server/execution_run.py`](Engine/server/execution_run.py) | Sequence executor: walk STEPs, pause for required parameters, run a query / HTTP call / local LLM, bind response parameters. |
 | [`Engine/server/embeddings.py`](Engine/server/embeddings.py) | Local vector search: Ollama embeddings, Neo4j vector indexes, reindex, and `resolve_search_params` before a vector-search Cypher statement runs. |
@@ -119,7 +120,7 @@ agent-facing surfaces share one underlying run primitive (`Engine/server/sequenc
   sequences as MCP tools. Connect any MCP client (Claude, IDE assistants, agents) with an
   agent key. See [Docs/MCP-GATEWAY.md](Docs/MCP-GATEWAY.md).
 
-Both authenticate with either a Clerk session (humans) or a per-space **agent API key**
+Both authenticate with either a signed-in session (humans) or a per-space **agent API key**
 (`X-Pona-Flow-Key: stg_...`, or a Bearer token). Agent keys are managed in the **Agents**
 tab of a space's settings (which also shows the MCP URL and webhook base), or via
 `/api/spaces/{space_id}/agent-keys`. A key maps to an `agent` principal whose space role

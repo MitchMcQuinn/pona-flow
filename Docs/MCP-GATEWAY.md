@@ -53,7 +53,8 @@ flowchart TB
 
 ## 2. Authentication
 
-Identical to the webhook: an agent API key (preferred for agents) or a Clerk JWT.
+Identical to the webhook: an agent API key (preferred for agents) or a human session
+(local `pfs_` token or Clerk JWT).
 
 ```http
 X-Pona-Flow-Key: stg_...

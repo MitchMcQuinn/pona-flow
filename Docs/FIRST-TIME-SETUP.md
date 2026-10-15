@@ -6,9 +6,10 @@ for optional pieces later.
 
 | Audience | Doc |
 |----------|-----|
-| You (dev / operator spinning up the app locally) | **This file** |
-| Non-technical end users of a hosted instance | [GETTING-STARTED.md](GETTING-STARTED.md) |
-| Production / Cloudflare / secrets | [DEPLOYMENT.md](DEPLOYMENT.md) |
+| You (developer working on the source) | **This file** |
+| Someone who just wants to run it | [SELF-HOSTING.md](SELF-HOSTING.md) (Docker, no toolchain needed) |
+| Non-technical end users of an instance | [GETTING-STARTED.md](GETTING-STARTED.md) |
+| Production / proxy / secrets | [DEPLOYMENT.md](DEPLOYMENT.md) |
 
 ---
 
@@ -21,8 +22,10 @@ Install these before cloning (or as you hit each step):
 | **Git** | Clone the repo |
 | **Python 3** | 3.11+ recommended. On macOS Homebrew, do **not** `pip install` globally — use a venv (below). |
 | **Node.js + npm** | Needed for the React UI (`App/ui`). Current LTS is fine. |
-| **Neo4j** | Local DB reachable at `bolt://localhost:7687` (Neo4j Desktop is the usual path). Remember the password you set when creating the DB. |
-| **Clerk** (optional for day one) | Free Clerk development app if you want real sign-in. You can also bypass auth locally (see Auth below). |
+| **Neo4j** | Local DB reachable at `bolt://localhost:7687` (Neo4j Desktop, or `docker compose up -d neo4j` from this repo with `NEO4J_PASSWORD` set in `.env`). Remember the password. |
+
+No third-party sign-in service is needed: accounts are built in. Clerk is optional
+(see Auth below).
 
 Optional later: Ollama (for local vector search — [README.md § Vector search](../README.md#vector-search)).
 
@@ -100,85 +103,57 @@ Edit `.env` and set at least:
 ```bash
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
-NEO4J_PASSWORD=<password-from-neo4j-desktop>
-
-SQLITE_DATABASE_PATH=data.db
-PONA_FLOW_CATALOG_SQLITE_KEY=SQLITE_DATABASE_PATH
+NEO4J_PASSWORD=<your-neo4j-password>
 ```
 
-`data.db` is local-only (gitignored). Catalog schema is applied automatically at server
-startup (see [DEPLOYMENT.md](DEPLOYMENT.md) § Migrations). You do **not** need to run the
-SQL files under `Engine/schema/` by hand for a normal first boot.
+That is the only required block. The catalog lives at `data.db` in the repo root
+(gitignored); set `PONA_FLOW_DATA_DIR=./data` if you prefer all runtime files in one
+folder. Catalog schema is applied automatically at server startup (see
+[DEPLOYMENT.md](DEPLOYMENT.md) § Migrations); you do **not** run the SQL under
+`Engine/schema/` by hand.
 
-**Credentials tab (local writes to `.env`):** for day-to-day local work you usually want:
+**Credentials tab:** `PONA_FLOW_CREDENTIAL_BACKEND=local` (the default in `.env.example`)
+lets values entered in the UI persist to `.env`. `passthrough` makes it read-only.
 
-```bash
-PONA_FLOW_CREDENTIAL_BACKEND=local
-```
+### Frontend — `App/ui/.env` (optional)
 
-(Default is `passthrough`, which only reads `os.environ` and will not write secrets into
-`.env` from the UI.)
-
-### Frontend — `App/ui/.env`
-
-Create this file (it is not committed). Minimum depends on your auth choice (next section).
-
-```bash
-# Create empty file, then add the lines from the auth path you choose:
-touch App/ui/.env
-```
+Not needed for the default setup. The UI learns the auth mode from the server at runtime.
+`App/ui/.env.example` documents the few Vite-only variables (dev proxy target, E2E).
 
 ---
 
-## 4. Auth: pick one path
+## 4. Auth
 
-Every `/api/*` route requires auth unless you explicitly disable it.
+The default is **built-in accounts** (`PONA_FLOW_AUTH_MODE=local`, nothing to configure).
+The first time you open the app it shows a setup page; the account you create there is
+the instance admin. Later accounts sign up with an email that a space admin has invited
+from the Users panel, or anyone can if `PONA_FLOW_ALLOW_OPEN_SIGNUP=1`.
 
-### Path A — Local auth bypass (fastest for first boot)
+Forgot the password of a local account: `.venv/bin/python tools/reset_password.py you@example.com`.
 
-You must set **both** flags. If only the UI flag is on, the browser sends no token and every
-`/api/*` call returns **401 Unauthorized**.
+### Alternative: Clerk
 
-In **project** `.env` (uncomment / add — do not leave this line commented):
+Set in project `.env`:
+
+```bash
+PONA_FLOW_AUTH_MODE=clerk
+CLERK_ISSUER=https://your-app.clerk.accounts.dev
+CLERK_PUBLISHABLE_KEY=pk_test_xxx
+```
+
+No UI rebuild is needed; the publishable key is served by `/api/auth/status`. The first
+person to sign in on a fresh instance becomes the instance admin.
+
+### Alternative: no auth at all (loopback only)
 
 ```bash
 PONA_FLOW_DISABLE_AUTH=1
-# optional:
 # PONA_FLOW_DEV_USER_EMAIL=dev@localhost
 ```
 
-In **`App/ui/.env`**:
-
-```bash
-VITE_DISABLE_AUTH=true
-```
-
-Restart `python Engine/dev_server.py` after changing the project `.env` (env is loaded at
-startup). Restart Vite after changing `App/ui/.env`.
-
-This grants a synthetic superadmin on every API request. **Never** enable these flags on a
-shared or production host.
-
-You can leave `CLERK_ISSUER` as the placeholder while bypass is on.
-
-### Path B — Real Clerk (closer to production)
-
-1. Create a free Clerk development application.
-2. In project `.env`, set the Frontend API URL as issuer:
-
-   ```bash
-   CLERK_ISSUER=https://your-app.clerk.accounts.dev
-   ```
-
-3. In `App/ui/.env`, set the publishable key:
-
-   ```bash
-   VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxx
-   ```
-
-4. Do **not** set `PONA_FLOW_DISABLE_AUTH` / `VITE_DISABLE_AUTH`.
-
-The **first person** to sign in on a fresh instance becomes the instance admin.
+Every request acts as a synthetic admin. The server refuses to start with this set unless
+it is bound to `127.0.0.1`, so it cannot leak into a deployment. Restart the dev server
+after changing `.env`.
 
 Full variable list: [.env.example](../.env.example). Operator notes: [DEPLOYMENT.md](DEPLOYMENT.md) § Authentication.
 
@@ -222,11 +197,12 @@ per-space overrides.
 
 ```bash
 cd App/ui
-npm install
+npm ci
 cd ../..
 ```
 
-(Root `package.json` only forwards scripts into `App/ui`; install under `App/ui`.)
+(Root `package.json` only forwards scripts into `App/ui`; install under `App/ui`. `npm ci`
+also downloads the Cypress binary; set `CYPRESS_INSTALL_BINARY=0` to skip it.)
 
 ---
 
@@ -255,7 +231,7 @@ Open **`http://127.0.0.1:5173`**. Vite proxies `/api/*` to port `8765`.
 ```bash
 cd App/ui && npm run build
 # then open:
-# http://127.0.0.1:8765/App/ui/dist/index.html
+# http://127.0.0.1:8765/
 ```
 
 UI source changes are **not** picked up by the Python server until you rebuild (or use
@@ -265,11 +241,13 @@ UI source changes are **not** picked up by the Python server until you rebuild (
 
 ## 8. Verify it works
 
-1. Browser opens the sign-in screen (Clerk) **or** goes straight in (auth bypass).
+1. Browser opens **Set up pona flow**; create the admin account (or you go straight in
+   with the auth bypass; or Clerk's sign-in appears in Clerk mode).
 2. Create a **space** when prompted (required on an empty / new membership view).
 3. You should see the three-panel dashboard (nav / visualization / builder).
-4. Optional smoke: open the catalog editor (instance-admin / local bypass):
-   `http://127.0.0.1:8765/App/data-db-editor.html`
+4. Optional smoke: `curl -s 'http://127.0.0.1:8765/healthz?deep=1'` should report
+   `"status":"ok"` with Neo4j up; the catalog editor (instance admin) is at
+   `http://127.0.0.1:8765/App/data-db-editor.html`.
 
 If Neo4j is down, space/graph operations will fail even when the UI loads — start the DB
 before expecting graph CRUD to work.
@@ -300,7 +278,7 @@ Irreversible. Never point this at real data. See the docstring in `tools/dev_res
 
 ### Cypress E2E
 
-Needs Clerk test credentials (not auth bypass). See [App/ui/cypress/README.md](../App/ui/cypress/README.md):
+Runs against Clerk mode with Clerk test credentials. See [App/ui/cypress/README.md](../App/ui/cypress/README.md):
 
 - Copy `App/ui/cypress.env.example` → `App/ui/cypress.env.json`
 - Set `CLERK_SECRET_KEY` in project `.env`
@@ -314,9 +292,8 @@ Needs Clerk test credentials (not auth bypass). See [App/ui/cypress/README.md](.
 # one-time
 python3 -m venv .venv
 source .venv/bin/activate && pip install -r requirements.txt
-cp .env.example .env          # then edit Neo4j + auth
-# create App/ui/.env          # VITE_DISABLE_AUTH=true  OR  VITE_CLERK_PUBLISHABLE_KEY=...
-cd App/ui && npm install && cd ../..
+cp .env.example .env          # then set NEO4J_*
+cd App/ui && npm ci && cd ../..
 
 # every session
 source .venv/bin/activate
@@ -334,19 +311,22 @@ cd App/ui && npm run dev                    # terminal 2 → http://127.0.0.1:51
 | `command not found: uvicorn` | Activate venv, or use `.venv/bin/uvicorn` / `python Engine/dev_server.py`. |
 | `AttributeError: ... no attribute 'list_tools'` on startup | `mcp` 2.x was installed; this repo needs 1.x. Re-run `pip install -r requirements.txt` (pins `mcp>=1.27,<2`). |
 | `WARNING: App/ui/dist is missing` | Harmless if you use `npm run dev` on `:5173`. Only needed for the built UI on `:8765`. |
-| API `401` / auth errors with UI open | Backend and UI auth modes must match (both bypass, or both Clerk). Restart Vite after changing `App/ui/.env`. |
+| API `401` after the UI loads | Your session cookie expired or the catalog was reset; reload to get the login page. In Clerk mode confirm `PONA_FLOW_AUTH_MODE=clerk` and `CLERK_ISSUER` are set. |
+| Server refuses to start: "PONA_FLOW_DISABLE_AUTH ... loopback" | The bypass flags are only honoured when bound to `127.0.0.1`. Unset them or set `PONA_FLOW_HOST=127.0.0.1`. |
+| Setup page does not appear, login does | An account already exists in this `data.db`. `tools/reset_password.py --list` shows it; `tools/dev_reset.py` wipes local data. |
 | Clerk redirect breaks local / Cypress | Use `npm run dev:e2e` for E2E; plain `npm run dev` may send you to the hosted Account Portal. |
 | Vite `http proxy error` / `ECONNREFUSED 127.0.0.1:8765` | The API isn’t running (or was restarted). Keep `python Engine/dev_server.py` up in another terminal, then refresh the UI. |
 | Graph **500** / `Unable to retrieve routing information` | Start Neo4j Desktop DBMS; use `NEO4J_URI=bolt://127.0.0.1:7687` (not `neo4j://`); password must match Desktop. Restart the API after `.env` changes. |
 | Graph / space DB errors | Neo4j not running, wrong URI scheme, or `NEO4J_PASSWORD` mismatch. |
 | UI changes don’t show on `:8765` | Rebuild: `cd App/ui && npm run build`. Prefer `:5173` + `npm run dev` while coding. |
-| Port already in use | Stop the other process on `8765` / `5173`, or change `FORM_BRIDGE_PORT` / Vite port. |
+| Port already in use | Stop the other process on `8765` / `5173`, or change `PONA_FLOW_PORT` / Vite port. |
 
 ---
 
 ## Related docs
 
 - [README.md](../README.md) — project overview, module map, and local vector search  
+- [SELF-HOSTING.md](SELF-HOSTING.md) — run it with Docker instead  
 - [DEPLOYMENT.md](DEPLOYMENT.md) — production checklist  
 - [OPERATOR-BACKUP.md](OPERATOR-BACKUP.md) — backup and restore  
 - [SEQUENCE-WEBHOOKS.md](SEQUENCE-WEBHOOKS.md) / [MCP-GATEWAY.md](MCP-GATEWAY.md) — agent surfaces after the app is up  

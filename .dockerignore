@@ -2,6 +2,7 @@
 *
 !requirements.txt
 !Engine/
+!tools/reset_password.py
 !App/assets/
 !App/ui/
 !App/composer/

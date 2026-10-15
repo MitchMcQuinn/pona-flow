@@ -1,146 +1,206 @@
 # Deployment & Operations
 
-pona flow is delivered as a **dedicated single-tenant instance** per client. Each instance
-runs the FastAPI/ASGI app behind Cloudflare, authenticates users via Clerk, and owns its
-own Neo4j + SQLite data. Backup and restore: [OPERATOR-BACKUP.md](OPERATOR-BACKUP.md).
-
-**End-user onboarding (non-technical):** share [GETTING-STARTED.md](GETTING-STARTED.md) with
-customers who only need to sign in and use the product — this document is for operators.
-
-**Local developer machine (clone + venv + Neo4j + UI):** see
-[FIRST-TIME-SETUP.md](FIRST-TIME-SETUP.md).
+Operator reference for a self-hosted pona flow instance. If you just want it running,
+start with [SELF-HOSTING.md](SELF-HOSTING.md) (Docker Compose quickstart); this document
+is the detail behind it. Backup and restore: [OPERATOR-BACKUP.md](OPERATOR-BACKUP.md).
+Local developer machine: [FIRST-TIME-SETUP.md](FIRST-TIME-SETUP.md). End users:
+[GETTING-STARTED.md](GETTING-STARTED.md).
 
 ```mermaid
 flowchart LR
-  User[Browser / API client] --> CF[Cloudflare: TLS, CORS, WAF, rate limit]
-  CF --> Uvicorn[uvicorn + FastAPI app]
-  Uvicorn --> Clerk[(Clerk JWKS verify)]
+  User[Browser / API client / MCP client] --> Proxy[Reverse proxy: TLS]
+  Proxy --> Uvicorn[uvicorn + FastAPI app, 1 worker]
   Uvicorn --> Catalog[(catalog SQLite data.db)]
-  Uvicorn --> Neo4j[(per-space Neo4j)]
+  Uvicorn --> Neo4j[(Neo4j: instance default or per-space)]
+  Uvicorn -. optional .-> Clerk[(Clerk JWKS)]
 ```
 
+An instance is **single-tenant**: one process, one catalog, one or more Neo4j databases, a
+set of accounts. Run one instance per organisation.
 
+---
 
 ## 1. Runtime
 
-```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt        # fastapi, uvicorn, pyjwt[crypto], httpx, neo4j
+### Container (recommended)
 
-# Start the server (binds FORM_BRIDGE_HOST/PORT, default 127.0.0.1:8765):
-python Engine/dev_server.py
-```
+`ghcr.io/mitchmcquinn/pona-flow:<version>` contains the engine and the built UI. It runs
+as a non-root user, writes only to `/data`, exposes `8765`, and has a `HEALTHCHECK` on
+`/healthz`. `docker-compose.yml` at the repo root wires it to a bundled Neo4j and an
+optional Caddy; see [SELF-HOSTING.md](SELF-HOSTING.md).
 
-**Local dev:** use `python Engine/dev_server.py` (above). It loads `.env`, prints the UI URLs,
-and runs uvicorn from the activated venv — you do not need to invoke `uvicorn` yourself.
-
-**If you run uvicorn directly**, activate the venv first (otherwise you get `command not found`):
+### Bare process
 
 ```bash
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-uvicorn server.app:app --host 127.0.0.1 --port 8765 --app-dir Engine
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+(cd App/ui && npm ci && npm run build)          # the app serves App/ui/dist
+PONA_FLOW_DATA_DIR=/var/lib/pona-flow \
+.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8765 --app-dir Engine --proxy-headers
 ```
 
-Or call the venv binary without activating:
+Run it under systemd or another supervisor. **One worker only.** The event scheduler
+(timers, waits, embedding sweeps) and the MCP session manager run in-process; a second
+worker would double-fire timers. Scale vertically or run separate instances.
 
-```bash
-.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8765 --app-dir Engine
-```
+### Data directory
 
-For production, run uvicorn under a process manager (systemd, a container entrypoint, etc.)
-and bind to the private interface that Cloudflare reaches:
+`PONA_FLOW_DATA_DIR` (default: repository root; `/data` in the image) holds:
 
-```bash
-uvicorn server.app:app --host 127.0.0.1 --port 8765 --app-dir Engine
-# scale with --workers N once the workload warrants it
-```
+| File | Contents |
+|------|----------|
+| `data.db` | Catalog: spaces, members, saved operations, run `state`, events, audit log, accounts, sessions |
+| `<space>.db` etc. | Per-space SQLite files when a space names one (relative paths resolve here) |
+| `.env` | Values written by the `local` credential backend (Credentials tab) |
 
-Build the UI before serving (the app serves `App/ui/dist`):
+Back up the whole directory together with Neo4j ([OPERATOR-BACKUP.md](OPERATOR-BACKUP.md)).
 
-```bash
-cd App/ui && npm install && npm run build
-```
+### Health
 
-## 2. Edge: Cloudflare (TLS / CORS / rate limiting)
+`GET /healthz` (no auth) returns `200 {"status":"ok"}` when the process is up and the
+catalog opens; `503` otherwise. `GET /healthz?deep=1` also verifies the instance Neo4j
+connection. Bodies never include connection strings.
 
-The application **does not** terminate TLS or set CORS headers — Cloudflare owns these:
+---
 
-- Put the instance hostname behind Cloudflare with TLS (Full/Strict).
-- Restrict the origin so only Cloudflare can reach the app port (Cloudflare Tunnel or an
-IP allowlist / firewall on the private network). Never expose `:8765` publicly.
-- Configure CORS at the edge to allow only the instance's own UI origin.
-- Enable a WAF rule / rate limit on `/api/`* (Clerk and the app verify identity, but edge
-rate limiting protects against abuse and brute force).
+## 2. Edge: reverse proxy
 
-## 3. Authentication: Clerk
+The application does not terminate TLS. Put any HTTPS-terminating proxy in front and
+forward to `127.0.0.1:8765`. Requirements:
 
-Each instance has its own Clerk application (or a Clerk org/instance dedicated to the
-client). Required configuration:
+- Forward `X-Forwarded-Proto` (the compose `https` profile and most proxies do). The app
+  uses it to mark session cookies `Secure` and to send HSTS.
+- Set `PONA_FLOW_PUBLIC_URL=https://your.host` so cookies are `Secure` even if a header is
+  missing and so the MCP gateway accepts that `Host`.
+- Do not expose `:8765` directly on a public interface.
 
+The app sets `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`,
+`Permissions-Policy`, and HSTS (on HTTPS) itself. CORS is not set: the UI is same-origin.
+Add a Content-Security-Policy, WAF rules, or rate limiting at the proxy if you want them;
+the app already throttles login attempts (8 per email, 20 per IP, per 15 minutes).
 
-| Variable                     | Where                        | Purpose                                             |
-| ---------------------------- | ---------------------------- | --------------------------------------------------- |
-| `CLERK_ISSUER`               | server env                   | Clerk Frontend API URL; JWKS URL is derived from it |
-| `CLERK_JWKS_URL`             | server env (optional)        | Explicit JWKS URL (overrides issuer derivation)     |
-| `CLERK_AUTHORIZED_PARTIES`   | server env (optional)        | Comma-separated allowed `azp` origins               |
-| `VITE_CLERK_PUBLISHABLE_KEY` | UI build env (`App/ui/.env`) | Clerk publishable key for the React app             |
+---
 
+## 3. Authentication
 
-The backend verifies the session JWT signature against Clerk's JWKS and maps the Clerk
-`sub` to a local `users` row. **Bootstrap:** the first user to authenticate on a fresh
-instance becomes the instance admin. Provision the instance by having the client's
-designated owner sign in first.
+`PONA_FLOW_AUTH_MODE` selects the provider. Both produce the same `users` rows, so RBAC,
+invites, and agent keys are identical either way.
+
+### `local` (default): built-in accounts
+
+- Passwords are hashed with scrypt; sessions are random tokens stored hashed, delivered as
+  an `HttpOnly`, `SameSite=Lax` cookie (`Secure` on HTTPS). Lifetime
+  `PONA_FLOW_SESSION_DAYS` (30).
+- **Bootstrap:** an instance with no accounts serves a setup page; the account created
+  there is the instance admin. The endpoint closes permanently after the first account.
+- **Sign-up** is allowed only for an email that holds a pending space invite (Users
+  panel), or for anyone when `PONA_FLOW_ALLOW_OPEN_SIGNUP=1`.
+- Unsafe requests (POST/PUT/DELETE) carrying the cookie must be same-origin
+  (`Sec-Fetch-Site` / `Origin`), which blocks CSRF. API clients use a `Bearer pfs_...`
+  session token or an agent key instead.
+- Password reset: `python tools/reset_password.py <email>` (prompts; revokes that user's
+  sessions). In Docker: `docker compose exec pona-flow python tools/reset_password.py ...`.
+
+### `clerk`: hosted identity provider
+
+Set `PONA_FLOW_AUTH_MODE=clerk` and:
+
+| Variable | Purpose |
+|----------|---------|
+| `CLERK_ISSUER` | Clerk Frontend API URL; JWKS URL is derived from it |
+| `CLERK_PUBLISHABLE_KEY` | Served to the browser by `/api/auth/status` (no UI rebuild needed) |
+| `CLERK_JWKS_URL`, `CLERK_AUTHORIZED_PARTIES`, `CLERK_JWT_LEEWAY_SECONDS` | Optional tuning |
+| `CLERK_SECRET_KEY` | Lets the server resolve member emails/names from Clerk; required for the Cypress suite |
+
+The first person to sign in on an empty instance becomes the instance admin.
+`SUPERADMIN_EMAIL` / `SUPERADMIN_CLERK_ID` force the flag for a specific identity in
+either mode.
+
+### Development bypasses
+
+`PONA_FLOW_DISABLE_AUTH=1` (synthetic admin on every request) and `DEV_DB_EDITOR_TOKEN`
+(raw catalog editor) are refused at startup unless the server is bound to loopback, so
+they cannot be left on in a container by accident.
+
+---
 
 ## 4. Secrets & data
 
 - Neo4j and SQLite connection values are referenced indirectly: `spaces` rows store the
-**names** of environment variables, never the secrets. Inject the actual values
-(`NEO4J_URI`, `NEO4J_PASSWORD`, per-space `*_NEO4J_`*, `SQLITE_DATABASE_PATH`, etc.)
-via the host's secret store / environment. Do **not** commit a production `.env`.
-- The catalog database (`data.db`) holds `spaces`, `queries`, `state`, `users`,
-`space_members`, and `regex`. Back it up with per-space SQLite and Neo4j — procedure in
-[OPERATOR-BACKUP.md](OPERATOR-BACKUP.md).
+  **names** of environment variables, never the secrets. The instance-wide `NEO4J_URI`,
+  `NEO4J_USER`, `NEO4J_PASSWORD` are the defaults every space inherits; set
+  `<SPACE>_NEO4J_URI` etc. to point one space at its own database.
 - **User-managed credentials** (Credentials tab) follow the same indirection: the catalog
-`space_credentials` table stores only metadata (name, env key, description) — never the
-value. The value backend is selected by `PONA_FLOW_CREDENTIAL_BACKEND`
-(`passthrough` default = read-only `os.environ`; `local` = read/write `.env`; `hosted` =
-reserved). Keep production on `passthrough` and inject credential values via the platform
-under the per-credential env key (`<SPACE_ID>_CRED_<NAME>`) shown in the UI; do **not** set
-`local` in production (it would write the container's `.env`). Workflows reference a
-credential as `$secret.<NAME>`, resolved at request time and never persisted or logged.
-- See [.env.example](../.env.example) for the full variable list.
+  `space_credentials` table stores only metadata; the value backend is selected by
+  `PONA_FLOW_CREDENTIAL_BACKEND`:
+  - `local` (image default): values entered in the UI are written to `<data dir>/.env`,
+    which lives in the data volume. Convenient for a single-host install.
+  - `passthrough`: read-only `os.environ`; register the slot in the UI and inject the
+    value through your platform's secret store under the key shown
+    (`<SPACE_ID>_CRED_<NAME>`). Preferred when you have a secret manager.
+  Workflows reference a credential as `$secret.<NAME>`, resolved at request time and
+  never persisted in the catalog or logged.
+- Error responses are generic by default; exception detail goes to the server log.
+  `PONA_FLOW_DEBUG_ERRORS=1` echoes it to the client (local development only).
+- Never commit a production `.env`. [.env.example](../.env.example) lists every variable;
+  [.env.docker.example](../.env.docker.example) is the short compose version.
+
+---
 
 ## 5. Migrations
 
 Catalog schema is applied deterministically at startup by
-`[Engine/server/migrations.py](../Engine/server/migrations.py)` (idempotent
-`CREATE ... IF NOT EXISTS`). No manual migration step is needed for catalog tables on
-deploy/upgrade; per-space `entities` tables migrate on first space access.
+[`Engine/server/migrations.py`](../Engine/server/migrations.py) (idempotent
+`CREATE ... IF NOT EXISTS` plus column backfills). No manual migration step is needed on
+upgrade; per-space `entities` tables migrate on first space access. Upgrading the image
+and restarting is the whole procedure.
+
+---
 
 ## 6. Sequence endpoint-step safety (SSRF)
 
 Sequence "endpoint" steps make outbound HTTP calls. By default the server blocks
-private/loopback/link-local/reserved targets. Tighten further per instance:
+private/loopback/link-local/reserved targets.
 
-- `PONA_FLOW_OUTBOUND_ALLOWLIST` — comma-separated host allowlist (recommended in prod). Hosts on this list may be private or loopback, so a self-hosted [local-llm-server](https://github.com/MitchMcQuinn/local-llm-server) can be reached as `PONA_FLOW_OUTBOUND_ALLOWLIST=127.0.0.1`. Do not allowlist Ollama (`:11434`).
-- `PONA_FLOW_ALLOW_PRIVATE_OUTBOUND=1` — opens every private/loopback target; only for trusted self-hosted callbacks. Prefer the allowlist exception above.
+- `PONA_FLOW_OUTBOUND_ALLOWLIST`: comma-separated host allowlist. Hosts on it may be
+  private or loopback, so a self-hosted
+  [local-llm-server](https://github.com/MitchMcQuinn/local-llm-server) is reachable as
+  `PONA_FLOW_OUTBOUND_ALLOWLIST=127.0.0.1`. Do not allowlist Ollama (`:11434`); the
+  engine reaches it only through the embeddings module.
+- `PONA_FLOW_ALLOW_PRIVATE_OUTBOUND=1` opens every private/loopback target. Only on a
+  trusted network; prefer the allowlist.
 
-## 7. Admin surface
+Inside Docker, "the host machine" is `host.docker.internal`, not `127.0.0.1`.
 
-`/api/db/`* (the raw catalog table editor, including the static
-`App/data-db-editor.html`) is restricted to **instance admins**. The static editor page
-does not send a Clerk token, so it will be rejected in production; use it only via an
-authenticated admin context, or keep it for local development.
+---
 
-## 8. Single-tenant provisioning checklist
+## 7. MCP gateway Host validation
 
-1. Provision host + private network; install Python deps and build the UI.
-2. Create the client's Clerk application; set `CLERK_ISSUER` (server) and
-  `VITE_CLERK_PUBLISHABLE_KEY` (UI build).
-3. Inject Neo4j / SQLite secrets via the host environment.
-4. Put the instance behind Cloudflare (TLS, origin lock, CORS, rate limit).
-5. Start the server; have the client owner sign in first (becomes instance admin).
-6. Owner creates spaces (creator becomes space owner) and adds members.
+The per-space MCP endpoint validates the `Host` header against
+`PONA_FLOW_MCP_ALLOWED_HOSTS`, or, when that is unset, against the hostname in
+`PONA_FLOW_PUBLIC_URL` plus loopback. With neither set the check is off, which is only
+appropriate behind a proxy that validates `Host` itself. Agent keys are the real
+authorisation in every case ([MCP-GATEWAY.md](MCP-GATEWAY.md)).
+
+---
+
+## 8. Admin surface
+
+`/api/db/*` (the raw catalog table editor and `App/data-db-editor.html`) is restricted to
+**instance admins**. The editor page is a development tool and is not included in the
+container image.
+
+---
+
+## 9. Provisioning checklist
+
+1. Host with Docker; DNS name if it will be reached remotely.
+2. `cp .env.docker.example .env`; set `NEO4J_PASSWORD`, and `PONA_FLOW_PUBLIC_URL` /
+   `PONA_FLOW_DOMAIN` for a public install.
+3. `docker compose up -d`; confirm `curl -s localhost:8765/healthz?deep=1` is `200`.
+4. Open the URL; the setup page creates the instance admin. Store that password somewhere
+   safe; `tools/reset_password.py` is the recovery path.
+5. Admin creates spaces (creator becomes space owner) and invites members from the Users
+   panel; invitees sign up with the invited email.
+6. Mint agent keys per space (Agents panel) for MCP clients and webhooks.
 7. Take a backup and **restore it once** on purpose ([OPERATOR-BACKUP.md](OPERATOR-BACKUP.md))
-  before any client data is treated as irreplaceable.
-
+   before any data is treated as irreplaceable.

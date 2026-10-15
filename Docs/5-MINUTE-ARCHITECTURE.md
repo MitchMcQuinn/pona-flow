@@ -1,6 +1,6 @@
 # pona flow in five minutes
 
-This is the engineer-facing skim. Setup lives in [FIRST-TIME-SETUP.md](FIRST-TIME-SETUP.md). Buyer-facing pain points live in [WHY-PONA-FLOW.md](WHY-PONA-FLOW.md). The same ideas as pictures: [VISUALS.md](VISUALS.md). The narrative pitch: [PITCH.md](PITCH.md).
+This is the engineer-facing skim. Running it lives in [SELF-HOSTING.md](SELF-HOSTING.md) (Docker) and [FIRST-TIME-SETUP.md](FIRST-TIME-SETUP.md) (source). Buyer-facing pain points live in [WHY-PONA-FLOW.md](WHY-PONA-FLOW.md). The same ideas as pictures: [VISUALS.md](VISUALS.md). The narrative pitch: [PITCH.md](PITCH.md).
 
 ## What it is
 

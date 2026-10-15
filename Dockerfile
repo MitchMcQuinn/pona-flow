@@ -49,6 +49,7 @@ COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
 COPY Engine ./Engine
+COPY tools/reset_password.py ./tools/reset_password.py
 COPY App/assets ./App/assets
 COPY --from=ui /src/App/ui/dist ./App/ui/dist
 

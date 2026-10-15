@@ -20,44 +20,41 @@ Think of it as a place where you can:
 - Build and connect **schemas** (the shape of your information) and **instances** (the actual
   records).
 
-Each customer receives their **own private copy** of the application. Your data stays yours;
+Each organization runs its **own private copy** of the application. Your data stays yours;
 it is not mixed with anyone else's.
 
 ---
 
 ## Two ways to use pona flow
 
-### Option A — Managed hosting (most common)
+### Option A — Self-hosted (available now)
 
-You receive a **ready-to-use web address** (for example, `https://your-company.pona-flow.example`).
-We set up the servers, security, backups, and updates. You sign in and start working.
+Your organization runs pona flow on a machine it controls: a laptop, an office server, or a
+small cloud VM. Someone technical installs it once with Docker (about ten minutes, see
+[SELF-HOSTING.md](SELF-HOSTING.md)); after that everyone else just opens a web address.
 
-**You need:** a modern web browser (Chrome, Firefox, Safari, or Edge) and an account we
-create or invite you to.
+**You need:** a modern web browser (Chrome, Firefox, Safari, or Edge) and the address of
+your instance from whoever installed it.
 
-**You do not need:** to install software, run commands, or manage servers.
+### Option B — Hosted by us (coming soon)
 
-### Option B — Self-hosted (technical teams)
-
-Your organization runs pona flow on its own infrastructure. This path is for teams with
-someone comfortable managing servers, databases, and login configuration.
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for the operator checklist.
+A sign-up-and-go version where we run the servers, backups, and updates. Not available yet.
+If you want to know when it is, there is an email list on the
+[website](https://mitchmcquinn.github.io/pona-flow/).
 
 ---
 
-## What you'll receive when you're onboarded (managed hosting)
+## What you'll receive when you're onboarded
 
-Before your first login, you should get something like this from your provider:
+Before your first login, you should get this from whoever set up the instance:
 
 | What you get | What it's for |
 |--------------|---------------|
-| **Your instance URL** | The web address where you open pona flow |
-| **Login instructions** | How to sign in (email/password, Google, Microsoft, etc.) |
-| **A designated owner account** | The first person to sign in becomes the **instance admin** — usually you or your project lead |
-| **Optional: Neo4j / data connection details** | Only if you're connecting your own graph database; often handled entirely for you |
+| **Your instance URL** | The web address where you open pona flow (for example `http://localhost:8765` on the installer's own machine, or `https://flow.your-company.com`) |
+| **An invitation** | Your email address added to a space by its admin, so you can create an account |
+| **A designated owner** | The person who ran the setup page is the **instance admin** — usually the installer or a project lead |
 
-If anything on that list is missing, ask your provider before you rely on the instance for
+If anything on that list is missing, ask your admin before you rely on the instance for
 real work.
 
 ---
@@ -67,17 +64,21 @@ real work.
 ### Step 1 — Open your instance
 
 1. Open the URL you were given in your browser.
-2. You should see a **sign-in screen** (handled by our login partner, Clerk — it may show
-   your company name or pona flow branding).
+2. You will see either **Set up pona flow** (only on a brand-new instance, for the very first
+   person) or **Sign in**.
 
 > **Tip:** Bookmark this URL. It's the front door to your private workspace.
 
-### Step 2 — Sign in
+### Step 2 — Create your account or sign in
 
-1. Create an account or sign in with the method you were given (email, Google, etc.).
-2. The **first person** to sign in on a brand-new instance automatically becomes the
-   **instance admin**. If you're setting up for your organization, make sure the right
-   person signs in first.
+- **First person on a new instance:** fill in the setup page (email, display name, a
+  password of at least 10 characters). That account becomes the **instance admin**. If
+  you're setting up for your organization, make sure the right person does this.
+- **Everyone else:** click **Create an account** on the sign-in page and use the email
+  address your admin invited. If the page says sign-up is by invitation, ask a space
+  admin to invite you first.
+- **Returning:** sign in with your email and password. You stay signed in on that browser
+  for 30 days.
 
 You won't see the main dashboard until you're signed in.
 
@@ -91,7 +92,7 @@ A space is your working environment — like opening a new project folder.
 2. Click **Create**.
 
 You become the **owner** of that space automatically. Anyone else who needs access will need
-to be added as a member (see "Working with your team" below).
+to be invited as a member (see "Working with your team" below).
 
 ### Step 4 — Explore the dashboard
 
@@ -138,7 +139,7 @@ may need to build them first (see "Common next steps" below).
 | **Builder** | The tool on the right where you design queries and workflows |
 | **Member** | Someone who has been given access to a space |
 | **Owner** | The person who created a space; has full control within it |
-| **Admin** | The instance-wide manager (first login); can access advanced maintenance tools |
+| **Admin** | The instance-wide manager (created on the setup page); can access advanced maintenance tools |
 
 You don't need to memorize these on day one. They become familiar as you use the app.
 
@@ -166,49 +167,46 @@ customize over time.
 
 ### Connect external data (Neo4j)
 
-If your workflows use a graph database, connection details are configured at the **space**
-level by your admin or hosting provider — not something most end users touch daily. If runs
-fail with database errors, contact whoever manages your instance.
+Every instance comes with a graph database already connected (the installer set it up).
+Pointing a particular space at a different database is an admin task done at the **space**
+level — not something most end users touch. If runs fail with database errors, contact
+whoever manages your instance.
 
 ---
 
 ## Working with your team
 
-Today, access works like this:
+Access works like this:
 
 - **Spaces are private by membership.** If you're not a member of a space, you won't see it
   in your list.
 - **Creating a space makes you its owner** with full access inside that space.
-- **Adding other people** to a space (so they can see and use it) is handled through your
-  instance admin or hosting provider during early rollout — fine-grained "invite by email"
-  self-service may expand in future releases.
+- **Inviting people:** open the space's **Users** panel and enter a colleague's email and
+  role. They then open the instance URL, choose **Create an account**, and sign up with that
+  email; the invitation is applied automatically. Roles (**Member** and **Admin** out of the
+  box; admins can define more) control what they can do inside the space.
 
-If a colleague can't see a space you created, they likely haven't been added as a member yet.
+If a colleague can't see a space you created, they likely haven't been invited yet, or
+signed up with a different email than the one you invited.
 
 ---
 
-## What's included vs. what may be a paid upgrade
+## What's included
 
-The core product includes sign-in, spaces, membership, building workflows, and running
-sequences on **your own dedicated instance**.
-
-Some organizations later add **commercial** capabilities, such as:
-
-- **Single sign-on (SSO)** — log in with your company's corporate identity system
-- **Audit logs** — detailed records of who did what, for compliance
-- **Advanced roles** — finer control than "member or not" (viewer, editor, etc.)
-- **Agent / MCP gateway** — let AI tools call your sequences safely
-
-If you're unsure what's included in your plan, ask your provider.
+Everything in the self-hosted product is included: accounts and sign-in, spaces, membership
+with roles, the builder, running sequences, the audit log, credentials, and the **agent /
+MCP gateway** that lets AI tools call your sequences with their own keys. The installer
+can optionally switch sign-in to a corporate identity provider (Clerk); ask your admin if
+your organization uses that.
 
 ---
 
 ## Troubleshooting (quick answers)
 
 **I can't sign in.**  
-Check that you're using the correct instance URL. Try password reset or the sign-in method
-you were told to use (Google, email, etc.). Contact your admin if your account wasn't
-provisioned yet.
+Check that you're using the correct instance URL and the email you were invited with. After
+several wrong attempts sign-in pauses for a few minutes. If you've forgotten your password,
+your instance admin can reset it for you (there is no self-service reset email yet).
 
 **I see a blank page after sign-in.**  
 Try a hard refresh (Ctrl+Shift+R or Cmd+Shift+R). If it persists, your instance may still be
@@ -235,11 +233,12 @@ to add you.
 
 ## Privacy and data ownership (short version)
 
-- Your instance is **yours**. Data is stored in databases tied to your instance, not pooled
-  with other customers.
-- You sign in through a **professional login service**; pona flow does not store your
-  password.
-- Traffic to your instance is **encrypted** in transit (the padlock in your browser).
+- Your instance is **yours**. Data is stored in databases on the machine your organization
+  chose, not pooled with anyone else.
+- Passwords are stored only as salted hashes; nobody, including the admin, can read them.
+- When your instance is reached over the internet it should show the padlock (HTTPS); the
+  install guide covers how. On a single machine (`localhost`) there is no padlock, and that
+  is expected.
 - Sign-in, TLS, and instance isolation are described for operators in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
@@ -249,7 +248,8 @@ to add you.
 | If you want to… | Read… |
 |-----------------|-------|
 | Understand the pains pona flow solves, and how it compares to alternatives | [WHY-PONA-FLOW.md](WHY-PONA-FLOW.md) |
-| Deploy or operate an instance yourself | [DEPLOYMENT.md](DEPLOYMENT.md) |
+| Install an instance for your team | [SELF-HOSTING.md](SELF-HOSTING.md) |
+| Operate an instance (proxy, secrets, auth options) | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | Back up and restore an instance | [OPERATOR-BACKUP.md](OPERATOR-BACKUP.md) |
 | Develop or customize the product | [FIRST-TIME-SETUP.md](FIRST-TIME-SETUP.md) then [README.md](../README.md) |
 
@@ -257,8 +257,9 @@ to add you.
 
 ## Getting help
 
-For **managed hosting**, your first point of contact is whoever provisioned your instance
-(your pona flow provider or internal IT). Have ready:
+Your first point of contact is whoever installed your instance (internal IT or the
+colleague who ran the setup). For bugs in the product itself, open an issue at
+<https://github.com/MitchMcQuinn/pona-flow/issues>. Have ready:
 
 - Your instance URL
 - The email you use to sign in

@@ -18,7 +18,7 @@ Vite proxies `/api/*` to `http://127.0.0.1:8765`.
 
 After changing `src/`, run **`npm run build`** in `App/ui`, then open:
 
-**`http://127.0.0.1:8765/App/ui/dist/index.html`**
+**`http://127.0.0.1:8765/`**
 
 Restarting only the Python server serves the previous `dist/` bundle until you rebuild.
 
