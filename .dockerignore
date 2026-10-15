@@ -1,0 +1,25 @@
+# Build context for the Dockerfile. Keep it to what the two stages actually COPY.
+*
+!requirements.txt
+!Engine/
+!App/assets/
+!App/ui/
+!App/composer/
+!App/authoring/
+!App/connector/
+!App/regex-validator/
+
+# Never ship local state, dependencies, build output, or secrets.
+**/node_modules
+**/dist
+**/__pycache__
+**/*.py[cod]
+**/.env
+**/.env.*
+**/*.db
+**/*.db-*
+**/*.sqlite*
+App/ui/cypress/videos
+App/ui/cypress/screenshots
+App/ui/cypress/downloads
+App/ui/cypress.env.json

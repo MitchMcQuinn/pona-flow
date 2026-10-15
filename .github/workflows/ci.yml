@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CYPRESS_INSTALL_BINARY: "0"
+
+jobs:
+  tests:
+    name: Engine + composer tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: App/ui/package-lock.json
+
+      - name: Install Python dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+      - name: Install UI dependencies
+        working-directory: App/ui
+        run: npm ci --no-audit --no-fund
+
+      - name: Run test suite (external Neo4j/Docker tests skipped)
+        run: SKIP_EXTERNAL=1 bash tests/run-all.sh
+
+  ui-build:
+    name: React UI build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: App/ui/package-lock.json
+
+      - name: Install
+        working-directory: App/ui
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck + build
+        working-directory: App/ui
+        run: npm run build
+
+  docker-image:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: pona-flow:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test the image
+        run: |
+          set -euo pipefail
+          docker run -d --name pf -p 8765:8765 pona-flow:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8765/healthz >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8765/healthz
+          curl -fsS http://127.0.0.1:8765/api/auth/status | grep -q '"setup_required": *true'
+          curl -fsS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8765/ | grep -q '^200$'
+          docker logs pf
+          docker rm -f pf

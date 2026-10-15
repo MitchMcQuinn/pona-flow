@@ -68,9 +68,10 @@ assert.deepEqual(
   ),
   ["produces"]
 );
+// No required attributive label means nothing to filter on: every alias stays offered.
 assert.deepEqual(
   filterAliasReferencesForRequiredAttributiveLabel(query, "node", ["company", "product"], ""),
-  []
+  ["company", "product"]
 );
 
 assert.equal(

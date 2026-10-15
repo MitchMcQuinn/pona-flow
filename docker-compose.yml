@@ -1,0 +1,79 @@
+# pona flow — self-hosted stack.
+#
+#   cp .env.docker.example .env      # set NEO4J_PASSWORD (and PONA_FLOW_PUBLIC_URL if remote)
+#   docker compose up -d
+#   open http://localhost:8765       # the setup page creates the first admin account
+#
+# Profiles (toggle via COMPOSE_PROFILES in .env):
+#   neo4j  — bundled Neo4j Community (on by default in .env.docker.example). Leave it off and
+#            point NEO4J_URI at your own database (Aura, Desktop, another host) instead.
+#   https  — Caddy in front of the app with automatic TLS for PONA_FLOW_DOMAIN.
+#
+# Upgrade: docker compose pull && docker compose up -d   (state is in the named volumes)
+
+services:
+  pona-flow:
+    image: ghcr.io/mitchmcquinn/pona-flow:${PONA_FLOW_VERSION:-latest}
+    build: .
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      PONA_FLOW_PUBLIC_URL: ${PONA_FLOW_PUBLIC_URL:-}
+    ports:
+      # Bound to loopback by default; put a reverse proxy (the https profile, nginx, Traefik,
+      # a Cloudflare tunnel) in front rather than exposing 8765 directly.
+      - "${PONA_FLOW_BIND:-127.0.0.1}:${PONA_FLOW_PORT:-8765}:8765"
+    volumes:
+      - pona-data:/data
+
+  neo4j:
+    image: neo4j:5.26-community
+    profiles: ["neo4j"]
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      NEO4J_server_memory_heap_initial__size: ${NEO4J_HEAP:-512m}
+      NEO4J_server_memory_heap_max__size: ${NEO4J_HEAP:-512m}
+      NEO4J_server_memory_pagecache_size: ${NEO4J_PAGECACHE:-256m}
+    ports:
+      # Neo4j Browser + Bolt on loopback only, for inspecting the graph from the host.
+      - "127.0.0.1:${NEO4J_BROWSER_PORT:-7474}:7474"
+      - "127.0.0.1:${NEO4J_BOLT_PORT:-7687}:7687"
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7474 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  caddy:
+    image: caddy:2
+    profiles: ["https"]
+    restart: unless-stopped
+    environment:
+      PONA_FLOW_DOMAIN: ${PONA_FLOW_DOMAIN:?Set PONA_FLOW_DOMAIN in .env for the https profile}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - pona-flow
+
+volumes:
+  pona-data:
+  neo4j-data:
+  neo4j-logs:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,8 @@
+# Used by the `https` compose profile. Caddy obtains and renews a Let's Encrypt
+# certificate for PONA_FLOW_DOMAIN and forwards everything to the app container.
+# The app sees X-Forwarded-Proto: https and issues Secure cookies.
+
+{$PONA_FLOW_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy pona-flow:8765
+}
