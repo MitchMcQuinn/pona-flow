@@ -3,8 +3,9 @@
 Run your own pona flow instance with Docker. One container for the app, one for Neo4j,
 your data in two named volumes. Ten minutes from nothing to a signed-in dashboard.
 
-> A hosted version (we run it, you sign in) is coming. Until then, self-hosting is the
-> supported way to use pona flow, and this page is the whole install guide.
+> Prefer to click around first? The public demo is at
+> [https://pona-flow.fly.dev](https://pona-flow.fly.dev) (see [DEMO-HOSTING.md](DEMO-HOSTING.md)).
+> This page is the durable install path for your own machine or server.
 
 ---
 

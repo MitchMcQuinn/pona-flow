@@ -57,6 +57,12 @@ def open_signup_enabled() -> bool:
     return raw in ("1", "true", "yes", "on")
 
 
+def signup_can_create_spaces() -> bool:
+    """Whether open/invite sign-up grants ``can_create_spaces`` (demo instances set this)."""
+    raw = (os.environ.get("PONA_FLOW_SIGNUP_CAN_CREATE_SPACES") or "").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
 def session_lifetime() -> timedelta:
     raw = (os.environ.get("PONA_FLOW_SESSION_DAYS") or "30").strip()
     try:

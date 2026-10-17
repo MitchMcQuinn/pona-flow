@@ -27,20 +27,19 @@ it is not mixed with anyone else's.
 
 ## Two ways to use pona flow
 
-### Option A — Self-hosted (available now)
+### Option A — Public demo (fastest)
 
-Your organization runs pona flow on a machine it controls: a laptop, an office server, or a
-small cloud VM. Someone technical installs it once with Docker (about ten minutes, see
-[SELF-HOSTING.md](SELF-HOSTING.md)); after that everyone else just opens a web address.
+Open **[https://pona-flow.fly.dev](https://pona-flow.fly.dev)**, create an account, and make a
+space. Shared sandbox — fine for learning the product, not for real customer data. How it
+is run: [DEMO-HOSTING.md](DEMO-HOSTING.md).
 
-**You need:** a modern web browser (Chrome, Firefox, Safari, or Edge) and the address of
-your instance from whoever installed it.
+### Option B — Self-hosted
 
-### Option B — Hosted by us (coming soon)
+Your organization runs pona flow on a machine it controls. Someone technical installs it
+once with Docker (about ten minutes, see [SELF-HOSTING.md](SELF-HOSTING.md)); after that
+everyone else just opens a web address.
 
-A sign-up-and-go version where we run the servers, backups, and updates. Not available yet.
-If you want to know when it is, there is an email list on the
-[website](https://mitchmcquinn.github.io/pona-flow/).
+**You need:** a modern web browser and the address of your instance from whoever installed it.
 
 ---
 

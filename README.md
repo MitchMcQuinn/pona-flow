@@ -1,10 +1,16 @@
 # pona flow
 
-A self-hosted runtime where **domain types, records, and workflows** share one graph. Humans run sequences from a dashboard. Agents run the same sequences as MCP tools. Missing inputs pause the run instead of disappearing into a prompt.
+A runtime where **domain types, records, and workflows** share one graph. Humans run sequences from a dashboard. Agents run the same sequences as MCP tools. Missing inputs pause the run instead of disappearing into a prompt.
 
 [![CI](https://github.com/MitchMcQuinn/pona-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/MitchMcQuinn/pona-flow/actions/workflows/ci.yml)
 
-## Get started (self-host)
+## Try the demo
+
+No install: open **[https://pona-flow.fly.dev](https://pona-flow.fly.dev)**, create an account, and make a space.
+
+Landing page: [https://mitchmcquinn.github.io/pona-flow/](https://mitchmcquinn.github.io/pona-flow/). How the demo is hosted: [Docs/DEMO-HOSTING.md](Docs/DEMO-HOSTING.md). The demo is a shared sandbox — don’t put real secrets there.
+
+## Self-host
 
 ```bash
 curl -fsSL https://github.com/MitchMcQuinn/pona-flow/releases/latest/download/pona-flow-selfhost.tar.gz | tar xz
@@ -14,11 +20,7 @@ docker compose up -d
 open http://localhost:8765       # create the first admin account
 ```
 
-That is the whole install: the app container plus a bundled Neo4j, data in two Docker
-volumes, built-in email/password accounts. The full guide, including HTTPS, upgrades,
-backups, and bring-your-own Neo4j, is [Docs/SELF-HOSTING.md](Docs/SELF-HOSTING.md).
-
-A hosted version (sign in, no servers) is coming; self-hosting is the supported path today.
+Full guide (HTTPS, upgrades, backups, bring-your-own Neo4j): [Docs/SELF-HOSTING.md](Docs/SELF-HOSTING.md).
 
 **Learn the model:** [Docs/5-MINUTE-ARCHITECTURE.md](Docs/5-MINUTE-ARCHITECTURE.md) (start here) ·
 [Docs/WHY-PONA-FLOW.md](Docs/WHY-PONA-FLOW.md) (vs. n8n, LangGraph, RAG, Temporal, BPM) ·

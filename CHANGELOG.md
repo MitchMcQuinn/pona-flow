@@ -9,6 +9,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 - Repository licensed under **AGPL-3.0-only** (`LICENSE`); README documents contribution /
   CLA intent for a future hosted product.
+- Public demo hosting: [`fly.toml`](fly.toml) + [Docs/DEMO-HOSTING.md](Docs/DEMO-HOSTING.md)
+  (Fly.io + Neo4j Aura Free). `PONA_FLOW_SIGNUP_CAN_CREATE_SPACES` so open sign-up can
+  create spaces on the demo.
+- Landing / README lead with **Try the demo**; self-host is the secondary path.
 
 ## [0.1.0] - 2026-10-14
 

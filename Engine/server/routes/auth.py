@@ -187,7 +187,12 @@ async def auth_signup(request: Request):
             "Sign-up is by invitation. Ask a space admin to invite this email address.",
         )
     try:
-        user_id = local_auth.create_local_user(normalized, password, name)
+        user_id = local_auth.create_local_user(
+            normalized,
+            password,
+            name,
+            can_create_spaces=local_auth.signup_can_create_spaces(),
+        )
     except ValueError as e:
         raise bad_request(str(e))
     rbac.claim_pending_invites(user_id, normalized)
