@@ -498,6 +498,27 @@ def _request_host(request: Request) -> str:
     return (request.headers.get("host") or "").strip().lower()
 
 
+def _browser_facing_hosts(request: Request) -> set[str]:
+    """Hosts the browser may put in ``Origin`` for a same-origin page load.
+
+    Behind a reverse proxy or the Vite ``/api`` proxy the ASGI ``Host`` header is often
+    the *upstream* address (``127.0.0.1:8765``) while the page's ``Origin`` is the
+    public/UI host (``127.0.0.1:5273``). Proxies should forward the browser Host as
+    ``X-Forwarded-Host``; we accept either that or ``Host`` so the CSRF check compares
+    Origin to what the user actually typed, not the internal bind address.
+    """
+    hosts: set[str] = set()
+    raw_host = _request_host(request)
+    if raw_host:
+        hosts.add(raw_host)
+    forwarded = (request.headers.get("x-forwarded-host") or "").strip().lower()
+    if forwarded:
+        # First value only; clients can spoof this header, but Origin must still match
+        # it, and SameSite=Lax already blocks cross-site cookie sends.
+        hosts.add(forwarded.split(",")[0].strip())
+    return hosts
+
+
 def same_origin_request(request: Request) -> bool:
     """CSRF guard for cookie-authenticated state changes.
 
@@ -516,7 +537,7 @@ def same_origin_request(request: Request) -> bool:
     origin = (request.headers.get("origin") or "").strip()
     if origin and origin.lower() != "null":
         origin_host = (urlsplit(origin).netloc or "").lower()
-        if origin_host and origin_host != _request_host(request):
+        if origin_host and origin_host not in _browser_facing_hosts(request):
             return False
     elif origin.lower() == "null":
         return False

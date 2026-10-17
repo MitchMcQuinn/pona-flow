@@ -29,7 +29,22 @@ export default defineConfig(({ mode }) => ({
       allow: ["../.."]
     },
     proxy: {
-      "/api": "http://127.0.0.1:8765"
-    }
+      // Keep the browser Host (e.g. 127.0.0.1:5273) visible to the API as
+      // X-Forwarded-Host so the local-auth CSRF Origin check accepts Vite POSTs.
+      // changeOrigin would rewrite Host to :8765 and trip "Cross-site request rejected."
+      "/api": {
+        target: "http://127.0.0.1:8765",
+        changeOrigin: false,
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq, req) => {
+            const host = req.headers.host;
+            if (host) {
+              proxyReq.setHeader("Host", host);
+              proxyReq.setHeader("X-Forwarded-Host", host);
+            }
+          });
+        },
+      },
+    },
   }
 }));

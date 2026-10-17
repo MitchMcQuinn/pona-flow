@@ -137,6 +137,46 @@ class LocalAuthRoutesTest(unittest.TestCase):
         # GETs are never blocked by the CSRF check.
         self.assertEqual(self.client.get("/api/me", headers={"Sec-Fetch-Site": "cross-site"}).status_code, 200)
 
+    def test_vite_proxy_origin_accepted_via_forwarded_host(self) -> None:
+        """Vite proxies /api to :8765; Origin stays on the UI port, Host becomes the API.
+
+        X-Forwarded-Host carries the browser Host so the CSRF check still passes.
+        """
+        self.client.post("/api/auth/logout")
+        # Wipe so setup is available again in this temp catalog.
+        conn = config.connect_sqlite(self.db_path)
+        try:
+            conn.execute("DELETE FROM sessions")
+            conn.execute("DELETE FROM local_credentials")
+            conn.execute("DELETE FROM users")
+            conn.commit()
+        finally:
+            conn.close()
+        r = self.client.post(
+            "/api/auth/setup",
+            json={"email": "vite@example.com", "password": "a strong password", "display_name": "Vite"},
+            headers={
+                "Origin": "http://127.0.0.1:5273",
+                "Sec-Fetch-Site": "same-origin",
+                "Host": "127.0.0.1:8765",
+                "X-Forwarded-Host": "127.0.0.1:5273",
+            },
+        )
+        self.assertEqual(r.status_code, 200, r.text)
+        # Spoofed forwarded host that does not match Origin is still rejected.
+        self.client.post("/api/auth/logout")
+        r = self.client.post(
+            "/api/auth/login",
+            json={"email": "vite@example.com", "password": "a strong password"},
+            headers={
+                "Origin": "http://127.0.0.1:5273",
+                "Sec-Fetch-Site": "same-origin",
+                "Host": "127.0.0.1:8765",
+                "X-Forwarded-Host": "evil.example",
+            },
+        )
+        self.assertEqual(r.status_code, 403, r.text)
+
     def test_login_rate_limit(self) -> None:
         self._setup_admin()
         self.client.post("/api/auth/logout")
