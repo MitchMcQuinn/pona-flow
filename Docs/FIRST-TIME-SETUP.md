@@ -224,7 +224,7 @@ cd App/ui
 npm run dev
 ```
 
-Open **`http://127.0.0.1:5173`**. Vite proxies `/api/*` to port `8765`.
+Open **`http://127.0.0.1:5273`**. Vite proxies `/api/*` to port `8765`.
 
 ### Alternative: built UI on the API port
 
@@ -298,7 +298,7 @@ cd App/ui && npm ci && cd ../..
 # every session
 source .venv/bin/activate
 python Engine/dev_server.py                 # terminal 1
-cd App/ui && npm run dev                    # terminal 2 → http://127.0.0.1:5173
+cd App/ui && npm run dev                    # terminal 2 → http://127.0.0.1:5273
 ```
 
 ---
@@ -310,7 +310,7 @@ cd App/ui && npm run dev                    # terminal 2 → http://127.0.0.1:51
 | `pip` / `externally-managed-environment` | Use the project `.venv`; don’t install into system Python. |
 | `command not found: uvicorn` | Activate venv, or use `.venv/bin/uvicorn` / `python Engine/dev_server.py`. |
 | `AttributeError: ... no attribute 'list_tools'` on startup | `mcp` 2.x was installed; this repo needs 1.x. Re-run `pip install -r requirements.txt` (pins `mcp>=1.27,<2`). |
-| `WARNING: App/ui/dist is missing` | Harmless if you use `npm run dev` on `:5173`. Only needed for the built UI on `:8765`. |
+| `WARNING: App/ui/dist is missing` | Harmless if you use `npm run dev` on `:5273`. Only needed for the built UI on `:8765`. |
 | API `401` after the UI loads | Your session cookie expired or the catalog was reset; reload to get the login page. In Clerk mode confirm `PONA_FLOW_AUTH_MODE=clerk` and `CLERK_ISSUER` are set. |
 | Server refuses to start: "PONA_FLOW_DISABLE_AUTH ... loopback" | The bypass flags are only honoured when bound to `127.0.0.1`. Unset them or set `PONA_FLOW_HOST=127.0.0.1`. |
 | Setup page does not appear, login does | An account already exists in this `data.db`. `tools/reset_password.py --list` shows it; `tools/dev_reset.py` wipes local data. |
@@ -318,8 +318,8 @@ cd App/ui && npm run dev                    # terminal 2 → http://127.0.0.1:51
 | Vite `http proxy error` / `ECONNREFUSED 127.0.0.1:8765` | The API isn’t running (or was restarted). Keep `python Engine/dev_server.py` up in another terminal, then refresh the UI. |
 | Graph **500** / `Unable to retrieve routing information` | Start Neo4j Desktop DBMS; use `NEO4J_URI=bolt://127.0.0.1:7687` (not `neo4j://`); password must match Desktop. Restart the API after `.env` changes. |
 | Graph / space DB errors | Neo4j not running, wrong URI scheme, or `NEO4J_PASSWORD` mismatch. |
-| UI changes don’t show on `:8765` | Rebuild: `cd App/ui && npm run build`. Prefer `:5173` + `npm run dev` while coding. |
-| Port already in use | Stop the other process on `8765` / `5173`, or change `PONA_FLOW_PORT` / Vite port. |
+| UI changes don’t show on `:8765` | Rebuild: `cd App/ui && npm run build`. Prefer `:5273` + `npm run dev` while coding. |
+| Port already in use | Stop the other process on `8765` / `5273`, or change `PONA_FLOW_PORT` / Vite port. |
 
 ---
 

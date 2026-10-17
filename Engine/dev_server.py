@@ -14,7 +14,7 @@ at ``/`` and the catalog editor) are served from App/.
 
   python Engine/dev_server.py
   # React UI (built):  http://127.0.0.1:8765/
-  # React UI (live):   cd App/ui && npm run dev  →  http://127.0.0.1:5173
+  # React UI (live):   cd App/ui && npm run dev  →  http://127.0.0.1:5273
 
 Environment (optional):
   PONA_FLOW_HOST / PONA_FLOW_PORT — bind address (default 127.0.0.1:8765; the legacy
@@ -40,7 +40,7 @@ def main() -> None:
 
     warn_if_ui_dist_stale(config.APP_DIR)
     print(f"pona flow:         http://{host}:{port}/", flush=True)
-    print("React UI (live):   cd App/ui && npm run dev → http://127.0.0.1:5173", flush=True)
+    print("React UI (live):   cd App/ui && npm run dev → http://127.0.0.1:5273", flush=True)
     print(
         "  After editing App/ui/src: cd App/ui && npm run build  (server restart is not enough)",
         flush=True,

@@ -18,7 +18,7 @@ const rootDir = path.resolve(__dirname, "..");
 
 dotenv.config({ path: path.join(rootDir, ".env") });
 
-const CYPRESS_BASE = "http://127.0.0.1:5173";
+const CYPRESS_BASE = "http://127.0.0.1:5273";
 
 async function check(name: string, fn: () => Promise<void>): Promise<void> {
   try {
@@ -39,7 +39,7 @@ async function main(): Promise<void> {
     }
   });
 
-  await check("Vite E2E dev server on :5173", async () => {
+  await check("Vite E2E dev server on :5273", async () => {
     const res = await fetch(CYPRESS_BASE);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
   });

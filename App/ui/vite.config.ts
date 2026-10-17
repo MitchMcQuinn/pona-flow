@@ -21,7 +21,8 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     host: "127.0.0.1",
-    port: 5173,
+    // 5273 avoids clashing with other local Vite apps that default to 5173.
+    port: 5273,
     strictPort: mode === "e2e",
     // Allow importing the shared JS modules that live in App/js (outside App/ui).
     fs: {

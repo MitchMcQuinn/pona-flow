@@ -1,7 +1,7 @@
 import { setupClerkTestingToken } from "@clerk/testing/cypress";
 
 const APP_HOST = "127.0.0.1";
-const APP_PORT = "5173";
+const APP_PORT = "5273";
 
 export function assertOnAppOrigin(): void {
   cy.location("hostname").should((hostname) => {

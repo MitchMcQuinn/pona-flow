@@ -42,7 +42,7 @@ python Engine/dev_server.py     # http://127.0.0.1:8765 → setup page creates t
 Auth defaults to built-in accounts (`PONA_FLOW_AUTH_MODE=local`); no third-party service is
 needed. Clerk remains available as an alternative provider
 ([Docs/DEPLOYMENT.md](Docs/DEPLOYMENT.md) § Clerk). For UI work run `cd App/ui && npm run dev`
-and open `http://127.0.0.1:5173` (Vite proxies `/api` to 8765). Rebuild (`npm run build`)
+and open `http://127.0.0.1:5273` (Vite proxies `/api` to 8765). Rebuild (`npm run build`)
 before the Python server picks up UI changes.
 
 Tests: `SKIP_EXTERNAL=1 bash tests/run-all.sh` runs the Python and composer suites

@@ -89,7 +89,7 @@ Most MCP clients accept a Streamable HTTP URL plus custom headers. Configuration
 ```
 
 Replace `MARKETING` with your space id (the normalized, uppercase space name) and use your
-own host. Locally, that is `http://127.0.0.1:8765/api/spaces/<SPACE>/mcp` (or port `5173`
+own host. Locally, that is `http://127.0.0.1:8765/api/spaces/<SPACE>/mcp` (or port `5273`
 through the Vite dev proxy).
 
 ---

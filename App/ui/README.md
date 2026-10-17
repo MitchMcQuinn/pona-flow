@@ -10,7 +10,7 @@ The React builder does **not** hot-reload through `python Engine/dev_server.py` 
 
 1. Start the API: `python Engine/dev_server.py` (port **8765**)
 2. In this folder: `npm install` then `npm run dev`
-3. Open **`http://127.0.0.1:5173`** — edits to `src/` apply immediately
+3. Open **`http://127.0.0.1:5273`** — edits to `src/` apply immediately
 
 Vite proxies `/api/*` to `http://127.0.0.1:8765`.
 

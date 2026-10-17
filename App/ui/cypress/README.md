@@ -10,7 +10,7 @@ and the **selector (`data-testid`) convention** the specs are built on.
 E2E requires three things running plus Clerk config:
 
 1. API + Neo4j: `python Engine/dev_server.py` (port 8765, Neo4j reachable)
-2. E2E Vite server: `cd App/ui && npm run dev:e2e` (port 5173 — **not** `npm run dev`)
+2. E2E Vite server: `cd App/ui && npm run dev:e2e` (port 5273 — **not** `npm run dev`)
 3. Root `.env` with `CLERK_SECRET_KEY` + `SUPERADMIN_EMAIL`, and
    `App/ui/cypress.env.json` with `CLERK_TEST_IDENTIFIER` (copy from `cypress.env.example`)
 
