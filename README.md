@@ -4,13 +4,19 @@ A runtime where **domain types, records, and workflows** share one graph. Humans
 
 [![CI](https://github.com/MitchMcQuinn/pona-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/MitchMcQuinn/pona-flow/actions/workflows/ci.yml)
 
-## Try the demo
+Landing: [https://mitchmcquinn.github.io/pona-flow/](https://mitchmcquinn.github.io/pona-flow/)
 
-No install: open **[https://pona-flow.fly.dev](https://pona-flow.fly.dev)**, create an account, and make a space.
+## Editions
 
-Landing page: [https://mitchmcquinn.github.io/pona-flow/](https://mitchmcquinn.github.io/pona-flow/). How the demo is hosted: [Docs/DEMO-HOSTING.md](Docs/DEMO-HOSTING.md). The demo is a shared sandbox — don’t put real secrets there.
+| Edition | Price | What you get |
+|---------|-------|--------------|
+| **Community** | Free | This repo. You host the app and Neo4j (Docker locally or your own server). |
+| **Self-hosted** | Free | [Cloud setup wizard](https://mitchmcquinn.github.io/pona-flow/wizard.html): your Fly.io app + your Neo4j Aura DB (+ optional Clerk). Secrets never leave your browser. |
+| **Hosted** | Paid · coming soon | We provision app + database + sign-in for a monthly subscription. |
 
-## Self-host
+There is **no shared public sandbox** — every deployment has its own Neo4j so schema names cannot collide across customers.
+
+### Community (Docker)
 
 ```bash
 curl -fsSL https://github.com/MitchMcQuinn/pona-flow/releases/latest/download/pona-flow-selfhost.tar.gz | tar xz
@@ -20,12 +26,15 @@ docker compose up -d
 open http://localhost:8765       # create the first admin account
 ```
 
-Full guide (HTTPS, upgrades, backups, bring-your-own Neo4j): [Docs/SELF-HOSTING.md](Docs/SELF-HOSTING.md).
+Full guide: [Docs/SELF-HOSTING.md](Docs/SELF-HOSTING.md). Dev from source: [Docs/FIRST-TIME-SETUP.md](Docs/FIRST-TIME-SETUP.md).
 
-**Learn the model:** [Docs/5-MINUTE-ARCHITECTURE.md](Docs/5-MINUTE-ARCHITECTURE.md) (start here) ·
-[Docs/WHY-PONA-FLOW.md](Docs/WHY-PONA-FLOW.md) (vs. n8n, LangGraph, RAG, Temporal, BPM) ·
-[Docs/PITCH.md](Docs/PITCH.md) · [Docs/VISUALS.md](Docs/VISUALS.md) ·
-[Docs/GETTING-STARTED.md](Docs/GETTING-STARTED.md) (using the dashboard)
+### Self-hosted (Fly + Aura)
+
+Open the [wizard](https://mitchmcquinn.github.io/pona-flow/wizard.html), paste Aura + Fly details, copy the generated script, run it. Template: [`fly.toml`](fly.toml).
+
+**Learn the model:** [Docs/5-MINUTE-ARCHITECTURE.md](Docs/5-MINUTE-ARCHITECTURE.md) ·
+[Docs/WHY-PONA-FLOW.md](Docs/WHY-PONA-FLOW.md) · [Docs/PITCH.md](Docs/PITCH.md) ·
+[Docs/GETTING-STARTED.md](Docs/GETTING-STARTED.md)
 
 ## Development setup
 

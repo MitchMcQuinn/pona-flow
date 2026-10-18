@@ -1,13 +1,11 @@
-# pona flow — public demo on Fly.io (Neo4j via Aura Free).
+# pona flow on Fly.io — template for the Self-hosted edition.
+# The cloud setup wizard (https://mitchmcquinn.github.io/pona-flow/wizard.html)
+# rewrites app / region / PONA_FLOW_PUBLIC_URL for you. Manual path: Docs/SELF-HOSTING.md
 #
-# One-time (see Docs/DEMO-HOSTING.md):
-#   fly apps create pona-flow
-#   fly volumes create pona_data --region iad --size 1
+#   fly apps create <your-app>
+#   fly volumes create pona_data --region <region> --size 1
 #   fly secrets set NEO4J_URI=... NEO4J_USER=neo4j NEO4J_PASSWORD=...
 #   fly deploy
-#   curl -X POST https://pona-flow.fly.dev/api/auth/setup ...  # create the operator admin
-#
-# App name / URL: https://pona-flow.fly.dev
 
 app = "pona-flow"
 primary_region = "iad"
@@ -20,8 +18,8 @@ primary_region = "iad"
   PONA_FLOW_PORT = "8765"
   PONA_FLOW_DATA_DIR = "/data"
   PONA_FLOW_AUTH_MODE = "local"
-  PONA_FLOW_ALLOW_OPEN_SIGNUP = "1"
-  PONA_FLOW_SIGNUP_CAN_CREATE_SPACES = "1"
+  PONA_FLOW_ALLOW_OPEN_SIGNUP = "0"
+  PONA_FLOW_SIGNUP_CAN_CREATE_SPACES = "0"
   PONA_FLOW_CREDENTIAL_BACKEND = "local"
   PONA_FLOW_PUBLIC_URL = "https://pona-flow.fly.dev"
   FORWARDED_ALLOW_IPS = "*"

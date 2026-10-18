@@ -25,21 +25,15 @@ it is not mixed with anyone else's.
 
 ---
 
-## Two ways to use pona flow
+## How to get an instance
 
-### Option A — Public demo (fastest)
+| Edition | How |
+|---------|-----|
+| **Community** (free) | Clone or fork [the GitHub repo](https://github.com/MitchMcQuinn/pona-flow); host with Docker yourself ([SELF-HOSTING.md](SELF-HOSTING.md)). |
+| **Self-hosted** (free) | Use the [cloud setup wizard](https://mitchmcquinn.github.io/pona-flow/wizard.html) for Fly.io + Neo4j Aura (+ optional Clerk). |
+| **Hosted** (paid) | Coming soon — we run app + database + sign-in for you. |
 
-Open **[https://pona-flow.fly.dev](https://pona-flow.fly.dev)**, create an account, and make a
-space. Shared sandbox — fine for learning the product, not for real customer data. How it
-is run: [DEMO-HOSTING.md](DEMO-HOSTING.md).
-
-### Option B — Self-hosted
-
-Your organization runs pona flow on a machine it controls. Someone technical installs it
-once with Docker (about ten minutes, see [SELF-HOSTING.md](SELF-HOSTING.md)); after that
-everyone else just opens a web address.
-
-**You need:** a modern web browser and the address of your instance from whoever installed it.
+There is no shared public demo: each deployment has its own Neo4j database.
 
 ---
 

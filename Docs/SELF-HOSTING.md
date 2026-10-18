@@ -3,9 +3,9 @@
 Run your own pona flow instance with Docker. One container for the app, one for Neo4j,
 your data in two named volumes. Ten minutes from nothing to a signed-in dashboard.
 
-> Prefer to click around first? The public demo is at
-> [https://pona-flow.fly.dev](https://pona-flow.fly.dev) (see [DEMO-HOSTING.md](DEMO-HOSTING.md)).
-> This page is the durable install path for your own machine or server.
+> **Editions:** Community = this Docker / local path. Prefer Fly.io + Aura with a guided
+> script? Use the [self-host wizard](https://mitchmcquinn.github.io/pona-flow/wizard.html).
+> Hosted (we run it) is coming soon.
 
 ---
 
