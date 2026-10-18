@@ -1075,6 +1075,7 @@ export type MePayload = {
   is_superadmin?: boolean;
   can_create_spaces?: boolean;
   timezone?: string | null;
+  onboarding_tour_seen?: boolean;
 };
 
 export function meFromPayload(data: MePayload): Me {
@@ -1085,7 +1086,9 @@ export function meFromPayload(data: MePayload): Me {
     principalType: data.principal_type || "user",
     isSuperadmin: Boolean(data.is_superadmin),
     canCreateSpaces: Boolean(data.can_create_spaces),
-    timezone: data.timezone ?? null
+    timezone: data.timezone ?? null,
+    // Older servers omit the flag; treat that as "seen" so the tour never nags there.
+    onboardingTourSeen: data.onboarding_tour_seen ?? true
   };
 }
 
@@ -1156,6 +1159,11 @@ export async function updateMySettings(settings: {
     "Failed to save settings"
   );
   return { timezone: data.timezone ?? null };
+}
+
+/** Mark the product tour finished/skipped (true) or reset it so it auto-starts again (false). */
+export async function setOnboardingTourSeen(seen: boolean): Promise<void> {
+  await postJson("/api/me/onboarding", { seen }, "Failed to save tour progress");
 }
 
 export async function fetchSpacePermissions(spaceId: string): Promise<SpacePermissions> {

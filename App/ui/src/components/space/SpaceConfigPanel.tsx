@@ -40,6 +40,7 @@ interface SpaceConfigPanelProps {
   onDeleteSpace: () => void;
   onLoadAuditLog: () => void;
   onClose: () => void;
+  onStartTour: () => void;
 }
 
 function AuditLogSection({
@@ -127,7 +128,8 @@ export function SpaceConfigPanel({
   saveError,
   onDeleteSpace,
   onLoadAuditLog,
-  onClose
+  onClose,
+  onStartTour
 }: SpaceConfigPanelProps) {
   const [tab, setTab] = useState<SpaceConfigTab>("settings");
   const [name, setName] = useState("");
@@ -378,6 +380,17 @@ export function SpaceConfigPanel({
                   Delete space
                 </button>
               ) : null}
+            </div>
+            <div className="spaceTourCard">
+              <div>
+                <strong>Product tour</strong>
+                <p className="muted">
+                  A two-minute walk through the main parts of pona flow and what they're for.
+                </p>
+              </div>
+              <button type="button" data-testid="space-start-tour-btn" onClick={onStartTour}>
+                Take the product tour
+              </button>
             </div>
           </div>
         ) : null}

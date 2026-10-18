@@ -660,7 +660,7 @@ function UserSettingsFooter({
   }, [open]);
 
   return (
-    <div className="navUserSettings" ref={containerRef}>
+    <div className="navUserSettings" ref={containerRef} data-tour="account">
       {open ? (
         <div className="navUserMenu" role="dialog" aria-label="User settings">
           <div className="navUserMenuHeader">
@@ -999,7 +999,7 @@ export function NavigationPanel({
             </button>
           ) : null}
         </div>
-        <div className="navSpaceRow">
+        <div className="navSpaceRow" data-tour="space-picker">
           <select
             id="space-selector"
             aria-labelledby="space-selector-label"
@@ -1022,6 +1022,7 @@ export function NavigationPanel({
               aria-label="Open space settings"
               title="Space settings"
               data-testid="nav-space-settings"
+              data-tour="space-settings"
               disabled={!selectedSpaceId}
               onClick={onOpenSpaceConfig}
             >
@@ -1030,7 +1031,7 @@ export function NavigationPanel({
           </span>
         </div>
 
-        <div className="navSectionHeader">
+        <div className="navSectionHeader" data-tour="sequences">
           <h3 className="navSectionTitle">Sequences</h3>
           <button
             type="button"
@@ -1084,7 +1085,7 @@ export function NavigationPanel({
           </>
         ) : null}
 
-        <div className="navSectionHeader">
+        <div className="navSectionHeader" data-tour="events">
           <h3 className="navSectionTitle">Events</h3>
           <button
             type="button"

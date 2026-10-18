@@ -46,6 +46,9 @@ def _me_payload(principal: Principal) -> dict:
         "can_create_spaces": principal.can_create_spaces,
         "timezone": principal.timezone,
         "auth_mode": local_auth.auth_mode(),
+        "onboarding_tour_seen": rbac.onboarding_tour_seen_for(
+            principal.principal_type, principal.user_id
+        ),
     }
 
 

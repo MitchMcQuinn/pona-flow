@@ -54,7 +54,7 @@ export function TopBar({
   return (
     <header className="topbar">
       <img src={logoUrl} alt="pona flow" className="topbarLogo" />
-      <div className="topbarActions">
+      <div className="topbarActions" data-tour="topbar-actions">
         {showBackToBuilder ? (
           <button
             type="button"

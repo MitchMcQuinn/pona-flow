@@ -40,6 +40,7 @@ interface ConfigPanelProps {
   onDeleteSpace: () => void;
   onLoadAuditLog: () => void;
   onSpacePanelClose: () => void;
+  onStartTour: () => void;
   /** Composed EXECUTION package for the selected sequence (webhook curl + input list). */
   executionPackage?: ExecutionPackage | null;
   composeError?: string | null;
@@ -278,6 +279,7 @@ export function ConfigPanel({
   onDeleteSpace,
   onLoadAuditLog,
   onSpacePanelClose,
+  onStartTour,
   executionPackage = null,
   composeError = null
 }: ConfigPanelProps) {
@@ -448,6 +450,7 @@ export function ConfigPanel({
         onDeleteSpace={onDeleteSpace}
         onLoadAuditLog={onLoadAuditLog}
         onClose={onSpacePanelClose}
+        onStartTour={onStartTour}
       />
     );
   }

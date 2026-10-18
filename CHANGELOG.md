@@ -7,6 +7,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Product tour**: a plain-language walkthrough (spaces, types and records, sequences,
+  events, the workbench, the map, running, account) that starts on a person's first visit
+  once a space exists. It can be skipped, and replayed from **Space settings → Take the
+  product tour**. Completion is stored per account (`users.onboarding_tour_seen`, exposed on
+  `/api/me`, set via `POST /api/me/onboarding`).
 - Repository licensed under **AGPL-3.0-only** (`LICENSE`); README documents contribution /
   CLA intent for a future hosted product.
 - Product editions: **Community** (GitHub/Docker), **Self-hosted** (Fly+Aura wizard on

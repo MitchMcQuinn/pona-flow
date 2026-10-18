@@ -16,6 +16,8 @@ export interface Me {
   canCreateSpaces: boolean;
   /** Preferred IANA timezone for displaying event times; null = show UTC. */
   timezone: string | null;
+  /** Finished or skipped the product tour; false auto-starts it on first visit. */
+  onboardingTourSeen: boolean;
 }
 
 /** A principal's effective permissions in the current space (from /api/space/permissions). */

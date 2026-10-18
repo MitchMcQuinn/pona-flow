@@ -270,7 +270,7 @@ export function ResizableDashboardLayout({
       />
 
       {showConfig ? (
-        <aside ref={configSlotRef} className="layoutConfigSlot" style={{ width: configWidth }}>
+        <aside ref={configSlotRef} className="layoutConfigSlot" data-tour="workbench" style={{ width: configWidth }}>
           {config}
         </aside>
       ) : null}
@@ -286,7 +286,7 @@ export function ResizableDashboardLayout({
       ) : null}
 
       {showVisualization ? (
-        <div ref={vizSlotRef} className="layoutVizSlot">
+        <div ref={vizSlotRef} className="layoutVizSlot" data-tour="canvas">
           {visualization}
         </div>
       ) : null}

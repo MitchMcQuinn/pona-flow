@@ -230,6 +230,10 @@ def _ensure_users_columns(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE users ADD COLUMN timezone TEXT")
     if "display_name" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
+    if "onboarding_tour_seen" not in cols:
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN onboarding_tour_seen INTEGER NOT NULL DEFAULT 0"
+        )
 
 
 def _ensure_space_members_table(conn: sqlite3.Connection) -> None:
@@ -772,6 +776,46 @@ def set_can_create_spaces(principal_id: str, can_create: bool) -> dict[str, Any]
         )
         conn.commit()
         return {"id": pid, "can_create_spaces": bool(can_create)}
+
+
+def get_onboarding_tour_seen(principal_id: str) -> bool:
+    """Whether this principal has finished or skipped the in-app product tour."""
+    pid = (principal_id or "").strip()
+    if not pid:
+        return False
+    with _connection() as conn:
+        _ensure_users_columns(conn)
+        row = conn.execute(
+            "SELECT onboarding_tour_seen FROM users WHERE id = ?", (pid,)
+        ).fetchone()
+        return bool(row and row[0])
+
+
+def onboarding_tour_seen_for(principal_type: str, principal_id: str) -> bool:
+    """The ``/api/me`` flag: agents never get the tour, and a lookup failure must not
+    block sign-in, so both report ``True`` (tour suppressed)."""
+    if principal_type != "user":
+        return True
+    try:
+        return get_onboarding_tour_seen(principal_id)
+    except sqlite3.Error:
+        return True
+
+
+def set_onboarding_tour_seen(principal_id: str, seen: bool) -> dict[str, Any]:
+    """Record that the tour was finished/skipped, or clear it so it shows again."""
+    pid = (principal_id or "").strip()
+    if not pid:
+        raise ValueError("principal_id is required")
+    with _connection() as conn:
+        _ensure_users_columns(conn)
+        conn.execute(
+            "UPDATE users SET onboarding_tour_seen = ?, modified_date = datetime('now') "
+            "WHERE id = ?",
+            (1 if seen else 0, pid),
+        )
+        conn.commit()
+        return {"id": pid, "onboarding_tour_seen": bool(seen)}
 
 
 def set_user_timezone(principal_id: str, timezone: str | None) -> dict[str, Any]:

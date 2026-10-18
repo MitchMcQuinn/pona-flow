@@ -8,11 +8,13 @@ import { ResizableDashboardLayout } from "./components/layout/ResizableDashboard
 import { NavigationPanel } from "./components/NavigationPanel";
 import { TopBar } from "./components/TopBar";
 import { VisualizationPanel } from "./components/VisualizationPanel";
+import { ProductTour } from "./components/tour/ProductTour";
 import {
   fetchAuditLog,
   fetchInFlightRuns,
   fetchSequenceStatus,
   runSequenceExecution,
+  setOnboardingTourSeen,
   stopSequenceExecution,
   updateMySettings,
   type ExecutionFinalResult
@@ -111,6 +113,32 @@ export default function App() {
   const handleLogout = useCallback(() => {
     void signOut();
   }, [signOut]);
+
+  // First visit: start the tour once there's a space to show (a brand-new instance asks for
+  // one first). Cypress specs drive fresh accounts and would be blocked by the overlay.
+  const [tourOpen, setTourOpen] = useState(false);
+  const tourAutoStartedRef = useRef(false);
+  useEffect(() => {
+    if (tourAutoStartedRef.current) return;
+    if (!state.me || state.me.onboardingTourSeen) return;
+    if (showCreateSpaceModal || !state.spaceId) return;
+    if ((window as { Cypress?: unknown }).Cypress) return;
+    tourAutoStartedRef.current = true;
+    setTourOpen(true);
+  }, [state.me, showCreateSpaceModal, state.spaceId]);
+
+  const handleTourClose = useCallback(() => {
+    setTourOpen(false);
+    if (state.me?.onboardingTourSeen) return;
+    dispatch({ type: "ME_ONBOARDING_TOUR_SEEN", seen: true });
+    setOnboardingTourSeen(true).catch(() => undefined);
+  }, [state.me?.onboardingTourSeen]);
+
+  const handleStartTour = useCallback(() => {
+    // Swap the settings panel for the builder so the workbench step shows what it describes.
+    dispatch({ type: "OPEN_BUILDER" });
+    setTourOpen(true);
+  }, []);
 
   const showRunButton = useMemo(() => selectors.showRunButton(state), [state]);
   const canRun = useMemo(() => selectors.canRun(state), [state]);
@@ -698,11 +726,13 @@ export default function App() {
             onDeleteSpace={spacesLifecycle.openDeleteSpaceModal}
             onLoadAuditLog={loadAuditLog}
             onSpacePanelClose={() => dispatch({ type: "SPACE_PANEL_CLOSED" })}
+            onStartTour={handleStartTour}
             executionPackage={composedSequence?.package ?? null}
             composeError={composeError}
           />
         }
       />
+      <ProductTour open={tourOpen} onClose={handleTourClose} />
     </div>
   );
 }

@@ -555,6 +555,11 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         ? { ...state, me: { ...state.me, timezone: event.timezone } }
         : state;
 
+    case "ME_ONBOARDING_TOUR_SEEN":
+      return state.me
+        ? { ...state, me: { ...state.me, onboardingTourSeen: event.seen } }
+        : state;
+
     case "PERMISSIONS_LOADED":
       return { ...state, permissions: event.permissions };
 

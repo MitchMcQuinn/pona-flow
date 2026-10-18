@@ -48,6 +48,7 @@ export type AppEvent =
   | { type: "EVENT_DESELECTED" }
   | { type: "ME_LOADED"; me: Me }
   | { type: "ME_TIMEZONE_UPDATED"; timezone: string | null }
+  | { type: "ME_ONBOARDING_TOUR_SEEN"; seen: boolean }
   | { type: "PERMISSIONS_LOADED"; permissions: SpacePermissions | null }
   | { type: "SPACE_PANEL_OPENED" }
   | { type: "SPACE_PANEL_CLOSED" }

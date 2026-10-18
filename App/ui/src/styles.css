@@ -1887,3 +1887,111 @@ td {
   color: var(--danger, #c0392b);
   font-size: 12px;
 }
+
+/* Product tour */
+.tourRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+}
+.tourBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 6, 10, 0.68);
+}
+.tourSpotlight {
+  position: fixed;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(6, 6, 10, 0.68), 0 0 0 2px var(--accent-soft), var(--mesh-glow);
+  pointer-events: none;
+  transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+.tourCard {
+  position: fixed;
+  width: min(360px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  padding: 18px 20px 16px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--shadow-out), var(--edge-hi);
+  transition: top 0.25s ease, left 0.25s ease;
+}
+.tourCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.tourProgress {
+  font-size: 12px;
+  color: var(--muted);
+}
+.tourSkip {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 2px 4px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.tourSkip:hover {
+  color: var(--text);
+}
+.tourTitle {
+  margin: 0 0 8px;
+  font-size: 17px;
+}
+.tourBody {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.tourBody p {
+  margin: 0 0 10px;
+}
+.tourList {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+.tourList li {
+  margin-bottom: 6px;
+}
+.tourFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+.tourDots {
+  display: flex;
+  gap: 5px;
+}
+.tourDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--raise);
+}
+.tourDot.active {
+  background: var(--accent);
+}
+.tourNav {
+  display: flex;
+  gap: 8px;
+}
+.spaceTourCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.spaceTourCard p {
+  margin: 4px 0 0;
+}

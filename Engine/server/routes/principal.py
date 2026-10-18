@@ -33,7 +33,23 @@ def whoami(principal: Principal = Depends(auth.current_principal)):
         "can_create_spaces": principal.can_create_spaces,
         "timezone": principal.timezone,
         "auth_mode": local_auth.auth_mode(),
+        "onboarding_tour_seen": rbac.onboarding_tour_seen_for(
+            principal.principal_type, principal.user_id
+        ),
     }
+
+
+@router.post("/api/me/onboarding")
+async def update_my_onboarding(
+    request: Request, principal: Principal = Depends(auth.current_principal)
+):
+    """Mark the product tour finished/skipped (``seen: true``) or reset it (``false``)."""
+    body = await json_body(request)
+    seen = body.get("seen")
+    if not isinstance(seen, bool):
+        raise bad_request("seen (boolean) is required")
+    with value_400_domain_500():
+        return rbac.set_onboarding_tour_seen(principal.user_id, seen)
 
 
 @router.post("/api/me/settings")
