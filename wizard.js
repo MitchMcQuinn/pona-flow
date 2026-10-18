@@ -132,7 +132,8 @@
     lines.push("fly secrets set -a \"$APP\" \\");
     lines.push("  NEO4J_URI=" + shellQuote(val("neo4j_uri")) + " \\");
     lines.push("  NEO4J_USER=" + shellQuote(val("neo4j_user") || "neo4j") + " \\");
-    lines.push("  NEO4J_PASSWORD=" + shellQuote(val("neo4j_password")));
+    lines.push("  NEO4J_PASSWORD=" + shellQuote(val("neo4j_password")) + " \\");
+    lines.push("  SQLITE_DATABASE_PATH=data.db");
     if (authMode() === "clerk") {
       lines.push("");
       lines.push("fly secrets set -a \"$APP\" \\");
