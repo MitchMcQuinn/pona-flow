@@ -15,6 +15,12 @@ versions follow [Semantic Versioning](https://semver.org/).
   [wizard](https://mitchmcquinn.github.io/pona-flow/wizard.html) generates deploy commands
   without uploading secrets.
 - `PONA_FLOW_SIGNUP_CAN_CREATE_SPACES` for optional open sign-up deployments.
+- Terminal installer [`scripts/fly-setup.sh`](scripts/fly-setup.sh) replaces the
+  browser form: prompts for Aura / Fly / auth / optional deploy token, then deploys
+  `ghcr.io/mitchmcquinn/pona-flow:main`.
+- Every push to `main` publishes that image (with `PONA_FLOW_BUILD_SHA`). Instance
+  admins see commits since the last deploy in the gear menu and can roll forward
+  when `FLY_API_TOKEN` is set.
 
 ## [0.1.0] - 2026-10-14
 

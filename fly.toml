@@ -1,17 +1,19 @@
 # pona flow on Fly.io — template for the Self-hosted edition.
-# The cloud setup wizard (https://mitchmcquinn.github.io/pona-flow/wizard.html)
-# rewrites app / region / PONA_FLOW_PUBLIC_URL for you. Manual path: Docs/SELF-HOSTING.md
+# The terminal installer (scripts/fly-setup.sh) writes app / region / public URL.
+# Manual path: Docs/SELF-HOSTING.md
 #
 #   fly apps create <your-app>
 #   fly volumes create pona_data --region <region> --size 1
 #   fly secrets set NEO4J_URI=... NEO4J_USER=neo4j NEO4J_PASSWORD=...
-#   fly deploy
+#   fly deploy --image ghcr.io/mitchmcquinn/pona-flow:main
+#
+# Preferred: scripts/fly-setup.sh (prompts, image deploy, optional Fly token).
 
 app = "pona-flow"
 primary_region = "iad"
 
 [build]
-  dockerfile = "Dockerfile"
+  image = "ghcr.io/mitchmcquinn/pona-flow:main"
 
 [env]
   PONA_FLOW_HOST = "0.0.0.0"

@@ -12,6 +12,7 @@ import {
   supportedTimeZones,
   timeZoneLabel
 } from "../services/timezone";
+import { InstanceUpdates } from "./settings/InstanceUpdates";
 
 interface NavigationPanelProps {
   spaces: Array<{ id: string; label: string }>;
@@ -53,6 +54,8 @@ interface NavigationPanelProps {
   userTimezone: string | null;
   onSaveTimezone: (timezone: string) => void;
   onLogout: () => void;
+  /** Instance admin: show main-branch changelog + update in the user menu. */
+  isSuperadmin?: boolean;
   /** Catalog sequence ids with a background run (waiting or active — not HITL pending). */
   inFlightSequenceIds?: string[];
 }
@@ -621,13 +624,15 @@ function UserSettingsFooter({
   userEmail,
   userTimezone,
   onSaveTimezone,
-  onLogout
+  onLogout,
+  isSuperadmin
 }: {
   userName: string | null;
   userEmail: string | null;
   userTimezone: string | null;
   onSaveTimezone: (timezone: string) => void;
   onLogout: () => void;
+  isSuperadmin?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -679,6 +684,7 @@ function UserSettingsFooter({
             </select>
             <span className="navUserMenuHint">Used to show event times in your local time.</span>
           </div>
+          {isSuperadmin ? <InstanceUpdates /> : null}
           <button type="button" className="navUserLogoutBtn" onClick={onLogout}>
             Log out
           </button>
@@ -733,6 +739,7 @@ export function NavigationPanel({
   userTimezone,
   onSaveTimezone,
   onLogout,
+  isSuperadmin = false,
   inFlightSequenceIds = []
 }: NavigationPanelProps) {
   const navSequences = useMemo(
@@ -1135,6 +1142,7 @@ export function NavigationPanel({
         userTimezone={userTimezone}
         onSaveTimezone={onSaveTimezone}
         onLogout={onLogout}
+        isSuperadmin={isSuperadmin}
       />
     </div>
   );

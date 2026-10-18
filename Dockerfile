@@ -59,6 +59,10 @@ RUN useradd --system --uid 10001 --home-dir /data --shell /usr/sbin/nologin pona
 
 USER pona
 
+# Bake the git SHA so Instance settings can compare this process to GitHub main.
+ARG PONA_FLOW_BUILD_SHA=
+ARG PONA_FLOW_GITHUB_REPO=MitchMcQuinn/pona-flow
+
 # PONA_FLOW_DATA_DIR  — where data.db / per-space SQLite / credential .env are written.
 # PONA_FLOW_HOST      — tells the startup guard the listener is not loopback-only, so
 #                       PONA_FLOW_DISABLE_AUTH / DEV_DB_EDITOR_TOKEN are refused here.
@@ -68,6 +72,9 @@ ENV PONA_FLOW_DATA_DIR=/data \
     PONA_FLOW_PORT=8765 \
     PONA_FLOW_CREDENTIAL_BACKEND=local \
     SQLITE_DATABASE_PATH=data.db \
+    PONA_FLOW_BUILD_SHA=$PONA_FLOW_BUILD_SHA \
+    PONA_FLOW_GITHUB_REPO=$PONA_FLOW_GITHUB_REPO \
+    PONA_FLOW_IMAGE=ghcr.io/mitchmcquinn/pona-flow:main \
     FORWARDED_ALLOW_IPS=*
 
 VOLUME ["/data"]

@@ -1096,6 +1096,56 @@ export async function fetchMe(): Promise<Me> {
   return meFromPayload(data);
 }
 
+export type InstanceUpdateCommit = {
+  sha: string;
+  message: string;
+  date: string;
+  url: string;
+};
+
+export type InstanceUpdateStatus = {
+  repo: string;
+  branch: string;
+  current_sha: string;
+  latest_sha: string;
+  behind: boolean;
+  up_to_date: boolean;
+  commits: InstanceUpdateCommit[];
+  can_update: boolean;
+  update_method: "fly" | "manual";
+  fly_token_configured: boolean;
+  fly_app_name: string;
+  image: string;
+  manual_hint: string;
+};
+
+export async function fetchInstanceUpdates(): Promise<InstanceUpdateStatus> {
+  return getJson<InstanceUpdateStatus>(
+    "/api/instance/updates",
+    "Failed to load instance updates",
+    { cache: "no-store" }
+  );
+}
+
+export async function saveInstanceUpdateCredentials(body: {
+  fly_api_token?: string;
+  fly_app_name?: string;
+}): Promise<{ fly_token_configured: boolean; fly_app_name: string }> {
+  return postJson(
+    "/api/instance/updates/credentials",
+    body,
+    "Failed to save Fly deploy credentials"
+  );
+}
+
+export async function applyInstanceUpdate(): Promise<{
+  ok?: boolean;
+  image?: string;
+  machines?: string[];
+}> {
+  return postJson("/api/instance/updates/apply", {}, "Failed to start instance update");
+}
+
 /** Persist the signed-in principal's preferred timezone (null clears it). */
 export async function updateMySettings(settings: {
   timezone: string | null;

@@ -4,7 +4,8 @@ Run your own pona flow instance with Docker. One container for the app, one for 
 your data in two named volumes. Ten minutes from nothing to a signed-in dashboard.
 
 > **Editions:** Community = this Docker / local path. Prefer Fly.io + Aura with a guided
-> script? Use the [self-host wizard](https://mitchmcquinn.github.io/pona-flow/wizard.html).
+> script? Use the [terminal installer](https://mitchmcquinn.github.io/pona-flow/wizard.html)
+> (`scripts/fly-setup.sh`).
 > Hosted (we run it) is coming soon.
 
 ---
@@ -75,6 +76,15 @@ admin. There is nothing else to configure: the app is already pointed at the bun
 docker compose pull
 docker compose up -d
 ```
+
+Fly self-host (after `scripts/fly-setup.sh`):
+
+```bash
+fly deploy --app YOUR_APP --image ghcr.io/mitchmcquinn/pona-flow:main
+```
+
+Every push to `main` publishes that tag. Instance admins can also open the gear menu →
+**Update to latest main** when `FLY_API_TOKEN` was saved at setup (or later in that menu).
 
 Catalog schema migrations run automatically at startup. Your data is in the `pona-data`
 and `neo4j-data` volumes and is untouched by image upgrades. Pin a version with

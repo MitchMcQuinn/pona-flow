@@ -30,7 +30,7 @@ it is not mixed with anyone else's.
 | Edition | How |
 |---------|-----|
 | **Community** (free) | Clone or fork [the GitHub repo](https://github.com/MitchMcQuinn/pona-flow); host with Docker yourself ([SELF-HOSTING.md](SELF-HOSTING.md)). |
-| **Self-hosted** (free) | Use the [cloud setup wizard](https://mitchmcquinn.github.io/pona-flow/wizard.html) for Fly.io + Neo4j Aura (+ optional Clerk). |
+| **Self-hosted** (free) | Run the [terminal installer](https://mitchmcquinn.github.io/pona-flow/wizard.html) for Fly.io + Neo4j Aura (+ optional Clerk). |
 | **Hosted** (paid) | Coming soon — we run app + database + sign-in for you. |
 
 There is no shared public demo: each deployment has its own Neo4j database.

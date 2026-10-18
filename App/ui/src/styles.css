@@ -1107,6 +1107,8 @@ button:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: min(80vh, 640px);
+  overflow: auto;
 }
 
 .navUserMenuHeader {
@@ -1141,6 +1143,63 @@ button:focus-visible {
 .navUserMenuHint {
   font-size: 11px;
   color: var(--muted);
+}
+
+.instanceUpdates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.instanceUpdatesHead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.instanceUpdatesTitle {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.instanceUpdateCommits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 160px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.instanceUpdateCommits li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.instanceUpdateCommits a {
+  color: var(--text);
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.instanceUpdateCommits a:hover {
+  text-decoration: underline;
+}
+
+.instanceUpdateCreds {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.instanceUpdateBtn {
+  width: 100%;
 }
 
 .navUserLogoutBtn {

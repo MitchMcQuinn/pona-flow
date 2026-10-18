@@ -51,6 +51,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            PONA_FLOW_BUILD_SHA=${{ github.sha }}
+            PONA_FLOW_GITHUB_REPO=${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

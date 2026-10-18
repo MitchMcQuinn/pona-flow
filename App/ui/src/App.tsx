@@ -657,6 +657,7 @@ export default function App() {
             userTimezone={state.me?.timezone ?? null}
             onSaveTimezone={handleSaveTimezone}
             onLogout={handleLogout}
+            isSuperadmin={Boolean(state.me?.isSuperadmin)}
             inFlightSequenceIds={navActivitySequenceIds(state.inFlight)}
           />
         }

@@ -11,7 +11,7 @@ Landing: [https://mitchmcquinn.github.io/pona-flow/](https://mitchmcquinn.github
 | Edition | Price | What you get |
 |---------|-------|--------------|
 | **Community** | Free | This repo. You host the app and Neo4j (Docker locally or your own server). |
-| **Self-hosted** | Free | [Cloud setup wizard](https://mitchmcquinn.github.io/pona-flow/wizard.html): your Fly.io app + your Neo4j Aura DB (+ optional Clerk). Secrets never leave your browser. |
+| **Self-hosted** | Free | [Terminal installer](https://mitchmcquinn.github.io/pona-flow/wizard.html): your Fly.io app + your Neo4j Aura DB (+ optional Clerk). Deploys the latest `main` image. |
 | **Hosted** | Paid · coming soon | We provision app + database + sign-in for a monthly subscription. |
 
 There is **no shared public sandbox** — every deployment has its own Neo4j so schema names cannot collide across customers.
@@ -30,7 +30,12 @@ Full guide: [Docs/SELF-HOSTING.md](Docs/SELF-HOSTING.md). Dev from source: [Docs
 
 ### Self-hosted (Fly + Aura)
 
-Open the [wizard](https://mitchmcquinn.github.io/pona-flow/wizard.html), paste Aura + Fly details, copy the generated script, run it. Template: [`fly.toml`](fly.toml).
+```bash
+curl -fsSL https://raw.githubusercontent.com/MitchMcQuinn/pona-flow/main/scripts/fly-setup.sh -o pona-flow-fly-setup.sh
+bash pona-flow-fly-setup.sh
+```
+
+The script prompts for Aura, Fly, sign-in, and an optional deploy token (so Instance settings can pull later `main` images). Walkthrough: [wizard page](https://mitchmcquinn.github.io/pona-flow/wizard.html). Template: [`fly.toml`](fly.toml).
 
 **Learn the model:** [Docs/5-MINUTE-ARCHITECTURE.md](Docs/5-MINUTE-ARCHITECTURE.md) ·
 [Docs/WHY-PONA-FLOW.md](Docs/WHY-PONA-FLOW.md) · [Docs/PITCH.md](Docs/PITCH.md) ·

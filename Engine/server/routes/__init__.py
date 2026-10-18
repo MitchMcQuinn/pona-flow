@@ -25,6 +25,7 @@ from . import (
     spaces,
     static_ui,
     templates,
+    updates,
     webhooks,
 )
 
@@ -44,6 +45,7 @@ ALL_ROUTERS = (
     credentials.router,
     templates.router,
     embeddings.router,
+    updates.router,
     regex.router,
     db_editor.router,
     static_ui.router,
