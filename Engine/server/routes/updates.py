@@ -31,6 +31,11 @@ def instance_updates(_p: Principal = Depends(auth.require_instance_admin)):
         raise _upstream(e) from e
 
 
+@router.get("/api/instance/version")
+def instance_version(_p: Principal = Depends(auth.require_instance_admin)):
+    return updates.version_payload()
+
+
 @router.post("/api/instance/updates/credentials")
 async def instance_update_credentials(
     request: Request, _p: Principal = Depends(auth.require_instance_admin)

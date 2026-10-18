@@ -35,6 +35,47 @@ class InstanceUpdatesTest(unittest.TestCase):
         )
         env.start()
         self.addCleanup(env.stop)
+        updates.clear_github_cache()
+        self.addCleanup(updates.clear_github_cache)
+
+    def test_status_reuses_cached_github_answers(self) -> None:
+        calls: list[str] = []
+        sha = os.environ["PONA_FLOW_BUILD_SHA"]
+
+        def http_get(url: str, _headers: dict[str, str]):
+            calls.append(url)
+            return 200, {"sha": sha, "commit": {"message": "same"}, "html_url": ""}
+
+        updates.status_payload(http_get=http_get)
+        updates.status_payload(http_get=http_get)
+        self.assertEqual(len(calls), 1)
+
+    def test_rate_limit_serves_stale_answer(self) -> None:
+        sha = os.environ["PONA_FLOW_BUILD_SHA"]
+        updates.status_payload(
+            http_get=lambda *_: (200, {"sha": sha, "commit": {"message": "x"}, "html_url": ""})
+        )
+        with patch.object(updates, "GITHUB_CACHE_TTL_S", 0):
+            payload = updates.status_payload(
+                http_get=lambda *_: (403, {"message": "API rate limit exceeded for 1.2.3.4."})
+            )
+        self.assertIsNone(payload["github_error"])
+        self.assertTrue(payload["up_to_date"])
+
+    def test_rate_limit_without_cache_still_allows_update(self) -> None:
+        with patch.dict(os.environ, {"PONA_FLOW_GITHUB_TOKEN": ""}):
+            payload = updates.status_payload(
+                http_get=lambda *_: (403, {"message": "API rate limit exceeded for 1.2.3.4."})
+            )
+        self.assertIn("hourly limit", payload["github_error"])
+        self.assertIn("PONA_FLOW_GITHUB_TOKEN", payload["github_error"])
+        self.assertEqual(payload["latest_sha"], "")
+        self.assertTrue(payload["can_update"])
+
+    def test_version_payload_is_cheap(self) -> None:
+        payload = updates.version_payload()
+        self.assertEqual(payload["build_sha"], os.environ["PONA_FLOW_BUILD_SHA"])
+        self.assertIsInstance(payload["started_at"], float)
 
     def test_status_behind_lists_compare_commits(self) -> None:
         latest = "bbb2222newsha00000000000000000000000000"

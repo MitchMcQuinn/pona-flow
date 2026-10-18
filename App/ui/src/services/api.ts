@@ -1120,6 +1120,9 @@ export type InstanceUpdateStatus = {
   fly_app_name: string;
   image: string;
   manual_hint: string;
+  /** Set when GitHub couldn't be read (e.g. rate limited); updating still works. */
+  github_error: string | null;
+  started_at: number;
 };
 
 export async function fetchInstanceUpdates(): Promise<InstanceUpdateStatus> {
@@ -1128,6 +1131,15 @@ export async function fetchInstanceUpdates(): Promise<InstanceUpdateStatus> {
     "Failed to load instance updates",
     { cache: "no-store" }
   );
+}
+
+export type InstanceVersion = { build_sha: string; started_at: number };
+
+/** The running build — cheap, never calls GitHub; polled while an update restarts the app. */
+export async function fetchInstanceVersion(): Promise<InstanceVersion> {
+  return getJson<InstanceVersion>("/api/instance/version", "Failed to load instance version", {
+    cache: "no-store"
+  });
 }
 
 export async function saveInstanceUpdateCredentials(body: {

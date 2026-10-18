@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -25,6 +27,55 @@ FLY_MACHINES_API = "https://api.machines.dev/v1"
 
 HttpGet = Callable[[str, dict[str, str]], tuple[int, Any]]
 HttpPost = Callable[[str, dict[str, str], dict[str, Any]], tuple[int, Any]]
+
+# Unauthenticated GitHub API calls are limited to 60/hour per IP, and Fly apps share
+# outbound IPs — so answers are reused for a few minutes and kept as a fallback.
+GITHUB_CACHE_TTL_S = 300
+_github_cache: dict[str, tuple[float, Any]] = {}
+_github_cache_lock = threading.Lock()
+
+STARTED_AT = time.time()
+
+
+class GitHubUnavailable(RuntimeError):
+    """GitHub refused or failed; the message is safe to show an instance admin."""
+
+
+def clear_github_cache() -> None:
+    with _github_cache_lock:
+        _github_cache.clear()
+
+
+def _github_error_message(repo: str, status: int, body: Any) -> str:
+    message = str(body.get("message") or "") if isinstance(body, dict) else ""
+    if status in (403, 429) and ("rate limit" in message.lower() or status == 429):
+        hint = (
+            "" if os.environ.get("PONA_FLOW_GITHUB_TOKEN")
+            else " Set PONA_FLOW_GITHUB_TOKEN to a GitHub token for a much higher limit."
+        )
+        return (
+            "GitHub's hourly limit for update checks was reached (hosting providers share "
+            f"network addresses, so other apps count too). Try again later.{hint}"
+        )
+    return f"Could not read {repo} from GitHub (HTTP {status})."
+
+
+def _github_get(url: str, http_get: HttpGet) -> Any:
+    """GET a GitHub API URL with a short cache; serve the last good answer if GitHub refuses."""
+    now = time.time()
+    with _github_cache_lock:
+        cached = _github_cache.get(url)
+    if cached and now - cached[0] < GITHUB_CACHE_TTL_S:
+        return cached[1]
+    status, body = http_get(url, _github_headers())
+    if status == 200:
+        with _github_cache_lock:
+            _github_cache[url] = (now, body)
+        return body
+    if cached:
+        log.info("github %s returned HTTP %s; serving cached answer", url, status)
+        return cached[1]
+    raise GitHubUnavailable(_github_error_message(github_repo(), status, body))
 
 
 def github_repo() -> str:
@@ -123,9 +174,9 @@ def fetch_branch_tip(http_get: HttpGet = _http_get) -> dict[str, Any]:
     repo = github_repo()
     branch = track_branch()
     url = f"{GITHUB_API}/repos/{repo}/commits/{urllib.parse.quote(branch)}"
-    status, body = http_get(url, _github_headers())
-    if status != 200 or not isinstance(body, dict):
-        raise RuntimeError(f"Could not read {repo}@{branch} from GitHub (HTTP {status}).")
+    body = _github_get(url, http_get)
+    if not isinstance(body, dict):
+        raise GitHubUnavailable(f"Could not read {repo}@{branch} from GitHub.")
     return body
 
 
@@ -148,28 +199,45 @@ def fetch_commits_since(
             f"{GITHUB_API}/repos/{repo}/compare/"
             f"{urllib.parse.quote(current_sha)}...{urllib.parse.quote(branch)}"
         )
-        status, body = http_get(url, _github_headers())
-        if status == 200 and isinstance(body, dict):
+        try:
+            body = _github_get(url, http_get)
+        except GitHubUnavailable as e:
+            log.info("github compare %s...%s failed (%s); listing branch", current_sha, branch, e)
+            body = None
+        if isinstance(body, dict):
             raw = body.get("commits") if isinstance(body.get("commits"), list) else []
             commits = [_commit_payload(c) for c in raw if isinstance(c, dict)]
             return latest, commits[-50:]
-        log.info("github compare %s...%s returned HTTP %s; listing branch", current_sha, branch, status)
     list_url = f"{GITHUB_API}/repos/{repo}/commits?sha={urllib.parse.quote(branch)}&per_page=20"
-    status, body = http_get(list_url, _github_headers())
-    if status != 200 or not isinstance(body, list):
-        raise RuntimeError(f"Could not list commits for {repo}@{branch} (HTTP {status}).")
+    body = _github_get(list_url, http_get)
+    if not isinstance(body, list):
+        raise GitHubUnavailable(f"Could not list commits for {repo}@{branch}.")
     commits = [_commit_payload(c) for c in body if isinstance(c, dict)]
     return latest, commits
 
 
+def version_payload() -> dict[str, Any]:
+    """Cheap identity of the running process — polled while an update rolls out."""
+    return {"build_sha": build_sha(), "started_at": STARTED_AT}
+
+
 def status_payload(http_get: HttpGet = _http_get) -> dict[str, Any]:
     current = build_sha()
-    latest, commits = fetch_commits_since(current, http_get=http_get)
+    github_error: str | None = None
+    try:
+        latest, commits = fetch_commits_since(current, http_get=http_get)
+    except GitHubUnavailable as e:
+        # Still let the admin update: the :main image doesn't depend on GitHub's API.
+        log.warning("instance updates: %s", e)
+        github_error = str(e)
+        latest, commits = "", []
     up_to_date = bool(current) and _sha_matches(current, latest)
     token = fly_api_token()
     app = fly_app_name()
     can_update = bool(token and app and not up_to_date)
     return {
+        "github_error": github_error,
+        "started_at": STARTED_AT,
         "repo": github_repo(),
         "branch": track_branch(),
         "current_sha": current,

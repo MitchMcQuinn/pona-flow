@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   applyInstanceUpdate,
   fetchInstanceUpdates,
+  fetchInstanceVersion,
   saveInstanceUpdateCredentials,
-  type InstanceUpdateStatus
+  type InstanceUpdateStatus,
+  type InstanceVersion
 } from "../../services/api";
 
 function shortSha(sha: string): string {
@@ -13,6 +15,7 @@ function shortSha(sha: string): string {
 export function InstanceUpdates() {
   const [status, setStatus] = useState<InstanceUpdateStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -56,29 +59,42 @@ export function InstanceUpdates() {
   }
 
   async function apply() {
+    const before = status;
     setUpdating(true);
     setError(null);
+    setNotice(null);
     try {
       await applyInstanceUpdate();
     } catch {
       // The process often restarts mid-request; treat disconnect as in-progress.
     }
-    const deadline = Date.now() + 120_000;
+    // Poll the cheap version endpoint (not GitHub) until the restarted process answers.
+    const deadline = Date.now() + 180_000;
+    let restarted: InstanceVersion | null = null;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 3000));
       try {
-        const next = await fetchInstanceUpdates();
-        setStatus(next);
-        if (next.up_to_date) {
-          setUpdating(false);
-          return;
+        const version = await fetchInstanceVersion();
+        if (!before || version.started_at !== before.started_at) {
+          restarted = version;
+          break;
         }
       } catch {
         /* still restarting */
       }
     }
     setUpdating(false);
-    setError("Update started. Reload this page in a minute if the version has not changed.");
+    if (!restarted) {
+      setNotice("Update requested. Reload this page in a minute if the version hasn't changed.");
+      return;
+    }
+    if (before && restarted.build_sha === before.current_sha) {
+      setNotice(
+        "Restarted, but the newest version isn't published yet — it's usually ready 5–10 " +
+          "minutes after a change lands on main. Try again shortly."
+      );
+    }
+    await load();
   }
 
   const headline = !status
@@ -101,6 +117,8 @@ export function InstanceUpdates() {
       </div>
       {loading ? <p className="navUserMenuHint">Checking GitHub…</p> : null}
       {error ? <p className="errorText">{error}</p> : null}
+      {status?.github_error ? <p className="navUserMenuHint">{status.github_error}</p> : null}
+      {notice ? <p className="navUserMenuHint">{notice}</p> : null}
       {status && status.commits.length > 0 ? (
         <ul className="instanceUpdateCommits">
           {status.commits.map((commit) => (

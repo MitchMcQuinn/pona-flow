@@ -36,6 +36,15 @@ versions follow [Semantic Versioning](https://semver.org/).
   admins see commits since the last deploy in the gear menu and can roll forward
   when `FLY_API_TOKEN` is set.
 
+### Fixed
+
+- **Instance updates** no longer burn through GitHub's 60-requests-per-hour limit (shared
+  by every app on a host's outbound IP): answers are cached for 5 minutes, the last good
+  answer is reused when GitHub refuses, and the post-update wait polls the new
+  `/api/instance/version` instead of GitHub. If GitHub can't be reached the menu explains
+  why and the **Update** button still works. If the restarted app is still on the old
+  version, the menu says the new image is probably still being built.
+
 ## [0.1.0] - 2026-10-14
 
 First public, self-hostable release.
