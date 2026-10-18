@@ -58,6 +58,13 @@ class HardeningTest(unittest.TestCase):
                 config.sqlite_path_for_env_key("SPACE_DB"), self.data_dir / "spaces" / "alpha.db"
             )
 
+    def test_space_sqlite_falls_back_like_catalog_when_unset(self) -> None:
+        # Fly/Docker often set only NEO4J_*; space ops must not require SQLITE_DATABASE_PATH.
+        path = config.sqlite_path_for_env_key(
+            "MISSING_SPACE_SQLITE", fallback_key="SQLITE_DATABASE_PATH"
+        )
+        self.assertEqual(path, self.data_dir / "data.db")
+
     # --- /healthz ------------------------------------------------------------------
 
     def test_healthz_is_unauthenticated_and_reports_catalog(self) -> None:

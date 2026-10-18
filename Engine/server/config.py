@@ -243,8 +243,22 @@ def env_value(env_key_name: str, fallback_key: str | None = None) -> str:
 
 
 def sqlite_path_for_env_key(env_key_name: str, fallback_key: str | None = None) -> Path:
-    """Resolve a SQLite file path from an .env key (absolute or relative to the data dir)."""
-    raw = env_value(env_key_name, fallback_key=fallback_key)
+    """Resolve a SQLite file path from an .env key (absolute or relative to the data dir).
+
+    When neither a space override nor ``SQLITE_DATABASE_PATH`` is set, use
+    ``<data_dir>/data.db`` — the same zero-config default as :func:`catalog_sqlite_path`.
+    Without this, Fly/Docker instances that only set Neo4j secrets can sign in and
+    create spaces, then fail on SCHEMA/INSTANCE work with
+    ``.env key 'SQLITE_DATABASE_PATH' is not set``.
+    """
+    try:
+        raw = env_value(env_key_name, fallback_key=fallback_key)
+    except KeyError:
+        primary = (env_key_name or "").strip()
+        fallback = (fallback_key or "").strip()
+        if primary == DEFAULT_CATALOG_SQLITE_ENV_KEY or fallback == DEFAULT_CATALOG_SQLITE_ENV_KEY:
+            return data_dir() / DEFAULT_CATALOG_SQLITE_FILENAME
+        raise
     p = Path(raw).expanduser()
     return p if p.is_absolute() else data_dir() / p
 
@@ -263,10 +277,7 @@ def catalog_sqlite_path() -> Path:
     Falls back to ``<data_dir>/data.db`` when the configured key is unset, so a
     zero-configuration start (container, first clone) works without editing ``.env``.
     """
-    try:
-        return sqlite_path_for_env_key(catalog_sqlite_env_key())
-    except KeyError:
-        return data_dir() / DEFAULT_CATALOG_SQLITE_FILENAME
+    return sqlite_path_for_env_key(catalog_sqlite_env_key())
 
 
 def connect_sqlite(path: Path) -> sqlite3.Connection:

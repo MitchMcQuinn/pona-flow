@@ -17,6 +17,8 @@ primary_region = "iad"
   PONA_FLOW_HOST = "0.0.0.0"
   PONA_FLOW_PORT = "8765"
   PONA_FLOW_DATA_DIR = "/data"
+  # Relative to PONA_FLOW_DATA_DIR — catalog + default space SQLite (entities / SCHEMA UI).
+  SQLITE_DATABASE_PATH = "data.db"
   PONA_FLOW_AUTH_MODE = "local"
   PONA_FLOW_ALLOW_OPEN_SIGNUP = "0"
   PONA_FLOW_SIGNUP_CAN_CREATE_SPACES = "0"
