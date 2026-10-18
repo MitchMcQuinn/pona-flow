@@ -57,6 +57,12 @@ import {
   useRelCard,
   type RelCardProps
 } from "./shared";
+import { TouchHint } from "../../TouchHint";
+
+const DEPTH_HINT =
+  "single hop: matches exactly one relationship. range: variable-length traversal " +
+  `(*min..max) following this relationship type up to ${MAX_TRAVERSAL_DEPTH} hops; ` +
+  "empty max = unbounded. min 0 includes the anchor node itself.";
 
 // ---- update SCHEMA / STEP: edit the selected relationship's config payload (SQLite-only) ----
 export function ConfigUpdateRelCard(props: RelCardProps) {
@@ -462,6 +468,12 @@ export function MatchRelCard(props: RelCardProps) {
     pathIndex
   );
   const hopMode: HopMode = forcedMode ?? relationshipHopMode(relationship);
+  const hopModeHint =
+    forcedMode === "optional"
+      ? "An earlier hop in this path is optional, so this hop is optional too."
+      : forcedMode === "absent"
+        ? "An earlier hop in this path must not exist, so this hop is part of that excluded pattern."
+        : "required: anchor nodes must have this hop. optional: anchor nodes without this hop are still matched (OPTIONAL MATCH). must not exist: only anchor nodes WITHOUT this hop are matched (NOT EXISTS).";
   // Depth (variable-length traversal): match SCHEMA/INSTANCE hops in required mode
   // only — optional/absent hops keep the OPTIONAL MATCH / NOT EXISTS splitting
   // logic untouched, and STEP paths need concrete single hops.
@@ -537,16 +549,7 @@ export function MatchRelCard(props: RelCardProps) {
       ) : null}
 
       {showHopMode ? (
-        <div
-          className="builderAddFiltersRow"
-          title={
-            forcedMode === "optional"
-              ? "An earlier hop in this path is optional, so this hop is optional too."
-              : forcedMode === "absent"
-                ? "An earlier hop in this path must not exist, so this hop is part of that excluded pattern."
-                : "required: anchor nodes must have this hop. optional: anchor nodes without this hop are still matched (OPTIONAL MATCH). must not exist: only anchor nodes WITHOUT this hop are matched (NOT EXISTS)."
-          }
-        >
+        <div className="builderAddFiltersRow" title={hopModeHint}>
           <label className="builderToggleLabel">
             hop mode{" "}
             <select
@@ -580,18 +583,12 @@ export function MatchRelCard(props: RelCardProps) {
               <option value="absent">must not exist</option>
             </select>
           </label>
+          <TouchHint text={hopModeHint} />
         </div>
       ) : null}
 
       {showDepth ? (
-        <div
-          className="builderAddFiltersRow"
-          title={
-            "single hop: matches exactly one relationship. range: variable-length traversal " +
-            `(*min..max) following this relationship type up to ${MAX_TRAVERSAL_DEPTH} hops; ` +
-            "empty max = unbounded. min 0 includes the anchor node itself."
-          }
-        >
+        <div className="builderAddFiltersRow" title={DEPTH_HINT}>
           <label className="builderToggleLabel">
             depth{" "}
             <select
@@ -646,6 +643,7 @@ export function MatchRelCard(props: RelCardProps) {
               </label>
             </>
           ) : null}
+          <TouchHint text={DEPTH_HINT} />
         </div>
       ) : null}
 

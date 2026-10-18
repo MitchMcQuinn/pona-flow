@@ -7,6 +7,15 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Phones and tablets**: on phones the app shows one screen at a time — Menu, Workbench,
+  or Map — switched from a bottom tab bar, and follows you to the right one (pick a
+  sequence → Workbench; a finished run → Map). On tablets the menu slides out from the
+  ☰ button. Larger tap targets, always-visible row actions, a **Reorder** mode with
+  up/down buttons in place of drag-and-drop, pinch-to-zoom, **Fit** and **Link dots**
+  controls on graphs, bottom-sheet dialogs, and side-scrolling tables. The product tour
+  adapts too: on phones it switches screens for you and its card swipes between steps.
+  The desktop layout is unchanged; the new graph buttons (zoom, Fit, Link dots) appear
+  there too.
 - **Product tour**: a plain-language walkthrough (spaces, types and records, sequences,
   events, the workbench, the map, running, account) that starts on a person's first visit
   once a space exists. It can be skipped, and replayed from **Space settings → Take the

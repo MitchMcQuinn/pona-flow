@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import type { MobilePane } from "../layout/ResizableDashboardLayout";
+import type { ViewportMode } from "../../hooks/useViewport";
 
 export interface TourStep {
   id: string;
@@ -8,6 +10,17 @@ export interface TourStep {
   body: ReactNode;
   /** Shown instead of `body` when the target isn't on screen right now. */
   missingBody?: ReactNode;
+  /** Screen that must be showing on phones (tab) / tablets ("menu" = drawer open). */
+  pane?: MobilePane;
+  /** Phones only: spotlight this instead of `target`, and say `phoneBody` instead. */
+  phoneTarget?: string;
+  phoneBody?: ReactNode;
+  /** Only include the step at these screen sizes. */
+  only?: ViewportMode[];
+}
+
+export function tourStepsFor(mode: ViewportMode): TourStep[] {
+  return TOUR_STEPS.filter((step) => !step.only || step.only.includes(mode));
 }
 
 export const TOUR_STEPS: TourStep[] = [
@@ -55,7 +68,34 @@ export const TOUR_STEPS: TourStep[] = [
     )
   },
   {
+    id: "phone-tabs",
+    only: ["phone"],
+    target: "mobile-tabs",
+    title: "One screen at a time",
+    body: (
+      <p>
+        On a phone, pona flow shows one screen at a time. Use these tabs to switch between the{" "}
+        <strong>Menu</strong> (spaces, sequences and events), the <strong>Workbench</strong>{" "}
+        (where you create and edit) and the <strong>Map</strong> (a picture of how things
+        connect).
+      </p>
+    )
+  },
+  {
+    id: "tablet-menu",
+    only: ["tablet"],
+    target: "nav-toggle",
+    title: "Your menu",
+    body: (
+      <p>
+        Your spaces, sequences and events live in a menu that slides out from here. Tap it any
+        time to open or close it.
+      </p>
+    )
+  },
+  {
     id: "space",
+    pane: "menu",
     target: "space-picker",
     title: "Spaces keep work separate",
     body: (
@@ -68,6 +108,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: "space-settings",
+    pane: "menu",
     target: "space-settings",
     title: "Settings for this space",
     body: (
@@ -81,18 +122,20 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: "sequences",
+    pane: "menu",
     target: "sequences",
     title: "Sequences are your routines",
     body: (
       <p>
         Each sequence is a set of steps pona flow follows in order: look something up, save a
-        record, ask someone a question, wait a while, or talk to another service. Click a
+        record, ask someone a question, wait a while, or talk to another service. Choose a
         sequence to see it, or press <strong>+</strong> to build a new one.
       </p>
     )
   },
   {
     id: "events",
+    pane: "menu",
     target: "events",
     title: "Events run things for you",
     body: (
@@ -105,7 +148,16 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: "workbench",
+    pane: "workbench",
     target: "workbench",
+    phoneTarget: "mobile-tab-workbench",
+    phoneBody: (
+      <p>
+        The <strong>Workbench</strong> tab is where you create and edit: describe new types, add
+        records, and put steps together into sequences. When a sequence needs information from
+        you while it runs, its questions show up here too.
+      </p>
+    ),
     title: "This is your workbench",
     body: (
       <p>
@@ -124,19 +176,29 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: "canvas",
+    pane: "map",
     target: "canvas",
+    phoneTarget: "mobile-tab-map",
+    phoneBody: (
+      <p>
+        The <strong>Map</strong> tab draws your work as a picture: dots are things and lines show
+        how they connect. Open a sequence to see its steps, or run one to see what it produced.
+        Pinch to zoom, and tap any dot to change it. A small dot on the tab means something new
+        is waiting there.
+      </p>
+    ),
     title: "See how everything connects",
     body: (
       <p>
         This area draws your work as a map: dots are things and lines show how they connect.
-        Open a sequence to see its steps, or run one to see what it produced. Click any dot to
+        Open a sequence to see its steps, or run one to see what it produced. Select any dot to
         change it.
       </p>
     ),
     missingBody: (
       <p>
         When you open a sequence or run one, a map appears on screen: dots are things and lines
-        show how they connect. Click any dot to change it.
+        show how they connect. Select any dot to change it.
       </p>
     )
   },
@@ -154,6 +216,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: "account",
+    pane: "menu",
     target: "account",
     title: "Your account",
     body: (

@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { TouchHint } from "./TouchHint";
 
 export interface SegmentOption<T extends string> {
   value: T;
@@ -28,8 +29,10 @@ export function SegmentToggle<T extends string>({
     0,
     options.findIndex((option) => option.value === value)
   );
+  const disabledReasons = options.filter((o) => o.disabled && o.title).map((o) => o.title);
 
   return (
+    <>
     <div
       className="builderSegmentToggle"
       role="radiogroup"
@@ -61,5 +64,9 @@ export function SegmentToggle<T extends string>({
         </button>
       ))}
     </div>
+    {disabledReasons.map((reason) => (
+      <TouchHint key={reason} text={reason} />
+    ))}
+    </>
   );
 }

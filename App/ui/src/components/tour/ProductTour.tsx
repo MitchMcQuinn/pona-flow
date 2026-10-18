@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { TOUR_STEPS } from "./tourSteps";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { MobilePane } from "../layout/ResizableDashboardLayout";
+import type { ViewportMode } from "../../hooks/useViewport";
+import { tourStepsFor } from "./tourSteps";
 
 const SPOTLIGHT_PAD = 6;
 const VIEWPORT_MARGIN = 12;
 const CARD_GAP = 14;
+const SWIPE_MIN_PX = 50;
+/** Longer than the tablet drawer's slide so the spotlight lands on its final position. */
+const PANE_SETTLE_MS = 280;
 
 interface Box {
   top: number;
@@ -11,6 +16,8 @@ interface Box {
   width: number;
   height: number;
 }
+
+type CardPos = { top: number; left: number } | { sheet: "top" | "bottom" };
 
 function findTarget(target: string | undefined): HTMLElement | null {
   if (!target) return null;
@@ -32,7 +39,7 @@ function measure(el: HTMLElement | null): Box | null {
 }
 
 /** Put the card on whichever side of the spotlight has room, clamped to the viewport. */
-function placeCard(spot: Box | null, card: { width: number; height: number }) {
+function placeCard(spot: Box | null, card: { width: number; height: number }): CardPos {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const clampX = (x: number) =>
@@ -66,63 +73,89 @@ function placeCard(spot: Box | null, card: { width: number; height: number }) {
   return { top: clampY(midY), left: clampX(midX) };
 }
 
+/** Phones: a full-width sheet on the opposite half of the screen from the spotlight. */
+function placeSheet(spot: Box | null): CardPos {
+  if (!spot) return { sheet: "bottom" };
+  return { sheet: spot.top + spot.height / 2 > window.innerHeight / 2 ? "top" : "bottom" };
+}
+
 interface ProductTourProps {
   open: boolean;
   onClose: () => void;
+  mode?: ViewportMode;
+  /** Bring a step's screen into view (phone tab / tablet drawer); null = leave as is. */
+  onShowPane?: (pane: MobilePane | null) => void;
 }
 
-export function ProductTour({ open, onClose }: ProductTourProps) {
+export function ProductTour({ open, onClose, mode = "desktop", onShowPane }: ProductTourProps) {
+  const steps = useMemo(() => tourStepsFor(mode), [mode]);
   const [index, setIndex] = useState(0);
   const [spot, setSpot] = useState<Box | null>(null);
-  const [cardPos, setCardPos] = useState<{ top: number; left: number } | null>(null);
+  const [cardPos, setCardPos] = useState<CardPos | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
 
-  const step = TOUR_STEPS[index];
-  const isFirst = index === 0;
-  const isLast = index === TOUR_STEPS.length - 1;
+  const isPhone = mode === "phone";
+  const safeIndex = Math.min(index, steps.length - 1);
+  const step = steps[safeIndex];
+  const isFirst = safeIndex === 0;
+  const isLast = safeIndex === steps.length - 1;
+  const target = isPhone && step?.phoneTarget ? step.phoneTarget : step?.target;
 
   useEffect(() => {
     if (open) setIndex(0);
   }, [open]);
 
   const relayout = useCallback(() => {
-    const el = findTarget(step?.target);
-    const nextSpot = measure(el);
+    const nextSpot = measure(findTarget(target));
     setSpot(nextSpot);
     const card = cardRef.current;
-    if (card) {
+    if (isPhone) {
+      setCardPos(placeSheet(nextSpot));
+    } else if (card) {
       setCardPos(placeCard(nextSpot, { width: card.offsetWidth, height: card.offsetHeight }));
     }
-  }, [step]);
+  }, [target, isPhone]);
 
   useLayoutEffect(() => {
     if (!open || !step) return;
-    findTarget(step.target)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    onShowPane?.(step.pane ?? null);
+    findTarget(target)?.scrollIntoView({ block: "nearest", inline: "nearest" });
     relayout();
+    // Switching panes re-renders the app after this effect; measure again once it settles.
+    const raf = window.requestAnimationFrame(relayout);
+    const settle = window.setTimeout(relayout, PANE_SETTLE_MS);
     // The panels load content asynchronously, so keep following size/position changes.
     const observer = new ResizeObserver(() => relayout());
     observer.observe(document.body);
     if (cardRef.current) observer.observe(cardRef.current);
-    const target = findTarget(step.target);
-    if (target) observer.observe(target);
+    const el = findTarget(target);
+    if (el) observer.observe(el);
     window.addEventListener("resize", relayout);
     window.addEventListener("scroll", relayout, true);
     return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(settle);
       observer.disconnect();
       window.removeEventListener("resize", relayout);
       window.removeEventListener("scroll", relayout, true);
     };
-  }, [open, step, relayout]);
+  }, [open, step, target, relayout, onShowPane]);
 
   useEffect(() => {
-    if (open) primaryRef.current?.focus();
-  }, [open, index]);
+    if (open) primaryRef.current?.focus({ preventScroll: true });
+  }, [open, safeIndex]);
+
+  const close = useCallback(() => {
+    onShowPane?.(null);
+    onClose();
+  }, [onClose, onShowPane]);
 
   const next = useCallback(() => {
-    if (isLast) onClose();
+    if (isLast) close();
     else setIndex((i) => i + 1);
-  }, [isLast, onClose]);
+  }, [isLast, close]);
   const back = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
 
   useEffect(() => {
@@ -130,7 +163,7 @@ export function ProductTour({ open, onClose }: ProductTourProps) {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        close();
       } else if (event.key === "ArrowRight") {
         event.preventDefault();
         next();
@@ -141,11 +174,19 @@ export function ProductTour({ open, onClose }: ProductTourProps) {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, next, back, onClose]);
+  }, [open, next, back, close]);
 
   if (!open || !step) return null;
 
-  const body = step.target && !spot && step.missingBody ? step.missingBody : step.body;
+  const stepBody = isPhone && step.phoneBody ? step.phoneBody : step.body;
+  const body = step.target && !spot && step.missingBody ? step.missingBody : stepBody;
+
+  const sheet = cardPos && "sheet" in cardPos ? cardPos.sheet : isPhone ? "bottom" : null;
+  const cardStyle: React.CSSProperties | undefined = sheet
+    ? undefined
+    : cardPos && "top" in cardPos
+      ? { top: cardPos.top, left: cardPos.left }
+      : { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
 
   return (
     <div className="tourRoot" data-testid="product-tour">
@@ -159,27 +200,36 @@ export function ProductTour({ open, onClose }: ProductTourProps) {
       )}
       <div
         ref={cardRef}
-        className="tourCard"
+        className={`tourCard${sheet ? ` tourCardSheet tourCardSheet-${sheet}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="tour-title"
-        style={
-          cardPos
-            ? { top: cardPos.top, left: cardPos.left }
-            : { top: "50%", left: "50%", transform: "translate(-50%, -50%)" }
-        }
+        data-testid="tour-card"
+        data-sheet={sheet ?? undefined}
+        style={cardStyle}
+        onPointerDown={(e) => {
+          if (e.pointerType !== "mouse") swipeStart.current = { x: e.clientX, y: e.clientY };
+        }}
+        onPointerUp={(e) => {
+          const start = swipeStart.current;
+          swipeStart.current = null;
+          if (!start) return;
+          const dx = e.clientX - start.x;
+          const dy = e.clientY - start.y;
+          if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+          if (dx < 0) next();
+          else back();
+        }}
+        onPointerCancel={() => {
+          swipeStart.current = null;
+        }}
       >
         <div className="tourCardHead">
           <span className="tourProgress">
-            {index + 1} of {TOUR_STEPS.length}
+            {safeIndex + 1} of {steps.length}
           </span>
           {!isLast ? (
-            <button
-              type="button"
-              className="tourSkip"
-              data-testid="tour-skip"
-              onClick={onClose}
-            >
+            <button type="button" className="tourSkip" data-testid="tour-skip" onClick={close}>
               Skip tour
             </button>
           ) : null}
@@ -190,13 +240,13 @@ export function ProductTour({ open, onClose }: ProductTourProps) {
         <div className="tourBody">{body}</div>
         <div className="tourFooter">
           <div className="tourDots" aria-hidden="true">
-            {TOUR_STEPS.map((s, i) => (
-              <span key={s.id} className={`tourDot${i === index ? " active" : ""}`} />
+            {steps.map((s, i) => (
+              <span key={s.id} className={`tourDot${i === safeIndex ? " active" : ""}`} />
             ))}
           </div>
           <div className="tourNav">
             {!isFirst ? (
-              <button type="button" onClick={back}>
+              <button type="button" data-testid="tour-back" onClick={back}>
                 Back
               </button>
             ) : null}
@@ -211,6 +261,7 @@ export function ProductTour({ open, onClose }: ProductTourProps) {
             </button>
           </div>
         </div>
+        {isPhone && !isLast ? <p className="tourSwipeHint">Swipe to move between steps</p> : null}
       </div>
     </div>
   );

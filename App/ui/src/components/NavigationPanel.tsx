@@ -13,6 +13,7 @@ import {
   timeZoneLabel
 } from "../services/timezone";
 import { InstanceUpdates } from "./settings/InstanceUpdates";
+import { useViewport } from "../hooks/useViewport";
 
 interface NavigationPanelProps {
   spaces: Array<{ id: string; label: string }>;
@@ -159,6 +160,34 @@ interface DragApi {
   headerSequenceDrop: string | null;
 }
 
+/** Button-based reordering for touch screens, where HTML5 drag-and-drop doesn't work. */
+interface ReorderApi {
+  /** Coarse pointer: drag handles are hidden and the Reorder toggle is offered. */
+  touch: boolean;
+  active: boolean;
+  groupOptions: string[];
+  canMove: (id: string, dir: -1 | 1) => boolean;
+  moveSequence: (id: string, dir: -1 | 1) => void;
+  moveToGroup: (id: string, title: string) => void;
+  canMoveGroup: (title: string, dir: -1 | 1) => boolean;
+  moveGroup: (title: string, dir: -1 | 1) => void;
+}
+
+function ArrowIcon({ dir }: { dir: "up" | "down" }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <path
+        d={dir === "up" ? "M8 12.5V3.5M4 7.5l4-4 4 4" : "M8 3.5v9M4 8.5l4 4 4-4"}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+const LONG_PRESS_MS = 450;
+const LONG_PRESS_TOOLTIP_MS = 2500;
+
 interface AccordionApi {
   expandedTitle: string | null;
   toggle: (title: string) => void;
@@ -243,6 +272,7 @@ function SequenceItem({
   onEditSequence,
   onDeleteSequence,
   drag,
+  reorder,
   inFlight
 }: {
   sequence: SequenceSummary;
@@ -251,11 +281,14 @@ function SequenceItem({
   onEditSequence: (sequenceId: string) => void;
   onDeleteSequence: (sequenceId: string) => void;
   drag: DragApi;
+  reorder: ReorderApi;
   inFlight: boolean;
 }) {
   const itemRef = useRef<HTMLLIElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
   const hoverTimer = useRef<number | null>(null);
+  const longPressTimer = useRef<number | null>(null);
+  const suppressClick = useRef(false);
   const [hovered, setHovered] = useState(false);
   const [truncated, setTruncated] = useState(false);
 
@@ -274,8 +307,27 @@ function SequenceItem({
   useEffect(() => {
     return () => {
       if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+      if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
     };
   }, []);
+
+  function cancelLongPress() {
+    if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  }
+
+  // Touch has no hover, so a long press reveals the full name / warning instead.
+  function onTouchPress(event: React.PointerEvent) {
+    if (event.pointerType !== "touch") return;
+    cancelLongPress();
+    longPressTimer.current = window.setTimeout(() => {
+      longPressTimer.current = null;
+      suppressClick.current = true;
+      setHovered(true);
+      if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
+      hoverTimer.current = window.setTimeout(() => setHovered(false), LONG_PRESS_TOOLTIP_MS);
+    }, LONG_PRESS_MS);
+  }
 
   function onItemEnter() {
     if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
@@ -316,22 +368,35 @@ function SequenceItem({
       data-orphaned={sequence.orphaned ? "true" : "false"}
       data-suspended={sequence.suspended ? "true" : "false"}
       title={warning ?? undefined}
-      draggable
-      onMouseEnter={onItemEnter}
-      onMouseLeave={onItemLeave}
+      draggable={!reorder.touch}
+      onPointerEnter={(e) => {
+        if (e.pointerType === "mouse") onItemEnter();
+      }}
+      onPointerLeave={onItemLeave}
+      onPointerDown={onTouchPress}
+      onPointerUp={cancelLongPress}
+      onPointerCancel={cancelLongPress}
+      onClickCapture={(e) => {
+        if (!suppressClick.current) return;
+        suppressClick.current = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       onDragStart={(e) => drag.onItemDragStart(sequence.id, e)}
       onDragEnd={drag.onItemDragEnd}
       onDragOver={(e) => drag.onItemDragOver(sequence.id, e)}
       onDrop={(e) => drag.onItemDrop(sequence.id, e)}
     >
-      <span
-        className="sequenceDragHandle"
-        aria-label="Drag to reorder"
-        title="Drag to reorder"
-        onMouseDown={drag.armItemHandle}
-      >
-        <DragHandleIcon />
-      </span>
+      {!reorder.touch ? (
+        <span
+          className="sequenceDragHandle"
+          aria-label="Drag to reorder"
+          title="Drag to reorder"
+          onPointerDown={drag.armItemHandle}
+        >
+          <DragHandleIcon />
+        </span>
+      ) : null}
       <button
         className="sequenceBtn"
         type="button"
@@ -358,30 +423,69 @@ function SequenceItem({
           </span>
         ) : null}
       </button>
-      <span className="inlineActions sequenceItemActions">
-        <button
-          className="tinyBtn tinyBtnIcon"
-          type="button"
-          aria-label={
-            sequence.singleStep
-              ? `Edit step ${sequence.label}`
-              : `Edit sequence ${sequence.label}`
-          }
-          title={sequence.singleStep ? "Edit step" : "Edit sequence"}
-          onClick={() => onEditSequence(sequence.id)}
-        >
-          <EditIcon />
-        </button>
-        <button
-          className="tinyBtn tinyBtnIcon danger"
-          type="button"
-          aria-label={`Delete sequence ${sequence.label}`}
-          title="Delete sequence"
-          onClick={() => onDeleteSequence(sequence.id)}
-        >
-          <DeleteIcon />
-        </button>
-      </span>
+      {reorder.active ? (
+        <span className="inlineActions sequenceReorderActions">
+          <button
+            className="tinyBtn tinyBtnIcon"
+            type="button"
+            aria-label={`Move ${sequence.label} up`}
+            data-testid="nav-move-up"
+            disabled={!reorder.canMove(sequence.id, -1)}
+            onClick={() => reorder.moveSequence(sequence.id, -1)}
+          >
+            <ArrowIcon dir="up" />
+          </button>
+          <button
+            className="tinyBtn tinyBtnIcon"
+            type="button"
+            aria-label={`Move ${sequence.label} down`}
+            data-testid="nav-move-down"
+            disabled={!reorder.canMove(sequence.id, 1)}
+            onClick={() => reorder.moveSequence(sequence.id, 1)}
+          >
+            <ArrowIcon dir="down" />
+          </button>
+          {reorder.groupOptions.length > 1 ? (
+            <select
+              className="navMoveToGroup"
+              aria-label={`Move ${sequence.label} to group`}
+              value={sequence.groupTitle?.trim() || UNGROUPED_LABEL}
+              onChange={(e) => reorder.moveToGroup(sequence.id, e.target.value)}
+            >
+              {reorder.groupOptions.map((title) => (
+                <option key={title} value={title}>
+                  {title}
+                </option>
+              ))}
+            </select>
+          ) : null}
+        </span>
+      ) : (
+        <span className="inlineActions sequenceItemActions">
+          <button
+            className="tinyBtn tinyBtnIcon"
+            type="button"
+            aria-label={
+              sequence.singleStep
+                ? `Edit step ${sequence.label}`
+                : `Edit sequence ${sequence.label}`
+            }
+            title={sequence.singleStep ? "Edit step" : "Edit sequence"}
+            onClick={() => onEditSequence(sequence.id)}
+          >
+            <EditIcon />
+          </button>
+          <button
+            className="tinyBtn tinyBtnIcon danger"
+            type="button"
+            aria-label={`Delete sequence ${sequence.label}`}
+            title="Delete sequence"
+            onClick={() => onDeleteSequence(sequence.id)}
+          >
+            <DeleteIcon />
+          </button>
+        </span>
+      )}
       {showTooltip ? <SequenceNameTooltip label={tooltipLabel} anchorRef={itemRef} /> : null}
     </li>
   );
@@ -395,6 +499,7 @@ function SequenceList({
   onEditSequence,
   onDeleteSequence,
   drag,
+  reorder,
   inFlightSequenceIds
 }: {
   groupTitle: string;
@@ -404,6 +509,7 @@ function SequenceList({
   onEditSequence: (sequenceId: string) => void;
   onDeleteSequence: (sequenceId: string) => void;
   drag: DragApi;
+  reorder: ReorderApi;
   inFlightSequenceIds: string[];
 }) {
   return (
@@ -421,6 +527,7 @@ function SequenceList({
           onEditSequence={onEditSequence}
           onDeleteSequence={onDeleteSequence}
           drag={drag}
+          reorder={reorder}
           inFlight={inFlightSequenceIds.includes(sequence.id)}
         />
       ))}
@@ -436,6 +543,7 @@ function GroupBlock({
   onDeleteSequence,
   onDeleteGroup,
   drag,
+  reorder,
   accordion,
   inFlightSequenceIds
 }: {
@@ -446,6 +554,7 @@ function GroupBlock({
   onDeleteSequence: (sequenceId: string) => void;
   onDeleteGroup: (title: string) => void;
   drag: DragApi;
+  reorder: ReorderApi;
   accordion: AccordionApi;
   inFlightSequenceIds: string[];
 }) {
@@ -459,6 +568,7 @@ function GroupBlock({
       onEditSequence={onEditSequence}
       onDeleteSequence={onDeleteSequence}
       drag={drag}
+      reorder={reorder}
       inFlightSequenceIds={inFlightSequenceIds}
     />
   ) : null;
@@ -511,20 +621,22 @@ function GroupBlock({
     >
       <div
         className={headerClasses.join(" ")}
-        draggable
+        draggable={!reorder.touch}
         onDragStart={(e) => drag.onGroupDragStart(group.title, e)}
         onDragEnd={drag.onGroupDragEnd}
         onDragOver={(e) => drag.onGroupHeaderDragOver(group.title, expanded, e)}
         onDrop={(e) => drag.onGroupHeaderDrop(group.title, expanded, e)}
       >
-        <span
-          className="navGroupDragHandle"
-          aria-label="Drag to reorder group"
-          title="Drag to reorder group"
-          onMouseDown={drag.armGroupHandle}
-        >
-          <DragHandleIcon />
-        </span>
+        {!reorder.touch ? (
+          <span
+            className="navGroupDragHandle"
+            aria-label="Drag to reorder group"
+            title="Drag to reorder group"
+            onPointerDown={drag.armGroupHandle}
+          >
+            <DragHandleIcon />
+          </span>
+        ) : null}
         <button
           type="button"
           className="navGroupToggle"
@@ -536,15 +648,38 @@ function GroupBlock({
             <ChevronIcon />
           </span>
         </button>
-        <button
-          type="button"
-          className="tinyBtn tinyBtnIcon danger navGroupDeleteBtn"
-          aria-label={`Delete group ${group.title}`}
-          title="Delete group"
-          onClick={() => onDeleteGroup(group.title)}
-        >
-          <DeleteIcon />
-        </button>
+        {reorder.active ? (
+          <span className="inlineActions navGroupReorderActions">
+            <button
+              type="button"
+              className="tinyBtn tinyBtnIcon"
+              aria-label={`Move group ${group.title} up`}
+              disabled={!reorder.canMoveGroup(group.title, -1)}
+              onClick={() => reorder.moveGroup(group.title, -1)}
+            >
+              <ArrowIcon dir="up" />
+            </button>
+            <button
+              type="button"
+              className="tinyBtn tinyBtnIcon"
+              aria-label={`Move group ${group.title} down`}
+              disabled={!reorder.canMoveGroup(group.title, 1)}
+              onClick={() => reorder.moveGroup(group.title, 1)}
+            >
+              <ArrowIcon dir="down" />
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="tinyBtn tinyBtnIcon danger navGroupDeleteBtn"
+            aria-label={`Delete group ${group.title}`}
+            title="Delete group"
+            onClick={() => onDeleteGroup(group.title)}
+          >
+            <DeleteIcon />
+          </button>
+        )}
       </div>
       {sequenceList}
     </div>
@@ -757,6 +892,8 @@ export function NavigationPanel({
   const [draggingGroup, setDraggingGroup] = useState<string | null>(null);
   const [groupDrop, setGroupDrop] = useState<{ title: string; position: DropPosition } | null>(null);
   const [headerSequenceDrop, setHeaderSequenceDrop] = useState<string | null>(null);
+  const { coarsePointer } = useViewport();
+  const [reordering, setReordering] = useState(false);
   // Restrict drag initiation to the six-dot handles.
   const itemArmed = useRef(false);
   const groupArmed = useRef(false);
@@ -784,14 +921,14 @@ export function NavigationPanel({
     setExpandedGroupTitle(allAccordionKeys[0] ?? null);
   }, [allAccordionKeys, expandedGroupTitle]);
 
-  // A handle press that never becomes a drag (a plain click) is disarmed on mouseup.
+  // A handle press that never becomes a drag (a plain click) is disarmed on release.
   useEffect(() => {
     function disarm() {
       itemArmed.current = false;
       groupArmed.current = false;
     }
-    window.addEventListener("mouseup", disarm);
-    return () => window.removeEventListener("mouseup", disarm);
+    window.addEventListener("pointerup", disarm);
+    return () => window.removeEventListener("pointerup", disarm);
   }, []);
 
   function resetItemDrag() {
@@ -977,6 +1114,61 @@ export function NavigationPanel({
     }
   };
 
+  const displayedSequences = sequenceGroups.flatMap((group) => group.sequences);
+  const namedGroupTitles = sequenceGroups.filter((g) => !g.ungrouped).map((g) => g.title);
+
+  function groupOf(id: string): NavGroup | undefined {
+    return sequenceGroups.find((group) => group.sequences.some((s) => s.id === id));
+  }
+
+  const reorder: ReorderApi = {
+    touch: coarsePointer,
+    active: coarsePointer && reordering,
+    groupOptions: [...namedGroupTitles, UNGROUPED_LABEL],
+    canMove: (id, dir) => {
+      const group = groupOf(id);
+      if (!group) return false;
+      const next = group.sequences.findIndex((s) => s.id === id) + dir;
+      return next >= 0 && next < group.sequences.length;
+    },
+    moveSequence: (id, dir) => {
+      const group = groupOf(id);
+      if (!group) return;
+      const idx = group.sequences.findIndex((s) => s.id === id);
+      const other = group.sequences[idx + dir];
+      if (!other) return;
+      const next = displayedSequences.slice();
+      const a = next.findIndex((s) => s.id === id);
+      const b = next.findIndex((s) => s.id === other.id);
+      [next[a], next[b]] = [next[b], next[a]];
+      commitOrder(next);
+    },
+    moveToGroup: (id, title) => {
+      const moving = displayedSequences.find((s) => s.id === id);
+      if (!moving) return;
+      const rest = displayedSequences.filter((s) => s.id !== id);
+      const insertIdx = findGroupInsertIndex(rest, title, false);
+      const moved: SequenceSummary = {
+        ...moving,
+        groupTitle: title === UNGROUPED_LABEL ? null : title
+      };
+      commitOrder([...rest.slice(0, insertIdx), moved, ...rest.slice(insertIdx)]);
+      setExpandedGroupTitle(title);
+    },
+    canMoveGroup: (title, dir) => {
+      const next = namedGroupTitles.indexOf(title) + dir;
+      return next >= 0 && next < namedGroupTitles.length;
+    },
+    moveGroup: (title, dir) => {
+      const idx = namedGroupTitles.indexOf(title);
+      const target = idx + dir;
+      if (idx === -1 || target < 0 || target >= namedGroupTitles.length) return;
+      const next = namedGroupTitles.slice();
+      [next[idx], next[target]] = [next[target], next[idx]];
+      onReorderGroups(next);
+    }
+  };
+
   const onlyUngrouped = sequenceGroups.length === 1 && sequenceGroups[0].ungrouped;
 
   return (
@@ -1033,15 +1225,28 @@ export function NavigationPanel({
 
         <div className="navSectionHeader" data-tour="sequences">
           <h3 className="navSectionTitle">Sequences</h3>
-          <button
-            type="button"
-            className="navAddBtn"
-            aria-label="Add sequence"
-            data-testid="nav-add-sequence"
-            onClick={onCreateSequence}
-          >
-            +
-          </button>
+          <span className="navSectionActions">
+            {coarsePointer && displayedSequences.length + namedGroupTitles.length > 1 ? (
+              <button
+                type="button"
+                className={`navReorderToggle${reordering ? " active" : ""}`}
+                aria-pressed={reordering}
+                data-testid="nav-reorder-toggle"
+                onClick={() => setReordering((on) => !on)}
+              >
+                {reordering ? "Done" : "Reorder"}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="navAddBtn"
+              aria-label="Add sequence"
+              data-testid="nav-add-sequence"
+              onClick={onCreateSequence}
+            >
+              +
+            </button>
+          </span>
         </div>
 
         {loading ? <p className="muted">Loading sequences...</p> : null}
@@ -1060,6 +1265,7 @@ export function NavigationPanel({
                 onEditSequence={onEditSequence}
                 onDeleteSequence={onDeleteSequence}
                 drag={drag}
+                reorder={reorder}
                 inFlightSequenceIds={inFlightSequenceIds}
               />
             ) : (
@@ -1074,6 +1280,7 @@ export function NavigationPanel({
                     onDeleteSequence={onDeleteSequence}
                     onDeleteGroup={onDeleteGroup}
                     drag={drag}
+                    reorder={reorder}
                     accordion={accordion}
                     inFlightSequenceIds={inFlightSequenceIds}
                   />

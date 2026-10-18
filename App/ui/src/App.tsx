@@ -4,7 +4,13 @@ import { ConfigPanel } from "./components/ConfigPanel";
 import { CreateSpaceModal } from "./components/modals/CreateSpaceModal";
 import { DeleteSpaceConfirmModal } from "./components/modals/DeleteSpaceConfirmModal";
 import { useToast } from "./components/Toast";
-import { ResizableDashboardLayout } from "./components/layout/ResizableDashboardLayout";
+import {
+  ResizableDashboardLayout,
+  type MobilePane
+} from "./components/layout/ResizableDashboardLayout";
+import { MobileTabBar } from "./components/layout/MobileTabBar";
+import { useMobilePaneFollow } from "./hooks/useMobilePaneFollow";
+import { useViewport } from "./hooks/useViewport";
 import { NavigationPanel } from "./components/NavigationPanel";
 import { TopBar } from "./components/TopBar";
 import { VisualizationPanel } from "./components/VisualizationPanel";
@@ -147,6 +153,18 @@ export default function App() {
     [state, builderResult]
   );
   const showConfig = useMemo(() => selectors.hasConfigContent(state), [state]);
+
+  const viewport = useViewport();
+  const compactShell = viewport.mode !== "desktop";
+  const panes = useMobilePaneFollow({ mode: viewport.mode, state, builderResult, builderSeed });
+  const { setMobilePane, setNavDrawerOpen } = panes;
+  const handleTourShowPane = useCallback(
+    (pane: MobilePane | null) => {
+      if (viewport.mode === "phone" && pane) setMobilePane(pane);
+      if (viewport.mode === "tablet") setNavDrawerOpen(pane === "menu");
+    },
+    [viewport.mode, setMobilePane, setNavDrawerOpen]
+  );
 
   // The nav only shows sequences whose attributive_label was created or imported
   // in the active space. Non-sequence rows (operations/system) are not nav items
@@ -607,6 +625,11 @@ export default function App() {
         />
       ) : null}
       <TopBar
+        compact={compactShell}
+        onToggleNav={
+          viewport.mode === "tablet" ? () => panes.setNavDrawerOpen((open) => !open) : undefined
+        }
+        navOpen={panes.navDrawerOpen}
         showBackToBuilder={
           state.createSequence ||
           state.view.rightPanelMode === "params" ||
@@ -636,6 +659,10 @@ export default function App() {
       <ResizableDashboardLayout
         showVisualization={showVisualization}
         showConfig={showConfig}
+        mode={viewport.mode}
+        mobilePane={panes.mobilePane}
+        navDrawerOpen={panes.navDrawerOpen}
+        onCloseNavDrawer={() => panes.setNavDrawerOpen(false)}
         navigation={
           <NavigationPanel
             spaces={spaces}
@@ -732,7 +759,19 @@ export default function App() {
           />
         }
       />
-      <ProductTour open={tourOpen} onClose={handleTourClose} />
+      {viewport.mode === "phone" ? (
+        <MobileTabBar
+          active={panes.mobilePane}
+          onChange={panes.setMobilePane}
+          unseen={panes.unseen}
+        />
+      ) : null}
+      <ProductTour
+        open={tourOpen}
+        onClose={handleTourClose}
+        mode={viewport.mode}
+        onShowPane={handleTourShowPane}
+      />
     </div>
   );
 }

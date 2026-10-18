@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
+import { isCoarsePointer } from "../../hooks/useViewport";
 import type { GraphPayload } from "../../state/builder/types";
 import {
   AFFECTED_STROKE,
@@ -128,6 +129,8 @@ interface GraphViewProps {
 }
 
 const FIT_OPTIONS = { padding: 40, maxScale: 2.5, fill: 0.92 };
+/** A press that travels less than this is a tap (select), not a drag — fingers jitter. */
+const TAP_SLOP_PX = 6;
 
 export function GraphView({
   graph,
@@ -150,6 +153,12 @@ export function GraphView({
   const affectedRelationshipIdsRef = useRef(affectedRelationshipIds);
   const restyleRelationshipsRef = useRef<(() => void) | null>(null);
   const restyleNodesRef = useRef<(() => void) | null>(null);
+  const zoomCtlRef = useRef<{
+    zoomBy: (factor: number) => void;
+    fit: () => void;
+  } | null>(null);
+  // Touch has no hover, so the tapped dot's full name shows in a caption instead of <title>.
+  const [caption, setCaption] = useState<string | null>(null);
   onClickNodeRef.current = onClickNode;
   onClickRelationshipRef.current = onClickRelationship;
   highlightedRelationshipIdRef.current = highlightedRelationshipId;
@@ -229,18 +238,34 @@ export function GraphView({
     const defs = svg.append("defs");
     const root = svg.append("g");
 
+    const coarse = isCoarsePointer();
+    setCaption(null);
+
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.2, 4])
+      .filter((event) => {
+        // On touch devices a plain wheel/trackpad scroll must scroll the page, not zoom;
+        // pinch (ctrl+wheel) and two-finger touch still zoom.
+        if (event.type === "wheel") return !coarse || event.ctrlKey || event.metaKey;
+        return (!event.ctrlKey || event.type === "wheel") && !event.button;
+      })
       .on("zoom", (event) => root.attr("transform", event.transform.toString()));
 
     svg.call(zoom);
+    svg.on("click.caption", (event) => {
+      if (!(event.target as Element).closest?.("g[data-testid^='graph-node-']")) setCaption(null);
+    });
 
     const applyFit = (animate: boolean) => {
       const w = container.clientWidth || width;
       const h = container.clientHeight || height;
       if (w < 1 || h < 1) return;
       fitGraphToView(svg, zoom, root, w, h, animate, FIT_OPTIONS);
+    };
+    zoomCtlRef.current = {
+      zoomBy: (factor) => svg.transition().duration(160).call(zoom.scaleBy, factor),
+      fit: () => applyFit(true)
     };
 
     installGraphThemeDefs(defs);
@@ -274,7 +299,7 @@ export function GraphView({
     // The visible edge stroke is only ~1.5px wide, so it's nearly impossible to click. Draw a
     // transparent, much wider stroke over each edge purely as a hit target; pointer-events="stroke"
     // makes it capture clicks even though it paints nothing. Mirrors the same geometry in ticked().
-    const EDGE_HIT_WIDTH = 16;
+    const EDGE_HIT_WIDTH = coarse ? 28 : 16;
     const linkHit = root
       .append("g")
       .attr("stroke", "transparent")
@@ -358,6 +383,8 @@ export function GraphView({
         onClickRelationshipRef.current(d.id);
       });
 
+    let dragStart = { x: 0, y: 0 };
+    let dragMoved = false;
     const node = root
       .append("g")
       .selectAll<SVGGElement, SimNode>("g")
@@ -368,18 +395,29 @@ export function GraphView({
         d3
           .drag<SVGGElement, SimNode>()
           .on("start", (event, d) => {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
+            dragStart = { x: event.x, y: event.y };
+            dragMoved = false;
             d.fx = d.x;
             d.fy = d.y;
           })
           .on("drag", (event, d) => {
+            if (!dragMoved) {
+              if (Math.hypot(event.x - dragStart.x, event.y - dragStart.y) < TAP_SLOP_PX) return;
+              dragMoved = true;
+              if (!event.active) simulation.alphaTarget(0.3).restart();
+            }
             d.fx = event.x;
             d.fy = event.y;
           })
           .on("end", (event, d) => {
-            if (!event.active) simulation.alphaTarget(0);
+            if (dragMoved && !event.active) simulation.alphaTarget(0);
             d.fx = null;
             d.fy = null;
+            // A press that never travelled is a tap: d3-drag swallows the native click.
+            if (!dragMoved) {
+              if (coarse) setCaption(`${d.group}: ${d.label}`);
+              onClickNodeRef.current?.(d.id);
+            }
           })
       );
 
@@ -400,11 +438,6 @@ export function GraphView({
       .attr("filter", `url(#${graphFilterId("", "graph-node-elevate")})`)
       .each(function () {
         if (onClickNodeRef.current) d3.select(this).style("cursor", "pointer");
-      })
-      .on("click", (event, d) => {
-        if (!onClickNodeRef.current) return;
-        event.stopPropagation();
-        onClickNodeRef.current(d.id);
       });
 
     node
@@ -604,21 +637,26 @@ export function GraphView({
       });
     };
 
-    const destroyMouseLight = attachGraphNodeLightLoop(
-      svgEl,
-      () => d3.zoomTransform(svgEl),
-      lightMotion,
-      () => nodes.map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 })),
-      NODE_RADIUS,
-      (nodeId, cx, cy, scale) => {
-        setNodeLightCenter(defs, "", nodeId, cx, cy);
-        const n = nodes.find((node) => node.id === nodeId);
-        if (n) n.pointerScale = scale;
-      },
-      updateNodeTransforms
-    );
+    // Pointer-following lighting is decorative; skip it on touch to save battery.
+    const destroyMouseLight = coarse
+      ? () => undefined
+      : attachGraphNodeLightLoop(
+          svgEl,
+          () => d3.zoomTransform(svgEl),
+          lightMotion,
+          () => nodes.map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0 })),
+          NODE_RADIUS,
+          (nodeId, cx, cy, scale) => {
+            setNodeLightCenter(defs, "", nodeId, cx, cy);
+            const n = nodes.find((node) => node.id === nodeId);
+            if (n) n.pointerScale = scale;
+          },
+          updateNodeTransforms
+        );
 
-    const destroyBackgroundMotion = attachGraphBackgroundMotion(container);
+    const destroyBackgroundMotion = coarse
+      ? () => undefined
+      : attachGraphBackgroundMotion(container);
 
     // Settle the layout synchronously (off-screen) before the first paint so the graph appears
     // already laid out and fitted instead of visibly flying around and panning into place. Drag
@@ -692,6 +730,7 @@ export function GraphView({
       simulation.stop();
       restyleRelationshipsRef.current = null;
       restyleNodesRef.current = null;
+      zoomCtlRef.current = null;
     };
     // Rebuild only when the graph data changes; click handlers are read via refs so their
     // identity churning on parent re-renders never re-runs the layout.
@@ -706,9 +745,49 @@ export function GraphView({
     restyleNodesRef.current?.();
   }, [affectedNodeIds]);
 
+  const zoomBy = useCallback((factor: number) => zoomCtlRef.current?.zoomBy(factor), []);
+  const fit = useCallback(() => zoomCtlRef.current?.fit(), []);
+
   return (
     <div ref={containerRef} className="graphViewContainer" data-testid="graph-view-container">
       <svg ref={svgRef} />
+      {caption ? (
+        <div className="graphCaption" data-testid="graph-caption">
+          {caption}
+        </div>
+      ) : null}
+      <div className="matchZoomControls graphZoomControls" role="group" aria-label="Zoom">
+        <button type="button" className="matchZoomBtn" aria-label="Zoom in" onClick={() => zoomBy(1.25)}>
+          +
+        </button>
+        <button type="button" className="matchZoomBtn" aria-label="Zoom out" onClick={() => zoomBy(0.8)}>
+          −
+        </button>
+        <button
+          type="button"
+          className="matchZoomBtn matchZoomFit"
+          aria-label="Fit to screen"
+          title="Fit to screen"
+          onClick={fit}
+        >
+          <FitIcon />
+        </button>
+      </div>
     </div>
+  );
+}
+
+export function FitIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+      <path
+        d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

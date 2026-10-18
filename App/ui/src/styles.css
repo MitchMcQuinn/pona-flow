@@ -81,6 +81,7 @@ body {
   z-index: 1;
   height: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   opacity: 0;
   animation: appRootFadeIn 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
 }
@@ -88,6 +89,9 @@ body {
 .appRoot {
   height: 100vh;
   max-height: 100vh;
+  /* dvh tracks the mobile browser's collapsing address bar; vh above is the fallback. */
+  height: 100dvh;
+  max-height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -144,14 +148,56 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
   position: relative;
   z-index: 5;
+}
+
+.topbarStart {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.topbarMenuBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--text);
 }
 
 .topbarLogo {
   display: block;
   height: 50px;
   width: auto;
+}
+
+/* Notched phones: the bar grows by the status-bar inset instead of hiding under it. */
+.topbarCompact {
+  height: calc(52px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+  padding-left: max(10px, env(safe-area-inset-left));
+  padding-right: max(10px, env(safe-area-inset-right));
+}
+
+.topbarCompact .topbarLogo {
+  height: 36px;
+}
+
+.topbarCompact .topbarActions {
+  gap: 8px;
+}
+
+.topbarCompact .topbarBackBtn,
+.topbarCompact .topbarRunBtn,
+.topbarCompact .topbarStopBtn {
+  min-height: 40px;
+  padding: 6px 12px;
 }
 
 .topbarActions {
@@ -181,15 +227,6 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-}
-
-.layout {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 280px 360px minmax(420px, 1fr);
-  gap: 12px;
-  padding: 12px;
 }
 
 .layoutResizable {
@@ -1675,6 +1712,73 @@ td {
   text-transform: capitalize;
 }
 
+.rbacFlowTableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.rbacFlowCell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .rbacFlowCell {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Phones: one card per operation, each checkbox labelled with its element. */
+@media (max-width: 767.98px) {
+  .rbacFlowTable,
+  .rbacFlowTable tbody {
+    display: block;
+  }
+
+  .rbacFlowTable thead {
+    display: none;
+  }
+
+  .rbacFlowTable tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  .rbacFlowTable th,
+  .rbacFlowTable td {
+    border: none;
+    padding: 0;
+  }
+
+  .rbacFlowTable tbody th {
+    flex: 1 0 100%;
+    text-align: left;
+    font-size: 13px;
+  }
+
+  .rbacFlowTable td::before {
+    content: attr(data-element);
+    font-size: 12px;
+    margin-right: 2px;
+  }
+
+  .rbacFlowTable td {
+    display: inline-flex;
+    align-items: center;
+    padding-right: 10px;
+  }
+}
+
 .rbacMatrix h4 {
   margin: 10px 0 4px;
 }
@@ -1690,6 +1794,25 @@ td {
   border-bottom: 1px solid var(--border);
   padding-bottom: 8px;
   flex-wrap: wrap;
+}
+
+/* Phones: one swipeable row of tabs instead of a wrapped block. */
+@media (max-width: 767.98px) {
+  .spaceConfigTabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .spaceConfigTabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .spaceConfigTabs button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
 }
 
 .spaceConfigTabs button {
@@ -1888,6 +2011,262 @@ td {
   font-size: 12px;
 }
 
+/* ---------- Phone / tablet shell (mode classes come from useViewport) ---------- */
+
+.layoutResizable {
+  position: relative;
+}
+
+.layoutMode-phone {
+  --glow-bleed: 14px;
+  --btn-glow-bleed: 10px;
+  padding: 8px;
+  padding-left: max(8px, env(safe-area-inset-left));
+  padding-right: max(8px, env(safe-area-inset-right));
+}
+
+.layoutMode-phone .layoutNavSlot,
+.layoutMode-phone .layoutConfigSlot,
+.layoutMode-phone .layoutVizSlot {
+  display: none;
+  flex: 1 1 auto;
+  width: 100% !important;
+  min-width: 0;
+}
+
+.layoutMode-phone.layoutPane-menu .layoutNavSlot,
+.layoutMode-phone.layoutPane-workbench .layoutConfigSlot,
+.layoutMode-phone.layoutPane-map .layoutVizSlot {
+  display: flex;
+}
+
+.layoutMode-tablet .layoutNavSlot {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  /* Slide with `left`, not transform: a transformed ancestor would trap the nav's
+     position:fixed tooltips and popovers. */
+  left: calc(-1 * min(340px, 90vw));
+  width: min(320px, calc(100% - 48px));
+  z-index: 30;
+  visibility: hidden;
+  transition: left 0.22s ease, visibility 0.22s;
+}
+
+.layoutMode-tablet.layoutNavDrawerOpen .layoutNavSlot {
+  left: max(12px, env(safe-area-inset-left));
+  visibility: visible;
+}
+
+.layoutNavDrawerScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: rgba(6, 6, 10, 0.55);
+  box-shadow: none;
+}
+
+.layoutNavDrawerScrim:active {
+  background: rgba(6, 6, 10, 0.55);
+  box-shadow: none;
+}
+
+.layoutEmptyPane .panel__body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+}
+
+.mobileTabBar {
+  flex-shrink: 0;
+  display: flex;
+  position: relative;
+  z-index: 5;
+  background: linear-gradient(180deg, var(--panel2), var(--raise));
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.mobileTab {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 56px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.mobileTab:active {
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: none;
+}
+
+.mobileTab.active {
+  color: var(--text);
+}
+
+.mobileTab.active .mobileTabIcon {
+  color: var(--accent);
+}
+
+.mobileTabIcon {
+  position: relative;
+  display: inline-flex;
+}
+
+.mobileTabDot {
+  position: absolute;
+  top: -2px;
+  right: -7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: var(--mesh-glow);
+}
+
+.navSectionActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.navReorderToggle {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+}
+
+.navReorderToggle.active {
+  border-color: transparent;
+  background:
+    linear-gradient(145deg, var(--panel), var(--bg)) padding-box,
+    var(--mesh) border-box;
+  color: #e0e7ff;
+}
+
+.sequenceReorderActions,
+.navGroupReorderActions {
+  align-items: center;
+}
+
+.navMoveToGroup {
+  max-width: 110px;
+  padding: 4px 6px;
+}
+
+/* ---------- Touch screens: no hover, finger-sized targets ---------- */
+
+@media (hover: none) {
+  .sequenceItemActions,
+  .sequenceItem:hover .sequenceItemActions {
+    max-width: none;
+    opacity: 1;
+    overflow: visible;
+    pointer-events: auto;
+  }
+
+  .navGroupDeleteBtn {
+    opacity: 1;
+  }
+
+  .sequenceItem,
+  .navGroupHeader {
+    -webkit-touch-callout: none;
+  }
+}
+
+@media (pointer: coarse) {
+  /* Below 16px, iOS Safari zooms the page when a field gains focus. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .tinyBtn {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .tinyBtnIcon {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+
+  .tinyBtnIcon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .navAddBtn {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+  }
+
+  .navReorderToggle {
+    min-height: 40px;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .navMoveToGroup {
+    min-height: 44px;
+  }
+
+  .navSectionHeader {
+    min-height: 44px;
+  }
+
+  .sequenceBtn,
+  .navGroupToggle {
+    min-height: 44px;
+  }
+
+  .navAddGroupBtn {
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .navUserButton {
+    min-height: 48px;
+  }
+
+  .spaceConfigTabs button {
+    min-height: 44px;
+    padding: 8px 14px;
+  }
+
+  .tourCard button {
+    min-height: 44px;
+  }
+}
+
+.navUserMenu {
+  max-height: min(80dvh, 640px);
+}
+
 /* Product tour */
 .tourRoot {
   position: fixed;
@@ -1983,6 +2362,39 @@ td {
   display: flex;
   gap: 8px;
 }
+.tourCard {
+  max-height: calc(100dvh - 24px);
+}
+
+/* Phones: full-width sheet, swipeable horizontally (vertical drags still scroll the body). */
+.tourCardSheet {
+  left: max(8px, env(safe-area-inset-left));
+  right: max(8px, env(safe-area-inset-right));
+  width: auto;
+  max-height: 62dvh;
+  touch-action: pan-y;
+}
+
+.tourCardSheet-bottom {
+  top: auto;
+  bottom: calc(8px + env(safe-area-inset-bottom));
+}
+
+.tourCardSheet-top {
+  top: calc(8px + env(safe-area-inset-top));
+}
+
+.tourCardSheet .tourBody {
+  font-size: 15px;
+}
+
+.tourSwipeHint {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .spaceTourCard {
   display: flex;
   align-items: center;

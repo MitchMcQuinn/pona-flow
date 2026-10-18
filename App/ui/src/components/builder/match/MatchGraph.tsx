@@ -46,6 +46,8 @@ import {
 } from "../../../utils/graphTheme";
 import { GraphNodeLightMotion, attachGraphNodeLightLoop } from "../../../utils/graphMouseLight";
 import { attachGraphBackgroundMotion } from "../../../utils/graphBackgroundMotion";
+import { isCoarsePointer } from "../../../hooks/useViewport";
+import { FitIcon } from "../../results/GraphView";
 import {
   computeNodeRanks,
   fitGraphToView,
@@ -54,6 +56,8 @@ import {
 } from "../../../utils/graphLayout";
 
 const NODE_RADIUS = 16;
+/** A press that travels less than this is a tap (select), not a drag — fingers jitter. */
+const TAP_SLOP_PX = 6;
 const HIT_RADIUS = 26;
 const LAYER_GAP = 110;
 const FIT_OPTIONS = { padding: 48, maxScale: 1.6, fill: 0.95 };
@@ -251,6 +255,7 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
   const zoomCtlRef = useRef<{
     svg: d3.Selection<SVGSVGElement, unknown, null, undefined>;
     zoom: d3.ZoomBehavior<SVGSVGElement, unknown>;
+    fit: () => void;
   } | null>(null);
 
   const zoomBy = useCallback((factor: number) => {
@@ -258,6 +263,36 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
     if (!ctl) return;
     ctl.svg.transition().duration(160).call(ctl.zoom.scaleBy, factor);
   }, []);
+  const fitView = useCallback(() => zoomCtlRef.current?.fit(), []);
+
+  // Connect mode: tap a dot, then tap another (or empty space for a new dot) — the
+  // touch-friendly alternative to dragging the small connect handle.
+  const [connectMode, setConnectMode] = useState(false);
+  const [connectSource, setConnectSource] = useState<string | null>(null);
+  const connectModeRef = useRef(connectMode);
+  const connectSourceRef = useRef(connectSource);
+  connectModeRef.current = connectMode;
+  connectSourceRef.current = connectSource;
+  const connectRef = useRef(connect);
+  connectRef.current = connect;
+  const canConnectRef = useRef(canConnectFrom);
+  canConnectRef.current = canConnectFrom;
+
+  useEffect(() => {
+    restyleRef.current?.();
+  }, [connectSource, connectMode]);
+
+  useEffect(() => {
+    if (!editable) {
+      setConnectMode(false);
+      setConnectSource(null);
+    }
+  }, [editable]);
+
+  function toggleConnectMode() {
+    setConnectMode((on) => !on);
+    setConnectSource(null);
+  }
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -266,6 +301,7 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
     const canvas = container;
 
     let cancelled = false;
+    const coarse = isCoarsePointer();
     let autoFitActive = false;
     let positionsPersisted = false;
     let settleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -377,7 +413,26 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
         }
       });
     svg.call(zoom);
-    zoomCtlRef.current = { svg, zoom };
+    zoomCtlRef.current = {
+      svg,
+      zoom,
+      fit: () => {
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        if (w < 1 || h < 1) return;
+        fitGraphToView(svg, zoom, root, w, h, true, FIT_OPTIONS);
+      }
+    };
+
+    // Connect mode: a background tap links the chosen dot to a brand-new one.
+    svg.on("click.connect", (event) => {
+      const target = event.target as Element;
+      if (target.closest?.("[data-node]") || target.closest?.("[data-edge]")) return;
+      const source = connectSourceRef.current;
+      if (!connectModeRef.current || !source) return;
+      setConnectSource(null);
+      connectRef.current(source, { kind: "new" });
+    });
 
     function tryAutoFit() {
       if (cancelled) return;
@@ -443,7 +498,7 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
         dispatch({ type: "SELECT_MATCH_ELEMENT", element: { kind: "relationship", variable: e.variable } });
       });
 
-    const EDGE_HIT_WIDTH = 16;
+    const EDGE_HIT_WIDTH = coarse ? 28 : 16;
     const linkHit = root
       .append("g")
       .attr("stroke", "transparent")
@@ -581,8 +636,9 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
       .attr("r", 5)
       .attr("cy", NODE_RADIUS)
       .attr("fill", portFillUrl(themePrefix))
-      .attr("stroke", "none")
-      .attr("stroke-width", 0)
+      // A transparent stroke still takes pointer events: widens the finger target only.
+      .attr("stroke", coarse ? "transparent" : "none")
+      .attr("stroke-width", coarse ? 14 : 0)
       .attr("filter", `url(#${graphFilterId(themePrefix, "graph-node-glow")})`)
       .style("cursor", "crosshair");
     ports.append("title").text("Drag to add a relationship");
@@ -610,7 +666,14 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
           isSel("node", d.variable)
             ? `url(#${graphFilterId(themePrefix, "graph-node-glow")})`
             : `url(#${graphFilterId(themePrefix, "graph-node-elevate")})`
+        )
+        .attr("stroke-dasharray", (d) =>
+          connectModeRef.current && connectSourceRef.current === d.variable ? "4 3" : null
         );
+      nodeCircle
+        .filter((d) => connectModeRef.current && connectSourceRef.current === d.variable)
+        .attr("stroke", GRAPH_THEME.edgeSelected)
+        .attr("stroke-width", 3);
       nodeG
         .select(".graph-node-light")
         .attr("opacity", (d) => (isSel("node", d.variable) ? 0 : 1));
@@ -727,8 +790,25 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
         })
     );
 
+    // Tap in connect mode: first tap picks the source, second links it to the tapped dot.
+    const handleConnectTap = (d: SimNode) => {
+      const source = connectSourceRef.current;
+      if (!source) {
+        if (canConnectRef.current(d.attributiveLabel)) setConnectSource(d.variable);
+        return;
+      }
+      if (source === d.variable && !allowSelfRelRef.current) {
+        setConnectSource(null);
+        return;
+      }
+      setConnectSource(null);
+      connectRef.current(source, { kind: "existing", variable: d.variable });
+    };
+
     // Drag a node body to reposition (pinning it); a no-move gesture selects the node.
+    // Small travel counts as a tap so finger jitter still selects.
     let nodeDragMoved = false;
+    let nodeDragStart = { x: 0, y: 0 };
     nodeG.call(
       d3
         .drag<SVGGElement, SimNode>()
@@ -736,10 +816,17 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
           const target = event.target as Element;
           return !target.closest?.("[data-port]");
         })
-        .on("start", () => {
+        .on("start", (event) => {
           nodeDragMoved = false;
+          nodeDragStart = { x: event.x, y: event.y };
         })
         .on("drag", (event, d) => {
+          if (
+            !nodeDragMoved &&
+            Math.hypot(event.x - nodeDragStart.x, event.y - nodeDragStart.y) < TAP_SLOP_PX
+          ) {
+            return;
+          }
           nodeDragMoved = true;
           const [mx, my] = pointerInRoot(event);
           d.x = mx;
@@ -756,6 +843,8 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
                 simNodes.map((n) => [n.variable, { x: n.x ?? 0, y: n.y ?? 0 }])
               )
             });
+          } else if (connectModeRef.current) {
+            handleConnectTap(d);
           } else {
             dispatch({ type: "SELECT_MATCH_ELEMENT", element: { kind: "node", variable: d.variable } });
           }
@@ -765,21 +854,26 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
     render();
     applySelectionStyles();
 
-    const destroyMouseLight = attachGraphNodeLightLoop(
-      svgEl,
-      () => d3.zoomTransform(svgEl),
-      lightMotion,
-      () => simNodes.map((n) => ({ id: n.variable, x: n.x ?? 0, y: n.y ?? 0 })),
-      NODE_RADIUS,
-      (nodeId, cx, cy, scale) => {
-        setNodeLightCenter(defs, themePrefix, nodeId, cx, cy);
-        const n = simNodes.find((node) => node.variable === nodeId);
-        if (n) n.pointerScale = scale;
-      },
-      updateNodeTransforms
-    );
+    // Pointer-following lighting is decorative; skip it on touch to save battery.
+    const destroyMouseLight = coarse
+      ? () => undefined
+      : attachGraphNodeLightLoop(
+          svgEl,
+          () => d3.zoomTransform(svgEl),
+          lightMotion,
+          () => simNodes.map((n) => ({ id: n.variable, x: n.x ?? 0, y: n.y ?? 0 })),
+          NODE_RADIUS,
+          (nodeId, cx, cy, scale) => {
+            setNodeLightCenter(defs, themePrefix, nodeId, cx, cy);
+            const n = simNodes.find((node) => node.variable === nodeId);
+            if (n) n.pointerScale = scale;
+          },
+          updateNodeTransforms
+        );
 
-    const destroyBackgroundMotion = attachGraphBackgroundMotion(canvas);
+    const destroyBackgroundMotion = coarse
+      ? () => undefined
+      : attachGraphBackgroundMotion(canvas);
 
     let simulation: d3.Simulation<SimNode, SimLink> | null = null;
 
@@ -884,6 +978,24 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
   return (
     <div ref={containerRef} className="matchGraphCanvas">
       <svg ref={svgRef} />
+      {connectMode ? (
+        <div className="matchConnectBanner" role="status" data-testid="match-connect-banner">
+          {connectSource
+            ? "Now tap the dot to link to, or empty space to link to a new dot."
+            : "Tap the dot you want to link from."}
+        </div>
+      ) : null}
+      {editable ? (
+        <button
+          type="button"
+          className={`matchConnectToggle${connectMode ? " active" : ""}`}
+          aria-pressed={connectMode}
+          data-testid="match-connect-toggle"
+          onClick={toggleConnectMode}
+        >
+          {connectMode ? "Done linking" : "Link dots"}
+        </button>
+      ) : null}
       <div className="matchZoomControls" role="group" aria-label="Zoom">
         <span className="matchZoomGlyph" aria-hidden="true">
           <svg viewBox="0 0 16 16" width="14" height="14">
@@ -896,6 +1008,15 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
         </button>
         <button type="button" className="matchZoomBtn" aria-label="Zoom out" onClick={() => zoomBy(0.8)}>
           −
+        </button>
+        <button
+          type="button"
+          className="matchZoomBtn matchZoomFit"
+          aria-label="Fit to screen"
+          title="Fit to screen"
+          onClick={fitView}
+        >
+          <FitIcon />
         </button>
       </div>
     </div>

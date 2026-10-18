@@ -558,11 +558,40 @@
 
 .builderModalPanel {
   width: min(440px, 92vw);
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   background: linear-gradient(145deg, var(--panel), var(--panel2));
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 16px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), var(--shadow-out), var(--edge-hi);
+}
+
+/* Phones: modals rise from the bottom as full-width sheets, clear of the home indicator. */
+@media (max-width: 767.98px) {
+  .builderModalBackdrop {
+    align-items: flex-end;
+  }
+
+  .builderModalPanel {
+    width: 100%;
+    max-height: 88vh;
+    max-height: 88dvh;
+    border-radius: 18px 18px 0 0;
+    border-bottom: none;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .builderModalActions {
+    flex-wrap: wrap;
+  }
+
+  .builderModalActions > button {
+    flex: 1 1 auto;
+  }
 }
 
 .builderModalPanel .builderFormFieldset {
@@ -1452,4 +1481,190 @@ body.matchResizing {
 
 .typedChecklistItem > input:disabled {
   cursor: not-allowed;
+}
+
+/* Visible replacement for title= tooltips, which never show on touch screens. */
+.builderHint {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+@media (hover: hover) {
+  .builderHintTouchOnly {
+    display: none;
+  }
+}
+
+/* ---------- Narrow builder (phones, slim panels) ---------- */
+@container builder (max-width: 480px) {
+  .builderSection {
+    padding: 8px;
+  }
+
+  .builderCard {
+    padding: 8px 6px;
+  }
+
+  .builderDurationRow {
+    flex-wrap: wrap;
+  }
+
+  .builderDurationRow select {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .choiceCountRow {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .choiceCountRow > .builderField {
+    width: 100%;
+  }
+
+  .builderValueWithParamToggle {
+    flex-wrap: wrap;
+  }
+
+  .builderValueWithParamToggle > :first-child {
+    flex-basis: 100%;
+  }
+
+  .builderInline {
+    flex-wrap: wrap;
+  }
+
+  .builderHeadRow > .builderInline {
+    justify-content: flex-start;
+  }
+
+  .builderRunActions {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .builderRunActionsRow > button,
+  .builderCardFooter > button,
+  .builderInputWithAction > button {
+    flex: 1 1 100%;
+    align-self: stretch;
+  }
+
+  .createSequenceCollectRow input,
+  .createSequenceCollectRow select {
+    flex-basis: 100%;
+  }
+}
+
+/* ---------- Touch screens ---------- */
+@media (pointer: coarse) {
+  .builderTinyBtn {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .builderAddBtn,
+  .builderValueWithParamToggle > button {
+    min-height: 44px;
+  }
+
+  .builderSegmentToggle button {
+    min-height: 44px;
+  }
+
+  .createSequenceClearBtn {
+    width: 44px;
+    min-height: 44px;
+  }
+
+  .builderToggleSwitch {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .builderToggleLabel {
+    font-size: 14px;
+  }
+
+  .typedChecklistItem {
+    min-height: 44px;
+    font-size: 15px;
+  }
+
+  .typedChecklistItem > input {
+    width: 22px;
+    height: 22px;
+  }
+
+  .matchZoomControls {
+    gap: 6px;
+    padding: 4px 6px;
+  }
+
+  .matchZoomBtn {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .matchSplitHandle {
+    width: 24px;
+  }
+}
+
+.layoutMode-phone .matchGraphCanvas {
+  min-height: min(45dvh, 320px);
+}
+
+/* d3-zoom/drag handle pan, pinch and node drags; stop the browser scrolling the page. */
+.matchGraphCanvas > svg {
+  touch-action: none;
+}
+
+.matchConnectToggle {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--well);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.matchConnectToggle.active {
+  border-color: var(--accent, currentColor);
+  box-shadow: 0 0 0 1px var(--accent, currentColor) inset;
+}
+
+.matchConnectBanner {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 10px;
+  z-index: 2;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--well);
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+
+@media (pointer: coarse) {
+  .matchConnectToggle {
+    min-height: 40px;
+    padding: 6px 14px;
+    font-size: 14px;
+  }
 }

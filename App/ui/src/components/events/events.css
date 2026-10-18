@@ -114,3 +114,44 @@
   color: var(--muted);
   flex: 0 0 auto;
 }
+
+/* Narrow panes (phones, the tablet drawer): stack side-by-side fields. */
+@container builder (max-width: 480px) {
+  .eventRow {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .eventFilterRow {
+    flex-wrap: wrap;
+  }
+
+  .eventFilterRow input,
+  .eventFilterRow select {
+    flex: 1 1 140px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .eventRow {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .eventFilterRow {
+    flex-wrap: wrap;
+  }
+
+  .eventFilterRow input,
+  .eventFilterRow select {
+    flex: 1 1 140px;
+  }
+}
+
+@media (pointer: coarse) {
+  .eventChip {
+    min-height: 36px;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.85rem;
+  }
+}

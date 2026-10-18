@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import { TouchHint } from "./TouchHint";
 
 export interface PickerOption {
   value: string;
@@ -207,6 +208,7 @@ export function Picker({
         </span>
       </button>
 
+      <TouchHint text={title} />
       {menu ? createPortal(menu, document.body) : null}
     </div>
   );

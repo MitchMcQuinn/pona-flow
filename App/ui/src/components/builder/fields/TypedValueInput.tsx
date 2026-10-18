@@ -1,4 +1,5 @@
 import { parseCheckboxSelection } from "@pona-flow/authoring";
+import { TouchHint } from "../TouchHint";
 
 interface TypedValueInputProps {
   /** Declared value_type driving which control renders. */
@@ -119,6 +120,7 @@ export function TypedValueInput({
             );
           })
         )}
+        <TouchHint text={title} />
       </div>
     );
   }

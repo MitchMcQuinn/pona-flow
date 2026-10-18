@@ -49,34 +49,38 @@ export function PermissionMatrix({ value, sequences, disabled, onChange }: Permi
   return (
     <div className="rbacMatrix">
       <h4>Flows</h4>
-      <table className="rbacFlowTable">
-        <thead>
-          <tr>
-            <th />
-            {ELEMENTS.map((el) => (
-              <th key={el}>{el}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {OPERATIONS.map((op) => (
-            <tr key={op}>
-              <th>{op}</th>
+      <div className="rbacFlowTableWrap">
+        <table className="rbacFlowTable">
+          <thead>
+            <tr>
+              <th />
               {ELEMENTS.map((el) => (
-                <td key={el}>
-                  <input
-                    type="checkbox"
-                    disabled={disabled}
-                    checked={value.flows.includes(flowKey(op, el))}
-                    onChange={() => toggleFlow(op, el)}
-                    aria-label={`${op} ${el}`}
-                  />
-                </td>
+                <th key={el}>{el}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {OPERATIONS.map((op) => (
+              <tr key={op}>
+                <th>{op}</th>
+                {ELEMENTS.map((el) => (
+                  <td key={el} data-element={el}>
+                    <label className="rbacFlowCell">
+                      <input
+                        type="checkbox"
+                        disabled={disabled}
+                        checked={value.flows.includes(flowKey(op, el))}
+                        onChange={() => toggleFlow(op, el)}
+                        aria-label={`${op} ${el}`}
+                      />
+                    </label>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <label className="rbacCheckRow">
         <input

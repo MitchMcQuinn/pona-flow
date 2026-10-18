@@ -24,7 +24,20 @@ function StopIcon() {
   );
 }
 
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+      <path fill="currentColor" d="M3 5h14v1.6H3V5zm0 4.2h14v1.6H3V9.2zm0 4.2h14V15H3v-1.6z" />
+    </svg>
+  );
+}
+
 interface TopBarProps {
+  /** Phone/tablet: shorter button labels and a smaller logo. */
+  compact?: boolean;
+  /** Tablet: toggles the navigation drawer. */
+  onToggleNav?: () => void;
+  navOpen?: boolean;
   showBackToBuilder: boolean;
   onBackToBuilder: () => void;
   showRunButton: boolean;
@@ -37,6 +50,9 @@ interface TopBarProps {
 }
 
 export function TopBar({
+  compact = false,
+  onToggleNav,
+  navOpen = false,
   showBackToBuilder,
   onBackToBuilder,
   showRunButton,
@@ -52,18 +68,34 @@ export function TopBar({
   const showRun = showRunButton && !parked;
 
   return (
-    <header className="topbar">
-      <img src={logoUrl} alt="pona flow" className="topbarLogo" />
+    <header className={`topbar${compact ? " topbarCompact" : ""}`}>
+      <div className="topbarStart">
+        {onToggleNav ? (
+          <button
+            type="button"
+            className="topbarMenuBtn"
+            aria-label={navOpen ? "Close navigation" : "Open navigation"}
+            aria-expanded={navOpen}
+            data-testid="topbar-nav-toggle"
+            data-tour="nav-toggle"
+            onClick={onToggleNav}
+          >
+            <MenuIcon />
+          </button>
+        ) : null}
+        <img src={logoUrl} alt="pona flow" className="topbarLogo" />
+      </div>
       <div className="topbarActions" data-tour="topbar-actions">
         {showBackToBuilder ? (
           <button
             type="button"
             className="topbarBackBtn"
             data-testid="topbar-back-btn"
+            aria-label="Back to builder"
             onClick={onBackToBuilder}
           >
             <BackIcon />
-            Back to builder
+            {compact ? "Builder" : "Back to builder"}
           </button>
         ) : null}
         {showStop ? (
@@ -71,21 +103,23 @@ export function TopBar({
             type="button"
             className="btnDanger topbarStopBtn"
             data-testid="topbar-stop-btn"
+            aria-label="Stop sequence"
             onClick={onStop}
           >
             <StopIcon />
-            Stop Sequence
+            {compact ? "Stop" : "Stop Sequence"}
           </button>
         ) : null}
         {showRun ? (
           <button
             className="btnPrimary topbarRunBtn"
             data-testid="topbar-run-btn"
+            aria-label="Run sequence"
             onClick={onRun}
             disabled={!canRun}
           >
             {!running ? <PlayIcon /> : null}
-            {running ? "Running..." : "Run Sequence"}
+            {running ? "Running..." : compact ? "Run" : "Run Sequence"}
           </button>
         ) : null}
       </div>

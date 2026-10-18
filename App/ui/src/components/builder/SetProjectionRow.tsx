@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { Picker } from "./Picker";
+import { TouchHint } from "./TouchHint";
 import connector from "../../services/connector";
 import { useBuilder } from "../../state/builder/BuilderContext";
 import {
@@ -18,6 +19,11 @@ import { formatParameterInput, isAttributiveLabelParameter } from "@pona-flow/au
 import { validateInstanceValue } from "@pona-flow/authoring";
 import { schemaConstraintMap } from "../../state/builder/updateInstanceGuard";
 import { fetchWherePropertyKeysForEntity, fetchWherePropertyValuesForEntity } from "./where/wherePropertyOptions";
+
+const SET_MODE_HINT =
+  "value: literal or $parameter. now: toString(datetime()) at run time (string properties). " +
+  "negate property: NOT coalesce(source.prop, false) (boolean properties). " +
+  "expression: raw Cypher right-hand side, validated only at run time.";
 import type { SchematicProperties, SetItem, SetValueMode } from "../../state/builder/types";
 
 interface SetProjectionRowProps {
@@ -241,11 +247,7 @@ export function SetProjectionRow({ index, item, onRemove }: SetProjectionRowProp
             value={mode}
             disabled={!resolved.property_key}
             onChange={(e) => patchMode(e.target.value as SetValueMode)}
-            title={
-              "value: literal or $parameter. now: toString(datetime()) at run time (string properties). " +
-              "negate property: NOT coalesce(source.prop, false) (boolean properties). " +
-              "expression: raw Cypher right-hand side, validated only at run time."
-            }
+            title={SET_MODE_HINT}
           >
             {availableModes.map((m) => (
               <option key={m} value={m}>
@@ -253,6 +255,7 @@ export function SetProjectionRow({ index, item, onRemove }: SetProjectionRowProp
               </option>
             ))}
           </select>
+          <TouchHint text={SET_MODE_HINT} />
         </div>
         {mode === "literal" ? (
           <div className="builderField">
