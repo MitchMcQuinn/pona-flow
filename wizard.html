@@ -126,7 +126,13 @@
 
     <section class="wizard-panel" data-step="4" hidden>
       <h2>4. Run these commands</h2>
-      <p class="hint">Secrets are embedded only in the script below, which stays in this tab until you copy it. We never receive them.</p>
+      <p class="hint">
+        Secrets stay in this tab only — we never receive them.
+        On macOS, <strong>do not</strong> paste a raw <code>#!/…</code> script into zsh
+        (the <code>!</code> triggers “event not found”). Use <strong>Copy script</strong>
+        (zsh-safe) or <strong>Download .sh</strong> then
+        <code>bash ~/Downloads/pona-flow-fly-setup.sh</code>.
+      </p>
       <div class="script-toolbar">
         <button type="button" class="btn btn-primary" id="copy-script">Copy script</button>
         <button type="button" class="btn btn-ghost" id="download-script">Download .sh</button>
