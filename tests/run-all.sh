@@ -21,6 +21,7 @@ EXTERNAL_TESTS=(
   diag-instance-currency.py
   diag-delete-pillar.py
   diag-delete-pillar-run.py
+  diag-resave-regression.mjs
   connector-api-path.mjs
   step-flow-query-filter.mjs
 )
