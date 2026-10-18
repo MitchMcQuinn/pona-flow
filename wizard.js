@@ -94,8 +94,11 @@
     lines.push("");
     lines.push("# Prefer Homebrew flyctl, then the official installer path.");
     lines.push('export PATH="/opt/homebrew/bin:/usr/local/bin:${HOME}/.fly/bin:${PATH}"');
-    lines.push('if ! command -v fly >/dev/null 2>&1 && command -v flyctl >/dev/null 2>&1; then alias fly=flyctl; fi');
-    lines.push('command -v fly >/dev/null || { echo "Install flyctl first: brew install flyctl"; exit 1; }');
+    lines.push('if ! command -v fly >/dev/null 2>&1; then');
+    lines.push('  if command -v flyctl >/dev/null 2>&1; then fly() { flyctl "$@"; }; else');
+    lines.push('    echo "Install flyctl first: brew install flyctl"; exit 1;');
+    lines.push("  fi");
+    lines.push("fi");
     lines.push("");
     lines.push("export APP=" + shellQuote(app));
     lines.push("export REGION=" + shellQuote(region));
