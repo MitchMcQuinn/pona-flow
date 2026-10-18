@@ -6,7 +6,7 @@
   <title>pona flow — workflows for humans and agents</title>
   <meta name="description" content="Open-source runtime where domain types, records, and workflows share one graph. Community, guided self-host on Fly+Aura, or hosted (coming soon)." />
   <meta property="og:title" content="pona flow" />
-  <meta property="og:description" content="Run it yourself, or walk through Fly + Aura with the self-host wizard. Hosted edition coming soon." />
+  <meta property="og:description" content="Run it yourself, or set up Fly + Aura from the terminal. Hosted edition coming soon." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://mitchmcquinn.github.io/pona-flow/" />
   <link rel="icon" href="pona-flow-logo.svg" type="image/svg+xml" />
@@ -20,7 +20,7 @@
       <a href="#how">How it works</a>
       <a href="#editions">Editions</a>
       <a href="https://github.com/MitchMcQuinn/pona-flow">GitHub</a>
-      <a class="btn btn-nav" href="./wizard.html">Self-host wizard</a>
+      <a class="btn btn-nav" href="./wizard.html">Self-host setup</a>
     </nav>
   </header>
 
@@ -28,7 +28,7 @@
     <h1>Have agents <em class="actually">actually</em> reduced your workload?</h1>
     <p class="ask">…or did they only migrate it?</p>
     <div class="actions">
-      <a class="btn btn-primary" href="./wizard.html">Self-host wizard</a>
+      <a class="btn btn-primary" href="./wizard.html">Self-host setup</a>
       <a class="btn btn-ghost" href="https://github.com/MitchMcQuinn/pona-flow">Community on GitHub</a>
     </div>
     <p class="hint hero-hint">Open source (AGPL-3.0). Your instance, your Neo4j — never a shared sandbox. <a href="#editions">See editions →</a></p>
@@ -209,8 +209,8 @@
       <article>
         <p class="label">Free</p>
         <h3>Self-hosted</h3>
-        <p>Guided wizard: create your Aura database and Fly.io app, paste the values, run the generated script. Optional Clerk. Your data stays in accounts you control.</p>
-        <p><a class="btn btn-primary" href="./wizard.html">Open the wizard</a></p>
+        <p>One terminal command: create your Aura database and Fly.io app, then the installer prompts and deploys the latest <code>main</code> image. Optional Clerk. Your data stays in accounts you control.</p>
+        <p><a class="btn btn-primary" href="./wizard.html">Open the setup</a></p>
       </article>
       <article>
         <p class="label">Paid · coming soon</p>
@@ -244,11 +244,11 @@
   <section class="close" id="close">
     <h2>Your instance. Your database.</h2>
     <p>
-      Start with Community on GitHub, or use the Self-hosted wizard for Fly + Aura in one sitting.
+      Start with Community on GitHub, or run the Self-hosted terminal installer for Fly + Aura in one sitting.
       Hosted (we run it) is on the roadmap.
     </p>
     <div class="actions">
-      <a class="btn btn-primary" href="./wizard.html">Self-host wizard</a>
+      <a class="btn btn-primary" href="./wizard.html">Self-host setup</a>
       <a class="btn btn-ghost" href="https://github.com/MitchMcQuinn/pona-flow">Community on GitHub</a>
     </div>
 
@@ -275,7 +275,7 @@
     </p>
     <p>
       <a href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/5-MINUTE-ARCHITECTURE.md">Five-minute architecture</a>
-      · <a href="./wizard.html">Self-host wizard</a>
+      · <a href="./wizard.html">Self-host setup</a>
       · <a href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/SELF-HOSTING.md">Docker guide</a>
       · <a href="https://github.com/MitchMcQuinn/pona-flow/blob/main/LICENSE">AGPL-3.0</a>
       · <a href="https://github.com/MitchMcQuinn/pona-flow">Source</a>
@@ -321,7 +321,7 @@
           return;
         }
         window.open("https://github.com/MitchMcQuinn/pona-flow/releases", "_blank", "noopener");
-        say("Hosted is coming soon. For now, watch releases on GitHub — or use the Self-host wizard.");
+        say("Hosted is coming soon. For now, watch releases on GitHub — or use the Self-host setup.");
       });
     })();
   </script>
