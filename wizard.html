@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>pona flow — self-host wizard (Fly + Aura)</title>
+  <meta name="description" content="Walk through Fly.io and Neo4j Aura setup. Values stay in your browser; the wizard only generates commands for you to run." />
+  <link rel="icon" href="pona-flow-logo.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="wizard.css" />
+</head>
+<body class="wizard-page">
+  <header class="nav">
+    <a class="wordmark" href="./"><img src="pona-flow-logo.svg" alt="pona flow" /></a>
+    <nav>
+      <a href="./#editions">Editions</a>
+      <a href="https://github.com/MitchMcQuinn/pona-flow">GitHub</a>
+    </nav>
+  </header>
+
+  <main class="wizard" id="wizard">
+    <p class="label">Self-hosted edition</p>
+    <h1>Cloud setup wizard</h1>
+    <p class="lead">
+      You create accounts on <strong>Neo4j Aura</strong> and <strong>Fly.io</strong> (and optionally
+      <strong>Clerk</strong>). This page never uploads your secrets — it only builds the commands
+      for you to paste into a terminal.
+    </p>
+
+    <ol class="wizard-steps" id="step-dots" aria-label="Steps"></ol>
+
+    <section class="wizard-panel" data-step="0">
+      <h2>Before you start</h2>
+      <ul class="checklist">
+        <li>A computer with a terminal (macOS, Linux, or WSL).</li>
+        <li>Accounts you can create for free: <a href="https://neo4j.com/cloud/aura-free/" target="_blank" rel="noopener">Neo4j Aura Free</a> and <a href="https://fly.io" target="_blank" rel="noopener">Fly.io</a>.</li>
+        <li>Optional: a <a href="https://clerk.com" target="_blank" rel="noopener">Clerk</a> app if you want their sign-in UI instead of built-in email/password.</li>
+      </ul>
+      <p class="hint">Prefer local Docker only? Use the <a href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/SELF-HOSTING.md">Community / Docker guide</a> instead.</p>
+      <div class="wizard-nav">
+        <button type="button" class="btn btn-primary" data-next>Continue</button>
+      </div>
+    </section>
+
+    <section class="wizard-panel" data-step="1" hidden>
+      <h2>1. Neo4j Aura</h2>
+      <ol class="numbered">
+        <li>Open <a href="https://console.neo4j.io/" target="_blank" rel="noopener">console.neo4j.io</a> and create an <strong>Aura Free</strong> instance.</li>
+        <li>Copy the connection URI, username, and password (the password is shown once).</li>
+      </ol>
+      <label class="field">Neo4j URI
+        <input name="neo4j_uri" type="text" autocomplete="off" placeholder="neo4j+s://xxxxxxxx.databases.neo4j.io" required />
+      </label>
+      <label class="field">Neo4j user
+        <input name="neo4j_user" type="text" autocomplete="off" value="neo4j" />
+      </label>
+      <label class="field">Neo4j password
+        <input name="neo4j_password" type="password" autocomplete="new-password" placeholder="Aura-generated password" />
+      </label>
+      <div class="wizard-nav">
+        <button type="button" class="btn btn-ghost" data-back>Back</button>
+        <button type="button" class="btn btn-primary" data-next>Continue</button>
+      </div>
+    </section>
+
+    <section class="wizard-panel" data-step="2" hidden>
+      <h2>2. Fly.io app</h2>
+      <ol class="numbered">
+        <li>Install the CLI: <code>curl -L https://fly.io/install.sh | sh</code> (or <code>brew install flyctl</code>).</li>
+        <li>Sign in: <code>fly auth login</code>.</li>
+        <li>Pick an app name (letters, numbers, hyphens). It becomes <code>https://&lt;name&gt;.fly.dev</code>.</li>
+      </ol>
+      <label class="field">Fly app name
+        <input name="fly_app" type="text" autocomplete="off" placeholder="my-pona-flow" pattern="[a-z0-9][a-z0-9-]*" />
+      </label>
+      <label class="field">Primary region
+        <select name="fly_region">
+          <option value="iad">iad — Ashburn, VA</option>
+          <option value="ord">ord — Chicago</option>
+          <option value="lax">lax — Los Angeles</option>
+          <option value="lhr">lhr — London</option>
+          <option value="fra">fra — Frankfurt</option>
+          <option value="syd">syd — Sydney</option>
+          <option value="nrt">nrt — Tokyo</option>
+        </select>
+      </label>
+      <div class="wizard-nav">
+        <button type="button" class="btn btn-ghost" data-back>Back</button>
+        <button type="button" class="btn btn-primary" data-next>Continue</button>
+      </div>
+    </section>
+
+    <section class="wizard-panel" data-step="3" hidden>
+      <h2>3. Sign-in</h2>
+      <p>Built-in email/password is the default (no third party). Clerk is optional.</p>
+      <fieldset class="auth-choice">
+        <label><input type="radio" name="auth_mode" value="local" checked /> Built-in accounts (recommended)</label>
+        <label><input type="radio" name="auth_mode" value="clerk" /> Clerk</label>
+      </fieldset>
+      <div id="clerk-fields" hidden>
+        <label class="field">CLERK_ISSUER
+          <input name="clerk_issuer" type="url" autocomplete="off" placeholder="https://your-app.clerk.accounts.dev" />
+        </label>
+        <label class="field">CLERK_PUBLISHABLE_KEY
+          <input name="clerk_pk" type="text" autocomplete="off" placeholder="pk_live_… or pk_test_…" />
+        </label>
+        <p class="hint">From the Clerk dashboard → API Keys. The first person to sign in becomes instance admin.</p>
+      </div>
+      <div id="local-admin-fields">
+        <p class="hint">After deploy, the first account is created with the setup command (you stay admin).</p>
+        <label class="field">Admin email
+          <input name="admin_email" type="email" autocomplete="username" placeholder="you@company.com" />
+        </label>
+        <label class="field">Admin password (min 10 characters)
+          <input name="admin_password" type="password" autocomplete="new-password" />
+        </label>
+        <label class="field">Display name
+          <input name="admin_name" type="text" autocomplete="nickname" placeholder="Your name" />
+        </label>
+      </div>
+      <div class="wizard-nav">
+        <button type="button" class="btn btn-ghost" data-back>Back</button>
+        <button type="button" class="btn btn-primary" data-next>Generate commands</button>
+      </div>
+    </section>
+
+    <section class="wizard-panel" data-step="4" hidden>
+      <h2>4. Run these commands</h2>
+      <p class="hint">Secrets are embedded only in the script below, which stays in this tab until you copy it. We never receive them.</p>
+      <div class="script-toolbar">
+        <button type="button" class="btn btn-primary" id="copy-script">Copy script</button>
+        <button type="button" class="btn btn-ghost" id="download-script">Download .sh</button>
+      </div>
+      <pre class="script" id="script-out" tabindex="0"></pre>
+      <p>When it finishes, open <a id="app-url" href="#" target="_blank" rel="noopener">your app URL</a> and sign in.</p>
+      <div class="wizard-nav">
+        <button type="button" class="btn btn-ghost" data-back>Back</button>
+        <a class="btn btn-ghost" href="./">Back to home</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      <a href="./">Home</a>
+      · <a href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/SELF-HOSTING.md">Docker / local</a>
+      · <a href="https://github.com/MitchMcQuinn/pona-flow">Source</a>
+    </p>
+  </footer>
+  <script src="wizard.js" defer></script>
+</body>
+</html>

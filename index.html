@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>pona flow — workflows for humans and agents</title>
-  <meta name="description" content="Open-source runtime where your domain types, records, and workflows share one graph. Try the hosted demo, or self-host with Docker." />
+  <meta name="description" content="Open-source runtime where domain types, records, and workflows share one graph. Community, guided self-host on Fly+Aura, or hosted (coming soon)." />
   <meta property="og:title" content="pona flow" />
-  <meta property="og:description" content="Try the demo in your browser, or self-host with Docker. Humans and agents run the same sequences." />
+  <meta property="og:description" content="Run it yourself, or walk through Fly + Aura with the self-host wizard. Hosted edition coming soon." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://mitchmcquinn.github.io/pona-flow/" />
   <link rel="icon" href="pona-flow-logo.svg" type="image/svg+xml" />
@@ -18,8 +18,9 @@
     <a class="wordmark" href="#"><img src="pona-flow-logo.svg" alt="pona flow" /></a>
     <nav>
       <a href="#how">How it works</a>
+      <a href="#editions">Editions</a>
       <a href="https://github.com/MitchMcQuinn/pona-flow">GitHub</a>
-      <a class="btn btn-nav" href="https://pona-flow.fly.dev">Try the demo</a>
+      <a class="btn btn-nav" href="./wizard.html">Self-host wizard</a>
     </nav>
   </header>
 
@@ -27,10 +28,10 @@
     <h1>Have agents <em class="actually">actually</em> reduced your workload?</h1>
     <p class="ask">…or did they only migrate it?</p>
     <div class="actions">
-      <a class="btn btn-primary" href="https://pona-flow.fly.dev">Try the demo</a>
-      <a class="btn btn-ghost" href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/SELF-HOSTING.md">Self-host</a>
+      <a class="btn btn-primary" href="./wizard.html">Self-host wizard</a>
+      <a class="btn btn-ghost" href="https://github.com/MitchMcQuinn/pona-flow">Community on GitHub</a>
     </div>
-    <p class="hint hero-hint">Open source (AGPL-3.0). Sign up in the browser on the public demo, or run it on your own machine. <a href="#close">Both paths →</a></p>
+    <p class="hint hero-hint">Open source (AGPL-3.0). Your instance, your Neo4j — never a shared sandbox. <a href="#editions">See editions →</a></p>
   </section>
 
   <aside class="callout">
@@ -192,7 +193,32 @@
     <figure class="explain">
       <img src="visuals/agency-05-allowed.png" alt="Dashboard, chatbot, or a service start this account, then ask this approver, follow this brand rule, or wait for this file." />
     </figure>
-    <p><a class="text-cta" href="https://pona-flow.fly.dev">Try it in the browser →</a></p>
+    <p><a class="text-cta" href="./wizard.html">Set up your own cloud instance →</a></p>
+  </section>
+
+  <section class="section" id="editions">
+    <h2>Three editions</h2>
+    <p class="hint" style="margin-top:0">Each customer gets their own graph. We do not run a shared public sandbox.</p>
+    <div class="tiles editions">
+      <article>
+        <p class="label">Free</p>
+        <h3>Community</h3>
+        <p>Fork or clone the GitHub repo. You host the app and Neo4j (often Docker on a laptop or server). Built-in auth; Clerk optional.</p>
+        <p><a class="btn btn-ghost" href="https://github.com/MitchMcQuinn/pona-flow">View on GitHub</a></p>
+      </article>
+      <article>
+        <p class="label">Free</p>
+        <h3>Self-hosted</h3>
+        <p>Guided wizard: create your Aura database and Fly.io app, paste the values, run the generated script. Optional Clerk. Your data stays in accounts you control.</p>
+        <p><a class="btn btn-primary" href="./wizard.html">Open the wizard</a></p>
+      </article>
+      <article>
+        <p class="label">Paid · coming soon</p>
+        <h3>Hosted</h3>
+        <p>We provision the app, Aura, and sign-in for a monthly subscription. Same product; less ops.</p>
+        <p><a class="btn btn-ghost" href="#hosted-soon">Join the waitlist</a></p>
+      </article>
+    </div>
   </section>
 
   <section class="section" id="audience">
@@ -216,19 +242,29 @@
   </section>
 
   <section class="close" id="close">
-    <h2>Try it now. Keep it on your machine later.</h2>
+    <h2>Your instance. Your database.</h2>
     <p>
-      The public demo is a shared sandbox: create an account, make a space, run a sequence.
-      When you want your own data and Neo4j, self-host with Docker in about ten minutes.
+      Start with Community on GitHub, or use the Self-hosted wizard for Fly + Aura in one sitting.
+      Hosted (we run it) is on the roadmap.
     </p>
     <div class="actions">
-      <a class="btn btn-primary" href="https://pona-flow.fly.dev">Try the demo</a>
-      <a class="btn btn-ghost" href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/SELF-HOSTING.md">Self-host guide</a>
+      <a class="btn btn-primary" href="./wizard.html">Self-host wizard</a>
+      <a class="btn btn-ghost" href="https://github.com/MitchMcQuinn/pona-flow">Community on GitHub</a>
     </div>
-    <p class="hint" style="margin-top:16px">
-      Demo: <a href="https://pona-flow.fly.dev">pona-flow.fly.dev</a>
-      · how it’s hosted: <a href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/DEMO-HOSTING.md">DEMO-HOSTING.md</a>
-    </p>
+
+    <div class="notify" id="hosted-soon">
+      <p class="label">Hosted edition — coming soon</p>
+      <p>
+        Want us to run app + database + sign-in for a monthly fee? Leave an email and we’ll
+        tell you when paid hosting opens. Nothing else is sent.
+      </p>
+      <form class="notify-form" id="notify-form" novalidate>
+        <label class="visually-hidden" for="notify-email">Email</label>
+        <input id="notify-email" name="email" type="email" required placeholder="you@company.com" autocomplete="email" />
+        <button class="btn btn-primary" type="submit">Notify me</button>
+      </form>
+      <p class="hint" id="notify-hint">Or <a href="https://github.com/MitchMcQuinn/pona-flow/releases">watch releases on GitHub</a>.</p>
+    </div>
   </section>
 
   <footer id="how">
@@ -239,11 +275,55 @@
     </p>
     <p>
       <a href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/5-MINUTE-ARCHITECTURE.md">Five-minute architecture</a>
-      · <a href="https://pona-flow.fly.dev">Demo</a>
-      · <a href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/SELF-HOSTING.md">Self-host</a>
+      · <a href="./wizard.html">Self-host wizard</a>
+      · <a href="https://github.com/MitchMcQuinn/pona-flow/blob/main/Docs/SELF-HOSTING.md">Docker guide</a>
       · <a href="https://github.com/MitchMcQuinn/pona-flow/blob/main/LICENSE">AGPL-3.0</a>
       · <a href="https://github.com/MitchMcQuinn/pona-flow">Source</a>
     </p>
   </footer>
+
+  <script>
+    (function () {
+      var CONTACT_EMAIL = "";
+      var FORM_ENDPOINT = "";
+      var form = document.getElementById("notify-form");
+      var input = document.getElementById("notify-email");
+      var hint = document.getElementById("notify-hint");
+      if (!form || !input || !hint) return;
+      function say(text) { hint.textContent = text; }
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var email = (input.value || "").trim();
+        if (!email || !input.checkValidity()) {
+          say("Enter a valid email address.");
+          input.focus();
+          return;
+        }
+        if (FORM_ENDPOINT) {
+          fetch(FORM_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ email: email, interest: "hosted" })
+          }).then(function (r) {
+            if (!r.ok) throw new Error(String(r.status));
+            form.reset();
+            say("Thanks. We’ll email you when Hosted opens.");
+          }).catch(function () {
+            say("That didn’t go through. Try again, or watch releases on GitHub.");
+          });
+          return;
+        }
+        if (CONTACT_EMAIL) {
+          var subject = encodeURIComponent("pona flow Hosted: notify me");
+          var body = encodeURIComponent("Please let me know when the Hosted edition opens.\n\nEmail: " + email);
+          window.location.href = "mailto:" + CONTACT_EMAIL + "?subject=" + subject + "&body=" + body;
+          say("Your mail client should open with the message ready to send.");
+          return;
+        }
+        window.open("https://github.com/MitchMcQuinn/pona-flow/releases", "_blank", "noopener");
+        say("Hosted is coming soon. For now, watch releases on GitHub — or use the Self-host wizard.");
+      });
+    })();
+  </script>
 </body>
 </html>
