@@ -32,16 +32,45 @@ def list_events(
     return {"space_id": sid, "events": events}
 
 
-@router.get("/api/events/{event_id}")
-def get_event(
-    event_id: str, principal: Principal = Depends(auth.current_principal_or_agent)
-):
+def _event_for_principal(event_id: str, principal: Principal) -> dict:
+    """Load an event the principal may see, or raise 404."""
     with domain_500():
         event = catalog.get_event(event_id)
     if event is None:
         raise HTTPException(404, "event not found")
     auth.require_space_access(principal, str(event.get("space_id") or ""))
     return event
+
+
+@router.get("/api/events/{event_id}/test-capture")
+def get_event_test_capture(
+    event_id: str, principal: Principal = Depends(auth.current_principal_or_agent)
+):
+    """Latest payload captured by this event's test endpoint, if any."""
+    event = _event_for_principal(event_id, principal)
+    if str(event.get("type") or "") != "external":
+        return {"event_id": event_id, "capture": None}
+    with domain_500():
+        capture = catalog.latest_event_test_capture(event_id)
+    return {"event_id": event_id, "capture": capture}
+
+
+@router.delete("/api/events/{event_id}/test-capture")
+def clear_event_test_capture(
+    event_id: str, principal: Principal = Depends(auth.current_principal_or_agent)
+):
+    """Forget the payload currently shown in the event builder's test listener."""
+    _event_for_principal(event_id, principal)
+    with domain_500():
+        catalog.clear_event_test_capture(event_id)
+    return {"event_id": event_id, "cleared": True}
+
+
+@router.get("/api/events/{event_id}")
+def get_event(
+    event_id: str, principal: Principal = Depends(auth.current_principal_or_agent)
+):
+    return _event_for_principal(event_id, principal)
 
 
 @router.post("/api/events/upsert")

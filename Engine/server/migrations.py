@@ -35,6 +35,7 @@ _CATALOG_DDL_FILES = (
     "users-table.sql",
     "space-roles-table.sql",
     "events-table.sql",
+    "event-test-captures-table.sql",
     "audit-log-table.sql",
     "agent-keys-table.sql",
     "space-credentials-table.sql",

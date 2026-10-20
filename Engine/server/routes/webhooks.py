@@ -11,6 +11,10 @@ credentials. The high-entropy ingest token in the URL is the secret; an optional
 per-event HMAC shared secret adds payload-integrity verification. The handler is
 deliberately defensive (never 500 on a bad payload) so a misbehaving provider can't
 get its hook auto-disabled.
+
+``POST /api/hooks/{ingest_token}/test`` is the same door with the sequences left
+off: it verifies the signature, stores the payload, and returns. The event builder
+polls that capture so someone wiring the hook can see the body they just sent.
 """
 
 from __future__ import annotations
@@ -26,6 +30,35 @@ from ..auth import Principal
 from ..http_utils import DOMAIN_ERRORS, bad_request, domain_500, json_body
 
 router = APIRouter()
+
+# Test captures are a debugging aid; reject bodies that would bloat the catalog row.
+_MAX_TEST_BODY_BYTES = 256 * 1024
+
+
+def _load_external_event(ingest_token: str) -> dict:
+    """Resolve an external event by ingest token, or raise 404/500."""
+    token = (ingest_token or "").strip()
+    if not token:
+        raise HTTPException(404, "unknown ingest token")
+    try:
+        event = catalog.get_event_by_ingest_token(token)
+    except DOMAIN_ERRORS as e:
+        sys.stderr.write(f"external-ingest lookup error: {e}\n")
+        raise HTTPException(500, "lookup failed")
+    if event is None or str(event.get("type") or "") != "external":
+        raise HTTPException(404, "unknown ingest token")
+    return event
+
+
+def _payload_from_raw(raw: bytes) -> object:
+    """Parse an inbound body the same way the live receiver does."""
+    if not raw:
+        return {}
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        # Tolerate non-JSON bodies (e.g. form-encoded) by exposing the raw text.
+        return {"raw": raw.decode("utf-8", "replace")}
 
 
 @router.get("/api/spaces/{space_id}/sequences")
@@ -110,16 +143,7 @@ async def external_event_ingest(ingest_token: str, request: Request):
     event's filters, maps payload fields into sequence parameters, and dispatches
     the target sequences (trigger ``external``). Returns ``accepted`` / ``ignored``
     with a 200 so providers keep the hook enabled."""
-    token = (ingest_token or "").strip()
-    if not token:
-        raise HTTPException(404, "unknown ingest token")
-    try:
-        event = catalog.get_event_by_ingest_token(token)
-    except DOMAIN_ERRORS as e:
-        sys.stderr.write(f"external-ingest lookup error: {e}\n")
-        raise HTTPException(500, "lookup failed")
-    if event is None or str(event.get("type") or "") != "external":
-        raise HTTPException(404, "unknown ingest token")
+    event = _load_external_event(ingest_token)
     if not int(event.get("enabled") or 0):
         raise HTTPException(403, "event is disabled")
 
@@ -130,15 +154,7 @@ async def external_event_ingest(ingest_token: str, request: Request):
     ):
         raise HTTPException(401, "invalid signature")
 
-    if raw:
-        try:
-            payload = json.loads(raw.decode("utf-8"))
-        except (ValueError, UnicodeDecodeError):
-            # Tolerate non-JSON bodies (e.g. form-encoded) by exposing the raw text;
-            # filters/mappings can still match on a single string payload.
-            payload = {"raw": raw.decode("utf-8", "replace")}
-    else:
-        payload = {}
+    payload = _payload_from_raw(raw)
 
     try:
         if not external_triggers.matches(config_pkg, payload):
@@ -148,3 +164,33 @@ async def external_event_ingest(ingest_token: str, request: Request):
         sys.stderr.write(f"external-ingest dispatch error: {e}\n")
         raise HTTPException(500, "dispatch failed")
     return {"status": "accepted", **result}
+
+
+@router.post("/api/hooks/{ingest_token}/test")
+async def external_event_test_ingest(ingest_token: str, request: Request):
+    """Capture a sample payload for the event builder without running sequences.
+
+    Same token and optional HMAC check as the live receiver. Disabled events still
+    capture, so a hook can be inspected before it is turned on. Filters are not
+    applied: the point is to see the body that arrived.
+    """
+    event = _load_external_event(ingest_token)
+    config_pkg = event.get("external_package") or {}
+    raw = await request.body()
+    if len(raw) > _MAX_TEST_BODY_BYTES:
+        raise HTTPException(413, "payload too large")
+    if not external_triggers.verify_signature(
+        config_pkg.get("secret"), raw, request.headers.get("X-Pona-Signature")
+    ):
+        raise HTTPException(401, "invalid signature")
+    payload = _payload_from_raw(raw)
+    try:
+        capture = catalog.record_event_test_capture(
+            str(event.get("id") or ""),
+            payload,
+            content_type=request.headers.get("content-type"),
+        )
+    except Exception as e:
+        sys.stderr.write(f"external-ingest test capture error: {e}\n")
+        raise HTTPException(500, "capture failed")
+    return {"status": "captured", "received_at": capture["received_at"]}

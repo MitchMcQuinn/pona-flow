@@ -971,6 +971,41 @@ export async function deleteEvent(eventId: string): Promise<{ id: string }> {
   return { id: data.id ?? eventId };
 }
 
+/** Latest body captured by an external event's test endpoint. */
+export interface EventTestCapture {
+  receivedAt: string;
+  contentType: string | null;
+  payload: unknown;
+}
+
+export async function fetchEventTestCapture(eventId: string): Promise<EventTestCapture | null> {
+  const data = await getJson<{
+    capture?: {
+      received_at?: string;
+      content_type?: string | null;
+      payload?: unknown;
+    } | null;
+  }>(
+    `/api/events/${encodeURIComponent(eventId)}/test-capture`,
+    "Failed to listen for a test payload",
+    { cache: "no-store" }
+  );
+  const capture = data.capture;
+  if (!capture) return null;
+  return {
+    receivedAt: capture.received_at || "",
+    contentType: capture.content_type ?? null,
+    payload: capture.payload ?? {}
+  };
+}
+
+export async function clearEventTestCapture(eventId: string): Promise<void> {
+  await deleteJson(
+    `/api/events/${encodeURIComponent(eventId)}/test-capture`,
+    "Failed to clear the test payload"
+  );
+}
+
 export async function fetchAuditLog(spaceId: string, limit = 200): Promise<AuditEntry[]> {
   const data = await getJson<{
     entries?: Array<{

@@ -960,11 +960,11 @@ def delete_space(space_id: str) -> dict[str, Any]:
     """Remove a space and its space-scoped catalog rows.
 
     Cascades over ``space_members``, ``space_roles``, ``events``, ``agent_keys``,
-    and the synthetic agent ``users`` rows that exist only for
-    this space's keys (the catalog has no foreign keys, so orphans would otherwise
-    accumulate — and a stale ``agent_keys`` row would keep authenticating). ``audit_log``
-    rows are deliberately kept as run history. Per-space Neo4j/SQLite data files are not
-    touched.
+    external-event test captures, and the synthetic agent ``users`` rows that exist
+    only for this space's keys (the catalog has no foreign keys, so orphans would
+    otherwise accumulate — and a stale ``agent_keys`` row would keep authenticating).
+    ``audit_log`` rows are deliberately kept as run history. Per-space Neo4j/SQLite
+    data files are not touched.
     """
     sid = (space_id or "").strip()
     if not sid:
@@ -980,6 +980,12 @@ def delete_space(space_id: str) -> dict[str, Any]:
             "(SELECT principal_id FROM agent_keys WHERE space_id = ?)",
             (sid,),
         )
+        if sqlite_util.table_exists(conn, "event_test_captures"):
+            conn.execute(
+                "DELETE FROM event_test_captures WHERE event_id IN "
+                "(SELECT id FROM events WHERE space_id = ?)",
+                (sid,),
+            )
         for table in (
             "agent_keys",
             "events",

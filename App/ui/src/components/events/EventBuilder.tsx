@@ -9,6 +9,7 @@ import type {
   SequenceSummary
 } from "../../state/types";
 import { deleteEvent, fetchEvent, generateId, saveEvent } from "../../services/api";
+import { EventTestListener } from "./EventTestListener";
 import { browserTimeZone, supportedTimeZones, timeZoneLabel } from "../../services/timezone";
 import "./events.css";
 
@@ -84,7 +85,7 @@ function apiOrigin(): string {
 }
 
 /** A read-only value in a code block with a one-click copy button. */
-function CopyField({ value }: { value: string }) {
+function CopyField({ value, testId }: { value: string; testId?: string }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
@@ -97,7 +98,7 @@ function CopyField({ value }: { value: string }) {
   }
   return (
     <div className="agentTokenCode">
-      <code>{value}</code>
+      <code data-testid={testId}>{value}</code>
       <button type="button" className="btnPrimary" onClick={copy}>
         {copied ? "Copied" : "Copy"}
       </button>
@@ -383,7 +384,7 @@ export function EventBuilder({
             <div className="field">
               <label>Inbound URL</label>
               {ingestUrl ? (
-                <CopyField value={ingestUrl} />
+                <CopyField value={ingestUrl} testId="event-ingest-url" />
               ) : (
                 <p className="muted">
                   The inbound URL is generated when you first save this event.
@@ -393,6 +394,12 @@ export function EventBuilder({
                 External services POST their payload here to trigger the sequences below.
               </span>
             </div>
+
+            <EventTestListener
+              eventId={eventId}
+              ingestToken={ingestToken}
+              signed={secret.trim().length > 0}
+            />
 
             <div className="field">
               <label htmlFor="event-secret">Signing secret (optional)</label>

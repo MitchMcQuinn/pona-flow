@@ -38,7 +38,13 @@ config.catalog_sqlite_path = lambda: tmp_db  # type: ignore[assignment]
 
 try:
     conn = config.connect_sqlite(tmp_db)
-    for ddl in ("users-table.sql", "events-table.sql", "agent-keys-table.sql", "audit-log-table.sql"):
+    for ddl in (
+    "users-table.sql",
+    "events-table.sql",
+    "event-test-captures-table.sql",
+    "agent-keys-table.sql",
+    "audit-log-table.sql",
+):
         conn.executescript(
             (config.ROOT / "Engine" / "schema" / ddl).read_text(encoding="utf-8")
         )
@@ -56,6 +62,14 @@ try:
     )
     conn.execute(
         "INSERT INTO events (id, space_id, name, type) VALUES ('ev_keep', 'keep', 'weekly', 'time')"
+    )
+    conn.execute(
+        "INSERT INTO event_test_captures (event_id, received_at, payload) "
+        "VALUES ('ev_demo', 't', '{}')"
+    )
+    conn.execute(
+        "INSERT INTO event_test_captures (event_id, received_at, payload) "
+        "VALUES ('ev_keep', 't', '{}')"
     )
     conn.commit()
     conn.close()
@@ -84,6 +98,10 @@ try:
     check("space_members cascade", count("space_members", "space_id = ?", "demo") == 0)
     check("space_roles cascade", count("space_roles", "space_id = ?", "demo") == 0)
     check("events cascade", count("events", "space_id = ?", "demo") == 0)
+    check(
+        "event test captures cascade",
+        count("event_test_captures", "event_id = ?", "ev_demo") == 0,
+    )
     check("agent_keys cascade", count("agent_keys", "space_id = ?", "demo") == 0)
     check(
         "demo's synthetic agent user removed",
@@ -99,6 +117,10 @@ try:
     check("keep members intact", count("space_members", "space_id = ?", "keep") > 0)
     check("keep roles intact", count("space_roles", "space_id = ?", "keep") > 0)
     check("keep events intact", count("events", "space_id = ?", "keep") == 1)
+    check(
+        "keep test capture intact",
+        count("event_test_captures", "event_id = ?", "ev_keep") == 1,
+    )
     check("keep agent key intact", count("agent_keys", "space_id = ?", "keep") == 1)
     check(
         "keep's agent user intact",

@@ -17,6 +17,9 @@ describe("events: external webhook trigger", () => {
       .contains(".sequenceBtnLabel", EVENTS.EXTERNAL_NAME)
       .click();
     cy.get("#event-type", { timeout: 20_000 }).should("have.value", "external");
-    cy.get(".agentTokenCode code").should("contain.text", "/api/hooks/");
+    cy.get('[data-testid="event-ingest-url"]').should("contain.text", "/api/hooks/");
+    cy.get('[data-testid="event-test-endpoint"]').should("be.visible");
+    cy.get('[data-testid="event-test-url"]').should("contain.text", "/api/hooks/").and("contain.text", "/test");
+    cy.get('[data-testid="event-test-endpoint"]').should("contain.text", "Listening");
   });
 });

@@ -85,6 +85,78 @@
   margin-top: 0.2rem;
 }
 
+.eventTest {
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: var(--panel2);
+  box-shadow: var(--shadow-in-sm);
+  margin: 0.25rem 0 0.85rem;
+}
+
+.eventTest .field {
+  margin-bottom: 0;
+}
+
+.eventTestMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.45rem;
+}
+
+.eventTestMeta .eventHint {
+  margin-top: 0;
+}
+
+.eventTestLive {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.eventTestLive::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--mesh, #3d8bfd);
+  animation: eventTestPulse 1.4s ease-out infinite;
+}
+
+.eventTestPayload {
+  margin: 0.55rem 0 0;
+  max-height: 16rem;
+  overflow: auto;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--well);
+  box-shadow: var(--shadow-in-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+@keyframes eventTestPulse {
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eventTestLive::before {
+    animation: none;
+  }
+}
+
 .eventSeqList {
   display: flex;
   flex-direction: column;

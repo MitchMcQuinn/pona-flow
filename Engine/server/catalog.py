@@ -30,6 +30,7 @@ import re
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import Any
 
 from . import config
@@ -44,6 +45,7 @@ _FINISHED_STATUSES = ("inactive", "cancelled")
 _REGEX_TABLE_SQL = config.ROOT / "Engine" / "schema" / "regex-table.sql"
 _STATE_TABLE_SQL = config.ROOT / "Engine" / "schema" / "state-table.sql"
 _EVENTS_TABLE_SQL = config.ROOT / "Engine" / "schema" / "events-table.sql"
+_EVENT_TEST_CAPTURES_SQL = config.ROOT / "Engine" / "schema" / "event-test-captures-table.sql"
 _AUDIT_LOG_TABLE_SQL = config.ROOT / "Engine" / "schema" / "audit-log-table.sql"
 
 
@@ -101,6 +103,14 @@ def _ensure_events_table(conn: sqlite3.Connection) -> None:
     )
 
 
+def _ensure_event_test_captures(conn: sqlite3.Connection) -> None:
+    """Create the external-event test-payload table when this catalog predates it."""
+    if sqlite_util.table_exists(conn, "event_test_captures"):
+        return
+    conn.executescript(_EVENT_TEST_CAPTURES_SQL.read_text(encoding="utf-8"))
+    conn.commit()
+
+
 def _ensure_audit_log_table(conn: sqlite3.Connection) -> None:
     """Create the audit_log table (and add later columns) on legacy catalog databases."""
     if not _create_table_from_ddl(conn, "audit_log", _AUDIT_LOG_TABLE_SQL):
@@ -123,6 +133,7 @@ def catalog_conn() -> sqlite3.Connection:
         _ensure_regex_table(conn)
         _ensure_state_table(conn)
         _ensure_events_table(conn)
+        _ensure_event_test_captures(conn)
         _ensure_audit_log_table(conn)
         spaces.ensure_catalog_space_schema(conn)
         _ensured_catalog_paths.add(path)
@@ -943,12 +954,79 @@ def update_event_timers(event_id: str, timers: dict[str, Any] | None) -> None:
         conn.commit()
 
 
+def record_event_test_capture(
+    event_id: str, payload: Any, content_type: str | None = None
+) -> dict[str, Any]:
+    """Store the latest test-endpoint payload for an external event (replaces the previous)."""
+    eid = (event_id or "").strip()
+    if not eid:
+        raise ValueError("event id is required")
+    received_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ctype = (content_type or "").strip() or None
+    if ctype and len(ctype) > 200:
+        ctype = ctype[:200]
+    body = json.dumps(payload if payload is not None else {})
+    with catalog_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO event_test_captures (event_id, received_at, content_type, payload)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(event_id) DO UPDATE SET
+              received_at = excluded.received_at,
+              content_type = excluded.content_type,
+              payload = excluded.payload
+            """,
+            (eid, received_at, ctype, body),
+        )
+        conn.commit()
+    return {
+        "received_at": received_at,
+        "content_type": ctype,
+        "payload": payload if payload is not None else {},
+    }
+
+
+def latest_event_test_capture(event_id: str) -> dict[str, Any] | None:
+    """The most recent test-endpoint payload for an event, or None."""
+    eid = (event_id or "").strip()
+    if not eid:
+        return None
+    with catalog_connection() as conn:
+        cur = conn.execute(
+            "SELECT received_at, content_type, payload FROM event_test_captures WHERE event_id = ?",
+            (eid,),
+        )
+        row = cur.fetchone()
+    if row is None:
+        return None
+    try:
+        payload = json.loads(row[2]) if row[2] else {}
+    except json.JSONDecodeError:
+        payload = {"raw": row[2]}
+    return {
+        "received_at": row[0],
+        "content_type": row[1],
+        "payload": payload,
+    }
+
+
+def clear_event_test_capture(event_id: str) -> None:
+    """Drop the stored test payload for one event."""
+    eid = (event_id or "").strip()
+    if not eid:
+        return
+    with catalog_connection() as conn:
+        conn.execute("DELETE FROM event_test_captures WHERE event_id = ?", (eid,))
+        conn.commit()
+
+
 def delete_event(event_id: str) -> dict[str, Any]:
     """Delete one event row; returns the affected row count."""
     eid = (event_id or "").strip()
     if not eid:
         raise ValueError("event id is required")
     with catalog_connection() as conn:
+        conn.execute("DELETE FROM event_test_captures WHERE event_id = ?", (eid,))
         cur = conn.execute("DELETE FROM events WHERE id = ?", (eid,))
         conn.commit()
         return {"id": eid, "rowcount": cur.rowcount}
