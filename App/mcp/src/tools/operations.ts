@@ -166,7 +166,7 @@ const intentSchema = {
     })
     .optional()
     .describe(
-      "Creates a custom-endpoint STEP node. Mutually exclusive with wait_step and join_step. Publishes ok (boolean) and status (HTTP code) into run state for edge conditions. Use this to call local-llm-server (POST /configs/<id>/generate)."
+      "Creates a custom-endpoint STEP node. Mutually exclusive with wait_step, join_step, and operation_step. Publishes ok (boolean) and status (HTTP code) into run state for edge conditions. Use this to call local-llm-server (POST /configs/<id>/generate)."
     ),
   wait_step: z
     .object({
@@ -194,7 +194,7 @@ const intentSchema = {
     .optional()
     .describe(
       "Creates a Wait STEP that parks the run without blocking the request thread. " +
-        "Mutually exclusive with http_step and join_step."
+        "Mutually exclusive with http_step, join_step, and operation_step."
     ),
   join_step: z
     .object({})
@@ -202,7 +202,86 @@ const intentSchema = {
     .describe(
       "Creates a Join STEP: a barrier that continues only after every taken inbound arm " +
         "has finished. Incoming POINTS_TO edges are the arms; the outgoing edge is then. " +
-        "Does not run arms in parallel. Mutually exclusive with http_step and wait_step."
+        "Does not run arms in parallel. Mutually exclusive with http_step, wait_step, and operation_step."
+    ),
+  operation_step: z
+    .object({
+      name: z
+        .string()
+        .describe("Parameter name the boolean result is written under."),
+      collision: z
+        .enum(["overwrite", "skip", "append", "sequence"])
+        .optional()
+        .describe(
+          "How every write behaves when the key already exists. overwrite replaces. " +
+            "skip keeps the current value. append concatenates strings, pushes onto a list, " +
+            "or wraps other values into a list. sequence writes key_2, key_3, and so on. " +
+            "Default overwrite."
+        ),
+      group_junction: z
+        .enum(["AND", "OR"])
+        .optional()
+        .describe("How groups combine. Default AND."),
+      groups: z
+        .array(
+          z.object({
+            statement_junction: z
+              .enum(["AND", "OR"])
+              .optional()
+              .describe("How this group's statements combine. Default AND."),
+            statements: z
+              .array(
+                z.object({
+                  x: z.union([z.string(), z.number(), z.boolean()]),
+                  operator: z.enum([
+                    "=",
+                    "<>",
+                    "<",
+                    "<=",
+                    ">",
+                    ">=",
+                    "CONTAINS",
+                    "STARTS WITH",
+                    "ENDS WITH",
+                    "EXISTS",
+                    "IS EMPTY",
+                    "REGEX",
+                  ]),
+                  y: z
+                    .union([z.string(), z.number(), z.boolean()])
+                    .optional()
+                    .describe("Omitted for EXISTS and IS EMPTY."),
+                })
+              )
+              .min(1),
+          })
+        )
+        .min(1)
+        .describe(
+          "Groups of comparisons. X and Y are literals or $name / $name.field references " +
+            "into the current run. $secret is rejected."
+        ),
+      assignments: z
+        .array(
+          z.object({
+            when: z.enum(["true", "false", "always"]),
+            type: z.enum(["boolean", "string", "number"]),
+            key: z.string(),
+            value: z
+              .union([z.string(), z.number(), z.boolean()])
+              .describe("A literal. Not a $parameter."),
+          })
+        )
+        .optional()
+        .describe(
+          "Typed literals written when the evaluation matches when. always writes either way."
+        ),
+    })
+    .optional()
+    .describe(
+      "Creates an Operation STEP that evaluates a boolean from the current run's parameters " +
+        "and writes that boolean plus matching assignments back into the run. Does not query " +
+        "the graph. Mutually exclusive with http_step, wait_step, and join_step."
     ),
   where: z
     .array(

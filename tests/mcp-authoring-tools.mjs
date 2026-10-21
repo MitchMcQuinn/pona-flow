@@ -105,6 +105,7 @@ assert.equal(
 );
 assert.ok("wait_step" in createSchema.properties, "create_operation accepts wait_step");
 assert.ok("join_step" in createSchema.properties, "create_operation accepts join_step");
+assert.ok("operation_step" in createSchema.properties, "create_operation accepts operation_step");
 assert.equal(
   "code_step" in createSchema.properties,
   false,
@@ -182,7 +183,7 @@ assert.ok(
   INSTRUCTIONS.indexOf("1. create_operation") < INSTRUCTIONS.indexOf("3. create_sequence"),
   "the instructions must present the stages in dependency order"
 );
-assert.match(INSTRUCTIONS, /HTTP call, a wait, or a join/);
+assert.match(INSTRUCTIONS, /HTTP call, a wait, a join, or an operation/);
 assert.match(
   INSTRUCTIONS,
   /default to NEXT/,
@@ -341,6 +342,61 @@ assert.deepEqual(validateQuery(joinIntent, true), [], "join STEP intent must pas
 const joinSp = joinIntent.match[0].patterns[0].path[0].node.sequencial_properties;
 assert.equal(joinSp.step_type, "join");
 assert.deepEqual(JSON.parse(composer.stepEntityPayload(joinSp)), { kind: "join" });
+
+const operationIntent = buildOperationQuery(
+  {
+    name: "Route tier",
+    operation: "create",
+    node_label: "STEP",
+    attributive_label: "ACCOUNT_TIER_ROUTING",
+    operation_step: {
+      name: "account_tier_routing",
+      collision: "overwrite",
+      group_junction: "OR",
+      groups: [
+        {
+          statement_junction: "AND",
+          statements: [
+            { x: "$user.email", operator: "ENDS WITH", y: "@corp.example.com" },
+            { x: "$user.tenure_months", operator: ">", y: 12 },
+          ],
+        },
+      ],
+      assignments: [
+        { when: "true", type: "boolean", key: "has_seniority", value: true },
+        { when: "true", type: "string", key: "priority_level", value: "High" },
+      ],
+    },
+  },
+  { queryId: "q-op", entityIds: ["step-op"] }
+);
+assert.deepEqual(validateQuery(operationIntent, true), [], "operation STEP intent must pass validation");
+const operationSp = operationIntent.match[0].patterns[0].path[0].node.sequencial_properties;
+assert.equal(operationSp.step_type, "operation");
+assert.equal(operationSp.operation_evaluation.name, "account_tier_routing");
+const operationPayload = JSON.parse(composer.stepEntityPayload(operationSp));
+assert.equal(operationPayload.kind, "operation");
+assert.equal(operationPayload.evaluation.groups[0].statements[1].y, 12);
+assert.equal(operationPayload.assignments[0].value, true);
+
+assert.throws(
+  () =>
+    buildOperationQuery(
+      {
+        name: "Both",
+        operation: "create",
+        node_label: "STEP",
+        attributive_label: "BOTH",
+        join_step: {},
+        operation_step: {
+          name: "flag",
+          groups: [{ statements: [{ x: 1, operator: "=", y: 1 }] }],
+        },
+      },
+      { queryId: "q-both", entityIds: ["step-both"] }
+    ),
+  /mutually exclusive/
+);
 
 // A transition MATCHes both endpoints by graph id, then MERGEs the edge between them —
 // this is what stops it from creating two empty STEP nodes instead of wiring the real ones.

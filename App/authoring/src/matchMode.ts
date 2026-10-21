@@ -261,7 +261,8 @@ function isCustomEndpointNode(node: NodePattern): boolean {
   if (
     sp.step_type === "wait" ||
     sp.step_type === "join" ||
-    sp.step_type === "code"
+    sp.step_type === "code" ||
+    sp.step_type === "operation"
   ) {
     return true;
   }

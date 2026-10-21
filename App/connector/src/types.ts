@@ -38,7 +38,7 @@ export interface GraphNodeRow {
   // strict types as the composer (HTTP verb union; object body) rather than string/unknown.
   sequencial_properties?: {
     query_id?: string;
-    step_type?: "http" | "code" | "wait" | "join";
+    step_type?: "http" | "code" | "wait" | "join" | "operation";
     endpoint?: string;
     method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     headers?: Record<string, unknown>;
@@ -57,6 +57,37 @@ export interface GraphNodeRow {
     timeout_seconds?: number | string;
     max_attempts?: number;
     backoff_seconds?: number | string;
+    operation_evaluation?: {
+      name: string;
+      collision: "overwrite" | "skip" | "append" | "sequence";
+      group_junction: "AND" | "OR";
+      groups: Array<{
+        statement_junction: "AND" | "OR";
+        statements: Array<{
+          x: string | number | boolean;
+          operator:
+            | "="
+            | "<>"
+            | "<"
+            | "<="
+            | ">"
+            | ">="
+            | "CONTAINS"
+            | "STARTS WITH"
+            | "ENDS WITH"
+            | "EXISTS"
+            | "IS EMPTY"
+            | "REGEX";
+          y?: string | number | boolean;
+        }>;
+      }>;
+    };
+    operation_assignments?: Array<{
+      when: "true" | "false" | "always";
+      type: "boolean" | "string" | "number";
+      key: string;
+      value: string | number | boolean;
+    }>;
   };
   /** Custom-endpoint STEP input parameters (from the entities ``parameters`` column). */
   parameters?: Array<Record<string, unknown>>;

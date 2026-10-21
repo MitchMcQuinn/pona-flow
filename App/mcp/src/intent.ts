@@ -103,6 +103,40 @@ export interface StepJoinIntent {
   /** Join STEPs have no fields; incoming POINTS_TO edges are the arms. */
 }
 
+export interface StepOperationStatementIntent {
+  x: string | number | boolean;
+  operator:
+    | "="
+    | "<>"
+    | "<"
+    | "<="
+    | ">"
+    | ">="
+    | "CONTAINS"
+    | "STARTS WITH"
+    | "ENDS WITH"
+    | "EXISTS"
+    | "IS EMPTY"
+    | "REGEX";
+  y?: string | number | boolean;
+}
+
+export interface StepOperationIntent {
+  name: string;
+  collision?: "overwrite" | "skip" | "append" | "sequence";
+  group_junction?: "AND" | "OR";
+  groups: Array<{
+    statement_junction?: "AND" | "OR";
+    statements: StepOperationStatementIntent[];
+  }>;
+  assignments?: Array<{
+    when: "true" | "false" | "always";
+    type: "boolean" | "string" | "number";
+    key: string;
+    value: string | number | boolean;
+  }>;
+}
+
 function callPolicyFromStep(step: {
   timeout_seconds?: number | string;
   max_attempts?: number;
@@ -135,6 +169,7 @@ export interface OperationIntent {
   http_step?: StepHttpIntent;
   wait_step?: StepWaitIntent;
   join_step?: StepJoinIntent;
+  operation_step?: StepOperationIntent;
   where?: WhereIntent[];
   return_items?: ReturnIntent[];
   /**
@@ -287,6 +322,15 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
   };
 
   if (intent.operation === "create") {
+    const stepKinds = [
+      intent.http_step ? "http_step" : "",
+      intent.wait_step ? "wait_step" : "",
+      intent.join_step ? "join_step" : "",
+      intent.operation_step ? "operation_step" : "",
+    ].filter(Boolean);
+    if (stepKinds.length > 1) {
+      throw new Error(`${stepKinds.join(", ")} are mutually exclusive.`);
+    }
     element.node.node_source = "new";
     element.node.id_binding = { key: "id", value: ids.entityIds[0] ?? "" };
     if (intent.node_label === "SCHEMA") {
@@ -317,6 +361,27 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
       };
     } else if (intent.join_step) {
       element.node.sequencial_properties = { step_type: "join" };
+    } else if (intent.operation_step) {
+      const spec = intent.operation_step;
+      element.node.sequencial_properties = {
+        step_type: "operation",
+        operation_evaluation: {
+          name: spec.name.trim(),
+          collision: spec.collision ?? "overwrite",
+          group_junction: spec.group_junction ?? "AND",
+          groups: spec.groups.map((group) => ({
+            statement_junction: group.statement_junction ?? "AND",
+            statements: group.statements.map((statement) => ({
+              x: statement.x,
+              operator: statement.operator,
+              ...(statement.operator === "EXISTS" || statement.operator === "IS EMPTY"
+                ? {}
+                : { y: statement.y ?? "" }),
+            })),
+          })),
+        },
+        operation_assignments: spec.assignments ?? [],
+      };
     }
   } else {
     const where = whereGroup(intent);

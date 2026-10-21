@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import {
   callStepWarnings,
+  defaultOperationEvaluation,
   formatStepBodyJson,
   HTTP_DEFAULT_TIMEOUT_SECONDS,
+  operationStepWarnings,
   validateStepBodyJson,
   waitStepWarnings,
+  type OperationEvaluation,
   type WaitMode
 } from "@pona-flow/authoring";
 import { useBuilder } from "../../../state/builder/BuilderContext";
@@ -22,6 +25,7 @@ import { SegmentToggle } from "../SegmentToggle";
 import { DurationField } from "./DurationField";
 import { StepBodyEditor } from "./StepBodyEditor";
 import { StepResponseParametersSection } from "./StepResponseParametersSection";
+import { OperationStepConfig } from "./OperationStepConfig";
 
 const HTTP_METHODS: HttpMethod[] = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 
@@ -129,7 +133,9 @@ export function StepSequencialConfig({
         ? "wait"
         : sp.step_type === "join"
           ? "join"
-          : "http";
+          : sp.step_type === "operation"
+            ? "operation"
+            : "http";
   const waitMode: WaitMode =
     sp.wait_mode === "until" || sp.wait_mode === "event" ? sp.wait_mode : "duration";
 
@@ -249,6 +255,22 @@ export function StepSequencialConfig({
   ]);
 
   useEffect(() => {
+    if (stepType !== "operation") return;
+    const warnings = operationStepWarnings({
+      ...sp,
+      step_type: "operation",
+      operation_evaluation: sp.operation_evaluation?.groups
+        ? sp.operation_evaluation
+        : defaultOperationEvaluation()
+    });
+    reportCheck({
+      valid: warnings.length === 0,
+      message: warnings[0] ?? "valid"
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepType, sp.operation_evaluation, sp.operation_assignments]);
+
+  useEffect(() => {
     if (stepType !== "wait" || !state.spaceId) return;
     let cancelled = false;
     setEventsLoadError(null);
@@ -277,11 +299,30 @@ export function StepSequencialConfig({
       commitSequencial({ step_type: "join" });
       return;
     }
+    if (next === "operation") {
+      commitSequencial({
+        step_type: "operation",
+        operation_evaluation: sp.operation_evaluation ?? defaultOperationEvaluation(),
+        operation_assignments: sp.operation_assignments ?? []
+      });
+      return;
+    }
     commitSequencial({ step_type: next });
   }
 
   const bodyCheck = bodyCheckKey ? state.checks[bodyCheckKey] : undefined;
   const waitWarnings = stepType === "wait" ? waitStepWarnings({ ...sp, step_type: "wait" }) : [];
+  const operationEvaluation: OperationEvaluation = sp.operation_evaluation?.groups
+    ? sp.operation_evaluation
+    : defaultOperationEvaluation();
+  const operationWarnings =
+    stepType === "operation"
+      ? operationStepWarnings({
+          ...sp,
+          step_type: "operation",
+          operation_evaluation: operationEvaluation
+        })
+      : [];
   const callWarnings = stepType === "http" ? callStepWarnings({ ...sp, step_type: stepType }) : [];
   const selectedWaitEvent = events.find((event) => event.id === (sp.wait_event_id ?? "").trim());
   const waitEventAlsoTargetsThis =
@@ -327,7 +368,8 @@ export function StepSequencialConfig({
               options={[
                 { value: "http", label: "HTTP request" },
                 { value: "wait", label: "Wait" },
-                { value: "join", label: "Join" }
+                { value: "join", label: "Join" },
+                { value: "operation", label: "Operation" }
               ]}
               onChange={switchStepType}
             />
@@ -430,6 +472,13 @@ export function StepSequencialConfig({
               conditional branches do not block it. Arms still run one at a time — this is a
               meeting point, not parallel execution.
             </p>
+          ) : stepType === "operation" ? (
+            <OperationStepConfig
+              evaluation={operationEvaluation}
+              assignments={sp.operation_assignments ?? []}
+              warnings={operationWarnings}
+              onChange={commitSequencial}
+            />
           ) : (
             <>
               <div className="builderField">
@@ -505,7 +554,7 @@ export function StepSequencialConfig({
         </>
       )}
 
-      {stepType === "wait" || stepType === "join" ? null : (
+      {stepType === "wait" || stepType === "join" || stepType === "operation" ? null : (
         <StepResponseParametersSection
           items={sp.response_parameters ?? []}
           onChange={setResponseParameters}

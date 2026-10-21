@@ -27,11 +27,11 @@ def _resolve_raw(raw: Any, resolved: dict[str, Any]) -> Any:
 
 
 def is_retryable_step(step: dict[str, Any]) -> bool:
-    """True for HTTP endpoint steps (not query / wait / leftover code)."""
+    """True for HTTP endpoint steps (not query / wait / join / operation / leftover code)."""
     if str(step.get("query_id") or "").strip():
         return False
     kind = str(step.get("kind") or "").strip()
-    if kind in ("wait", "join", "code"):
+    if kind in ("wait", "join", "code", "operation"):
         return False
     return bool(str(step.get("endpoint") or "").strip())
 

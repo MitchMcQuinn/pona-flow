@@ -72,8 +72,58 @@ export interface StepResponseParameter {
   default_value?: string;
 }
 
-/** Custom STEP execution kind: HTTP request (default/legacy), leftover archived code, wait, or join. */
-export type StepType = "http" | "code" | "wait" | "join";
+/** Custom STEP execution kind: HTTP request (default/legacy), leftover archived code, wait, join, or operation. */
+export type StepType = "http" | "code" | "wait" | "join" | "operation";
+/** How an operation STEP combines its groups, or the statements inside one group. */
+export type OperationJunction = "AND" | "OR";
+/** Comparison vocabulary for an operation statement. EXISTS and IS EMPTY take no Y. */
+export type OperationOperator =
+  | "="
+  | "<>"
+  | "<"
+  | "<="
+  | ">"
+  | ">="
+  | "CONTAINS"
+  | "STARTS WITH"
+  | "ENDS WITH"
+  | "EXISTS"
+  | "IS EMPTY"
+  | "REGEX";
+/** What an operation write does when the key is already in the run. */
+export type OperationCollision = "overwrite" | "skip" | "append" | "sequence";
+/** When an assignment row writes, relative to the evaluation result. */
+export type OperationAssignmentWhen = "true" | "false" | "always";
+export type OperationAssignmentType = "boolean" | "string" | "number";
+/** A statement side: a literal, or a `$name` / `$name.field` reference into the run. */
+export type OperationOperand = string | number | boolean;
+
+export interface OperationStatement {
+  x: OperationOperand;
+  operator: OperationOperator;
+  /** Omitted for EXISTS and IS EMPTY. */
+  y?: OperationOperand;
+}
+
+export interface OperationGroup {
+  statement_junction: OperationJunction;
+  statements: OperationStatement[];
+}
+
+export interface OperationEvaluation {
+  /** Parameter name the boolean result is written under. */
+  name: string;
+  collision: OperationCollision;
+  group_junction: OperationJunction;
+  groups: OperationGroup[];
+}
+
+export interface OperationAssignment {
+  when: OperationAssignmentWhen;
+  type: OperationAssignmentType;
+  key: string;
+  value: OperationOperand;
+}
 export type CodeLanguage = "python" | "javascript";
 /** How a wait STEP parks the run. */
 export type WaitMode = "duration" | "until" | "event";
@@ -82,7 +132,7 @@ export type WaitDurationUnit = "seconds" | "minutes" | "hours";
 
 export interface SequencialProperties {
   query_id?: string;
-  /** Omitted/"http" -> endpoint step (legacy payloads); "code" -> leftover archived kind; "wait" -> park the run; "join" -> barrier until taken arms finish. */
+  /** Omitted/"http" -> endpoint step (legacy payloads); "code" -> leftover archived kind; "wait" -> park the run; "join" -> barrier until taken arms finish; "operation" -> evaluate and assign run parameters. */
   step_type?: StepType;
   endpoint?: string;
   method?: HttpMethod;
@@ -110,6 +160,10 @@ export interface SequencialProperties {
   max_attempts?: number;
   /** HTTP: pause between retries in seconds, or `$name`. 0 retries immediately. */
   backoff_seconds?: number | string;
+  /** Operation STEP: named boolean, junctions, and collision policy. */
+  operation_evaluation?: OperationEvaluation;
+  /** Operation STEP: typed literals written when `when` matches the result. */
+  operation_assignments?: OperationAssignment[];
 }
 
 export interface CypherConditionPredicate {

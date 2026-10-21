@@ -183,19 +183,20 @@ At the highest level of abstraction pona flow implements a minimalist ontology c
 
 A **sequence** is a saved, runnable entry point that names the STEP the run starts at. At run time the executor walks outgoing `POINTS_TO` edges. An edge may be unconditional, or gated on a parameter (optionally compared to an expected boolean, which is how two sibling edges branch).
 
-Saving a catalog operation auto-wraps it in a STEP node. A STEP that does not wrap an operation is a custom step: an outbound HTTP call (including a call to [local-llm-server](https://github.com/MitchMcQuinn/local-llm-server)), a wait, or a join. Build order matters — operations (and their wrapping STEPs) first, then transitions, then the sequence. A sequence created before its STEPs exist matches nothing and runs as a no-op.
+Saving a catalog operation auto-wraps it in a STEP node. A STEP that does not wrap an operation is a custom step: an outbound HTTP call (including a call to [local-llm-server](https://github.com/MitchMcQuinn/local-llm-server)), a wait, a join, or an operation. Build order matters — operations (and their wrapping STEPs) first, then transitions, then the sequence. A sequence created before its STEPs exist matches nothing and runs as a no-op.
 
 ### STEPs
 
-Every STEP is one of three kinds. The executor (`Engine/server/execution_run.py`) picks the runner from the step payload: a `query_id` runs a saved operation; an `endpoint` URL runs an HTTP request; `kind: "wait"` / `"join"` park or barrier the walk.
+Every STEP is one of four kinds. The executor (`Engine/server/execution_run.py`) picks the runner from the step payload: a `query_id` runs a saved operation; an `endpoint` URL runs an HTTP request; `kind: "wait"` / `"join"` park or barrier the walk; `kind: "operation"` evaluates a boolean and writes run parameters.
 
 | Kind | How it is authored | What runs |
 | --- | --- | --- |
 | **Saved operation** | QUERY builder (create / read / update / delete on STEP, SCHEMA, or INSTANCE). Save wraps a STEP that stores the catalog `query_id`. | The stored Cypher (and any SQLite) against the space's Neo4j / per-space SQLite. Parameters declared on the catalog row are supplied by the sequence; required ones pause the run as `pending` until a human or an upstream step fills them. |
 | **HTTP (custom endpoint)** | STEP create with an endpoint URL, method, headers, and JSON body. Body fields may contain `$parameter` tokens; headers and body may contain `$secret.NAME` tokens resolved from the space credential store at request time. | An outbound HTTP request. Loopback, link-local, and other non-public addresses are blocked (D7) unless the host is on `PONA_FLOW_OUTBOUND_ALLOWLIST`. Allowlist `127.0.0.1` to call [local-llm-server](https://github.com/MitchMcQuinn/local-llm-server) (`POST /configs/<id>/generate`, timeout 300). Do not allowlist Ollama itself. |
 | **Wait / Join** | STEP create with `step_type: "wait"` or `"join"`. | Wait parks the run; join continues after every taken inbound arm finishes. |
+| **Operation** | STEP create with `step_type: "operation"`. | Evaluates a named boolean from the current run's parameters (`$name` or `$name.field`) and writes that boolean plus matching typed assignments back into the same run. A collision policy (`overwrite`, `skip`, `append`, `sequence`) decides what happens when the key already exists. Does not query the graph. |
 
-`response_parameters` on an HTTP STEP map a JSON path in the result onto a parameter name so a later STEP (or a condition on a `POINTS_TO` edge) can use it. That is how an HTTP step can populate `$searchTerm` for a downstream vector-search read, or map local-llm-server `response` / `parsed` into later parameters.
+`response_parameters` on an HTTP STEP map a JSON path in the result onto a parameter name so a later STEP (or a condition on a `POINTS_TO` edge) can use it. That is how an HTTP step can populate `$searchTerm` for a downstream vector-search read, or map local-llm-server `response` / `parsed` into later parameters. An operation step's evaluation name and assignment keys land in that same parameter map, so a later edge can branch on the boolean.
 
 Sequences are run from the dashboard, from `POST /api/spaces/{space_id}/sequences/{sequence_id}/run`, or as MCP tools. All three share `Engine/server/sequence_service.py`.
 

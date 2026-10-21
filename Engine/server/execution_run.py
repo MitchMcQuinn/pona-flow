@@ -9,12 +9,13 @@ state machine:
      any response_parameter mapping (i.e. it can only come from a human). In
      that case the run pauses as "pending" and returns *all* of the step's fields
      to prompt (optional included), so the operator can review/override them.
-  3. Execute the step (wait, join, query against Neo4j, or HTTP endpoint),
-     then bind values for downstream steps: HTTP/wait publish ``ok`` (and
-     HTTP ``status``) into resolved; a successful query sets ``ok=True``; a query
-     step's scalar RETURN columns fill in names not already resolved; and
-     response_parameter mappings apply afterwards so an explicit mapping can
-     still overwrite one. HTTP may retry (``max_attempts``) with
+  3. Execute the step (wait, join, operation, query against Neo4j, or HTTP endpoint),
+     then bind values for downstream steps: HTTP/wait/join/operation publish ``ok``
+     (and HTTP ``status``) into resolved; a successful query sets ``ok=True``; a query
+     step's scalar RETURN columns fill in names not already resolved; response_parameter
+     mappings apply afterwards; an operation step then writes its evaluation boolean
+     and matching assignments (those writes are not cleared at a loop boundary).
+     HTTP may retry (``max_attempts``) with
      an optional parked ``backoff_seconds`` before the step is marked visited.
   4. Follow outgoing transitions whose condition_parameter is empty. When a
      condition_parameter is set, gate on it: with a condition_expected boolean,
@@ -54,8 +55,9 @@ from . import cypher_utils
 from . import embeddings
 from . import execution_call
 from . import execution_join
-from . import execution_loop
+from . import execution_operation
 from . import execution_wait
+from . import execution_loop
 from . import graph
 from . import schema_currency
 
@@ -446,6 +448,8 @@ def _execute_step(
         return {"_ok": True}
     if kind == "join":
         return {"_ok": True}
+    if kind == "operation":
+        return {"_ok": True}
     if str(step.get("endpoint") or "").strip():
         return _execute_endpoint_step(space_id, step, resolved)
     return {}
@@ -486,7 +490,7 @@ def _bind_transport_outcome(
     if query_id:
         resolved["ok"] = True
         return
-    if kind == "wait" or kind == "join":
+    if kind == "wait" or kind == "join" or kind == "operation":
         resolved["ok"] = True
         return
     if kind == "code":
@@ -1434,6 +1438,24 @@ def run_execution(
         )
         _bind_transport_outcome(step, final_response, resolved)
         _bind_response_parameters(final_response, response_parameters, resolved)
+        if str(step.get("kind") or "").strip() == "operation":
+            # After ``ok`` is published, so a collision policy can still decide a
+            # write named ok. These names are not added to the loop's derived set:
+            # an unmatched assignment leaves the previous iteration's value in place,
+            # and the collision policy is how a later pass updates a key.
+            try:
+                execution_operation.apply(step, resolved)
+            except ValueError as e:
+                return _finish_run(
+                    state_id,
+                    {
+                        "status": "error",
+                        "state_id": state_id,
+                        "message": str(e),
+                        "resolved": resolved,
+                        "executed": executed,
+                    },
+                )
 
         if retryable:
             ok = bool(final_response.get("_ok"))
@@ -1473,6 +1495,8 @@ def run_execution(
             executed_entry["kind"] = "wait"
         elif str(step.get("kind") or "").strip() == "join":
             executed_entry["kind"] = "join"
+        elif str(step.get("kind") or "").strip() == "operation":
+            executed_entry["kind"] = "operation"
         if loop and step_id in loop_body:
             # A body step appears once per pass; stamp the pass so a repeated entry
             # in the trace is readable.

@@ -25,6 +25,7 @@ export * from "./sequenceRules.js";
 export * from "./loopRules.js";
 export * from "./waitStep.js";
 export * from "./joinStep.js";
+export * from "./operationStep.js";
 export * from "./callStep.js";
 export * from "./matchMode.js";
 export * from "./returnProjections.js";

@@ -25,6 +25,7 @@ import {
   isStepCustomEndpoint,
   isStepWait,
   isStepJoin,
+  isStepOperation,
   stepEntityPayload
 } from "./step/endpoint.js";
 import { instanceCreateIdParamName } from "./entity/ids.js";
@@ -92,6 +93,16 @@ export type {
   PropertyBinding,
   GraphIdBinding,
   StepType,
+  OperationJunction,
+  OperationOperator,
+  OperationCollision,
+  OperationAssignmentWhen,
+  OperationAssignmentType,
+  OperationOperand,
+  OperationStatement,
+  OperationGroup,
+  OperationEvaluation,
+  OperationAssignment,
   CodeLanguage,
   WaitMode,
   WaitDurationUnit,
@@ -183,6 +194,7 @@ export interface ComposerApi {
   isStepCodeExecution(sp: SequencialProperties | null | undefined): boolean;
   isStepWait(sp: SequencialProperties | null | undefined): boolean;
   isStepJoin(sp: SequencialProperties | null | undefined): boolean;
+  isStepOperation(sp: SequencialProperties | null | undefined): boolean;
   stepEntityPayload(sp: SequencialProperties | null | undefined): string;
   composeStepWrapEntitySql(params: {
     entityId: string;
@@ -222,6 +234,7 @@ export const composer: ComposerApi = {
   isStepCodeExecution,
   isStepWait,
   isStepJoin,
+  isStepOperation,
   composeStepWrapEntitySql,
   composeStepWrapGraphCypher,
   composeOneStepSequenceCypher,

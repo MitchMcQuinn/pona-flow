@@ -1,7 +1,13 @@
 /** STEP entity endpoint and saved-query payload helpers. */
 
 import { escapeCypherString, escapeSqliteString } from "../literals.js";
-import type { SequencialProperties, StepResponseParameter } from "../types.js";
+import type {
+  OperationAssignment,
+  OperationEvaluation,
+  OperationStatement,
+  SequencialProperties,
+  StepResponseParameter
+} from "../types.js";
 
 export function normalizeStepResponseParameters(
   items: StepResponseParameter[] | null | undefined
@@ -43,6 +49,57 @@ export function isStepJoin(
   sp: SequencialProperties | null | undefined
 ): boolean {
   return Boolean(sp && sp.query_id === undefined && sp.step_type === "join");
+}
+
+/** True for a custom STEP that evaluates a boolean and writes run parameters. */
+export function isStepOperation(
+  sp: SequencialProperties | null | undefined
+): boolean {
+  return Boolean(sp && sp.query_id === undefined && sp.step_type === "operation");
+}
+
+const UNARY_OPERATORS = new Set(["EXISTS", "IS EMPTY"]);
+
+function operationStatementPayload(statement: OperationStatement): OperationStatement {
+  const row: OperationStatement = {
+    x: statement.x,
+    operator: statement.operator
+  };
+  if (!UNARY_OPERATORS.has(statement.operator)) {
+    row.y = statement.y ?? "";
+  }
+  return row;
+}
+
+function operationEvaluationPayload(
+  evaluation: OperationEvaluation | null | undefined
+): OperationEvaluation {
+  const source = evaluation ?? {
+    name: "",
+    collision: "overwrite",
+    group_junction: "AND",
+    groups: []
+  };
+  return {
+    name: String(source.name ?? "").trim(),
+    collision: source.collision || "overwrite",
+    group_junction: source.group_junction === "OR" ? "OR" : "AND",
+    groups: (source.groups ?? []).map((group) => ({
+      statement_junction: group.statement_junction === "OR" ? "OR" : "AND",
+      statements: (group.statements ?? []).map(operationStatementPayload)
+    }))
+  };
+}
+
+function operationAssignmentsPayload(
+  items: OperationAssignment[] | null | undefined
+): OperationAssignment[] {
+  return (items ?? []).map((item) => ({
+    when: item.when,
+    type: item.type,
+    key: String(item.key ?? "").trim(),
+    value: item.value
+  }));
 }
 
 export function attachCallPolicy(
@@ -92,6 +149,13 @@ export function stepEntityPayload(sp: SequencialProperties | null | undefined): 
   }
   if (isStepJoin(sp)) {
     return JSON.stringify({ kind: "join" });
+  }
+  if (isStepOperation(sp)) {
+    return JSON.stringify({
+      kind: "operation",
+      evaluation: operationEvaluationPayload(sp?.operation_evaluation),
+      assignments: operationAssignmentsPayload(sp?.operation_assignments)
+    });
   }
   const payload: Record<string, unknown> = {
     endpoint: sp?.endpoint || "",

@@ -3,6 +3,7 @@ import { validateStepBodyParameters } from "./stepBodyParams.js";
 import { validateStepResponseParameters } from "./stepResponseParams.js";
 import { waitStepWarnings } from "./waitStep.js";
 import { joinStepWarnings } from "./joinStep.js";
+import { operationStepWarnings } from "./operationStep.js";
 import { callStepWarnings } from "./callStep.js";
 import { ATTRIBUTIVE_LABEL_VALUE_TYPE, extractExactParameterRef } from "./parameterRefs.js";
 import type {
@@ -322,6 +323,12 @@ function validateStepSequencialProperties(
   }
   if (sp.step_type === "join") {
     joinStepWarnings(sp).forEach((message) => {
+      pushPatternWarning(warnings, patternIndex, patternCount, message);
+    });
+    return;
+  }
+  if (sp.step_type === "operation") {
+    operationStepWarnings(sp).forEach((message) => {
       pushPatternWarning(warnings, patternIndex, patternCount, message);
     });
     return;

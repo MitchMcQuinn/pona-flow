@@ -436,6 +436,12 @@ def _build_step(
             step["duration_seconds"] = payload.get("duration_seconds", 0)
     elif kind == "join":
         step["kind"] = "join"
+    elif kind == "operation":
+        step["kind"] = "operation"
+        evaluation = payload.get("evaluation")
+        step["evaluation"] = evaluation if isinstance(evaluation, dict) else {}
+        assignments = payload.get("assignments")
+        step["assignments"] = assignments if isinstance(assignments, list) else []
     else:
         _attach_call_policy(step, payload)
     return step
@@ -468,6 +474,14 @@ def _step_return_aliases(payload: dict[str, Any], fetch_query: Any) -> list[str]
             for alias in cypher_utils.return_aliases(referenced.get("cypher") or []):
                 add(alias)
         add("ok")
+    elif kind == "operation":
+        add("ok")
+        evaluation = payload.get("evaluation")
+        if isinstance(evaluation, dict):
+            add(evaluation.get("name"))
+        for item in payload.get("assignments") or []:
+            if isinstance(item, dict):
+                add(item.get("key"))
     elif kind in ("wait", "join", "code"):
         add("ok")
     else:
