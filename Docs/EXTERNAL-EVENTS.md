@@ -11,6 +11,9 @@ For triggering a specific sequence directly as an authenticated agent, see
 > `POST /api/hooks/{ingest_token}` — that any service can POST a JSON payload to; the event
 > matches the payload against your filters, maps payload fields into sequence parameters, and
 > runs the selected sequences.
+>
+> For an on-demand tic timeline that runs a sequence itself, see
+> [SIMULATED-EVENTS.md](SIMULATED-EVENTS.md).
 
 ---
 
@@ -139,6 +142,7 @@ no mapped/fixed value falls back to the step default rather than pausing.
 | Mechanism | Entry point | Auth | Params source | `audit_log.trigger` |
 |-----------|-------------|------|---------------|---------------------|
 | **External event** | `POST /api/hooks/{ingest_token}` | URL token + optional HMAC | payload mappings + fixed | `external` |
+| Simulated event | `POST /api/sim/{token}/sessions/{id}/tic` | URL token, or a signed-in user / agent key | outcome payload + tic context | `simulated` |
 | Time event | in-process scheduler | none (system) | event package `parameters` | `event` / `recovery` |
 | Agent webhook | `POST /api/spaces/{space}/sequences/{seq}/run` | agent key / Clerk | request `params` | `webhook` |
 | MCP tool call | `POST /api/spaces/{space}/mcp` | agent key / Clerk | tool arguments | `mcp` |

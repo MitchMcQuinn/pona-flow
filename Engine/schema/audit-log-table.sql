@@ -5,7 +5,7 @@
 --
 --   sequence_ids -> ["ID_...", ...]  sequence query ids included in this run
 --   event_id     -> the firing event's id, or NULL for a manual run
---   trigger      -> 'manual' | 'event' | 'recovery' | 'webhook' | 'mcp' | 'code' | 'external'
+--   trigger      -> 'manual' | 'event' | 'recovery' | 'webhook' | 'mcp' | 'code' | 'external' | 'simulated'
 --   principal_id -> the principal that executed the run (user or agent), or NULL
 --                   for event/recovery runs fired by the scheduler (no principal)
 --   detail       -> optional JSON context (never parameters, outputs, or secrets).
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     space_id TEXT,
     sequence_ids TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(sequence_ids)),
     event_id TEXT,
-    trigger TEXT NOT NULL DEFAULT 'manual' CHECK (trigger IN ('manual', 'event', 'recovery', 'webhook', 'mcp', 'code', 'external')),
+    trigger TEXT NOT NULL DEFAULT 'manual' CHECK (trigger IN ('manual', 'event', 'recovery', 'webhook', 'mcp', 'code', 'external', 'simulated')),
     principal_id TEXT,
     detail TEXT
 );

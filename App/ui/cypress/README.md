@@ -202,6 +202,7 @@ Status legend: [x] covered by a spec, [~] partial / blocked, [ ] not yet covered
 - [x] edit time event name (`time-event.cy.ts`)
 - [x] delete time event (`time-event.cy.ts`)
 - [x] create external webhook (secret, filter, ingest URL) (`external-event.cy.ts`)
+- [x] create simulated event (tic, probability, session URLs) (`simulated-event.cy.ts`)
 - [~] assign recovery sequences — not yet isolated (partial via `journeys/event-driven.cy.ts`)
 - [~] enable/disable toggle — not yet isolated
 

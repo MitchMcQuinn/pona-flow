@@ -33,6 +33,8 @@ def run_sequence_once(
     owner_id: str | None = None,
     trigger: str = "webhook",
     principal_id: str | None = None,
+    event_id: str | None = None,
+    audit_detail: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Compose-and-run a sequence in one call, or resume a paused run.
@@ -55,7 +57,13 @@ def run_sequence_once(
 
     if resume_state:
         return execution.run_execution(
-            sid, resume_state, run_params, trigger=trigger, principal_id=principal_id
+            sid,
+            resume_state,
+            run_params,
+            trigger=trigger,
+            principal_id=principal_id,
+            event_id=event_id,
+            audit_detail=audit_detail,
         )
 
     composed = execution.compose_and_store(sid, seq_id, owner_id=owner_id)
@@ -63,7 +71,13 @@ def run_sequence_once(
     if not new_state_id:
         return {"status": "error", "message": "failed to compose sequence"}
     return execution.run_execution(
-        sid, new_state_id, run_params, trigger=trigger, principal_id=principal_id
+        sid,
+        new_state_id,
+        run_params,
+        trigger=trigger,
+        principal_id=principal_id,
+        event_id=event_id,
+        audit_detail=audit_detail,
     )
 
 

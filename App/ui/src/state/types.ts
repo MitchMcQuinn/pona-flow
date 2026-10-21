@@ -66,8 +66,46 @@ export interface EventPackage {
   timezone?: string;
 }
 
-/** How an event is triggered: a time schedule or an inbound webhook payload. */
-export type EventType = "time" | "external";
+/** How an event is triggered: a clock, an inbound webhook, or an on-demand simulation. */
+export type EventType = "time" | "external" | "simulated";
+
+export type TicUnit = "seconds" | "minutes" | "hours" | "days";
+
+export type ProbabilitySchedule =
+  | { type: "recurring"; every_x: number; delay_y: number }
+  | { type: "scheduled"; tics: number[] }
+  | { type: "random"; every_x: number; percent: number };
+
+/** One weighted result a probability can emit. `weight` is a number or `$parameter`. */
+export interface SimulationOutcome {
+  id: string;
+  label: string;
+  weight: string;
+  weight_sequence_id?: string | null;
+  payload: Record<string, unknown>;
+  payload_mode?: "fields" | "json";
+}
+
+/** A scheduled probability inside a simulated event (the simulation engine's "event"). */
+export interface SimulationProbability {
+  id: string;
+  name: string;
+  description: string;
+  priority: number;
+  schedule: ProbabilitySchedule;
+  outcomes: SimulationOutcome[];
+}
+
+/** Config stored on an event of type "simulated". */
+export interface SimulationPackage {
+  /** High-entropy token embedded in the public session-control URLs. */
+  token?: string;
+  tic_unit: TicUnit;
+  tic_duration: number;
+  /** Sequence run when an outcome is chosen. Empty records the emission only. */
+  sequence_id?: string;
+  probabilities: SimulationProbability[];
+}
 
 export type ExternalFilterOperator = "equals" | "contains" | "exists" | "regex";
 
@@ -115,6 +153,7 @@ export interface EventDetail extends EventSummary {
   spaceId: string;
   eventPackage: EventPackage;
   externalPackage: ExternalPackage;
+  simulationPackage: SimulationPackage;
   timers: { next_fire_at?: string | null; last_fired_at?: string | null };
 }
 

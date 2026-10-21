@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.exceptions import HTTPException
 
-from .. import auth, catalog, external_triggers, scheduler
+from .. import auth, catalog, external_triggers, scheduler, simulation
 from ..auth import Principal
 from ..http_utils import (
     bad_request,
@@ -96,6 +96,9 @@ async def events_upsert(
     external_package = body.get("external_package")
     if external_package is not None and not isinstance(external_package, dict):
         raise bad_request("external_package must be an object")
+    simulation_package = body.get("simulation_package")
+    if simulation_package is not None and not isinstance(simulation_package, dict):
+        raise bad_request("simulation_package must be an object")
     sequences = body.get("sequences") or []
     recovery_sequences = body.get("recovery_sequences") or []
     if not isinstance(sequences, list) or not isinstance(recovery_sequences, list):
@@ -113,6 +116,19 @@ async def events_upsert(
         ).strip()
         ext["ingest_token"] = token or external_triggers.generate_ingest_token()
         external_package = ext
+    # Simulated events need a stable public session-control URL. Mint the token
+    # once and keep it across later saves, the same way the ingest token works.
+    if type_val == "simulated":
+        sim = dict(simulation_package) if isinstance(simulation_package, dict) else {}
+        existing = catalog.get_event(event_id) or {}
+        existing_pkg = existing.get("simulation_package") or {}
+        if not isinstance(existing_pkg, dict):
+            existing_pkg = {}
+        token = str(existing_pkg.get("token") or "").strip() or str(
+            sim.get("token") or ""
+        ).strip()
+        sim["token"] = token or simulation.generate_simulation_token()
+        simulation_package = sim
     with value_400_domain_500():
         result = catalog.upsert_event(
             event_id,
@@ -128,10 +144,15 @@ async def events_upsert(
             external_package=(
                 external_package if isinstance(external_package, dict) else None
             ),
+            simulation_package=(
+                simulation_package if isinstance(simulation_package, dict) else None
+            ),
         )
     scheduler.request_reload()
     if isinstance(external_package, dict) and external_package.get("ingest_token"):
         result = {**result, "ingest_token": external_package["ingest_token"]}
+    if isinstance(simulation_package, dict) and simulation_package.get("token"):
+        result = {**result, "simulation_token": simulation_package["token"]}
     return result
 
 

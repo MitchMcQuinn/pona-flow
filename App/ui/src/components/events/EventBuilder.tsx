@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   Combinator,
   EventRuleGroup,
@@ -6,10 +6,18 @@ import type {
   ExternalFilter,
   ExternalFilterOperator,
   ExternalParamMapping,
-  SequenceSummary
+  SequenceSummary,
+  SimulationPackage
 } from "../../state/types";
 import { deleteEvent, fetchEvent, generateId, saveEvent } from "../../services/api";
 import { EventTestListener } from "./EventTestListener";
+import { SimulationSessions } from "./SimulationSessions";
+import {
+  emptySimulationPackage,
+  simulationPackageFromApi,
+  SimulatedEventFields,
+  type SimulatedEventFieldsHandle
+} from "./SimulatedEventFields";
 import { browserTimeZone, supportedTimeZones, timeZoneLabel } from "../../services/timezone";
 import "./events.css";
 
@@ -169,6 +177,8 @@ export function EventBuilder({
   const [externalCombinator, setExternalCombinator] = useState<Combinator>("AND");
   const [filters, setFilters] = useState<ExternalFilter[]>([]);
   const [mappings, setMappings] = useState<ExternalParamMapping[]>([]);
+  const [simulation, setSimulation] = useState<SimulationPackage>(emptySimulationPackage);
+  const simFieldsRef = useRef<SimulatedEventFieldsHandle>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -202,7 +212,9 @@ export function EventBuilder({
       setExternalCombinator("AND");
       setFilters([]);
       setMappings([]);
+      setSimulation(emptySimulationPackage());
       setError(null);
+      setLoading(false);
       return;
     }
     let cancelled = false;
@@ -213,7 +225,9 @@ export function EventBuilder({
         if (cancelled) return;
         setName(detail.name);
         setEnabled(detail.enabled);
-        setEventType(detail.type === "external" ? "external" : "time");
+        setEventType(
+          detail.type === "external" || detail.type === "simulated" ? detail.type : "time"
+        );
         setCombinator(detail.eventPackage.combinator || "OR");
         // Legacy events have no timezone — their values were authored in UTC.
         setTimezone(detail.eventPackage.timezone || "UTC");
@@ -231,6 +245,7 @@ export function EventBuilder({
         setExternalCombinator(ext.combinator || "AND");
         setFilters(Array.isArray(ext.filters) ? ext.filters : []);
         setMappings(Array.isArray(ext.param_mappings) ? ext.param_mappings : []);
+        setSimulation(simulationPackageFromApi(detail.simulationPackage));
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load event");
@@ -283,6 +298,13 @@ export function EventBuilder({
 
   async function handleSave() {
     if (!spaceId || !canSave) return;
+    if (eventType === "simulated") {
+      const problem = simFieldsRef.current?.validate();
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
     setBusy(true);
     setError(null);
     try {
@@ -305,12 +327,16 @@ export function EventBuilder({
                 parameters
               }
             : undefined,
-        sequences: selectedSequences,
-        recoverySequences: selectedRecovery
+        simulationPackage: eventType === "simulated" ? simulation : undefined,
+        sequences: eventType === "simulated" ? [] : selectedSequences,
+        recoverySequences: eventType === "simulated" ? [] : selectedRecovery
       });
       // The backend mints the ingest token on first save; surface it immediately so
       // the inbound URL is visible without a reload.
       if (result.ingest_token) setIngestToken(result.ingest_token);
+      if (result.simulation_token) {
+        setSimulation((current) => ({ ...current, token: result.simulation_token }));
+      }
       onSaved(id);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to save event");
@@ -341,7 +367,9 @@ export function EventBuilder({
         <p className="muted">
           {eventType === "external"
             ? "External triggers run the selected sequences when a matching payload is POSTed to the event's inbound URL."
-            : "Time-bound triggers run the selected sequences when the rules below are met. All rules (dates and times) are evaluated in the event timezone below."}
+            : eventType === "simulated"
+              ? "Simulated events advance one tic at a time. Each due probability picks a weighted outcome and runs the sequence you select."
+              : "Time-bound triggers run the selected sequences when the rules below are met. All rules (dates and times) are evaluated in the event timezone below."}
         </p>
 
         {loading ? <p className="muted">Loading event...</p> : null}
@@ -365,6 +393,7 @@ export function EventBuilder({
           >
             <option value="time">Time schedule</option>
             <option value="external">External event (inbound webhook)</option>
+            <option value="simulated">Simulated event</option>
           </select>
         </div>
 
@@ -523,6 +552,21 @@ export function EventBuilder({
           </div>
         ) : null}
 
+        {eventType === "simulated" && !loading ? (
+          <>
+            <SimulatedEventFields
+              key={eventId ?? "new-simulated"}
+              ref={simFieldsRef}
+              initial={simulation}
+              sequences={sequenceOptions}
+              onChange={(next) =>
+                setSimulation((current) => ({ ...next, token: next.token || current.token }))
+              }
+            />
+            <SimulationSessions eventId={eventId} token={simulation.token || ""} />
+          </>
+        ) : null}
+
         {eventType === "time" ? (
         <>
         <div className="field">
@@ -664,6 +708,7 @@ export function EventBuilder({
         </>
         ) : null}
 
+        {eventType !== "simulated" ? (
         <div className="field">
           <label>Sequences to run</label>
           {sequenceOptions.length === 0 ? (
@@ -685,6 +730,7 @@ export function EventBuilder({
             </div>
           )}
         </div>
+        ) : null}
 
         {eventType === "time" ? (
         <div className="field">

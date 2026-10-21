@@ -34,7 +34,8 @@ export const SEQUENCE = {
 export const EVENTS = {
   TIME_NAME: "E2E Weekday Morning",
   EXTERNAL_NAME: "E2E Inbound Webhook",
-  EXTERNAL_SECRET: "e2e-shared-secret"
+  EXTERNAL_SECRET: "e2e-shared-secret",
+  SIMULATED_NAME: "E2E Simulated World"
 } as const;
 
 export const SPACE_ADMIN = {

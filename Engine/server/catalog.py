@@ -45,6 +45,7 @@ _FINISHED_STATUSES = ("inactive", "cancelled")
 _REGEX_TABLE_SQL = config.ROOT / "Engine" / "schema" / "regex-table.sql"
 _STATE_TABLE_SQL = config.ROOT / "Engine" / "schema" / "state-table.sql"
 _EVENTS_TABLE_SQL = config.ROOT / "Engine" / "schema" / "events-table.sql"
+_SIMULATION_TABLES_SQL = config.ROOT / "Engine" / "schema" / "simulation-tables.sql"
 _EVENT_TEST_CAPTURES_SQL = config.ROOT / "Engine" / "schema" / "event-test-captures-table.sql"
 _AUDIT_LOG_TABLE_SQL = config.ROOT / "Engine" / "schema" / "audit-log-table.sql"
 
@@ -96,11 +97,52 @@ def _rebuild_state_status_check(conn: sqlite3.Connection) -> None:
 
 def _ensure_events_table(conn: sqlite3.Connection) -> None:
     """Create the events table on legacy catalog databases (and add later columns)."""
-    if not _create_table_from_ddl(conn, "events", _EVENTS_TABLE_SQL):
+    existed = _create_table_from_ddl(conn, "events", _EVENTS_TABLE_SQL)
+    if not existed:
         return
     sqlite_util.ensure_column(
         conn, "events", "external_package", "TEXT NOT NULL DEFAULT '{}'"
     )
+    sqlite_util.ensure_column(
+        conn, "events", "simulation_package", "TEXT NOT NULL DEFAULT '{}'"
+    )
+    _rebuild_events_type_check(conn)
+
+
+def _rebuild_events_type_check(conn: sqlite3.Connection) -> None:
+    """Rebuild ``events`` when its type CHECK predates ``simulated``.
+
+    SQLite cannot alter a CHECK constraint in place. Same rename/copy pattern as
+    ``audit_log``. Fresh catalogs created from the current DDL already allow
+    ``simulated`` and are left alone.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'events'"
+    ).fetchone()
+    if row is None or "'simulated'" in (row[0] or ""):
+        return
+    old_cols = [r[1] for r in conn.execute("PRAGMA table_info(events)").fetchall()]
+    conn.execute("ALTER TABLE events RENAME TO events_legacy")
+    conn.execute("DROP INDEX IF EXISTS idx_events_space")
+    conn.executescript(_EVENTS_TABLE_SQL.read_text(encoding="utf-8"))
+    new_cols = {r[1] for r in conn.execute("PRAGMA table_info(events)").fetchall()}
+    copy_cols = ", ".join(c for c in old_cols if c in new_cols)
+    if copy_cols:
+        conn.execute(
+            f"INSERT INTO events ({copy_cols}) SELECT {copy_cols} FROM events_legacy"
+        )
+    conn.execute("DROP TABLE events_legacy")
+    conn.commit()
+
+
+def _ensure_simulation_tables(conn: sqlite3.Connection) -> None:
+    """Create simulation session/emission tables when this catalog predates them."""
+    if sqlite_util.table_exists(conn, "simulation_sessions") and sqlite_util.table_exists(
+        conn, "simulation_emissions"
+    ):
+        return
+    conn.executescript(_SIMULATION_TABLES_SQL.read_text(encoding="utf-8"))
+    conn.commit()
 
 
 def _ensure_event_test_captures(conn: sqlite3.Connection) -> None:
@@ -134,6 +176,7 @@ def catalog_conn() -> sqlite3.Connection:
         _ensure_state_table(conn)
         _ensure_events_table(conn)
         _ensure_event_test_captures(conn)
+        _ensure_simulation_tables(conn)
         _ensure_audit_log_table(conn)
         spaces.ensure_catalog_space_schema(conn)
         _ensured_catalog_paths.add(path)
@@ -798,12 +841,13 @@ def _event_row_to_dict(row: sqlite3.Row | tuple) -> dict[str, Any]:
         "recovery_sequences": _json_loads_or(row[9], []),
         "creation_date": row[10],
         "modified_date": row[11],
+        "simulation_package": _json_loads_or(row[12], {}) if len(row) > 12 else {},
     }
 
 
 _EVENT_COLUMNS = (
     "id, space_id, name, type, enabled, event_package, external_package, sequences, "
-    "timers, recovery_sequences, creation_date, modified_date"
+    "timers, recovery_sequences, creation_date, modified_date, simulation_package"
 )
 
 
@@ -847,9 +891,10 @@ def upsert_event(
     enabled: int = 1,
     timers: dict[str, Any] | None = None,
     external_package: dict[str, Any] | None = None,
+    simulation_package: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Insert or update an event row. ``timers`` is preserved on update when None;
-    ``external_package`` is preserved on update when None."""
+    ``external_package`` and ``simulation_package`` are preserved on update when None."""
     eid = (event_id or "").strip()
     if not eid:
         raise ValueError("event id is required")
@@ -860,7 +905,7 @@ def upsert_event(
     if not name_val:
         raise ValueError("event name is required")
     type_val = (type or "time").strip().lower()
-    if type_val not in ("time", "external"):
+    if type_val not in ("time", "external", "simulated"):
         type_val = "time"
     enabled_int = 1 if enabled else 0
     package_json = json.dumps(event_package if isinstance(event_package, dict) else {})
@@ -883,13 +928,22 @@ def upsert_event(
             external_json = (existing[0] if existing and existing[0] else "{}")
         else:
             external_json = json.dumps(external_package)
+        if simulation_package is None:
+            cur = conn.execute(
+                "SELECT simulation_package FROM events WHERE id = ?", (eid,)
+            )
+            existing = cur.fetchone()
+            simulation_json = (existing[0] if existing and existing[0] else "{}")
+        else:
+            simulation_json = json.dumps(simulation_package)
         conn.execute(
             """
             INSERT INTO events (
               id, space_id, name, type, enabled, event_package, external_package,
-              sequences, timers, recovery_sequences, creation_date, modified_date
+              sequences, timers, recovery_sequences, creation_date, modified_date,
+              simulation_package
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)
             ON CONFLICT(id) DO UPDATE SET
               space_id = excluded.space_id,
               name = excluded.name,
@@ -900,6 +954,7 @@ def upsert_event(
               sequences = excluded.sequences,
               timers = excluded.timers,
               recovery_sequences = excluded.recovery_sequences,
+              simulation_package = excluded.simulation_package,
               modified_date = datetime('now')
             """,
             (
@@ -913,6 +968,7 @@ def upsert_event(
                 sequences_json,
                 timers_json,
                 recovery_json,
+                simulation_json,
             ),
         )
         conn.commit()
@@ -937,6 +993,27 @@ def get_event_by_ingest_token(token: str) -> dict[str, Any] | None:
             event = _event_row_to_dict(row)
             pkg = event.get("external_package") or {}
             if isinstance(pkg, dict) and str(pkg.get("ingest_token") or "") == tok:
+                return event
+        return None
+
+
+def get_event_by_simulation_token(token: str) -> dict[str, Any] | None:
+    """Resolve a simulated event by the public session-control token.
+
+    Used by the unauthenticated ``/api/sim/{token}`` routes. Tokens are high-entropy
+    and stored on ``simulation_package``. Returns None when no event matches.
+    """
+    tok = (token or "").strip()
+    if not tok:
+        return None
+    with catalog_connection() as conn:
+        cur = conn.execute(
+            f"SELECT {_EVENT_COLUMNS} FROM events WHERE type = 'simulated'"
+        )
+        for row in cur.fetchall():
+            event = _event_row_to_dict(row)
+            pkg = event.get("simulation_package") or {}
+            if isinstance(pkg, dict) and str(pkg.get("token") or "") == tok:
                 return event
         return None
 
@@ -1020,13 +1097,266 @@ def clear_event_test_capture(event_id: str) -> None:
         conn.commit()
 
 
+def _delete_simulation_for_event(conn: sqlite3.Connection, event_id: str) -> None:
+    """Drop a simulated event's sessions and emissions. Caller commits."""
+    if sqlite_util.table_exists(conn, "simulation_emissions"):
+        conn.execute("DELETE FROM simulation_emissions WHERE event_id = ?", (event_id,))
+    if sqlite_util.table_exists(conn, "simulation_sessions"):
+        conn.execute("DELETE FROM simulation_sessions WHERE event_id = ?", (event_id,))
+
+
+_SESSION_COLUMNS = (
+    "id, event_id, space_id, status, current_tic, world_start_at, "
+    "current_world_time, created_at, error_message"
+)
+
+_EMISSION_COLUMNS = (
+    "id, session_id, event_id, space_id, probability_id, probability_name, tic, "
+    "world_time, outcome_json, cancelled, sequence_id, run_status, created_at"
+)
+
+
+def _simulation_session_row(row: sqlite3.Row | tuple) -> dict[str, Any]:
+    return {
+        "id": row[0],
+        "event_id": row[1],
+        "space_id": row[2],
+        "status": row[3],
+        "current_tic": int(row[4] or 0),
+        "world_start_at": row[5],
+        "current_world_time": row[6],
+        "created_at": row[7],
+        "error_message": row[8],
+    }
+
+
+def _simulation_emission_row(row: sqlite3.Row | tuple) -> dict[str, Any]:
+    try:
+        outcome = json.loads(row[8]) if row[8] else None
+    except json.JSONDecodeError:
+        outcome = None
+    return {
+        "id": row[0],
+        "session_id": row[1],
+        "event_id": row[2],
+        "space_id": row[3],
+        "probability_id": row[4],
+        "probability_name": row[5],
+        "tic": int(row[6] or 0),
+        "world_time": row[7],
+        "outcome": outcome,
+        "cancelled": bool(row[9]),
+        "sequence_id": row[10],
+        "run_status": row[11],
+        "created_at": row[12],
+    }
+
+
+def list_simulation_sessions(event_id: str) -> list[dict[str, Any]]:
+    """Sessions for one simulated event, newest first."""
+    eid = (event_id or "").strip()
+    if not eid:
+        return []
+    with catalog_connection() as conn:
+        cur = conn.execute(
+            f"SELECT {_SESSION_COLUMNS} FROM simulation_sessions WHERE event_id = ? "
+            "ORDER BY created_at DESC, id DESC",
+            (eid,),
+        )
+        return [_simulation_session_row(row) for row in cur.fetchall()]
+
+
+def get_simulation_session(session_id: str, event_id: str | None = None) -> dict[str, Any] | None:
+    """One session, optionally constrained to an event. None when missing or mismatched."""
+    sid = (session_id or "").strip()
+    if not sid:
+        return None
+    eid = (event_id or "").strip()
+    with catalog_connection() as conn:
+        cur = conn.execute(
+            f"SELECT {_SESSION_COLUMNS} FROM simulation_sessions WHERE id = ?",
+            (sid,),
+        )
+        row = cur.fetchone()
+    if row is None:
+        return None
+    session = _simulation_session_row(row)
+    if eid and session["event_id"] != eid:
+        return None
+    return session
+
+
+def list_simulation_emissions(session_id: str) -> list[dict[str, Any]]:
+    """Emissions for one session, in tic order."""
+    sid = (session_id or "").strip()
+    if not sid:
+        return []
+    with catalog_connection() as conn:
+        cur = conn.execute(
+            f"SELECT {_EMISSION_COLUMNS} FROM simulation_emissions WHERE session_id = ? "
+            "ORDER BY tic ASC, rowid ASC",
+            (sid,),
+        )
+        return [_simulation_emission_row(row) for row in cur.fetchall()]
+
+
+def get_simulation_session_detail(
+    session_id: str, event_id: str | None = None
+) -> dict[str, Any] | None:
+    """Session plus its emissions, or None."""
+    session = get_simulation_session(session_id, event_id)
+    if session is None:
+        return None
+    return {**session, "emissions": list_simulation_emissions(session["id"])}
+
+
+def insert_simulation_session(
+    session_id: str,
+    event_id: str,
+    space_id: str,
+    world_start_at: str,
+    current_world_time: str,
+) -> None:
+    """Insert a running session at tic 0."""
+    with catalog_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO simulation_sessions (
+              id, event_id, space_id, status, current_tic, world_start_at,
+              current_world_time, created_at, error_message
+            )
+            VALUES (?, ?, ?, 'running', 0, ?, ?, datetime('now'), NULL)
+            """,
+            (session_id, event_id, space_id, world_start_at, current_world_time),
+        )
+        conn.commit()
+
+
+def update_simulation_session(
+    session_id: str,
+    *,
+    status: str | None = None,
+    current_tic: int | None = None,
+    current_world_time: str | None = None,
+    error_message: str | None = None,
+    clear_error: bool = False,
+) -> None:
+    """Patch session clock/status. ``clear_error`` nulls ``error_message``."""
+    sid = (session_id or "").strip()
+    if not sid:
+        return
+    sets: list[str] = []
+    params: list[Any] = []
+    if status is not None:
+        sets.append("status = ?")
+        params.append(status)
+    if current_tic is not None:
+        sets.append("current_tic = ?")
+        params.append(int(current_tic))
+    if current_world_time is not None:
+        sets.append("current_world_time = ?")
+        params.append(current_world_time)
+    if clear_error:
+        sets.append("error_message = NULL")
+    elif error_message is not None:
+        sets.append("error_message = ?")
+        params.append(error_message)
+    if not sets:
+        return
+    params.append(sid)
+    with catalog_connection() as conn:
+        conn.execute(
+            f"UPDATE simulation_sessions SET {', '.join(sets)} WHERE id = ?",
+            params,
+        )
+        conn.commit()
+
+
+def delete_simulation_session(session_id: str, event_id: str) -> bool:
+    """Delete one session and its emissions. False when it is not on this event."""
+    sid = (session_id or "").strip()
+    eid = (event_id or "").strip()
+    if not sid or not eid:
+        return False
+    with catalog_connection() as conn:
+        cur = conn.execute(
+            "SELECT 1 FROM simulation_sessions WHERE id = ? AND event_id = ?",
+            (sid, eid),
+        )
+        if cur.fetchone() is None:
+            return False
+        conn.execute("DELETE FROM simulation_emissions WHERE session_id = ?", (sid,))
+        conn.execute(
+            "DELETE FROM simulation_sessions WHERE id = ? AND event_id = ?",
+            (sid, eid),
+        )
+        conn.commit()
+        return True
+
+
+def insert_simulation_emission(
+    emission_id: str,
+    session_id: str,
+    event_id: str,
+    space_id: str,
+    probability_id: str,
+    probability_name: str,
+    tic: int,
+    world_time: str,
+    outcome: dict[str, Any] | None,
+    cancelled: bool,
+    sequence_id: str | None,
+    run_status: str | None,
+) -> None:
+    """Append one emission row for a probability that ran on a tic."""
+    with catalog_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO simulation_emissions (
+              id, session_id, event_id, space_id, probability_id, probability_name,
+              tic, world_time, outcome_json, cancelled, sequence_id, run_status, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """,
+            (
+                emission_id,
+                session_id,
+                event_id,
+                space_id,
+                probability_id,
+                probability_name,
+                int(tic),
+                world_time,
+                json.dumps(outcome) if outcome is not None else None,
+                1 if cancelled else 0,
+                sequence_id,
+                run_status,
+            ),
+        )
+        conn.commit()
+
+
+def update_simulation_emission_status(emission_id: str, run_status: str | None) -> None:
+    """Record how the emission's sequence run finished."""
+    eid = (emission_id or "").strip()
+    if not eid:
+        return
+    with catalog_connection() as conn:
+        conn.execute(
+            "UPDATE simulation_emissions SET run_status = ? WHERE id = ?",
+            (run_status, eid),
+        )
+        conn.commit()
+
+
 def delete_event(event_id: str) -> dict[str, Any]:
-    """Delete one event row; returns the affected row count."""
+    """Delete one event row and its simulation history; returns the affected row count."""
     eid = (event_id or "").strip()
     if not eid:
         raise ValueError("event id is required")
     with catalog_connection() as conn:
         conn.execute("DELETE FROM event_test_captures WHERE event_id = ?", (eid,))
+        _delete_simulation_for_event(conn, eid)
         cur = conn.execute("DELETE FROM events WHERE id = ?", (eid,))
         conn.commit()
         return {"id": eid, "rowcount": cur.rowcount}
@@ -1051,7 +1381,7 @@ def record_audit(
     trigger_val = (
         trigger
         if trigger
-        in ("manual", "event", "recovery", "webhook", "mcp", "code", "external")
+        in ("manual", "event", "recovery", "webhook", "mcp", "code", "external", "simulated")
         else "manual"
     )
     ids_json = json.dumps([str(s) for s in (sequence_ids or []) if str(s).strip()])

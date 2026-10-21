@@ -220,6 +220,35 @@
   }
 }
 
+.simOutcome {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.simSessions {
+  margin-top: 0.5rem;
+}
+
+.simSessions .agentTokenCode {
+  margin-bottom: 0.45rem;
+}
+
+.simEmissions {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.simEmissions pre {
+  margin: 0.25rem 0 0;
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+}
+
 @media (pointer: coarse) {
   .eventChip {
     min-height: 36px;

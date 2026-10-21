@@ -36,6 +36,7 @@ _CATALOG_DDL_FILES = (
     "space-roles-table.sql",
     "events-table.sql",
     "event-test-captures-table.sql",
+    "simulation-tables.sql",
     "audit-log-table.sql",
     "agent-keys-table.sql",
     "space-credentials-table.sql",
@@ -68,17 +69,25 @@ def _ensure_events_external_column(conn: sqlite3.Connection) -> None:
     )
 
 
+def _ensure_events_simulation_column(conn: sqlite3.Connection) -> None:
+    """Additive migration: ``simulation_package`` column on the events table."""
+    sqlite_util.ensure_column(
+        conn, "events", "simulation_package", "TEXT NOT NULL DEFAULT '{}'"
+    )
+
+
 def _ensure_audit_log_trigger_check(conn: sqlite3.Connection) -> None:
-    """Rebuild ``audit_log`` if its trigger CHECK predates 'webhook'/'mcp'/'code'/'external'.
+    """Rebuild ``audit_log`` if its trigger CHECK predates ``simulated``.
 
     SQLite cannot alter a CHECK constraint in place, so (like the legacy
     ``space_members`` rebuild in ``rbac``) we rename, recreate from the current DDL
-    file, copy the rows, and drop the old table.
+    file, copy the rows, and drop the old table. Checking for ``simulated`` (the
+    newest allowed value) also rebuilds catalogs that already contain ``external``.
     """
     row = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'audit_log'"
     ).fetchone()
-    if row is None or "'external'" in (row[0] or ""):
+    if row is None or "'simulated'" in (row[0] or ""):
         return
     old_cols = [r[1] for r in conn.execute("PRAGMA table_info(audit_log)").fetchall()]
     conn.execute("ALTER TABLE audit_log RENAME TO audit_log_legacy")
@@ -103,9 +112,12 @@ def run_startup_migrations() -> None:
             _apply_sql_file(conn, filename)
         conn.execute("DROP TABLE IF EXISTS local_llm_configs")
         conn.commit()
-        # Add the events.external_package column on catalogs that predate external triggers.
+        # Add the events.external_package / simulation_package columns on older catalogs.
         _ensure_events_external_column(conn)
-        # Rebuild audit_log when its trigger CHECK is missing 'webhook'/'mcp'/'code'/'external',
+        _ensure_events_simulation_column(conn)
+        # Rebuild events when its type CHECK predates 'simulated'.
+        catalog._rebuild_events_type_check(conn)
+        # Rebuild audit_log when its trigger CHECK is missing 'simulated',
         # then add the detail column on databases that predate it.
         _ensure_audit_log_trigger_check(conn)
         _ensure_audit_log_detail_column(conn)

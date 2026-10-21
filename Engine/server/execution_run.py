@@ -1172,6 +1172,7 @@ def run_execution(
     trigger: str = "manual",
     event_id: str | None = None,
     principal_id: str | None = None,
+    audit_detail: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Run (or resume) a stored EXECUTION package.
@@ -1257,6 +1258,7 @@ def run_execution(
                 event_id=event_id,
                 trigger=trigger,
                 principal_id=principal_id,
+                detail=audit_detail,
             )
         except Exception as audit_err:  # never let audit failures break a run
             sys.stderr.write(f"audit-log error: {audit_err}\n")

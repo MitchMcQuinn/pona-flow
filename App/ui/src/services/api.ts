@@ -5,6 +5,7 @@ import type {
   EventSummary,
   ExternalPackage,
   Me,
+  SimulationPackage,
   SequenceDefinition,
   SequenceSummary,
   SpacePermissions
@@ -881,6 +882,7 @@ interface EventApiRow {
   enabled?: number | boolean;
   event_package?: EventPackage;
   external_package?: ExternalPackage;
+  simulation_package?: SimulationPackage;
   sequences?: string[];
   recovery_sequences?: string[];
   timers?: { next_fire_at?: string | null; last_fired_at?: string | null };
@@ -925,6 +927,12 @@ export async function fetchEvent(eventId: string): Promise<EventDetail> {
       ...emptyExternalPackage(),
       ...((data.external_package as ExternalPackage) || {})
     },
+    simulationPackage: (data.simulation_package as SimulationPackage) || {
+      tic_unit: "minutes",
+      tic_duration: 15,
+      sequence_id: "",
+      probabilities: []
+    },
     timers: data.timers || {}
   };
 }
@@ -936,6 +944,7 @@ export interface SaveEventInput {
   enabled: boolean;
   eventPackage: EventPackage;
   externalPackage?: ExternalPackage;
+  simulationPackage?: SimulationPackage;
   sequences: string[];
   recoverySequences: string[];
   type?: string;
@@ -943,8 +952,8 @@ export interface SaveEventInput {
 
 export async function saveEvent(
   input: SaveEventInput
-): Promise<{ id: string; ingest_token?: string }> {
-  const data = await postJson<{ id?: string; ingest_token?: string }>(
+): Promise<{ id: string; ingest_token?: string; simulation_token?: string }> {
+  const data = await postJson<{ id?: string; ingest_token?: string; simulation_token?: string }>(
     "/api/events/upsert",
     {
       id: input.id,
@@ -954,12 +963,17 @@ export async function saveEvent(
       type: input.type || "time",
       event_package: input.eventPackage,
       external_package: input.externalPackage,
+      simulation_package: input.simulationPackage,
       sequences: input.sequences,
       recovery_sequences: input.recoverySequences
     },
     "Failed to save event"
   );
-  return { id: data.id ?? input.id, ingest_token: data.ingest_token };
+  return {
+    id: data.id ?? input.id,
+    ingest_token: data.ingest_token,
+    simulation_token: data.simulation_token
+  };
 }
 
 export async function deleteEvent(eventId: string): Promise<{ id: string }> {
@@ -969,6 +983,143 @@ export async function deleteEvent(eventId: string): Promise<{ id: string }> {
     "Failed to delete event"
   );
   return { id: data.id ?? eventId };
+}
+
+export interface SimulationEmission {
+  id: string;
+  probabilityId: string;
+  probabilityName: string;
+  tic: number;
+  worldTime: string;
+  outcome: Record<string, unknown> | null;
+  cancelled: boolean;
+  runStatus: string | null;
+}
+
+export interface SimulationSession {
+  id: string;
+  eventId: string;
+  status: "running" | "error";
+  currentTic: number;
+  worldStartAt: string;
+  currentWorldTime: string;
+  createdAt: string;
+  errorMessage: string | null;
+  emissions?: SimulationEmission[];
+}
+
+interface SimulationEmissionRow {
+  id?: string;
+  probability_id?: string;
+  probability_name?: string;
+  tic?: number;
+  world_time?: string;
+  outcome?: Record<string, unknown> | null;
+  cancelled?: boolean;
+  run_status?: string | null;
+}
+
+interface SimulationSessionRow {
+  id?: string;
+  event_id?: string;
+  status?: "running" | "error";
+  current_tic?: number;
+  world_start_at?: string;
+  current_world_time?: string;
+  created_at?: string;
+  error_message?: string | null;
+  emissions?: SimulationEmissionRow[];
+}
+
+function toSimulationEmission(row: SimulationEmissionRow): SimulationEmission {
+  return {
+    id: row.id || "",
+    probabilityId: row.probability_id || "",
+    probabilityName: row.probability_name || "",
+    tic: row.tic ?? 0,
+    worldTime: row.world_time || "",
+    outcome: row.outcome ?? null,
+    cancelled: Boolean(row.cancelled),
+    runStatus: row.run_status ?? null
+  };
+}
+
+function toSimulationSession(row: SimulationSessionRow): SimulationSession {
+  return {
+    id: row.id || "",
+    eventId: row.event_id || "",
+    status: row.status === "error" ? "error" : "running",
+    currentTic: row.current_tic ?? 0,
+    worldStartAt: row.world_start_at || "",
+    currentWorldTime: row.current_world_time || "",
+    createdAt: row.created_at || "",
+    errorMessage: row.error_message ?? null,
+    emissions: Array.isArray(row.emissions) ? row.emissions.map(toSimulationEmission) : undefined
+  };
+}
+
+export async function fetchSimulationSessions(eventId: string): Promise<SimulationSession[]> {
+  const data = await getJson<{ sessions?: SimulationSessionRow[] }>(
+    `/api/events/${encodeURIComponent(eventId)}/sessions`,
+    "Failed to load simulation sessions",
+    { cache: "no-store" }
+  );
+  return (data.sessions || []).map(toSimulationSession);
+}
+
+export async function fetchSimulationSession(
+  eventId: string,
+  sessionId: string
+): Promise<SimulationSession> {
+  const data = await getJson<SimulationSessionRow>(
+    `/api/events/${encodeURIComponent(eventId)}/sessions/${encodeURIComponent(sessionId)}`,
+    "Failed to load simulation session",
+    { cache: "no-store" }
+  );
+  return toSimulationSession(data);
+}
+
+export async function createSimulationSession(
+  eventId: string,
+  worldStartAt: string
+): Promise<SimulationSession> {
+  const data = await postJson<SimulationSessionRow>(
+    `/api/events/${encodeURIComponent(eventId)}/sessions`,
+    { world_start_at: worldStartAt },
+    "Failed to create simulation session"
+  );
+  return toSimulationSession(data);
+}
+
+export async function advanceSimulationSession(
+  eventId: string,
+  sessionId: string
+): Promise<SimulationSession> {
+  const data = await postJson<SimulationSessionRow>(
+    `/api/events/${encodeURIComponent(eventId)}/sessions/${encodeURIComponent(sessionId)}/tic`,
+    {},
+    "Failed to advance simulation session"
+  );
+  return toSimulationSession(data);
+}
+
+export async function clearSimulationSessionError(
+  eventId: string,
+  sessionId: string
+): Promise<SimulationSession> {
+  const data = await postJson<SimulationSessionRow>(
+    `/api/events/${encodeURIComponent(eventId)}/sessions/${encodeURIComponent(sessionId)}/clear-error`,
+    {},
+    "Failed to clear simulation error"
+  );
+  return toSimulationSession(data);
+}
+
+export async function deleteSimulationSession(eventId: string, sessionId: string): Promise<void> {
+  await deleteJson(
+    `/api/events/${encodeURIComponent(eventId)}/sessions/${encodeURIComponent(sessionId)}`,
+    "Failed to delete simulation session"
+  );
 }
 
 /** Latest body captured by an external event's test endpoint. */

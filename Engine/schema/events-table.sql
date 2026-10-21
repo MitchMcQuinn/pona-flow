@@ -2,7 +2,8 @@
 -- An event fires one or more sequences when its rule package becomes active.
 -- Time-bound events (type = 'time') are evaluated by the in-process scheduler;
 -- external events (type = 'external') are fired by an inbound HTTP POST to the
--- per-event ingest URL (see Engine/server/external_triggers.py).
+-- per-event ingest URL (see Engine/server/external_triggers.py);
+-- simulated events (type = 'simulated') advance on demand (see Engine/server/simulation.py).
 --
 -- JSON columns:
 --   event_package      -> { combinator, groups: [...], parameters: {...}, timezone? }
@@ -13,6 +14,9 @@
 --                         (external-trigger config: the inbound ingest token, an optional
 --                          HMAC shared secret, payload match filters, payload->param
 --                          mappings, and fixed fallback parameters)
+--   simulation_package -> { token, tic_unit, tic_duration, sequence_id, probabilities: [...] }
+--                         (simulated-event config: public session-control token, tic clock,
+--                          the sequence run for a chosen outcome, and nested probabilities)
 --   sequences          -> ["ID_...", ...]  sequence query ids to run on activation
 --   timers             -> { next_fire_at, last_fired_at }  scheduler countdown state
 --   recovery_sequences -> ["ID_...", ...]  sequences to run if a fire was missed
@@ -21,10 +25,11 @@ CREATE TABLE IF NOT EXISTS events (
     id TEXT PRIMARY KEY NOT NULL,
     space_id TEXT NOT NULL,
     name TEXT NOT NULL,
-    type TEXT NOT NULL DEFAULT 'time' CHECK (type IN ('time', 'external')),
+    type TEXT NOT NULL DEFAULT 'time' CHECK (type IN ('time', 'external', 'simulated')),
     enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
     event_package TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(event_package)),
     external_package TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(external_package)),
+    simulation_package TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(simulation_package)),
     sequences TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(sequences)),
     timers TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(timers)),
     recovery_sequences TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(recovery_sequences)),
