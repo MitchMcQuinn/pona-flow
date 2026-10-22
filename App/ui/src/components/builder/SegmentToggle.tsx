@@ -9,7 +9,9 @@ export interface SegmentOption<T extends string> {
 }
 
 interface SegmentToggleProps<T extends string> {
-  labelledBy: string;
+  labelledBy?: string;
+  /** Accessible name when there is no visible label. */
+  ariaLabel?: string;
   options: SegmentOption<T>[];
   value: T;
   onChange: (value: T) => void;
@@ -17,9 +19,10 @@ interface SegmentToggleProps<T extends string> {
   testId?: string;
 }
 
-/** Segmented control with a white indicator that slides between options. */
+/** Segmented control with a mesh-border indicator that slides between options. */
 export function SegmentToggle<T extends string>({
   labelledBy,
+  ariaLabel,
   options,
   value,
   onChange,
@@ -52,6 +55,7 @@ export function SegmentToggle<T extends string>({
       className="builderSegmentToggle"
       role="radiogroup"
       aria-labelledby={labelledBy}
+      aria-label={ariaLabel}
       data-testid={testId}
     >
       <div className="builderSegmentIndicator" aria-hidden="true" />

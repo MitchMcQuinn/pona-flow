@@ -15,9 +15,8 @@ export function LabelSelect() {
 
   return (
     <div className="builderField builderSegmentField">
-      <label id="builder-label-label">label</label>
       <SegmentToggle
-        labelledBy="builder-label-label"
+        ariaLabel="label"
         testId="builder-label-toggle"
         value={current}
         options={GRAPH_NODE_LABELS.map((label) => ({

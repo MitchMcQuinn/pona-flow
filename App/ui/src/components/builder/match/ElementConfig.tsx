@@ -48,13 +48,18 @@ export function ElementConfig({ clauseIndex, label, operation }: ElementConfigPr
       patchQuery(removeGraphNode(clauseIndex, selected!.variable));
       dispatch({ type: "SELECT_MATCH_ELEMENT", element: null });
     }
+    const nodeConfigured =
+      Boolean(element.node.attributive_label?.trim()) || element.node.alias_mode === "reference";
+    const canRemoveNode = nodeConfigured && graph.nodes.length > 1;
     return (
       <div className="matchElementConfig">
         <div className="matchElementConfigHead">
-          <label className="matchPaneTitle">node config</label>
-          <button type="button" className="builderTinyBtn builderDanger" onClick={removeNode}>
-            Remove node
-          </button>
+          <h2 className="builderPanelTitle">node config</h2>
+          {canRemoveNode ? (
+            <button type="button" className="builderTinyBtn builderDanger" onClick={removeNode}>
+              Remove node
+            </button>
+          ) : null}
         </div>
         <NodePathEntry
           clauseIndex={clauseIndex}
@@ -85,7 +90,7 @@ export function ElementConfig({ clauseIndex, label, operation }: ElementConfigPr
   return (
     <div className="matchElementConfig">
       <div className="matchElementConfigHead">
-        <label className="matchPaneTitle">relationship config</label>
+        <h2 className="builderPanelTitle">relationship config</h2>
         <button type="button" className="builderTinyBtn builderDanger" onClick={removeRelationship}>
           Remove relationship
         </button>

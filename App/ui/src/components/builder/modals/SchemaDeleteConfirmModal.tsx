@@ -54,9 +54,9 @@ export function SchemaDeleteConfirmModal({
         data-testid="modal-schema-delete"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ marginTop: 0 }}>
-          Delete schema <span className="builderMono">{preview.attributive_label}</span>
-        </h3>
+        <h2 style={{ marginTop: 0 }}>
+          delete schema <span className="builderMono">{preview.attributive_label}</span>
+        </h2>
 
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
           This schema will be <strong>permanently deleted</strong> along with everything

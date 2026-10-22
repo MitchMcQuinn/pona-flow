@@ -178,7 +178,7 @@ export function VisualizationPanel({
     return (
       <section className="panel vizPanel">
         <div className="panel__body">
-          <h2>Audit log</h2>
+          <h1>audit log</h1>
           <p className="muted">Read-only record of every sequence run (most recent first).</p>
           {loading ? <p className="muted">Loading audit log...</p> : null}
           {error ? <p className="errorText">{error}</p> : null}
@@ -248,7 +248,7 @@ export function VisualizationPanel({
     return (
       <section className="panel vizPanel">
         <div className="panel__body">
-          <h2>Result</h2>
+          <h1>result</h1>
           <ResultView
             result={builderResult}
             onClickNode={onResultNodeClick}
@@ -264,7 +264,7 @@ export function VisualizationPanel({
   return (
     <section className="panel vizPanel">
       <div className="panel__body">
-        <h2>Visualization</h2>
+        <h1>visualization</h1>
         {state.view.visualMode === "empty" ? <p className="muted">Select a sequence to begin.</p> : null}
         {flowLoading ? <p className="muted">Loading step flow...</p> : null}
         {state.sequence.error ? <p className="errorText">{state.sequence.error}</p> : null}

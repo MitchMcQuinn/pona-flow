@@ -570,7 +570,7 @@ export default function App() {
     return (
       <div className="appRoot noAccessRoot">
         <div className="noAccessCard">
-          <h1>No access</h1>
+          <h1>no access</h1>
           <p>
             This account is not authorized for access to any spaces within this instance.
           </p>
@@ -626,6 +626,16 @@ export default function App() {
       ) : null}
       <TopBar
         compact={compactShell}
+        spaces={spaces}
+        selectedSpaceId={state.spaceId}
+        onSelectSpace={(spaceId) => dispatch({ type: "SPACE_SELECTED", spaceId })}
+        onCreateSpace={spacesLifecycle.openCreateSpaceModal}
+        canCreateSpace={Boolean(state.me?.canCreateSpaces)}
+        spaceConfigActive={state.view.rightPanelMode === "space"}
+        onOpenSpaceConfig={() => {
+          dismissVisualization();
+          dispatch({ type: "SPACE_PANEL_OPENED" });
+        }}
         onToggleNav={
           viewport.mode === "tablet" ? () => panes.setNavDrawerOpen((open) => !open) : undefined
         }
@@ -665,16 +675,6 @@ export default function App() {
         onCloseNavDrawer={() => panes.setNavDrawerOpen(false)}
         navigation={
           <NavigationPanel
-            spaces={spaces}
-            selectedSpaceId={state.spaceId}
-            onSelectSpace={(spaceId) => dispatch({ type: "SPACE_SELECTED", spaceId })}
-            onCreateSpace={spacesLifecycle.openCreateSpaceModal}
-            canCreateSpace={Boolean(state.me?.canCreateSpaces)}
-            spaceConfigActive={state.view.rightPanelMode === "space"}
-            onOpenSpaceConfig={() => {
-              dismissVisualization();
-              dispatch({ type: "SPACE_PANEL_OPENED" });
-            }}
             sequences={navSequences}
             groups={state.nav.groups}
             selectedSequenceId={state.nav.selectedSequenceId}

@@ -8,6 +8,7 @@ import {
   fetchSimulationSessions,
   type SimulationSession
 } from "../../services/api";
+import { FieldLabel } from "../builder/FieldTip";
 
 function apiOrigin(): string {
   if (typeof window !== "undefined" && window.location) return window.location.origin;
@@ -161,7 +162,9 @@ export function SimulationSessions({ eventId, token }: SimulationSessionsProps) 
   return (
     <div className="simSessions">
       <div className="field">
-        <label>Session endpoints</label>
+        <FieldLabel tip="These URLs are the secret — no login is required. The same actions are available to a signed-in user or agent key at /api/events/{event_id}/sessions.">
+          session endpoints
+        </FieldLabel>
         {base ? (
           <>
             <CopyField
@@ -180,14 +183,9 @@ export function SimulationSessions({ eventId, token }: SimulationSessionsProps) 
               value={`POST ${base}/sessions/{session_id}/clear-error`}
               testId="sim-url-clear"
             />
-            <span className="eventHint">
-              These URLs are the secret; no login is required. The same actions are available
-              to a signed-in user or agent key at{" "}
-              <code>{`/api/events/${eventId ?? "{event_id}"}/sessions`}</code>.
-            </span>
           </>
         ) : (
-          <p className="muted">The session URLs are generated when you first save this event.</p>
+          <p className="muted">Save to generate session URLs.</p>
         )}
       </div>
 
@@ -195,7 +193,7 @@ export function SimulationSessions({ eventId, token }: SimulationSessionsProps) 
         <>
           <div className="eventRow">
             <div className="field">
-              <label htmlFor="sim-session-start">In-world start</label>
+              <FieldLabel>start</FieldLabel>
               <input
                 id="sim-session-start"
                 data-testid="sim-session-start"
@@ -219,7 +217,7 @@ export function SimulationSessions({ eventId, token }: SimulationSessionsProps) 
           </div>
 
           <div className="field">
-            <label>Sessions</label>
+            <FieldLabel>sessions</FieldLabel>
             {sessions.length === 0 ? (
               <p className="muted">No sessions yet.</p>
             ) : (

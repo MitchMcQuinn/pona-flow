@@ -86,7 +86,7 @@ export function OrderPaginationSection({ nested = false }: OrderPaginationSectio
   const content = (
     <>
       <div className="builderHeadRow">
-        <h3 style={{ margin: 0 }}>Order &amp; pagination</h3>
+        <h2 style={{ margin: 0 }}>order &amp; pagination</h2>
         <button
           type="button"
           className="builderTinyBtn builderAddBtn"

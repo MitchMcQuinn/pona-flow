@@ -20,7 +20,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 interface MatchBuilderLayoutProps {
-  /** The graph canvas pane content (rendered under the "match clause" title). */
+  /** The graph canvas pane content. */
   graph: ReactNode;
   /** The element-config pane content. */
   config: ReactNode;
@@ -98,9 +98,6 @@ export function MatchBuilderLayout({ graph, config }: MatchBuilderLayoutProps) {
         className="matchGraphPane"
         style={stacked ? undefined : { width: graphWidth, flex: "0 0 auto" }}
       >
-        <div className="matchPaneHead">
-          <label className="matchPaneTitle">match clause</label>
-        </div>
         {containerWidth > 0 ? graph : <div className="matchGraphCanvas" aria-hidden="true" />}
       </div>
 

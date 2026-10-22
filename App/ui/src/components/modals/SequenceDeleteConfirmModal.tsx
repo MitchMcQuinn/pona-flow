@@ -71,9 +71,9 @@ export function SequenceDeleteConfirmModal({
         data-testid="modal-sequence-delete"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ marginTop: 0 }}>
-          Delete sequence <span className="builderMono">{sequenceLabel}</span>
-        </h3>
+        <h2 style={{ marginTop: 0 }}>
+          delete sequence <span className="builderMono">{sequenceLabel}</span>
+        </h2>
 
         {orphaned ? (
           <p className="muted" data-testid="sequence-delete-orphan-hint" style={{ margin: "0 0 4px" }}>

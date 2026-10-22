@@ -16,9 +16,6 @@ import { InstanceUpdates } from "./settings/InstanceUpdates";
 import { useViewport } from "../hooks/useViewport";
 
 interface NavigationPanelProps {
-  spaces: Array<{ id: string; label: string }>;
-  selectedSpaceId: string | null;
-  onSelectSpace: (spaceId: string) => void;
   sequences: SequenceSummary[];
   groups: string[];
   selectedSequenceId: string | null;
@@ -30,11 +27,6 @@ interface NavigationPanelProps {
   onEditSequence: (sequenceId: string) => void;
   /** Delete the selected sequence (nav-only removal, or STEP cascade when the entry STEP exists). */
   onDeleteSequence: (sequenceId: string) => void;
-  onCreateSpace: () => void;
-  /** Whether the principal may create spaces (superadmin or granted capability). */
-  canCreateSpace: boolean;
-  spaceConfigActive: boolean;
-  onOpenSpaceConfig: () => void;
   /** Persist a new sequence ordering / group assignment after a drag. */
   onReorderSequences: (sequences: SequenceSummary[]) => void;
   /** Persist a new ordered group-title list. */
@@ -842,9 +834,6 @@ function UserSettingsFooter({
 }
 
 export function NavigationPanel({
-  spaces,
-  selectedSpaceId,
-  onSelectSpace,
   sequences,
   groups,
   selectedSequenceId,
@@ -854,10 +843,6 @@ export function NavigationPanel({
   onCreateSequence,
   onEditSequence,
   onDeleteSequence,
-  onCreateSpace,
-  canCreateSpace,
-  spaceConfigActive,
-  onOpenSpaceConfig,
   onReorderSequences,
   onReorderGroups,
   onAddGroup,
@@ -1174,56 +1159,59 @@ export function NavigationPanel({
   return (
     <div className="panel navPanel">
       <div className="panel__body">
-        <div className="navSectionHeader">
-          <h3 className="navSectionTitle" id="space-selector-label">
-            Space
-          </h3>
-          {canCreateSpace ? (
-            <button
-              type="button"
-              className="navAddBtn"
-              aria-label="Create space"
-              data-testid="nav-create-space"
-              onClick={onCreateSpace}
-            >
-              +
-            </button>
-          ) : null}
-        </div>
-        <div className="navSpaceRow" data-tour="space-picker">
-          <select
-            id="space-selector"
-            aria-labelledby="space-selector-label"
-            value={selectedSpaceId || ""}
-            onChange={(event) => onSelectSpace(event.target.value)}
+        <div className="navSectionHeader" data-tour="events">
+          <h2 className="navSectionTitle">events</h2>
+          <button
+            type="button"
+            className="navAddBtn"
+            aria-label="Add event"
+            data-testid="nav-add-event"
+            onClick={onCreateEvent}
           >
-            <option value="" disabled>
-              Select a space
-            </option>
-            {spaces.map((space) => (
-              <option key={space.id} value={space.id}>
-                {space.label}
-              </option>
-            ))}
-          </select>
-          <span className="inlineActions navSpaceActions">
-            <button
-              type="button"
-              className={`tinyBtn tinyBtnIcon navSpaceConfigBtn${spaceConfigActive ? " active" : ""}`}
-              aria-label="Open space settings"
-              title="Space settings"
-              data-testid="nav-space-settings"
-              data-tour="space-settings"
-              disabled={!selectedSpaceId}
-              onClick={onOpenSpaceConfig}
-            >
-              <GearIcon />
-            </button>
-          </span>
+            +
+          </button>
         </div>
 
+        {eventsLoading ? <p className="muted">Loading events...</p> : null}
+        {eventsError ? <p className="errorText">{eventsError}</p> : null}
+
+        {!eventsLoading && !eventsError ? (
+          events.length === 0 ? (
+            <p className="muted">No events yet.</p>
+          ) : (
+            <ul className="sequenceList">
+              {events.map((trigger) => {
+                const classNames = ["sequenceItem"];
+                if (trigger.id === selectedEventId) classNames.push("active");
+                return (
+                  <li key={trigger.id} className={classNames.join(" ")} data-testid="nav-event-item">
+                    <button
+                      className="sequenceBtn"
+                      type="button"
+                      onClick={() => onSelectEvent(trigger.id)}
+                    >
+                      <span className="sequenceBtnLabel">{trigger.name}</span>
+                    </button>
+                    <span className="inlineActions">
+                      <button
+                        className="tinyBtn tinyBtnIcon danger"
+                        type="button"
+                        aria-label={`Delete event ${trigger.name}`}
+                        title="Delete event"
+                        onClick={() => onDeleteEvent(trigger.id)}
+                      >
+                        <DeleteIcon />
+                      </button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )
+        ) : null}
+
         <div className="navSectionHeader" data-tour="sequences">
-          <h3 className="navSectionTitle">Sequences</h3>
+          <h2 className="navSectionTitle">sequences</h2>
           <span className="navSectionActions">
             {coarsePointer && displayedSequences.length + namedGroupTitles.length > 1 ? (
               <button
@@ -1289,57 +1277,6 @@ export function NavigationPanel({
 
             <AddGroupControl existingGroups={groups} onAddGroup={onAddGroup} />
           </>
-        ) : null}
-
-        <div className="navSectionHeader" data-tour="events">
-          <h3 className="navSectionTitle">Events</h3>
-          <button
-            type="button"
-            className="navAddBtn"
-            aria-label="Add event"
-            data-testid="nav-add-event"
-            onClick={onCreateEvent}
-          >
-            +
-          </button>
-        </div>
-
-        {eventsLoading ? <p className="muted">Loading events...</p> : null}
-        {eventsError ? <p className="errorText">{eventsError}</p> : null}
-
-        {!eventsLoading && !eventsError ? (
-          events.length === 0 ? (
-            <p className="muted">No events yet.</p>
-          ) : (
-            <ul className="sequenceList">
-              {events.map((trigger) => {
-                const classNames = ["sequenceItem"];
-                if (trigger.id === selectedEventId) classNames.push("active");
-                return (
-                  <li key={trigger.id} className={classNames.join(" ")} data-testid="nav-event-item">
-                    <button
-                      className="sequenceBtn"
-                      type="button"
-                      onClick={() => onSelectEvent(trigger.id)}
-                    >
-                      <span className="sequenceBtnLabel">{trigger.name}</span>
-                    </button>
-                    <span className="inlineActions">
-                      <button
-                        className="tinyBtn tinyBtnIcon danger"
-                        type="button"
-                        aria-label={`Delete event ${trigger.name}`}
-                        title="Delete event"
-                        onClick={() => onDeleteEvent(trigger.id)}
-                      >
-                        <DeleteIcon />
-                      </button>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )
         ) : null}
 
       </div>

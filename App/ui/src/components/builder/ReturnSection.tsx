@@ -26,7 +26,7 @@ function TraversalReturnSection() {
   return (
     <section className="builderSection">
       <div className="builderHeadRow">
-        <h3 style={{ margin: 0 }}>Return</h3>
+        <h2 style={{ margin: 0 }}>return</h2>
       </div>
       <div className="builderReturnTraversal">
         <Toggle
@@ -105,7 +105,7 @@ export function ReturnSection() {
   return (
     <section className="builderSection">
       <div className="builderHeadRow">
-        <h3 style={{ margin: 0 }}>Return</h3>
+        <h2 style={{ margin: 0 }}>return</h2>
         <div className="builderInline">
           {!distinctInAdvanced ? (
             <Toggle
@@ -147,7 +147,7 @@ export function ReturnSection() {
         ) : (
           <div className="builderItemRow" key={index}>
             <div className="builderRow">
-              <div className="builderField">
+              <div className="builderField" data-issue="return-expression">
                 <label>expression</label>
                 <input
                   className="builderMono"
@@ -158,7 +158,7 @@ export function ReturnSection() {
                   }
                 />
               </div>
-              <div className="builderField">
+              <div className="builderField" data-issue="return-alias">
                 <label>alias (optional)</label>
                 <input
                   className="builderMono"

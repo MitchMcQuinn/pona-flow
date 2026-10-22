@@ -21,6 +21,7 @@ import type {
 } from "../../../state/builder/types";
 import { fetchEvents } from "../../../services/api";
 import type { EventSummary } from "../../../state/types";
+import { FieldLabel } from "../FieldTip";
 import { SegmentToggle } from "../SegmentToggle";
 import { DurationField } from "./DurationField";
 import { StepBodyEditor } from "./StepBodyEditor";
@@ -70,44 +71,44 @@ interface CallRetryFieldsProps {
 function CallRetryFields({ sp, timeoutDefault, warnings, onCommit }: CallRetryFieldsProps) {
   return (
     <>
-      <DurationField
-        label="timeout"
-        allowParameter
-        testId="builder-call-timeout"
-        value={sp.timeout_seconds ?? timeoutDefault}
-        hint="How long this call may run before it fails. Failure publishes ok=false (HTTP also publishes status) for edge conditions, and retries if attempts remain."
-        onChange={(next) => onCommit({ timeout_seconds: next })}
-      />
+      <div className="builderInlineRow">
+        <DurationField
+          label="timeout"
+          allowParameter
+          testId="builder-call-timeout"
+          value={sp.timeout_seconds ?? timeoutDefault}
+          hint="How long this call may run before it fails. Failure publishes ok=false (HTTP also publishes status) for edge conditions, and retries if attempts remain."
+          onChange={(next) => onCommit({ timeout_seconds: next })}
+        />
+        <DurationField
+          label="retry backoff"
+          allowParameter
+          testId="builder-call-backoff"
+          value={sp.backoff_seconds ?? 0}
+          hint="Wait between retries. 0 retries immediately; longer values park the run until the scheduler wakes it."
+          onChange={(next) => onCommit({ backoff_seconds: next })}
+        />
+        <div className="builderField">
+          <FieldLabel tip="Includes the first try. After the last failure the walk continues with ok=false so an edge can escalate.">
+            max attempts
+          </FieldLabel>
+          <input
+            type="number"
+            min={1}
+            max={20}
+            data-testid="builder-call-max-attempts"
+            value={sp.max_attempts ?? 1}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (!Number.isFinite(n)) return;
+              onCommit({ max_attempts: Math.trunc(n) });
+            }}
+          />
+        </div>
+      </div>
       {warnings.length > 0 ? (
         <span className="builderCheckMsg error">{warnings[0]}</span>
       ) : null}
-      <div className="builderField">
-        <label>max attempts</label>
-        <input
-          type="number"
-          min={1}
-          max={20}
-          data-testid="builder-call-max-attempts"
-          value={sp.max_attempts ?? 1}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            if (!Number.isFinite(n)) return;
-            onCommit({ max_attempts: Math.trunc(n) });
-          }}
-        />
-        <span className="createSequenceHint">
-          Includes the first try. After the last failure the walk continues with ok=false so an
-          edge can escalate.
-        </span>
-      </div>
-      <DurationField
-        label="retry backoff"
-        allowParameter
-        testId="builder-call-backoff"
-        value={sp.backoff_seconds ?? 0}
-        hint="Wait between retries. 0 retries immediately; longer values park the run until the scheduler wakes it."
-        onChange={(next) => onCommit({ backoff_seconds: next })}
-      />
     </>
   );
 }
@@ -315,14 +316,6 @@ export function StepSequencialConfig({
   const operationEvaluation: OperationEvaluation = sp.operation_evaluation?.groups
     ? sp.operation_evaluation
     : defaultOperationEvaluation();
-  const operationWarnings =
-    stepType === "operation"
-      ? operationStepWarnings({
-          ...sp,
-          step_type: "operation",
-          operation_evaluation: operationEvaluation
-        })
-      : [];
   const callWarnings = stepType === "http" ? callStepWarnings({ ...sp, step_type: stepType }) : [];
   const selectedWaitEvent = events.find((event) => event.id === (sp.wait_event_id ?? "").trim());
   const waitEventAlsoTargetsThis =
@@ -366,7 +359,7 @@ export function StepSequencialConfig({
               value={stepType}
               testId="builder-step-type"
               options={[
-                { value: "http", label: "HTTP request" },
+                { value: "http", label: "Request" },
                 { value: "wait", label: "Wait" },
                 { value: "join", label: "Join" },
                 { value: "operation", label: "Operation" }
@@ -466,7 +459,7 @@ export function StepSequencialConfig({
               ) : null}
             </>
           ) : stepType === "join" ? (
-            <p className="muted">
+            <p className="createSequenceHint">
               A join continues only after every inbound arm that actually ran has finished.
               Draw the arms into this step; the outgoing edge is what happens next. Unused
               conditional branches do not block it. Arms still run one at a time — this is a
@@ -476,13 +469,12 @@ export function StepSequencialConfig({
             <OperationStepConfig
               evaluation={operationEvaluation}
               assignments={sp.operation_assignments ?? []}
-              warnings={operationWarnings}
               onChange={commitSequencial}
             />
           ) : (
             <>
-              <div className="builderField">
-                <label>endpoint</label>
+              <div className="builderField" data-issue="step-endpoint">
+                <FieldLabel tip="URL this step calls. $parameter tokens are allowed.">endpoint</FieldLabel>
                 <input
                   className="builderMono"
                   placeholder={state.spaceDefaultEndpoint.trim() || "https://api.example.com/webhook"}
@@ -491,7 +483,7 @@ export function StepSequencialConfig({
                 />
               </div>
               <div className="builderField">
-                <label>method</label>
+                <FieldLabel>method</FieldLabel>
                 <select
                   value={sp.method ?? "POST"}
                   onChange={(e) => commitSequencial({ method: e.target.value as HttpMethod })}
@@ -504,10 +496,10 @@ export function StepSequencialConfig({
                 </select>
               </div>
               <div className="builderField">
-                <label>
-                  headers (JSON)
-                  {headersError ? <span className="builderCheckMsg error">{headersError}</span> : null}
-                </label>
+                <FieldLabel tip="JSON object. $parameter and $secret.NAME tokens are resolved when the request runs.">
+                  headers
+                </FieldLabel>
+                {headersError ? <span className="builderCheckMsg error">{headersError}</span> : null}
                 <input
                   className="builderMono"
                   placeholder='{"Authorization": "Bearer $token"}'
@@ -518,13 +510,13 @@ export function StepSequencialConfig({
                   }}
                 />
               </div>
-              <div className="builderField">
-                <label>
-                  body (JSON)
-                  {bodyCheck && bodyCheck.status !== "idle" ? (
-                    <span className={`builderCheckMsg ${bodyCheck.status}`}>{bodyCheck.message}</span>
-                  ) : null}
-                </label>
+              <div className="builderField" data-issue="step-body">
+                <FieldLabel tip="JSON body sent with the request. $parameter tokens become run values.">
+                  body
+                </FieldLabel>
+                {bodyCheck && bodyCheck.status !== "idle" ? (
+                  <span className={`builderCheckMsg ${bodyCheck.status}`}>{bodyCheck.message}</span>
+                ) : null}
                 <StepBodyEditor
                   value={bodyRaw}
                   readOnly={false}

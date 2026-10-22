@@ -127,9 +127,9 @@ export function StepCreateRelCard(props: RelCardProps) {
       </div>
 
       {!isReference ? (
-        <div className="builderField">
-          <label>attributive_label</label>
+        <div className="builderField" data-issue="attributive_label">
           <input
+            aria-label="attributive_label"
             value={relationship.attributive_label ?? ""}
             placeholder="NEXT or $parameter"
             disabled={aliasLocked}

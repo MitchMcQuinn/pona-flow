@@ -1,5 +1,6 @@
 import { isEmptySequenceBindingValue } from "@pona-flow/authoring";
 import type { ExecutionStepParameter } from "../../../services/api";
+import { FieldLabel, FieldTip } from "../FieldTip";
 import { TypedValueInput } from "./TypedValueInput";
 
 export function bindingToInputString(value: unknown): string {
@@ -73,20 +74,16 @@ export function SequenceParameterValues({
 }: SequenceParameterValuesProps) {
   return (
     <section className="builderBlock createSequenceFields" data-testid="sequence-parameter-values">
-      <div className="builderHeadRow">
-        <label>Parameter values</label>
-      </div>
-      <span className="createSequenceHint">
-        Pre-set a STEP parameter for this sequence only. Leave it blank to collect the
-        value when the sequence runs.
-      </span>
+      <FieldLabel tip="Pre-set a STEP parameter for this sequence only. Leave it blank to collect the value when the sequence runs.">
+        Parameter values
+      </FieldLabel>
 
       {waitingForEntry ? (
-        <p className="createSequenceHint">Pick an entry STEP to see the parameters it uses.</p>
+        <p className="createSequenceHint muted">Pick an entry STEP first.</p>
       ) : loading ? (
-        <p className="createSequenceHint">Loading parameters from this sequence&rsquo;s steps…</p>
+        <p className="createSequenceHint muted">Loading…</p>
       ) : parameters.length === 0 ? (
-        <p className="createSequenceHint">This chain has no caller-supplied STEP parameters.</p>
+        <p className="createSequenceHint muted">No step parameters.</p>
       ) : (
         parameters.map((parameter) => {
           const name = parameter.name;
@@ -94,11 +91,13 @@ export function SequenceParameterValues({
             <div key={name} className="builderField" data-testid={`sequence-param-value-${name}`}>
               <div className="createSequenceLabelRow">
                 <label htmlFor={`seq-param-${name}`}>{name}</label>
-                {parameter.is_required ? (
-                  <span className="createSequenceHint">pauses for input if left blank</span>
-                ) : (
-                  <span className="createSequenceHint">optional</span>
-                )}
+                <FieldTip
+                  text={
+                    parameter.is_required
+                      ? "Pauses for input if left blank."
+                      : "Optional. Leave blank to collect at run time."
+                  }
+                />
               </div>
               <TypedValueInput
                 id={`seq-param-${name}`}
@@ -108,7 +107,7 @@ export function SequenceParameterValues({
                 maxChoices={parameter.max_choices}
                 value={values[name] ?? ""}
                 onChange={(raw) => onChange(name, raw)}
-                placeholder={parameter.value_type === "string" ? "Leave blank to collect at run time" : undefined}
+                placeholder={parameter.value_type === "string" ? "collect at run time" : undefined}
               />
             </div>
           );

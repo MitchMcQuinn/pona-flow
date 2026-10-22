@@ -44,9 +44,9 @@ export function SchemaUpdateSuspendModal({
         data-testid="modal-schema-update-suspend"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ marginTop: 0 }}>
-          Update schema <span className="builderMono">{attributiveLabel}</span>
-        </h3>
+        <h2 style={{ marginTop: 0 }}>
+          update schema <span className="builderMono">{attributiveLabel}</span>
+        </h2>
 
         {count ? (
           <p style={{ margin: "0 0 10px" }}>

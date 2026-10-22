@@ -108,9 +108,9 @@ export function ConfigUpdateNodeCard(props: NodeCardProps) {
       </div>
 
       {isConfigTarget || lockedRelEdit ? (
-        <div className="builderField">
-          <label>attributive_label</label>
+        <div className="builderField" data-issue="attributive_label">
           <input
+            aria-label="attributive_label"
             readOnly
             value={node.attributive_label ?? ""}
             placeholder="(set by relationship)"
@@ -302,9 +302,9 @@ export function MatchNodeCard(props: NodeCardProps) {
 
       {!matchIsReference &&
       (isInstanceTargetMatch || isStepHopTargetMatch || isSchemaTargetMatch) ? (
-        <div className="builderField">
-          <label>attributive_label</label>
+        <div className="builderField" data-issue="attributive_label">
           <input
+            aria-label="attributive_label"
             readOnly
             value={node.attributive_label ?? ""}
             placeholder="(set by relationship)"

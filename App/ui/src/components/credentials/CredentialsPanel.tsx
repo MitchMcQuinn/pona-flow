@@ -102,7 +102,7 @@ export function CredentialsPanel({ spaceId }: CredentialsPanelProps) {
   return (
     <>
       <div className="rbacHeaderRow">
-        <h3>Credentials</h3>
+        <h2>credentials</h2>
       </div>
       <p className="muted rbacSectionHint">
         Securely store API keys and authorization secrets for this space. Reference a
@@ -114,7 +114,7 @@ export function CredentialsPanel({ spaceId }: CredentialsPanelProps) {
       {error ? <div className="errorText">{error}</div> : null}
       {loading ? <p className="muted">Loading…</p> : null}
 
-      <h3 className="navSectionHeader">Storage</h3>
+      <h2 className="navSectionHeader">storage</h2>
       {writable ? (
         <p className="muted rbacSectionHint">
           This instance stores credentials in its local <code>.env</code> file
@@ -155,7 +155,7 @@ export function CredentialsPanel({ spaceId }: CredentialsPanelProps) {
         </button>
       </form>
 
-      <h3 className="navSectionHeader">Stored credentials</h3>
+      <h2 className="navSectionHeader">stored credentials</h2>
       {credentials.length === 0 ? (
         <p className="muted">No credentials yet.</p>
       ) : (

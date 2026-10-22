@@ -84,8 +84,7 @@ export function InstanceRelAttributiveField({
   );
 
   return (
-    <div className="builderField">
-      <label>attributive_label</label>
+    <div className="builderField" data-issue="attributive_label">
       <Picker
         value={selectedIndex >= 0 ? String(selectedIndex) : attributiveLabel}
         placeholder="(select relationship)"

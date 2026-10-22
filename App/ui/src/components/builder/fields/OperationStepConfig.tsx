@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import {
   OPERATION_ASSIGNMENT_TYPES,
   OPERATION_ASSIGNMENT_WHENS,
@@ -8,6 +9,7 @@ import {
   emptyOperationGroup,
   emptyOperationStatement,
   isUnaryOperationOperator,
+  isValidParameterName,
   type OperationAssignment,
   type OperationAssignmentType,
   type OperationAssignmentWhen,
@@ -17,6 +19,7 @@ import {
   type OperationOperand,
   type OperationOperator
 } from "@pona-flow/authoring";
+import { FieldLabel, FieldTip } from "../FieldTip";
 
 const OPERATOR_LABELS: Record<OperationOperator, string> = {
   "=": "equals",
@@ -42,7 +45,6 @@ const WHEN_LABELS: Record<OperationAssignmentWhen, string> = {
 interface OperationStepConfigProps {
   evaluation: OperationEvaluation;
   assignments: OperationAssignment[];
-  warnings: string[];
   onChange: (patch: {
     operation_evaluation?: OperationEvaluation;
     operation_assignments?: OperationAssignment[];
@@ -58,10 +60,66 @@ function parseOperand(raw: string): OperationOperand {
   return raw;
 }
 
+function JunctionDivider({ value }: { value: OperationJunction }) {
+  return (
+    <div className="builderJunctionDivider" aria-hidden="true">
+      <span>{value}</span>
+    </div>
+  );
+}
+
+function StatementJunctionField({
+  groupIndex,
+  value,
+  onChange
+}: {
+  groupIndex: number;
+  value: OperationJunction;
+  onChange: (next: OperationJunction) => void;
+}) {
+  return (
+    <div className="builderField builderJunctionField">
+      <FieldLabel>statement junction</FieldLabel>
+      <select
+        data-testid={`builder-operation-statement-junction-${groupIndex}`}
+        value={value}
+        onChange={(e) => onChange(e.target.value as OperationJunction)}
+      >
+        {OPERATION_JUNCTIONS.map((junction) => (
+          <option key={junction} value={junction}>
+            {junction}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function CardRemove({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="builderPropertyRemove"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+        <path
+          d="M2 2 L10 10 M10 2 L2 10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+      </svg>
+    </button>
+  );
+}
+
 export function OperationStepConfig({
   evaluation,
   assignments,
-  warnings,
   onChange
 }: OperationStepConfigProps) {
   function commitEvaluation(next: OperationEvaluation) {
@@ -91,27 +149,30 @@ export function OperationStepConfig({
 
   return (
     <div className="builderBlock">
-      <div className="builderField">
-        <label>
-          evaluation name
-          {warnings.length > 0 ? (
-            <span className="builderCheckMsg error">{warnings[0]}</span>
-          ) : null}
-        </label>
-        <input
-          className="builderMono"
-          data-testid="builder-operation-name"
-          placeholder="account_tier_routing"
-          value={evaluation.name}
-          onChange={(e) => commitEvaluation({ ...evaluation, name: e.target.value })}
-        />
-        <span className="createSequenceHint">
-          Written into the run as a boolean. $name and $name.field read parameters already in the run.
-        </span>
+      <div
+        className={
+          isValidParameterName(evaluation.name.trim())
+            ? "builderField builderPropertyName"
+            : "builderField builderFieldMissing builderPropertyName"
+        }
+      >
+        <div className="createSequenceNameRow">
+          <input
+            className="builderPropertyNameInput"
+            aria-label="evaluation name"
+            data-testid="builder-operation-name"
+            placeholder="Enter an evaluation name"
+            value={evaluation.name}
+            onChange={(e) => commitEvaluation({ ...evaluation, name: e.target.value })}
+          />
+          <FieldTip text="Written into the run as a boolean. $name and $name.field read parameters already in the run." />
+        </div>
       </div>
-      <div className="builderRow">
+      <div className="builderInlineRow">
         <div className="builderField">
-          <label>collision</label>
+          <FieldLabel tip="overwrite replaces, skip keeps the current value, append adds on, sequence uses key_2, key_3, and so on.">
+            collision
+          </FieldLabel>
           <select
             data-testid="builder-operation-collision"
             value={evaluation.collision}
@@ -128,137 +189,183 @@ export function OperationStepConfig({
               </option>
             ))}
           </select>
-          <span className="createSequenceHint">
-            overwrite replaces, skip keeps the current value, append adds on, sequence uses key_2, key_3, and so on.
-          </span>
         </div>
-        <div className="builderField">
-          <label>group junction</label>
-          <select
-            data-testid="builder-operation-group-junction"
-            value={evaluation.group_junction}
-            onChange={(e) =>
-              commitEvaluation({
-                ...evaluation,
-                group_junction: e.target.value as OperationJunction
-              })
-            }
-          >
-            {OPERATION_JUNCTIONS.map((junction) => (
-              <option key={junction} value={junction}>
-                {junction}
-              </option>
-            ))}
-          </select>
-        </div>
+        {evaluation.groups.length > 1 ? (
+          <div className="builderField builderJunctionField">
+            <FieldLabel>condition junction</FieldLabel>
+            <select
+              data-testid="builder-operation-group-junction"
+              value={evaluation.group_junction}
+              onChange={(e) =>
+                commitEvaluation({
+                  ...evaluation,
+                  group_junction: e.target.value as OperationJunction
+                })
+              }
+            >
+              {OPERATION_JUNCTIONS.map((junction) => (
+                <option key={junction} value={junction}>
+                  {junction}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
       </div>
 
       <div className="builderField">
-        <label>groups</label>
-        <div className="builderBlock" style={{ gap: 8 }}>
+        <div className="builderOperationConditionHead">
+          <h2 className="builderPanelTitle">condition</h2>
+          {evaluation.groups.length === 1 && evaluation.groups[0].statements.length > 1 ? (
+            <StatementJunctionField
+              groupIndex={0}
+              value={evaluation.groups[0].statement_junction}
+              onChange={(statement_junction) =>
+                commitEvaluation({
+                  ...evaluation,
+                  groups: [{ ...evaluation.groups[0], statement_junction }]
+                })
+              }
+            />
+          ) : null}
+        </div>
+        <div className="builderBlock">
+          <div className="builderOperationConditions">
           {evaluation.groups.map((group, groupIndex) => (
-            <div className="builderCard nested" key={groupIndex}>
-              <div className="builderField">
-                <label>statement junction</label>
-                <select
-                  data-testid={`builder-operation-statement-junction-${groupIndex}`}
-                  value={group.statement_junction}
-                  onChange={(e) => {
-                    const groups = evaluation.groups.map((item, index) =>
-                      index === groupIndex
-                        ? { ...item, statement_junction: e.target.value as OperationJunction }
-                        : item
-                    );
-                    commitEvaluation({ ...evaluation, groups });
-                  }}
-                >
-                  {OPERATION_JUNCTIONS.map((junction) => (
-                    <option key={junction} value={junction}>
-                      {junction}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {group.statements.map((statement, statementIndex) => {
-                const unary = isUnaryOperationOperator(statement.operator);
-                return (
-                  <div className="builderCard nested builderItemRow" key={statementIndex}>
-                    <div className="builderField">
-                      <label>X</label>
-                      <input
-                        className="builderMono"
-                        data-testid={`builder-operation-x-${groupIndex}-${statementIndex}`}
-                        placeholder="$user.email"
-                        value={operandText(statement.x)}
-                        onChange={(e) =>
-                          updateStatement(groupIndex, statementIndex, {
-                            x: parseOperand(e.target.value)
-                          })
+            <Fragment key={groupIndex}>
+              {groupIndex > 0 ? <JunctionDivider value={evaluation.group_junction} /> : null}
+              <div
+                className={
+                  evaluation.groups.length > 1
+                    ? "builderStackCard builderOperationGroup builderParameterCardRemovable"
+                    : "builderStackCard builderOperationGroup"
+                }
+              >
+              {evaluation.groups.length > 1 ? (
+                <div className="builderOperationGroupHead">
+                  {group.statements.length > 1 ? (
+                    <StatementJunctionField
+                      groupIndex={groupIndex}
+                      value={group.statement_junction}
+                      onChange={(statement_junction) => {
+                        const groups = evaluation.groups.map((item, index) =>
+                          index === groupIndex ? { ...item, statement_junction } : item
+                        );
+                        commitEvaluation({ ...evaluation, groups });
+                      }}
+                    />
+                  ) : null}
+                  <CardRemove
+                    label="Remove condition"
+                    onClick={() =>
+                      commitEvaluation({
+                        ...evaluation,
+                        groups: evaluation.groups.filter((_, index) => index !== groupIndex)
+                      })
+                    }
+                  />
+                </div>
+              ) : null}
+              <div className="builderOperationStatements">
+                {group.statements.map((statement, statementIndex) => {
+                  const unary = isUnaryOperationOperator(statement.operator);
+                  return (
+                    <Fragment key={statementIndex}>
+                      {statementIndex > 0 ? (
+                        <JunctionDivider value={group.statement_junction} />
+                      ) : null}
+                      <div
+                        className={
+                          group.statements.length > 1
+                            ? "builderCard nested builderItemRow builderParameterCard builderParameterCardRemovable"
+                            : "builderCard nested builderItemRow builderParameterCard"
                         }
-                      />
-                    </div>
-                    <div className="builderField">
-                      <label>operator</label>
-                      <select
-                        data-testid={`builder-operation-operator-${groupIndex}-${statementIndex}`}
-                        value={statement.operator}
-                        onChange={(e) => {
-                          const operator = e.target.value as OperationOperator;
-                          updateStatement(groupIndex, statementIndex, {
-                            operator,
-                            y: isUnaryOperationOperator(operator) ? undefined : statement.y ?? ""
-                          });
-                        }}
                       >
-                        {OPERATION_OPERATORS.map((operator) => (
-                          <option key={operator} value={operator}>
-                            {OPERATOR_LABELS[operator]}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {unary ? null : (
-                      <div className="builderField">
-                        <label>Y</label>
-                        <input
-                          className="builderMono"
-                          data-testid={`builder-operation-y-${groupIndex}-${statementIndex}`}
-                          placeholder="@corp.example.com"
-                          value={operandText(statement.y)}
-                          onChange={(e) =>
-                            updateStatement(groupIndex, statementIndex, {
-                              y: parseOperand(e.target.value)
-                            })
-                          }
-                        />
+                      <div className="builderOperationStatementHead">
+                        <h4 className="builderPanelTitle">statement</h4>
                       </div>
-                    )}
-                    <div className="builderRowActions">
-                      <button
-                        type="button"
-                        className="builderTinyBtn builderDanger"
-                        onClick={() => {
-                          const groups = evaluation.groups.map((item, index) =>
-                            index === groupIndex
-                              ? {
-                                  ...item,
-                                  statements: item.statements.filter((_, si) => si !== statementIndex)
-                                }
-                              : item
-                          );
-                          commitEvaluation({ ...evaluation, groups });
-                        }}
-                      >
-                        Remove
-                      </button>
+                      {group.statements.length > 1 ? (
+                        <CardRemove
+                          label="Remove statement"
+                          onClick={() => {
+                            const groups = evaluation.groups.map((item, index) =>
+                              index === groupIndex
+                                ? {
+                                    ...item,
+                                    statements: item.statements.filter((_, si) => si !== statementIndex)
+                                  }
+                                : item
+                            );
+                            commitEvaluation({ ...evaluation, groups });
+                          }}
+                        />
+                      ) : null}
+                      <div className="builderInlineRow">
+                        <div className="builderField">
+                          <FieldLabel>X</FieldLabel>
+                          <input
+                            className="builderMono"
+                            data-testid={`builder-operation-x-${groupIndex}-${statementIndex}`}
+                            placeholder="$user.email"
+                            value={operandText(statement.x)}
+                            onChange={(e) =>
+                              updateStatement(groupIndex, statementIndex, {
+                                x: parseOperand(e.target.value)
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="builderField builderInlineRowOperator">
+                          <FieldLabel>operator</FieldLabel>
+                          <div
+                            className="builderOperatorSelect"
+                            data-value={OPERATOR_LABELS[statement.operator]}
+                          >
+                            <select
+                              data-testid={`builder-operation-operator-${groupIndex}-${statementIndex}`}
+                              value={statement.operator}
+                              onChange={(e) => {
+                                const operator = e.target.value as OperationOperator;
+                                updateStatement(groupIndex, statementIndex, {
+                                  operator,
+                                  y: isUnaryOperationOperator(operator) ? undefined : statement.y ?? ""
+                                });
+                              }}
+                            >
+                              {OPERATION_OPERATORS.map((operator) => (
+                                <option key={operator} value={operator}>
+                                  {OPERATOR_LABELS[operator]}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        {unary ? null : (
+                          <div className="builderField">
+                            <FieldLabel>Y</FieldLabel>
+                            <input
+                              className="builderMono"
+                              data-testid={`builder-operation-y-${groupIndex}-${statementIndex}`}
+                              placeholder="@corp.example.com"
+                              value={operandText(statement.y)}
+                              onChange={(e) =>
+                                updateStatement(groupIndex, statementIndex, {
+                                  y: parseOperand(e.target.value)
+                                })
+                              }
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                    </Fragment>
+                  );
+                })}
+              </div>
               <div className="builderCardFooter">
                 <button
                   type="button"
-                  className="builderTinyBtn builderAddBtn"
+                  className="builderTinyBtn builderAddBtn builderAddParameterBtn"
                   onClick={() => {
                     const groups = evaluation.groups.map((item, index) =>
                       index === groupIndex
@@ -270,25 +377,15 @@ export function OperationStepConfig({
                 >
                   + Statement
                 </button>
-                <button
-                  type="button"
-                  className="builderTinyBtn builderDanger"
-                  onClick={() => {
-                    commitEvaluation({
-                      ...evaluation,
-                      groups: evaluation.groups.filter((_, index) => index !== groupIndex)
-                    });
-                  }}
-                >
-                  Remove group
-                </button>
               </div>
             </div>
+            </Fragment>
           ))}
+          </div>
           <div className="builderCardFooter">
             <button
               type="button"
-              className="builderTinyBtn builderAddBtn"
+              className="builderTinyBtn builderAddBtn builderAddParameterBtn"
               data-testid="builder-operation-add-group"
               onClick={() =>
                 commitEvaluation({
@@ -297,126 +394,132 @@ export function OperationStepConfig({
                 })
               }
             >
-              + Group
+              + Condition
             </button>
           </div>
         </div>
       </div>
 
-      <div className="builderField">
-        <label>assignments</label>
-        <p className="builderCheckMsg">
-          Each row writes when the evaluation matches If Eval. ALWAYS writes either way. A row that does not match leaves the key as it is.
-        </p>
-        <div className="builderBlock" style={{ gap: 8 }}>
+      <div className="builderField builderOperationAssignments">
+        <div className="createSequenceLabelRow">
+          <h2 className="builderPanelTitle">assignments</h2>
+          <FieldTip text="Each row writes when the condition matches this choice. ALWAYS writes either way. A row that does not match leaves the key as it is." />
+        </div>
+        <div className="builderBlock">
           {assignments.map((item, index) => (
-            <div className="builderCard nested builderItemRow" key={index}>
-              <div className="builderField">
-                <label>if eval</label>
-                <select
-                  data-testid={`builder-operation-when-${index}`}
-                  value={item.when}
-                  onChange={(e) => {
-                    const next = assignments.map((row, i) =>
-                      i === index ? { ...row, when: e.target.value as OperationAssignmentWhen } : row
-                    );
-                    commitAssignments(next);
-                  }}
-                >
-                  {OPERATION_ASSIGNMENT_WHENS.map((when) => (
-                    <option key={when} value={when}>
-                      {WHEN_LABELS[when]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="builderField">
-                <label>type</label>
-                <select
-                  data-testid={`builder-operation-type-${index}`}
-                  value={item.type}
-                  onChange={(e) => {
-                    const type = e.target.value as OperationAssignmentType;
-                    const value = type === "boolean" ? false : type === "number" ? 0 : "";
-                    const next = assignments.map((row, i) =>
-                      i === index ? { ...row, type, value } : row
-                    );
-                    commitAssignments(next);
-                  }}
-                >
-                  {OPERATION_ASSIGNMENT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="builderField">
-                <label>key</label>
-                <input
-                  className="builderMono"
-                  data-testid={`builder-operation-key-${index}`}
-                  placeholder="has_seniority"
-                  value={item.key}
-                  onChange={(e) => {
-                    const next = assignments.map((row, i) =>
-                      i === index ? { ...row, key: e.target.value } : row
-                    );
-                    commitAssignments(next);
-                  }}
+            <div
+              className={
+                assignments.length > 1
+                  ? "builderCard nested builderItemRow builderParameterCard builderParameterCardRemovable"
+                  : "builderCard nested builderItemRow builderParameterCard"
+              }
+              key={index}
+            >
+              {assignments.length > 1 ? (
+                <CardRemove
+                  label="Remove assignment"
+                  onClick={() => commitAssignments(assignments.filter((_, i) => i !== index))}
                 />
-              </div>
-              <div className="builderField">
-                <label>value</label>
-                {item.type === "boolean" ? (
+              ) : null}
+              <div className="builderPropertyTypeRow">
+                <div className="builderField">
+                  <FieldLabel>if condition is...</FieldLabel>
                   <select
-                    data-testid={`builder-operation-value-${index}`}
-                    value={item.value === true ? "true" : "false"}
+                    data-testid={`builder-operation-when-${index}`}
+                    value={item.when}
                     onChange={(e) => {
                       const next = assignments.map((row, i) =>
-                        i === index ? { ...row, value: e.target.value === "true" } : row
+                        i === index ? { ...row, when: e.target.value as OperationAssignmentWhen } : row
                       );
                       commitAssignments(next);
                     }}
                   >
-                    <option value="true">TRUE</option>
-                    <option value="false">FALSE</option>
+                    {OPERATION_ASSIGNMENT_WHENS.map((when) => (
+                      <option key={when} value={when}>
+                        {WHEN_LABELS[when]}
+                      </option>
+                    ))}
                   </select>
-                ) : (
+                </div>
+                <div className="builderField">
+                  <FieldLabel>type</FieldLabel>
+                  <select
+                    data-testid={`builder-operation-type-${index}`}
+                    value={item.type}
+                    onChange={(e) => {
+                      const type = e.target.value as OperationAssignmentType;
+                      const value = type === "boolean" ? false : type === "number" ? 0 : "";
+                      const next = assignments.map((row, i) =>
+                        i === index ? { ...row, type, value } : row
+                      );
+                      commitAssignments(next);
+                    }}
+                  >
+                    {OPERATION_ASSIGNMENT_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="builderField">
+                  <FieldLabel>key</FieldLabel>
                   <input
                     className="builderMono"
-                    data-testid={`builder-operation-value-${index}`}
-                    type={item.type === "number" ? "number" : "text"}
-                    placeholder={item.type === "number" ? "12" : "High"}
-                    value={
-                      item.type === "number" && typeof item.value === "number" && !Number.isFinite(item.value)
-                        ? ""
-                        : operandText(item.value)
-                    }
+                    data-testid={`builder-operation-key-${index}`}
+                    placeholder="has_seniority"
+                    value={item.key}
                     onChange={(e) => {
-                      const raw = e.target.value;
-                      const value = item.type === "number" ? (raw === "" ? Number.NaN : Number(raw)) : raw;
-                      const next = assignments.map((row, i) => (i === index ? { ...row, value } : row));
+                      const next = assignments.map((row, i) =>
+                        i === index ? { ...row, key: e.target.value } : row
+                      );
                       commitAssignments(next);
                     }}
                   />
-                )}
-              </div>
-              <div className="builderRowActions">
-                <button
-                  type="button"
-                  className="builderTinyBtn builderDanger"
-                  onClick={() => commitAssignments(assignments.filter((_, i) => i !== index))}
-                >
-                  Remove
-                </button>
+                </div>
+                <div className="builderField">
+                  <FieldLabel>value</FieldLabel>
+                  {item.type === "boolean" ? (
+                    <select
+                      data-testid={`builder-operation-value-${index}`}
+                      value={item.value === true ? "true" : "false"}
+                      onChange={(e) => {
+                        const next = assignments.map((row, i) =>
+                          i === index ? { ...row, value: e.target.value === "true" } : row
+                        );
+                        commitAssignments(next);
+                      }}
+                    >
+                      <option value="true">TRUE</option>
+                      <option value="false">FALSE</option>
+                    </select>
+                  ) : (
+                    <input
+                      className="builderMono"
+                      data-testid={`builder-operation-value-${index}`}
+                      type={item.type === "number" ? "number" : "text"}
+                      placeholder={item.type === "number" ? "12" : "High"}
+                      value={
+                        item.type === "number" && typeof item.value === "number" && !Number.isFinite(item.value)
+                          ? ""
+                          : operandText(item.value)
+                      }
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const value = item.type === "number" ? (raw === "" ? Number.NaN : Number(raw)) : raw;
+                        const next = assignments.map((row, i) => (i === index ? { ...row, value } : row));
+                        commitAssignments(next);
+                      }}
+                    />
+                  )}
+                </div>
               </div>
             </div>
           ))}
           <div className="builderCardFooter">
             <button
               type="button"
-              className="builderTinyBtn builderAddBtn"
+              className="builderTinyBtn builderAddBtn builderAddParameterBtn"
               data-testid="builder-operation-add-assignment"
               onClick={() => commitAssignments([...assignments, emptyOperationAssignment()])}
             >

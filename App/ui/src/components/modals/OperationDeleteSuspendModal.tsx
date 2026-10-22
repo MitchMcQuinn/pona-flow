@@ -33,9 +33,9 @@ export function OperationDeleteSuspendModal({
         data-testid="modal-operation-delete"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ marginTop: 0 }}>
-          Delete <span className="builderMono">{opName}</span>
-        </h3>
+        <h2 style={{ marginTop: 0 }}>
+          delete <span className="builderMono">{opName}</span>
+        </h2>
 
         {dependents.length ? (
           <p style={{ margin: "0 0 10px" }}>

@@ -719,14 +719,12 @@ DEFAULT_SQLITE_DATABASE_PATH_KEY = "SQLITE_DATABASE_PATH"
 
 
 def validate_space_name_input(raw: str) -> None:
-    """Raise when the raw name is empty or contains non-alphanumeric characters."""
+    """Raise when the name is empty or has no letter or number to build an id from."""
     text = (raw or "").strip()
     if not text:
         raise ValueError("name is required")
-    if re.search(r"[^A-Za-z0-9\s]", text):
-        raise ValueError("Space name may only contain letters, numbers, and spaces.")
     if not normalize_space_name(text):
-        raise ValueError("name is required")
+        raise ValueError("name must include at least one letter or number")
 
 
 def _space_name_taken(
@@ -759,13 +757,14 @@ def create_space(
     """
     Insert a new catalog ``spaces`` row.
 
-    ``id`` matches the normalized ``name``. Connection env-key column values use the
-    normalized prefix (uppercase, spaces as underscores); ``keys`` / ``groups`` /
-    ``labels`` start empty. Labels are registered later when this space creates or
-    imports graph elements.
+    ``id`` is the normalized name (uppercase, spaces as underscores). ``name`` keeps
+    the text the user typed, which is what the UI shows. Connection env-key column
+    values use the normalized prefix; ``keys`` / ``groups`` / ``labels`` start empty.
+    Labels are registered later when this space creates or imports graph elements.
     """
     validate_space_name_input(name)
-    sid = normalize_space_name(name)
+    display_name = name.strip()
+    sid = normalize_space_name(display_name)
     if not sid:
         raise ValueError("name is required")
 
@@ -775,6 +774,9 @@ def create_space(
     keys_json = json.dumps({"keys": []}, separators=(",", ":"))
     groups_json = format_space_groups_column([])
     labels_json = format_space_labels_column([])
+    # Embeddings stay off until the space turns them on. An empty column would inherit
+    # the instance env and could show vector search before anyone asked for it.
+    embeddings_json = format_space_embeddings_config({"enabled": False})
 
     with catalog_db() as conn:
         _ensure_spaces_groups_column(conn)
@@ -782,6 +784,7 @@ def create_space(
         _ensure_spaces_dev_mode_column(conn)
         _ensure_spaces_hide_empty_groups_column(conn)
         _ensure_spaces_description_column(conn)
+        _ensure_spaces_embeddings_config_column(conn)
         if _space_name_exists(conn, sid):
             raise ValueError(f"Space name already exists: {sid!r}")
 
@@ -794,12 +797,13 @@ def create_space(
             INSERT INTO spaces (
                 id, name, endpoint, labels, keys,
                 neo4j_uri_key, neo4j_user_key, neo4j_password_key,
-                sqlite_database_path_key, creation_date, groups, is_private, description
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                sqlite_database_path_key, creation_date, groups, is_private, description,
+                embeddings_config
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 sid,
-                sid,
+                display_name,
                 endpoint_val,
                 labels_json,
                 keys_json,
@@ -811,12 +815,13 @@ def create_space(
                 groups_json,
                 0,
                 description_val,
+                embeddings_json,
             ),
         )
         conn.commit()
         return {
             "id": sid,
-            "name": sid,
+            "name": display_name,
             "endpoint": endpoint_val,
             "labels": [],
             "is_private": False,
@@ -872,8 +877,8 @@ def update_space(
     """
     Update a catalog ``spaces`` row (name, endpoint, and settings flags).
 
-    Renaming recomputes ``id`` and all connection env-key columns from the normalized
-    name, matching :func:`create_space`. ``dev_mode`` is the builder flag that surfaces
+    Renaming recomputes ``id`` and the connection env-key columns from the normalized
+    name. ``name`` itself stays the display text the user entered. ``dev_mode`` is the builder flag that surfaces
     composed Cypher and SQLite previews. ``hide_empty_sequence_groups`` hides named nav
     groups that currently hold no sequences. Labels are not a settings field.
     """
@@ -881,7 +886,8 @@ def update_space(
     if not sid:
         raise ValueError("space_id is required")
     validate_space_name_input(name)
-    new_id = normalize_space_name(name)
+    display_name = name.strip()
+    new_id = normalize_space_name(display_name)
     if not new_id:
         raise ValueError("name is required")
 
@@ -914,7 +920,7 @@ def update_space(
         ]
         params: list[Any] = [
             new_id,
-            new_id,
+            display_name,
             endpoint_val,
             neo_uri_key,
             neo_user_key,
@@ -944,7 +950,7 @@ def update_space(
         conn.commit()
         result: dict[str, Any] = {
             "id": new_id,
-            "name": new_id,
+            "name": display_name,
             "endpoint": endpoint_val,
         }
         if set_description:

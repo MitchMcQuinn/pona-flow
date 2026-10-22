@@ -31,7 +31,7 @@ export function AddParameterModal({ onCancel, onSave }: AddParameterModalProps) 
   return (
     <ModalBackdrop onClick={onCancel}>
       <div className="builderModalPanel" onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginTop: 0 }}>Add a parameter</h3>
+        <h2 style={{ marginTop: 0 }}>add a parameter</h2>
         <div className="builderField">
           <label>parameter</label>
           <input

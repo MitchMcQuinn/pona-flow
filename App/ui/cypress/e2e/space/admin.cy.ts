@@ -59,7 +59,7 @@ describe("space administration", () => {
 
   it("shows the read-only audit log", () => {
     cy.openSpaceTab("audit");
-    cy.contains(".spaceConfigSection h3", "Audit log").should("be.visible");
+    cy.contains(".spaceConfigSection h2", "audit log").should("be.visible");
     cy.contains(".rbacHeaderRow button", "Refresh").click();
     // Either rows render or the empty-state message is shown — both are valid.
     cy.get(".spaceConfigSection").should(($section) => {

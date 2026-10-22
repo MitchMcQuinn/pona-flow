@@ -148,9 +148,7 @@ export function loopConfigWarnings(loop: LoopConfig | undefined): string[] {
 
   if (type === "for") {
     const count = positiveInt(loop!.count);
-    if (count === null) {
-      warnings.push("A for loop needs a whole number of iterations.");
-    } else if (count > maxIterations) {
+    if (count !== null && count > maxIterations) {
       warnings.push(
         `A for loop of ${count} iterations exceeds this sequence's maximum of ` +
           `${maxIterations}. Lower the count or raise the maximum.`

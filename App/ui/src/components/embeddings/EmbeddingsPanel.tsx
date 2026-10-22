@@ -131,14 +131,14 @@ export function EmbeddingsPanel({ spaceId }: EmbeddingsPanelProps) {
   return (
     <>
       <div className="rbacHeaderRow">
-        <h3>Embeddings</h3>
+        <h2>embeddings</h2>
       </div>
       <p className="muted rbacSectionHint">
         Semantic search over this space&apos;s records, embedded by a local{" "}
         <a href="https://ollama.com" target="_blank" rel="noreferrer">
           Ollama
         </a>{" "}
-        model and stored on the records themselves. Mark a SCHEMA <code>is_vectorized</code> to
+        model and stored on the records themselves. Mark a SCHEMA <code>vectorized</code> to
         include its instances, then reindex. One model serves the whole space: its vector width
         is fixed in the index, so switching models clears what is stored and needs a reindex.
       </p>

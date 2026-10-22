@@ -143,7 +143,7 @@ export function SequenceWebhookSection({
             {curl}
           </pre>
 
-          <h3 className="sequenceWebhookInputsHead">Parameter inputs</h3>
+          <h2 className="sequenceWebhookInputsHead">parameter inputs</h2>
           {loading ? (
             <p className="muted">Collecting inputs from the sequence…</p>
           ) : composeError ? (

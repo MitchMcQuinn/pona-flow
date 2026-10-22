@@ -82,15 +82,12 @@ export function SchemaRelAttributiveLabelField({
   const check = state.checks[checkKey];
 
   return (
-    <div className="builderField">
-      <label>
-        attributive_label
-        {enforceUnique && !isParameterLabel && check && check.status !== "idle" ? (
-          <span className={`builderCheckMsg ${check.status}`}>
-            {check.status === "checking" ? "checking…" : check.message}
-          </span>
-        ) : null}
-      </label>
+    <div className="builderField" data-issue="attributive_label">
+      {enforceUnique && !isParameterLabel && check && check.status !== "idle" ? (
+        <span className={`builderCheckMsg ${check.status}`}>
+          {check.status === "checking" ? "checking…" : check.message}
+        </span>
+      ) : null}
       <Picker
         value={attributiveLabel}
         placeholder="(select relationship type)"

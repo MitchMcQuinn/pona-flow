@@ -6,6 +6,7 @@ import {
   waitDurationParamName,
   type WaitDurationUnit
 } from "@pona-flow/authoring";
+import { FieldLabel } from "../FieldTip";
 
 interface DurationFieldProps {
   /** Stored seconds, or exactly `$name`. */
@@ -56,7 +57,7 @@ export function DurationField({
 
   return (
     <div className="builderField">
-      <label>{label}</label>
+      <FieldLabel tip={hint}>{label}</FieldLabel>
       <div className="builderDurationRow">
         <input
           type="text"
@@ -83,7 +84,6 @@ export function DurationField({
           ))}
         </select>
       </div>
-      {hint ? <span className="createSequenceHint">{hint}</span> : null}
     </div>
   );
 }

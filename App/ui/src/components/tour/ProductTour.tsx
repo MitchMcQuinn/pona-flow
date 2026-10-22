@@ -234,9 +234,9 @@ export function ProductTour({ open, onClose, mode = "desktop", onShowPane }: Pro
             </button>
           ) : null}
         </div>
-        <h2 id="tour-title" className="tourTitle">
+        <h1 id="tour-title" className="tourTitle">
           {step.title}
-        </h2>
+        </h1>
         <div className="tourBody">{body}</div>
         <div className="tourFooter">
           <div className="tourDots" aria-hidden="true">

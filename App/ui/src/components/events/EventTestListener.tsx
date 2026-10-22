@@ -4,6 +4,7 @@ import {
   fetchEventTestCapture,
   type EventTestCapture
 } from "../../services/api";
+import { FieldLabel } from "../builder/FieldTip";
 
 interface EventTestListenerProps {
   /** Saved event id. Null while the event has not been created yet. */
@@ -115,21 +116,19 @@ export function EventTestListener({ eventId, ingestToken, signed }: EventTestLis
   return (
     <div className="eventTest" data-testid="event-test-endpoint">
       <div className="field">
-        <label>Test endpoint</label>
+        <FieldLabel
+          tip={
+            signed
+              ? "POST a sample payload here to preview it. Sequences do not run. Send X-Pona-Signature when a signing secret is set."
+              : "POST a sample payload here to preview it. Sequences do not run."
+          }
+        >
+          test endpoint
+        </FieldLabel>
         {testUrl ? (
-          <>
-            <CopyField value={testUrl} testId="event-test-url" />
-            <span className="eventHint">
-              POST a sample payload to this URL. It shows up below and does not run the
-              sequences.
-              {signed ? " The signing secret applies here too: send X-Pona-Signature." : ""}
-            </span>
-          </>
+          <CopyField value={testUrl} testId="event-test-url" />
         ) : (
-          <p className="muted">
-            Save this event to generate a test endpoint. It listens for a POST and shows
-            the payload here without running sequences.
-          </p>
+          <p className="muted">Save to generate a test endpoint.</p>
         )}
       </div>
 

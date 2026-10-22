@@ -5,14 +5,18 @@ describe("events: simulated event", () => {
     cy.bootstrapApp();
 
     cy.openEventCreator();
-    cy.get("#event-type").select("simulated");
+    cy.get('[data-testid="event-type-toggle-option-simulated"]').click();
     cy.get("#event-name").clear().type(EVENTS.SIMULATED_NAME);
     cy.get("#sim-tic-duration").clear().type("15");
     cy.get("#sim-probability-name").clear().type("Weather");
     cy.get("#sim-outcome-weight").clear().type("5");
-    cy.get("#sim-sequence option").then(($options) => {
-      if ($options.length > 1) {
-        cy.get("#sim-sequence").select(1);
+    cy.get("#sim-sequence").click();
+    cy.get('[data-testid="sim-sequence-menu"] button.builderPickerItem').then(($items) => {
+      const next = [...$items].find((el) => (el.textContent || "").trim() !== "Record only");
+      if (next) {
+        cy.wrap(next).click();
+      } else {
+        cy.get("#sim-sequence").click();
       }
     });
     cy.saveEvent(EVENTS.SIMULATED_NAME);
@@ -20,7 +24,11 @@ describe("events: simulated event", () => {
     cy.get('[data-testid="nav-event-item"]')
       .contains(".sequenceBtnLabel", EVENTS.SIMULATED_NAME)
       .click();
-    cy.get("#event-type", { timeout: 20_000 }).should("have.value", "simulated");
+    cy.get('[data-testid="event-type-toggle-option-simulated"]', { timeout: 20_000 }).should(
+      "have.attr",
+      "aria-checked",
+      "true"
+    );
     cy.get('[data-testid="sim-url-create"]')
       .should("contain.text", "/api/sim/")
       .and("contain.text", "/sessions");

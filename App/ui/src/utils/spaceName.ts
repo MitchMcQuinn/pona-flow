@@ -1,6 +1,6 @@
-/** Strip characters that are not letters, digits, or spaces. */
+/** Leave the typed name intact. The catalog id is derived separately. */
 export function sanitizeSpaceNameInput(raw: string): string {
-  return raw.replace(/[^A-Za-z0-9\s]/g, "");
+  return raw.replace(/[\u0000-\u001f\u007f]/g, "");
 }
 
 /**
@@ -19,6 +19,5 @@ export function normalizeSpaceName(raw: string): string {
 export function isValidSpaceNameInput(raw: string): boolean {
   const trimmed = raw.trim();
   if (!trimmed) return false;
-  if (/[^A-Za-z0-9\s]/.test(trimmed)) return false;
   return normalizeSpaceName(trimmed).length > 0;
 }

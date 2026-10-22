@@ -48,7 +48,7 @@ export function PermissionMatrix({ value, sequences, disabled, onChange }: Permi
 
   return (
     <div className="rbacMatrix">
-      <h4>Flows</h4>
+      <h3>flows</h3>
       <div className="rbacFlowTableWrap">
         <table className="rbacFlowTable">
           <thead>
@@ -92,7 +92,7 @@ export function PermissionMatrix({ value, sequences, disabled, onChange }: Permi
         Manage space (settings, events, members & roles)
       </label>
 
-      <h4>Sequences</h4>
+      <h3>sequences</h3>
       <label className="rbacCheckRow">
         <input
           type="checkbox"

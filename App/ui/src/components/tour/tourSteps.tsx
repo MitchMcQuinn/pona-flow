@@ -26,7 +26,7 @@ export function tourStepsFor(mode: ViewportMode): TourStep[] {
 export const TOUR_STEPS: TourStep[] = [
   {
     id: "welcome",
-    title: "Welcome to pona flow",
+    title: "welcome to pona flow",
     body: (
       <>
         <p>
@@ -43,7 +43,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: "ideas",
-    title: "Three simple ideas",
+    title: "three simple ideas",
     body: (
       <>
         <ul className="tourList">
@@ -61,7 +61,7 @@ export const TOUR_STEPS: TourStep[] = [
           </li>
         </ul>
         <p className="muted">
-          In the builder, types are called <em>schemas</em> and records are called{" "}
+          In the workbench, types are called <em>schemas</em> and records are called{" "}
           <em>instances</em>. Same thing, more formal names.
         </p>
       </>
@@ -71,11 +71,11 @@ export const TOUR_STEPS: TourStep[] = [
     id: "phone-tabs",
     only: ["phone"],
     target: "mobile-tabs",
-    title: "One screen at a time",
+    title: "one screen at a time",
     body: (
       <p>
         On a phone, pona flow shows one screen at a time. Use these tabs to switch between the{" "}
-        <strong>Menu</strong> (spaces, sequences and events), the <strong>Workbench</strong>{" "}
+        <strong>Menu</strong> (events and sequences), the <strong>Workbench</strong>{" "}
         (where you create and edit) and the <strong>Map</strong> (a picture of how things
         connect).
       </p>
@@ -85,32 +85,31 @@ export const TOUR_STEPS: TourStep[] = [
     id: "tablet-menu",
     only: ["tablet"],
     target: "nav-toggle",
-    title: "Your menu",
+    title: "your menu",
     body: (
       <p>
-        Your spaces, sequences and events live in a menu that slides out from here. Tap it any
+        Your events and sequences live in a menu that slides out from here. Tap it any
         time to open or close it.
       </p>
     )
   },
   {
     id: "space",
-    pane: "menu",
     target: "space-picker",
-    title: "Spaces keep work separate",
+    title: "spaces keep work separate",
     body: (
       <p>
         A space is like a project folder. Everything you build lives inside one, and each space
-        has its own people and settings. Switch between spaces here. If you&rsquo;re allowed to
-        create spaces, the <strong>+</strong> button above starts a new one.
+        has its own people and settings. The name in the top bar is the space you&rsquo;re in;
+        open it to switch. If you&rsquo;re allowed to create spaces, the <strong>+</strong> on
+        the right starts a new one.
       </p>
     )
   },
   {
     id: "space-settings",
-    pane: "menu",
     target: "space-settings",
-    title: "Settings for this space",
+    title: "settings for this space",
     body: (
       <p>
         The gear opens this space&rsquo;s settings. Depending on your role, you can rename the
@@ -121,28 +120,28 @@ export const TOUR_STEPS: TourStep[] = [
     )
   },
   {
-    id: "sequences",
-    pane: "menu",
-    target: "sequences",
-    title: "Sequences are your routines",
-    body: (
-      <p>
-        Each sequence is a set of steps pona flow follows in order: look something up, save a
-        record, ask someone a question, wait a while, or talk to another service. Choose a
-        sequence to see it, or press <strong>+</strong> to build a new one.
-      </p>
-    )
-  },
-  {
     id: "events",
     pane: "menu",
     target: "events",
-    title: "Events run things for you",
+    title: "events run things for you",
     body: (
       <p>
         An event starts a sequence automatically, either on a schedule (say, every Monday at
         9am) or when something happens in another app. That way nobody has to remember to press
         the button.
+      </p>
+    )
+  },
+  {
+    id: "sequences",
+    pane: "menu",
+    target: "sequences",
+    title: "sequences are your routines",
+    body: (
+      <p>
+        Each sequence is a set of steps pona flow follows in order: look something up, save a
+        record, ask someone a question, wait a while, or talk to another service. Choose a
+        sequence to see it, or press <strong>+</strong> to build a new one.
       </p>
     )
   },
@@ -158,7 +157,7 @@ export const TOUR_STEPS: TourStep[] = [
         you while it runs, its questions show up here too.
       </p>
     ),
-    title: "This is your workbench",
+    title: "this is your workbench",
     body: (
       <p>
         This is where you create and edit: describe new types, add records, and put steps
@@ -168,7 +167,7 @@ export const TOUR_STEPS: TourStep[] = [
     ),
     missingBody: (
       <p>
-        When you open the builder or a space&rsquo;s settings, a workbench panel slides in.
+        When you open the workbench or a space&rsquo;s settings, a workbench panel slides in.
         That&rsquo;s where you create and edit: describe new types, add records, and put steps
         together into sequences.
       </p>
@@ -187,7 +186,7 @@ export const TOUR_STEPS: TourStep[] = [
         is waiting there.
       </p>
     ),
-    title: "See how everything connects",
+    title: "see how everything connects",
     body: (
       <p>
         This area draws your work as a map: dots are things and lines show how they connect.
@@ -205,7 +204,7 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: "run",
     target: "topbar-actions",
-    title: "Run when you're ready",
+    title: "run when you're ready",
     body: (
       <p>
         Pick a sequence and a <strong>Run</strong> button appears up here. If the sequence needs
@@ -218,7 +217,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: "account",
     pane: "menu",
     target: "account",
-    title: "Your account",
+    title: "your account",
     body: (
       <p>
         Open this menu to set your timezone (so scheduled times look right) or sign out. If
@@ -229,7 +228,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: "done",
-    title: "You're all set",
+    title: "you're all set",
     body: (
       <>
         <p>

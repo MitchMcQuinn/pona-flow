@@ -1,9 +1,11 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 
 interface ToggleProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   label?: string;
+  /** Extra control rendered beside the label, such as a hover hint. */
+  labelAdornment?: ReactNode;
   /** When true, label renders to the left of the switch track. */
   labelFirst?: boolean;
   id?: string;
@@ -14,6 +16,7 @@ export function Toggle({
   checked,
   onChange,
   label,
+  labelAdornment,
   labelFirst = false,
   id,
   disabled = false
@@ -29,6 +32,7 @@ export function Toggle({
       {label ? (
         <span className="builderToggleLabel" id={labelId}>
           {label}
+          {labelAdornment}
         </span>
       ) : null}
       <button

@@ -237,7 +237,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
   return (
     <div className="spaceConfigSection templatesPanel">
       <div className="rbacHeaderRow">
-        <h3>Export</h3>
+        <h2>export</h2>
       </div>
       <p className="muted rbacSectionHint">
         Pick the sequences, operations, schemas, and events you want to share. Everything they
@@ -249,7 +249,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
 
       <div className="templateSelectionGroups">
         <section className="templateSelectionGroup" data-testid="template-select-sequences">
-          <h4 className="navSectionHeader">Sequences</h4>
+          <h3 className="navSectionHeader">sequences</h3>
           {sequences.length === 0 ? (
             <p className="muted">No sequences in this space.</p>
           ) : (
@@ -274,7 +274,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         </section>
 
         <section className="templateSelectionGroup" data-testid="template-select-operations">
-          <h4 className="navSectionHeader">Queries</h4>
+          <h3 className="navSectionHeader">queries</h3>
           {operations.length === 0 ? (
             <p className="muted">No standalone queries in this space.</p>
           ) : (
@@ -299,7 +299,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         </section>
 
         <section className="templateSelectionGroup" data-testid="template-select-schemas">
-          <h4 className="navSectionHeader">Schemas</h4>
+          <h3 className="navSectionHeader">schemas</h3>
           {schemas.length === 0 ? (
             <p className="muted">No schemas in this space.</p>
           ) : (
@@ -348,7 +348,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         </section>
 
         <section className="templateSelectionGroup" data-testid="template-select-events">
-          <h4 className="navSectionHeader">Events / schedules</h4>
+          <h3 className="navSectionHeader">events / schedules</h3>
           {events.length === 0 ? (
             <p className="muted">No events in this space.</p>
           ) : (
@@ -375,7 +375,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
 
       {summary ? (
         <div className="templateSummary" data-testid="template-export-summary">
-          <h4 className="navSectionHeader">Resolved selection</h4>
+          <h3 className="navSectionHeader">resolved selection</h3>
           <ul className="templateSummaryList">
             {SUMMARY_ROWS.map((row) => (
               <li key={row.key} className="templateSummaryRow">
@@ -409,7 +409,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
       </div>
 
       <div className="rbacHeaderRow templatesImportHeader">
-        <h3>Import</h3>
+        <h2>import</h2>
       </div>
       <p className="muted rbacSectionHint">
         Load a template file. Any names that would clash with this space are listed below so
@@ -443,7 +443,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
 
       {template && conflicts.length > 0 ? (
         <div className="templateConflicts">
-          <h3 className="navSectionHeader">Resolve name conflicts</h3>
+          <h2 className="navSectionHeader">resolve name conflicts</h2>
           <ul className="templateConflictList">
             {conflicts.map((conflict) => (
               <li key={conflict.id} className="templateConflictRow">
@@ -478,7 +478,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
 
       {result && credentialsNeeded.length > 0 ? (
         <div className="templateCredentials" data-testid="template-credentials-needed">
-          <h3 className="navSectionHeader">Configure credentials</h3>
+          <h2 className="navSectionHeader">configure credentials</h2>
           <p className="muted rbacSectionHint">
             This template references the credential slots below. Their values are never exported;
             populate them in the space's Credentials settings before running the imported flows.

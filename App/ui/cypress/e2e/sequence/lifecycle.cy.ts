@@ -185,6 +185,6 @@ describe("sequence: lifecycle", () => {
     cy.selectSingleStepInNav(GOLDEN_READ_OPERATION);
     cy.runSelectedSequence();
     cy.get("main.layoutResizable").should("not.have.class", "layoutVizHidden");
-    cy.contains("h2", "Result", { timeout: 20_000 }).should("be.visible");
+    cy.contains("h1", "result", { timeout: 20_000 }).should("be.visible");
   });
 });

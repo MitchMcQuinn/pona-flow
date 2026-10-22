@@ -98,13 +98,13 @@ assert.equal(
 
 assert.deepEqual(loopConfigWarnings({ type: "for", count: 5 }), []);
 assert.deepEqual(loopConfigWarnings({ type: "for", count: 0 }), [], "zero passes is legal");
-assert.equal(
-  loopConfigWarnings({ type: "for" }).length,
-  1,
-  "a for loop with no count is incomplete"
+assert.deepEqual(
+  loopConfigWarnings({ type: "for" }),
+  [],
+  "an empty count is completed in the iterations field"
 );
-assert.equal(loopConfigWarnings({ type: "for", count: -1 }).length, 1);
-assert.equal(loopConfigWarnings({ type: "for", count: 1.5 }).length, 1);
+assert.deepEqual(loopConfigWarnings({ type: "for", count: -1 }), []);
+assert.deepEqual(loopConfigWarnings({ type: "for", count: 1.5 }), []);
 assert.match(
   loopConfigWarnings({ type: "for", count: 5000, max_iterations: 100 })[0],
   /exceeds this sequence's maximum/,

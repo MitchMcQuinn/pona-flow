@@ -1,4 +1,8 @@
 import { forwardRef, useImperativeHandle, useState } from "react";
+import { FieldLabel } from "../builder/FieldTip";
+import { Picker } from "../builder/Picker";
+import { SegmentToggle } from "../builder/SegmentToggle";
+import "../builder/builder.css";
 import type {
   ProbabilitySchedule,
   SequenceSummary,
@@ -13,6 +17,28 @@ const TIC_UNITS: TicUnit[] = ["seconds", "minutes", "hours", "days"];
 function localId(prefix: string): string {
   const rand = Math.random().toString(36).slice(2, 10);
   return `${prefix}_${rand}`;
+}
+
+function CardRemove({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="builderPropertyRemove"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+        <path
+          d="M2 2 L10 10 M10 2 L2 10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+      </svg>
+    </button>
+  );
 }
 
 function emptyOutcome(): SimulationOutcome {
@@ -243,23 +269,22 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
 
     return (
       <div className="simFields" data-testid="sim-fields">
-        <div className="eventRow">
+        <div className="eventInlineRow">
           <div className="field">
-            <label htmlFor="sim-tic-unit">Tic unit</label>
-            <select
+            <FieldLabel tip="Each tic moves the in-world clock by this amount. Tics advance only when a session is stepped.">
+              tic unit
+            </FieldLabel>
+            <Picker
               id="sim-tic-unit"
+              ariaLabel="tic unit"
               value={pkg.tic_unit}
-              onChange={(event) => commit({ ...pkg, tic_unit: event.target.value as TicUnit })}
-            >
-              {TIC_UNITS.map((unit) => (
-                <option key={unit} value={unit}>
-                  {unit}
-                </option>
-              ))}
-            </select>
+              placeholder="Please select"
+              options={TIC_UNITS.map((unit) => ({ value: unit, label: unit }))}
+              onSelect={(value) => commit({ ...pkg, tic_unit: value as TicUnit })}
+            />
           </div>
           <div className="field">
-            <label htmlFor="sim-tic-duration">Tic duration</label>
+            <FieldLabel>duration</FieldLabel>
             <input
               id="sim-tic-duration"
               type="number"
@@ -270,75 +295,73 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
               }
             />
           </div>
-        </div>
-        <span className="eventHint">
-          Each tic moves the in-world clock by this duration. Tics advance only when a session
-          is stepped, not on a wall-clock schedule.
-        </span>
-
-        <div className="field">
-          <label htmlFor="sim-sequence">Sequence to run</label>
-          <select
-            id="sim-sequence"
-            value={pkg.sequence_id || ""}
-            onChange={(event) => commit({ ...pkg, sequence_id: event.target.value })}
-          >
-            <option value="">Record only</option>
-            {sequences.map((sequence) => (
-              <option key={sequence.id} value={sequence.id}>
-                {sequence.label}
-              </option>
-            ))}
-          </select>
-          <span className="eventHint">
-            When an outcome is chosen, this sequence runs with the outcome payload as its
-            parameters. Leave it empty to store the emission without running a sequence.
-          </span>
+          <div className="field">
+            <FieldLabel tip="When an outcome is chosen, this sequence runs with the outcome payload. Leave empty to record the emission only.">
+              sequence
+            </FieldLabel>
+            <Picker
+              id="sim-sequence"
+              ariaLabel="sequence"
+              toggleTestId="sim-sequence-toggle"
+              menuTestId="sim-sequence-menu"
+              value={pkg.sequence_id || ""}
+              placeholder="Record only"
+              options={[
+                { value: "", label: "Record only" },
+                ...sequences.map((sequence) => ({ value: sequence.id, label: sequence.label }))
+              ]}
+              onSelect={(value) => commit({ ...pkg, sequence_id: value })}
+            />
+          </div>
         </div>
 
+        <h2 className="builderPanelTitle simSectionTitle">probabilities</h2>
         <div className="eventGroups" data-testid="sim-probabilities">
           {pkg.probabilities.map((probability, index) => {
             const schedule = probability.schedule;
             return (
-              <div className="eventGroup" key={probability.id}>
-                <div className="eventGroupHeader">
-                  <span className="eventGroupTitle">Probability {index + 1}</span>
-                  <button
-                    type="button"
-                    className="tinyBtn danger"
-                    onClick={() =>
-                      commit({
-                        ...pkg,
-                        probabilities: pkg.probabilities.filter((item) => item.id !== probability.id)
-                      })
-                    }
-                  >
-                    Remove
-                  </button>
-                </div>
-
-                <div className="field">
-                  <label htmlFor={`sim-probability-name-${probability.id}`}>Name</label>
+              <div className="eventGroup eventCardRemovable" key={probability.id}>
+                <CardRemove
+                  label="Remove probability"
+                  onClick={() =>
+                    commit({
+                      ...pkg,
+                      probabilities: pkg.probabilities.filter((item) => item.id !== probability.id)
+                    })
+                  }
+                />
+                <div
+                  className={
+                    probability.name.trim()
+                      ? "builderField builderPropertyName"
+                      : "builderField builderFieldMissing builderPropertyName"
+                  }
+                >
                   <input
                     id={index === 0 ? "sim-probability-name" : `sim-probability-name-${probability.id}`}
+                    className="builderPropertyNameInput"
+                    aria-label="probability name"
                     value={probability.name}
-                    placeholder="e.g. Weather"
+                    placeholder="Enter a probability name"
                     onChange={(event) => updateProbability(probability.id, { name: event.target.value })}
                   />
                 </div>
                 <div className="field">
-                  <label htmlFor={`sim-probability-note-${probability.id}`}>Description</label>
+                  <FieldLabel>description</FieldLabel>
                   <input
                     id={`sim-probability-note-${probability.id}`}
                     value={probability.description}
+                    placeholder="Enter an optional description"
                     onChange={(event) =>
                       updateProbability(probability.id, { description: event.target.value })
                     }
                   />
                 </div>
-                <div className="eventRow">
+                <div className="eventInlineRow">
                   <div className="field">
-                    <label htmlFor={`sim-priority-${probability.id}`}>Priority</label>
+                    <FieldLabel tip="Lower numbers run first. Equal priorities are shuffled.">
+                      priority
+                    </FieldLabel>
                     <input
                       id={`sim-priority-${probability.id}`}
                       type="number"
@@ -347,150 +370,154 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                         updateProbability(probability.id, { priority: Number(event.target.value) || 0 })
                       }
                     />
-                    <span className="eventHint">Lower numbers run first. Equal priorities are shuffled.</span>
                   </div>
                   <div className="field">
-                    <label htmlFor={`sim-schedule-${probability.id}`}>Schedule</label>
-                    <select
+                    <FieldLabel>schedule</FieldLabel>
+                    <Picker
                       id={`sim-schedule-${probability.id}`}
+                      ariaLabel="schedule"
                       value={schedule.type}
-                      onChange={(event) => {
-                        const type = event.target.value;
+                      placeholder="Please select"
+                      options={[
+                        { value: "recurring", label: "recurring" },
+                        { value: "scheduled", label: "scheduled tics" },
+                        { value: "random", label: "random" }
+                      ]}
+                      onSelect={(type) => {
                         if (type === "scheduled") updateSchedule(probability.id, { type: "scheduled", tics: [1] });
                         else if (type === "random") {
                           updateSchedule(probability.id, { type: "random", every_x: 1, percent: 50 });
                         } else updateSchedule(probability.id, { type: "recurring", every_x: 1, delay_y: 0 });
                       }}
-                    >
-                      <option value="recurring">Recurring</option>
-                      <option value="scheduled">Scheduled tics</option>
-                      <option value="random">Random</option>
-                    </select>
-                  </div>
-                </div>
-
-                {schedule.type === "recurring" ? (
-                  <div className="eventRow">
-                    <div className="field">
-                      <label>Every X tics</label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={schedule.every_x}
-                        onChange={(event) =>
-                          updateSchedule(probability.id, {
-                            type: "recurring",
-                            every_x: Number(event.target.value) || 0,
-                            delay_y: schedule.delay_y
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="field">
-                      <label>Delay Y tics</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={schedule.delay_y}
-                        onChange={(event) =>
-                          updateSchedule(probability.id, {
-                            type: "recurring",
-                            every_x: schedule.every_x,
-                            delay_y: Number(event.target.value) || 0
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                ) : null}
-
-                {schedule.type === "random" ? (
-                  <div className="eventRow">
-                    <div className="field">
-                      <label>Every X tics</label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={schedule.every_x}
-                        onChange={(event) =>
-                          updateSchedule(probability.id, {
-                            type: "random",
-                            every_x: Number(event.target.value) || 0,
-                            percent: schedule.percent
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="field">
-                      <label>Percent</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={schedule.percent}
-                        onChange={(event) =>
-                          updateSchedule(probability.id, {
-                            type: "random",
-                            every_x: schedule.every_x,
-                            percent: Number(event.target.value) || 0
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                ) : null}
-
-                {schedule.type === "scheduled" ? (
-                  <div className="field">
-                    <label>Tic numbers (comma separated)</label>
-                    <input
-                      value={schedule.tics.join(", ")}
-                      placeholder="1, 5, 10"
-                      onChange={(event) => {
-                        const tics = event.target.value
-                          .split(",")
-                          .map((part) => Number(part.trim()))
-                          .filter((n) => Number.isFinite(n));
-                        updateSchedule(probability.id, { type: "scheduled", tics });
-                      }}
                     />
                   </div>
-                ) : null}
+                  {schedule.type === "recurring" ? (
+                    <>
+                      <div className="field">
+                        <FieldLabel tip="How often this probability is considered.">every</FieldLabel>
+                        <input
+                          type="number"
+                          min={1}
+                          value={schedule.every_x}
+                          onChange={(event) =>
+                            updateSchedule(probability.id, {
+                              type: "recurring",
+                              every_x: Number(event.target.value) || 0,
+                              delay_y: schedule.delay_y
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="field">
+                        <FieldLabel tip="Skip this many tics before the first check.">delay</FieldLabel>
+                        <input
+                          type="number"
+                          min={0}
+                          value={schedule.delay_y}
+                          onChange={(event) =>
+                            updateSchedule(probability.id, {
+                              type: "recurring",
+                              every_x: schedule.every_x,
+                              delay_y: Number(event.target.value) || 0
+                            })
+                          }
+                        />
+                      </div>
+                    </>
+                  ) : null}
+                  {schedule.type === "random" ? (
+                    <>
+                      <div className="field">
+                        <FieldLabel tip="How often this probability is considered.">every</FieldLabel>
+                        <input
+                          type="number"
+                          min={1}
+                          value={schedule.every_x}
+                          onChange={(event) =>
+                            updateSchedule(probability.id, {
+                              type: "random",
+                              every_x: Number(event.target.value) || 0,
+                              percent: schedule.percent
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="field">
+                        <FieldLabel tip="Chance this probability fires on a matching tic.">percent</FieldLabel>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={schedule.percent}
+                          onChange={(event) =>
+                            updateSchedule(probability.id, {
+                              type: "random",
+                              every_x: schedule.every_x,
+                              percent: Number(event.target.value) || 0
+                            })
+                          }
+                        />
+                      </div>
+                    </>
+                  ) : null}
+                  {schedule.type === "scheduled" ? (
+                    <div className="field">
+                      <FieldLabel tip="Comma-separated tic numbers when this probability is due.">
+                        tics
+                      </FieldLabel>
+                      <input
+                        value={schedule.tics.join(", ")}
+                        placeholder="1, 5, 10"
+                        onChange={(event) => {
+                          const tics = event.target.value
+                            .split(",")
+                            .map((part) => Number(part.trim()))
+                            .filter((n) => Number.isFinite(n));
+                          updateSchedule(probability.id, { type: "scheduled", tics });
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                </div>
 
+                <div className="simOutcomes">
+                <h3 className="builderPanelTitle simOutcomesTitle">outcomes</h3>
                 {probability.outcomes.map((outcome, outcomeIndex) => {
                   const weightRef = outcome.weight.trim().startsWith("$");
                   const rowPairs = outcomePairs(outcome);
                   return (
-                    <div className="simOutcome" key={outcome.id}>
-                      <div className="eventGroupHeader">
-                        <span className="eventGroupTitle">Outcome {outcomeIndex + 1}</span>
-                        <button
-                          type="button"
-                          className="tinyBtn danger"
-                          onClick={() =>
-                            updateProbability(probability.id, {
-                              outcomes: probability.outcomes.filter((item) => item.id !== outcome.id)
-                            })
+                    <div className="simOutcome eventCardRemovable" key={outcome.id}>
+                      <CardRemove
+                        label="Remove outcome"
+                        onClick={() =>
+                          updateProbability(probability.id, {
+                            outcomes: probability.outcomes.filter((item) => item.id !== outcome.id)
+                          })
+                        }
+                      />
+                      <div className="eventInlineRow simOutcomeTitleRow">
+                        <div
+                          className={
+                            outcome.label.trim()
+                              ? "builderField builderPropertyName"
+                              : "builderField builderFieldMissing builderPropertyName"
                           }
                         >
-                          Remove
-                        </button>
-                      </div>
-                      <div className="eventRow">
-                        <div className="field">
-                          <label htmlFor={`sim-outcome-label-${outcome.id}`}>Label</label>
                           <input
                             id={`sim-outcome-label-${outcome.id}`}
+                            className="builderPropertyNameInput"
+                            aria-label="outcome label"
                             value={outcome.label}
+                            placeholder="Enter an outcome label"
                             onChange={(event) =>
                               updateOutcome(probability.id, outcome.id, { label: event.target.value })
                             }
                           />
                         </div>
-                        <div className="field">
-                          <label htmlFor={outcomeIndex === 0 && index === 0 ? "sim-outcome-weight" : `sim-outcome-weight-${outcome.id}`}>
-                            Weight
-                          </label>
+                        <div className="field simOutcomeWeight">
+                          <FieldLabel tip="A number, or $parameter from the weight sequence. Negatives become 0. If every weight is 0, the run is cancelled.">
+                            weight
+                          </FieldLabel>
                           <input
                             id={
                               outcomeIndex === 0 && index === 0
@@ -503,46 +530,53 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                               updateOutcome(probability.id, outcome.id, { weight: event.target.value })
                             }
                           />
-                          <span className="eventHint">
-                            A number, or $parameter read from the weight sequence. Negatives become 0.
-                            If every weight is 0, the run is cancelled.
-                          </span>
                         </div>
                       </div>
                       {weightRef ? (
                         <div className="field">
-                          <label htmlFor={`sim-weight-sequence-${outcome.id}`}>Weight sequence</label>
-                          <select
+                          <FieldLabel tip={`Runs first. The weight is that sequence’s value for ${outcome.weight.trim()}. If it is missing or not a number, the parameter default is used, then 0.`}>
+                            weight sequence
+                          </FieldLabel>
+                          <Picker
                             id={`sim-weight-sequence-${outcome.id}`}
+                            ariaLabel="weight sequence"
                             value={outcome.weight_sequence_id || ""}
-                            onChange={(event) =>
+                            placeholder="Select a sequence"
+                            options={sequences.map((sequence) => ({
+                              value: sequence.id,
+                              label: sequence.label
+                            }))}
+                            emptyHint="No sequences available"
+                            onSelect={(value) =>
                               updateOutcome(probability.id, outcome.id, {
-                                weight_sequence_id: event.target.value
+                                weight_sequence_id: value
                               })
                             }
-                          >
-                            <option value="">Select a sequence</option>
-                            {sequences.map((sequence) => (
-                              <option key={sequence.id} value={sequence.id}>
-                                {sequence.label}
-                              </option>
-                            ))}
-                          </select>
-                          <span className="eventHint">
-                            Runs before the outcome is chosen. The weight is that sequence&apos;s resolved
-                            value for {outcome.weight.trim()}. If it is missing or not a number, the
-                            parameter default is used, then 0.
-                          </span>
+                          />
                         </div>
                       ) : null}
 
                       <div className="field">
-                        <label>Payload</label>
-                        <div className="eventChips">
-                          <button
-                            type="button"
-                            className={`eventChip${outcome.payload_mode !== "json" ? " active" : ""}`}
-                            onClick={() => {
+                        <div className="simPayloadRow">
+                          <FieldLabel>payload</FieldLabel>
+                          <SegmentToggle
+                            ariaLabel="payload format"
+                            testId={`sim-payload-mode-${outcome.id}`}
+                            value={outcome.payload_mode === "json" ? "json" : "fields"}
+                            onChange={(mode) => {
+                              if (mode === "json") {
+                                if (outcome.payload_mode === "json") return;
+                                const payload = payloadFromPairs(outcomePairs(outcome));
+                                setJsonText((current) => ({
+                                  ...current,
+                                  [outcome.id]: JSON.stringify(payload, null, 2)
+                                }));
+                                updateOutcome(probability.id, outcome.id, {
+                                  payload,
+                                  payload_mode: "json"
+                                });
+                                return;
+                              }
                               if (outcome.payload_mode !== "json") return;
                               const text = jsonText[outcome.id] ?? JSON.stringify(outcome.payload || {}, null, 2);
                               const parsed = parsePayloadJson(text);
@@ -560,27 +594,11 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                                 payload_mode: "fields"
                               });
                             }}
-                          >
-                            Fields
-                          </button>
-                          <button
-                            type="button"
-                            className={`eventChip${outcome.payload_mode === "json" ? " active" : ""}`}
-                            onClick={() => {
-                              if (outcome.payload_mode === "json") return;
-                              const payload = payloadFromPairs(outcomePairs(outcome));
-                              setJsonText((current) => ({
-                                ...current,
-                                [outcome.id]: JSON.stringify(payload, null, 2)
-                              }));
-                              updateOutcome(probability.id, outcome.id, {
-                                payload,
-                                payload_mode: "json"
-                              });
-                            }}
-                          >
-                            JSON
-                          </button>
+                            options={[
+                              { value: "fields", label: "fields" },
+                              { value: "json", label: "json" }
+                            ]}
+                          />
                         </div>
                         {outcome.payload_mode === "json" ? (
                           <>
@@ -683,6 +701,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                 >
                   + Add outcome
                 </button>
+                </div>
               </div>
             );
           })}

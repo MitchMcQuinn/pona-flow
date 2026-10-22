@@ -23,7 +23,7 @@ interface AuthPagesProps {
 
 const COPY: Record<Mode, { title: string; blurb: string; submit: string; busy: string }> = {
   setup: {
-    title: "Set up pona flow",
+    title: "set up pona flow",
     blurb:
       "Create the first account for this instance. It becomes the instance administrator, " +
       "which can create spaces and invite everyone else.",
@@ -31,13 +31,13 @@ const COPY: Record<Mode, { title: string; blurb: string; submit: string; busy: s
     busy: "Creating..."
   },
   login: {
-    title: "Sign in",
+    title: "sign in",
     blurb: "Use the email and password for your account on this instance.",
     submit: "Sign in",
     busy: "Signing in..."
   },
   signup: {
-    title: "Create your account",
+    title: "create your account",
     blurb:
       "Use the email address a space admin invited. Your account is attached to that " +
       "invitation as soon as it is created.",
@@ -168,7 +168,7 @@ export function ApiUnreachable({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="appRoot authRoot">
       <div className="authCard">
-        <h1>Cannot reach the pona flow API</h1>
+        <h1>cannot reach the pona flow api</h1>
         <p className="muted">
           The browser loaded the app but <code>/api/auth/status</code> did not answer. If you
           just started the server, give it a few seconds; otherwise check that the API process

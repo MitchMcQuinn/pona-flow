@@ -172,7 +172,8 @@ textarea::placeholder {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  padding-left: max(16px, env(safe-area-inset-left));
+  /* Match nav titles: layout gutter (12px) + pane --glow-bleed. */
+  padding-left: max(calc(12px + var(--glow-bleed)), env(safe-area-inset-left));
   padding-right: max(16px, env(safe-area-inset-right));
   position: relative;
   z-index: 5;
@@ -182,7 +183,51 @@ textarea::placeholder {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+.topbarSpacePicker {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.topbarSpaceSelect.builderPickerToggle {
+  font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-size: clamp(22px, 13cqi, 26px);
+  color: var(--text);
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  padding: 4px 8px 4px 0;
+  justify-content: flex-start;
+  gap: 10px;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.topbarSpaceSelect.builderPickerToggle > span:not(.builderPickerCaret) {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbarSpaceSelect.builderPickerToggle:focus,
+.topbarSpaceSelect.builderPickerToggle:focus-visible {
+  border-color: #fff;
+  padding-left: 8px;
+}
+
+.topbarSpaceSelect .builderPickerCaret {
+  width: 18px;
+  height: 18px;
 }
 
 .topbarMenuBtn {
@@ -195,22 +240,12 @@ textarea::placeholder {
   color: var(--text);
 }
 
-.topbarLogo {
-  display: block;
-  height: 50px;
-  width: auto;
-}
-
 /* Notched phones: the bar grows by the status-bar inset instead of hiding under it. */
 .topbarCompact {
   height: calc(52px + env(safe-area-inset-top));
   padding-top: env(safe-area-inset-top);
   padding-left: max(10px, env(safe-area-inset-left));
   padding-right: max(10px, env(safe-area-inset-right));
-}
-
-.topbarCompact .topbarLogo {
-  height: 36px;
 }
 
 .topbarCompact .topbarActions {
@@ -228,6 +263,14 @@ textarea::placeholder {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
+}
+
+.topbarSpaceActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
 }
 
 .topbarBackBtn {
@@ -453,29 +496,29 @@ h4 {
   letter-spacing: -0.03em;
   line-height: 1.05;
   color: var(--text);
-  text-transform: none;
+  text-transform: lowercase;
   max-width: 100%;
   overflow-wrap: break-word;
 }
 
 h1 {
   margin: 0 0 16px;
-  font-size: clamp(36px, 20cqi, 64px);
-}
-
-h2 {
-  margin: 0 0 16px;
   font-size: clamp(32px, 16cqi, 56px);
 }
 
-h3 {
+h2 {
   margin: 0 0 12px;
-  font-size: clamp(26px, 13cqi, 40px);
+  font-size: clamp(22px, 13cqi, 26px);
+}
+
+h3 {
+  margin: 0 0 10px;
+  font-size: clamp(18px, 9cqi, 20px);
 }
 
 h4 {
   margin: 10px 0 8px;
-  font-size: clamp(20px, 10cqi, 28px);
+  font-size: clamp(15px, 8cqi, 17px);
 }
 
 button,
@@ -491,10 +534,22 @@ textarea {
 
 /* Fields stay borderless until they are focused. */
 input:not([type="checkbox"]):not([type="radio"]),
-select,
 textarea {
   background: transparent;
   box-shadow: none;
+}
+
+/* Custom chevron, pinned to the left and a step larger than the native mark. */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.2 6.1 8 11 12.8 6.1' fill='none' stroke='%23ffffff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: left 10px center;
+  background-size: 16px 16px;
+  box-shadow: none;
+  padding-left: 34px;
 }
 
 input:not([type="checkbox"]):not([type="radio"]):focus,
@@ -591,6 +646,7 @@ button:focus-visible {
 
 .navSectionTitle {
   margin: 14px 0 8px;
+  text-transform: lowercase;
 }
 
 .navSectionHeader {
@@ -607,20 +663,8 @@ button:focus-visible {
   line-height: 1;
 }
 
-.navSpaceRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.navSpaceRow select {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.navSpaceActions {
-  flex-shrink: 0;
+.navPanel [data-tour="sequences"].navSectionHeader {
+  margin-top: 54px;
 }
 
 .navAddBtn {
@@ -714,7 +758,7 @@ button:focus-visible {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  text-transform: uppercase;
+  text-transform: lowercase;
   color: var(--muted);
 }
 
@@ -1246,6 +1290,7 @@ button:focus-visible {
 .instanceUpdatesTitle {
   font-weight: 600;
   font-size: 13px;
+  text-transform: lowercase;
 }
 
 .instanceUpdateCommits {
@@ -1455,6 +1500,7 @@ td {
   margin-top: 12px;
 }
 
+.inspectPayloadSection h2,
 .inspectPayloadSection h3 {
   margin: 0 0 8px;
 }
@@ -1507,6 +1553,7 @@ td {
   gap: 8px;
 }
 
+.sequenceDescriptionHead h2,
 .sequenceDescriptionHead h3 {
   margin: 0;
 }
@@ -1569,6 +1616,7 @@ td {
   border-top: none;
 }
 
+.responseParamsSection h2,
 .responseParamsSection h3 {
   margin: 0 0 4px;
 }
@@ -1817,6 +1865,7 @@ td {
   }
 }
 
+.rbacMatrix h3,
 .rbacMatrix h4 {
   margin: 10px 0 4px;
 }

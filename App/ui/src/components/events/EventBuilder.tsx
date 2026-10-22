@@ -19,7 +19,17 @@ import {
   type SimulatedEventFieldsHandle
 } from "./SimulatedEventFields";
 import { browserTimeZone, supportedTimeZones, timeZoneLabel } from "../../services/timezone";
+import { FieldLabel, FieldTip } from "../builder/FieldTip";
+import { SegmentToggle } from "../builder/SegmentToggle";
+import { Toggle } from "../builder/Toggle";
+import "../builder/builder.css";
 import "./events.css";
+
+const EVENT_TYPE_TIPS: Record<EventType, string> = {
+  time: "Runs the selected sequences when the schedule below is met, in the timezone you pick.",
+  external: "Runs the selected sequences when a matching payload is posted to this event’s inbound URL.",
+  simulated: "Advances one tic at a time. Each due probability picks a weighted outcome and can run a sequence."
+};
 
 interface EventBuilderProps {
   spaceId: string | null;
@@ -313,7 +323,7 @@ export function EventBuilder({
         id,
         spaceId,
         name: name.trim(),
-        enabled,
+        enabled: eventType === "simulated" ? true : enabled,
         type: eventType,
         eventPackage: { combinator, groups, parameters, timezone },
         externalPackage:
@@ -363,65 +373,66 @@ export function EventBuilder({
   return (
     <div className="panel configPanel eventBuilder">
       <div className="panel__body">
-        <h2>{eventId ? "Edit event" : "New event"}</h2>
-        <p className="muted">
-          {eventType === "external"
-            ? "External triggers run the selected sequences when a matching payload is POSTed to the event's inbound URL."
-            : eventType === "simulated"
-              ? "Simulated events advance one tic at a time. Each due probability picks a weighted outcome and runs the sequence you select."
-              : "Time-bound triggers run the selected sequences when the rules below are met. All rules (dates and times) are evaluated in the event timezone below."}
-        </p>
+        <h1>{eventId ? "edit event" : "create an event"}</h1>
 
         {loading ? <p className="muted">Loading event...</p> : null}
 
-        <div className="field">
-          <label htmlFor="event-name">Name</label>
-          <input
-            id="event-name"
-            value={name}
-            placeholder="e.g. Weekday morning report"
-            onChange={(e) => setName(e.target.value)}
-          />
-        </div>
-
-        <div className="field">
-          <label htmlFor="event-type">Trigger type</label>
-          <select
-            id="event-type"
+        <div className="eventTypeRow">
+          <SegmentToggle
+            ariaLabel="trigger type"
+            testId="event-type-toggle"
             value={eventType}
-            onChange={(e) => setEventType(e.target.value as EventType)}
-          >
-            <option value="time">Time schedule</option>
-            <option value="external">External event (inbound webhook)</option>
-            <option value="simulated">Simulated event</option>
-          </select>
+            onChange={(next) => {
+              setEventType(next);
+              if (next === "simulated") setEnabled(true);
+            }}
+            options={[
+              { value: "time", label: "time" },
+              { value: "external", label: "external" },
+              { value: "simulated", label: "simulated" }
+            ]}
+          />
+          <FieldTip text={EVENT_TYPE_TIPS[eventType]} />
         </div>
 
-        <div className="field eventInlineField">
-          <label className="eventCheckboxLabel">
+        <div className="eventInlineRow">
+          <div
+            className={
+              name.trim()
+                ? "builderField builderPropertyName"
+                : "builderField builderFieldMissing builderPropertyName"
+            }
+          >
             <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(e) => setEnabled(e.target.checked)}
+              id="event-name"
+              className="builderPropertyNameInput"
+              aria-label="event name"
+              value={name}
+              placeholder="Enter an event name"
+              onChange={(e) => setName(e.target.value)}
             />
-            Enabled
-          </label>
+          </div>
+          {eventType !== "simulated" ? (
+            <Toggle
+              id="event-enabled-toggle"
+              checked={enabled}
+              onChange={setEnabled}
+              label="enabled"
+            />
+          ) : null}
         </div>
 
         {eventType === "external" ? (
-          <div className="eventExternal">
+          <div className="eventExternal eventSection">
             <div className="field">
-              <label>Inbound URL</label>
+              <FieldLabel tip="External services POST their payload here to run the sequences below. The URL is created when you first save.">
+                inbound URL
+              </FieldLabel>
               {ingestUrl ? (
                 <CopyField value={ingestUrl} testId="event-ingest-url" />
               ) : (
-                <p className="muted">
-                  The inbound URL is generated when you first save this event.
-                </p>
+                <p className="muted">Save to generate the URL.</p>
               )}
-              <span className="eventHint">
-                External services POST their payload here to trigger the sequences below.
-              </span>
             </div>
 
             <EventTestListener
@@ -431,33 +442,31 @@ export function EventBuilder({
             />
 
             <div className="field">
-              <label htmlFor="event-secret">Signing secret (optional)</label>
+              <FieldLabel tip="When set, callers must send an X-Pona-Signature HMAC-SHA256 of the raw body. Leave blank to accept any request.">
+                signing secret
+              </FieldLabel>
               <input
                 id="event-secret"
                 value={secret}
-                placeholder="Shared secret for HMAC-SHA256 verification"
+                placeholder="optional"
                 onChange={(e) => setSecret(e.target.value)}
               />
-              <span className="eventHint">
-                When set, callers must send an <code>X-Pona-Signature</code> HMAC-SHA256 of
-                the raw body. Leave blank to accept any request to the URL above.
-              </span>
             </div>
 
-            <div className="field">
-              <label htmlFor="event-ext-combinator">Match filters</label>
-              <select
-                id="event-ext-combinator"
-                value={externalCombinator}
-                onChange={(e) => setExternalCombinator(e.target.value as Combinator)}
-              >
-                <option value="AND">All filters (AND)</option>
-                <option value="OR">Any filter (OR)</option>
-              </select>
-              <span className="eventHint">
-                Only payloads matching these filters fire the event. No filters = fire on
-                every request.
-              </span>
+            <div className="eventInlineRow">
+              <div className="field">
+                <FieldLabel tip="Only matching payloads fire the event. No filters means every request.">
+                  filters
+                </FieldLabel>
+                <select
+                  id="event-ext-combinator"
+                  value={externalCombinator}
+                  onChange={(e) => setExternalCombinator(e.target.value as Combinator)}
+                >
+                  <option value="AND">all (AND)</option>
+                  <option value="OR">any (OR)</option>
+                </select>
+              </div>
             </div>
 
             <div className="eventGroups">
@@ -510,10 +519,9 @@ export function EventBuilder({
             </div>
 
             <div className="field">
-              <label>Payload to parameter mappings</label>
-              <span className="eventHint">
-                Extract values from the inbound payload into named sequence parameters.
-              </span>
+              <FieldLabel tip="Copy values from the inbound payload into sequence parameters.">
+                mappings
+              </FieldLabel>
             </div>
 
             <div className="eventGroups">
@@ -553,7 +561,7 @@ export function EventBuilder({
         ) : null}
 
         {eventType === "simulated" && !loading ? (
-          <>
+          <div className="eventSection">
             <SimulatedEventFields
               key={eventId ?? "new-simulated"}
               ref={simFieldsRef}
@@ -564,46 +572,48 @@ export function EventBuilder({
               }
             />
             <SimulationSessions eventId={eventId} token={simulation.token || ""} />
-          </>
+          </div>
         ) : null}
 
         {eventType === "time" ? (
-        <>
-        <div className="field">
-          <label htmlFor="event-timezone">Timezone</label>
-          <select
-            id="event-timezone"
-            value={timezone}
-            onChange={(e) => setTimezone(e.target.value)}
-          >
-            {timezoneOptions.map((zone) => (
-              <option key={zone} value={zone}>
-                {timeZoneLabel(zone)}
-              </option>
-            ))}
-          </select>
-          <span className="eventHint">
-            Rules below are evaluated in this zone (DST handled automatically).
-          </span>
-        </div>
-
-        <div className="field">
-          <label htmlFor="event-combinator">Match</label>
-          <select
-            id="event-combinator"
-            value={combinator}
-            onChange={(e) => setCombinator(e.target.value as Combinator)}
-          >
-            <option value="OR">Any group (OR)</option>
-            <option value="AND">All groups (AND)</option>
-          </select>
+        <div className="eventSection">
+        <div className="eventInlineRow">
+          <div className="field">
+            <FieldLabel tip="Dates and times below are read in this zone. DST is handled automatically.">
+              timezone
+            </FieldLabel>
+            <select
+              id="event-timezone"
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+            >
+              {timezoneOptions.map((zone) => (
+                <option key={zone} value={zone}>
+                  {timeZoneLabel(zone)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <FieldLabel tip="Whether any group or every group must match for the event to fire.">
+              match
+            </FieldLabel>
+            <select
+              id="event-combinator"
+              value={combinator}
+              onChange={(e) => setCombinator(e.target.value as Combinator)}
+            >
+              <option value="OR">any group</option>
+              <option value="AND">all groups</option>
+            </select>
+          </div>
         </div>
 
         <div className="eventGroups">
           {groups.map((group, index) => (
             <div className="eventGroup" key={index}>
               <div className="eventGroupHeader">
-                <span className="eventGroupTitle">Group {index + 1}</span>
+                <span className="eventGroupTitle">group {index + 1}</span>
                 <select
                   aria-label={`Group ${index + 1} combinator`}
                   value={group.combinator}
@@ -623,7 +633,7 @@ export function EventBuilder({
               </div>
 
               <div className="field">
-                <label>Weekdays</label>
+                <FieldLabel>weekdays</FieldLabel>
                 <div className="eventChips">
                   {WEEKDAYS.map((day) => (
                     <button
@@ -641,7 +651,7 @@ export function EventBuilder({
               </div>
 
               <div className="field">
-                <label>Months</label>
+                <FieldLabel>months</FieldLabel>
                 <div className="eventChips">
                   {MONTHS.map((month) => (
                     <button
@@ -658,29 +668,30 @@ export function EventBuilder({
                 </div>
               </div>
 
-              <div className="field">
-                <label htmlFor={`group-${index}-ordinal`}>Days of month (1-31, comma separated)</label>
-                <input
-                  id={`group-${index}-ordinal`}
-                  value={formatNumberList(group.is_date_ordinal)}
-                  placeholder="e.g. 1, 15"
-                  onChange={(e) => updateGroup(index, { is_date_ordinal: parseNumberList(e.target.value) })}
-                />
-              </div>
-
-              <div className="field">
-                <label htmlFor={`group-${index}-years`}>Years (comma separated)</label>
-                <input
-                  id={`group-${index}-years`}
-                  value={formatNumberList(group.is_year)}
-                  placeholder="e.g. 2026, 2027"
-                  onChange={(e) => updateGroup(index, { is_year: parseNumberList(e.target.value) })}
-                />
-              </div>
-
-              <div className="eventRow">
+              <div className="eventInlineRow">
                 <div className="field">
-                  <label htmlFor={`group-${index}-date`}>Exact date</label>
+                  <FieldLabel tip="1–31, comma separated.">days</FieldLabel>
+                  <input
+                    id={`group-${index}-ordinal`}
+                    value={formatNumberList(group.is_date_ordinal)}
+                    placeholder="1, 15"
+                    onChange={(e) => updateGroup(index, { is_date_ordinal: parseNumberList(e.target.value) })}
+                  />
+                </div>
+                <div className="field">
+                  <FieldLabel>years</FieldLabel>
+                  <input
+                    id={`group-${index}-years`}
+                    value={formatNumberList(group.is_year)}
+                    placeholder="2026, 2027"
+                    onChange={(e) => updateGroup(index, { is_year: parseNumberList(e.target.value) })}
+                  />
+                </div>
+              </div>
+
+              <div className="eventInlineRow">
+                <div className="field">
+                  <FieldLabel>date</FieldLabel>
                   <input
                     id={`group-${index}-date`}
                     type="date"
@@ -689,14 +700,15 @@ export function EventBuilder({
                   />
                 </div>
                 <div className="field">
-                  <label htmlFor={`group-${index}-time`}>Time of day ({timeZoneNote})</label>
+                  <FieldLabel tip={`Empty is midnight. Times are in ${timeZoneNote}.`}>
+                    time
+                  </FieldLabel>
                   <input
                     id={`group-${index}-time`}
                     type="time"
                     value={timeToInput(group.is_time)}
                     onChange={(e) => updateGroup(index, { is_time: inputToTime(e.target.value) })}
                   />
-                  <span className="eventHint">Empty = midnight (00:00).</span>
                 </div>
               </div>
             </div>
@@ -705,12 +717,12 @@ export function EventBuilder({
             + Add group
           </button>
         </div>
-        </>
+        </div>
         ) : null}
 
         {eventType !== "simulated" ? (
-        <div className="field">
-          <label>Sequences to run</label>
+        <div className="field eventSection">
+          <FieldLabel tip="Sequences that run when this event fires.">sequences</FieldLabel>
           {sequenceOptions.length === 0 ? (
             <p className="muted">No sequences available in this space.</p>
           ) : (
@@ -733,8 +745,10 @@ export function EventBuilder({
         ) : null}
 
         {eventType === "time" ? (
-        <div className="field">
-          <label>Recovery sequences (run if a fire was missed while offline)</label>
+        <div className="field eventSection">
+          <FieldLabel tip="Run these if a scheduled fire was missed while the engine was offline.">
+            recovery
+          </FieldLabel>
           {sequenceOptions.length === 0 ? (
             <p className="muted">No sequences available in this space.</p>
           ) : (

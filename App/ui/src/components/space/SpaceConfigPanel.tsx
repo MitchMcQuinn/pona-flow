@@ -73,7 +73,7 @@ function AuditLogSection({
   return (
     <div className="spaceConfigSection">
       <div className="rbacHeaderRow">
-        <h3>Audit log</h3>
+        <h2>audit log</h2>
         <button type="button" onClick={onRefresh} disabled={loading}>
           {loading ? "Loading..." : "Refresh"}
         </button>
@@ -209,7 +209,7 @@ export function SpaceConfigPanel({
       return;
     }
     if (!nameValid) {
-      setLocalError("Name may only contain letters, numbers, and spaces.");
+      setLocalError("Name needs at least one letter or number.");
       return;
     }
     if (duplicate) {
@@ -228,7 +228,7 @@ export function SpaceConfigPanel({
     <div className="panel configPanel spaceConfigPanel">
       <div className="panel__body">
         <div className="rbacHeaderRow">
-          <h2>Space</h2>
+          <h1>space</h1>
           <button type="button" onClick={onClose}>
             Close
           </button>
@@ -306,7 +306,7 @@ export function SpaceConfigPanel({
 
         {tab === "settings" ? (
           <div className="spaceConfigSection">
-            <h3>Settings</h3>
+            <h2>settings</h2>
             {recordLoading ? <p className="muted">Loading space...</p> : null}
             {displayError ? <p className="builderCheckMsg error">{displayError}</p> : null}
             {duplicate && !displayError ? (

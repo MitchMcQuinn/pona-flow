@@ -79,7 +79,7 @@ export function AliasField({
       {showModal ? (
         <ModalBackdrop onClick={() => setShowModal(false)}>
           <div className="builderModalPanel" onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0 }}>Add alias</h3>
+            <h2 style={{ marginTop: 0 }}>add alias</h2>
             <div className="builderField">
               <label>alias name</label>
               <input

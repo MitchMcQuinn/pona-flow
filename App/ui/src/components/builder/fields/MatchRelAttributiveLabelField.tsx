@@ -46,8 +46,7 @@ export function MatchRelAttributiveLabelField({
   const options = labels.map((al) => ({ value: al, label: al }));
 
   return (
-    <div className="builderField">
-      <label>attributive_label</label>
+    <div className="builderField" data-issue="attributive_label">
       <Picker
         value={attributiveLabel}
         placeholder="(select relationship)"

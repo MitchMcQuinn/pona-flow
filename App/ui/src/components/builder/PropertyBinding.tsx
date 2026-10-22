@@ -23,6 +23,7 @@ import { Toggle } from "./Toggle";
 import { RegexPatternModal } from "./modals/RegexPatternModal";
 import { TypedValueInput } from "./fields/TypedValueInput";
 import { ChoiceOptionsEditor } from "./fields/ChoiceOptionsEditor";
+import { useSpaceEmbeddingsEnabled } from "./fields/useSpaceEmbeddingsEnabled";
 
 const VALUE_TYPES: ValueType[] = [
   "string",
@@ -75,6 +76,7 @@ export function PropertyBinding({
   vectorized = false
 }: PropertyBindingProps) {
   const { state, patchQuery } = useBuilder();
+  const embeddingsEnabled = useSpaceEmbeddingsEnabled();
   const usingParameter = prop.parameter !== undefined;
   const [showRegexModal, setShowRegexModal] = useState(false);
 
@@ -110,37 +112,94 @@ export function PropertyBinding({
     const isChoiceType = schema.value_type === "radio" || schema.value_type === "checkbox";
 
     return (
-      <div className="builderCard nested builderItemRow">
+      <div
+        className={`builderCard nested builderItemRow builderPropertyCard${
+          canDelete ? " builderPropertyCardRemovable" : ""
+        }`}
+      >
+        {canDelete ? (
+          <button
+            type="button"
+            className="builderPropertyRemove"
+            aria-label="Remove property"
+            title="Remove property"
+            onClick={() =>
+              patchQuery(removeProperty(clauseIndex, patternIndex, pathIndex, propIndex))
+            }
+          >
+            <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+              <path
+                d="M2 2 L10 10 M10 2 L2 10"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        ) : null}
         {locked && !readOnly ? (
-          <p className="builderCheckMsg">
+          <p className="builderCheckMsg builderPropertyLockNote">
             Existing property — its value type and format are locked. You can still change its
             label, required, and indexed flags, edit its default, or delete it.
           </p>
         ) : null}
-        <div className="builderRow">
-          <div className="builderField">
-            <label>
-              property name
-              {!keyCheck.valid && prop.key.trim() ? (
-                <span className="builderCheckMsg duplicate"> {keyCheck.message}</span>
-              ) : null}
-            </label>
-            <input
-              className="builderMono"
-              value={prop.key}
-              placeholder="name or $param"
-              disabled={structuralLock}
-              onChange={(e) => {
-                const next = sanitizeSchemaPropertyKeyInput(e.target.value);
-                // Only the implicit key is blocked mid-typing; the other reserved names are
-                // prefixes of plausible ones (EMBEDDING_DATE), so those fail validation instead.
-                if (isImplicitSchemaKeyName(next)) return;
-                patch({ key: next });
-              }}
+        <div
+          className={
+            keyCheck.valid
+              ? "builderField builderPropertyName"
+              : "builderField builderFieldMissing builderPropertyName"
+          }
+        >
+          <input
+            className="builderPropertyNameInput"
+            aria-label="property name"
+            value={prop.key}
+            placeholder="name or $parameter"
+            disabled={structuralLock}
+            onChange={(e) => {
+              const next = sanitizeSchemaPropertyKeyInput(e.target.value);
+              // Only the implicit key is blocked mid-typing; the other reserved names are
+              // prefixes of plausible ones (EMBEDDING_DATE), so those fail validation instead.
+              if (isImplicitSchemaKeyName(next)) return;
+              patch({ key: next });
+            }}
+          />
+          {!keyCheck.valid && prop.key.trim() ? (
+            <span className="builderCheckMsg duplicate">{keyCheck.message}</span>
+          ) : null}
+        </div>
+        <div className="builderRowFlags">
+          <Toggle
+            checked={schema.is_required}
+            onChange={(value) => patchSchema({ is_required: value })}
+            label="required"
+            disabled={requiredLocked}
+          />
+          <Toggle
+            checked={schema.is_label}
+            onChange={(value) => patchSchema({ is_label: value })}
+            label="label"
+            disabled={readOnly}
+          />
+          <Toggle
+            checked={schema.is_indexed}
+            onChange={(value) => patchSchema({ is_indexed: value })}
+            label="indexed"
+            disabled={readOnly}
+          />
+          {vectorized && embeddingsEnabled ? (
+            <Toggle
+              checked={schema.is_embedded === true}
+              onChange={(value) => patchSchema({ is_embedded: value })}
+              label="is_embedded"
+              disabled={readOnly}
             />
-          </div>
+          ) : null}
+        </div>
+        <div className="builderPropertyTypeRow">
           <div className="builderField">
-            <label>value_type</label>
+            <label>type</label>
             <select
               value={schema.value_type}
               disabled={structuralLock}
@@ -211,56 +270,13 @@ export function PropertyBinding({
             />
           </div>
         ) : null}
-
-        <div className="builderRowFlags">
-          <Toggle
-            checked={schema.is_required}
-            onChange={(value) => patchSchema({ is_required: value })}
-            label="is_required"
-            disabled={requiredLocked}
-          />
-          <Toggle
-            checked={schema.is_label}
-            onChange={(value) => patchSchema({ is_label: value })}
-            label="is_label"
-            disabled={readOnly}
-          />
-          <Toggle
-            checked={schema.is_indexed}
-            onChange={(value) => patchSchema({ is_indexed: value })}
-            label="is_indexed"
-            disabled={readOnly}
-          />
-          {vectorized ? (
-            <Toggle
-              checked={schema.is_embedded === true}
-              onChange={(value) => patchSchema({ is_embedded: value })}
-              label="is_embedded"
-              disabled={readOnly}
-            />
-          ) : null}
-        </div>
-        {canDelete ? (
-          <div className="builderRowActions">
-            <button
-              type="button"
-              className="builderTinyBtn builderDanger"
-              title="Remove property"
-              onClick={() =>
-                patchQuery(removeProperty(clauseIndex, patternIndex, pathIndex, propIndex))
-              }
-            >
-              Remove
-            </button>
-          </div>
-        ) : null}
         {showRegexModal ? <RegexPatternModal onClose={() => setShowRegexModal(false)} /> : null}
       </div>
     );
   }
 
   return (
-    <div className="builderCard nested builderItemRow">
+    <div className="builderCard nested builderItemRow builderPropertyCard">
       <div className="builderRow">
         <div className="builderField">
           <label>key</label>

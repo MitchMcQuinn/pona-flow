@@ -79,15 +79,10 @@ Cypress.Commands.add(
   "addSchemaProperty",
   (propertyName: string, options: { isLabel?: boolean } = {}) => {
     cy.contains("button", "+ property").click();
-    cy.contains("label", "property name")
-      .last()
-      .parent()
-      .find("input")
-      .clear()
-      .type(propertyName);
+    cy.get('input[aria-label="property name"]').last().clear().type(propertyName);
 
     if (options.isLabel) {
-      cy.contains(".builderToggleLabel", "is_label")
+      cy.contains(".builderToggleLabel", /^label$/)
         .last()
         .parent()
         .find('button[role="switch"]')

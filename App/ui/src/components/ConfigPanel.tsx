@@ -118,7 +118,7 @@ function InspectPropertiesPanel({
   return (
     <div className="panel configPanel">
       <div className="panel__body">
-        <h2>Properties</h2>
+        <h1>properties</h1>
         <p className="inspectKind">
           {selected.kind === "node" ? "STEP node" : "POINTS_TO relationship"}
         </p>
@@ -133,7 +133,7 @@ function InspectPropertiesPanel({
           </div>
         </div>
         <div className="inspectPayloadSection">
-          <h3>Payload</h3>
+          <h2>payload</h2>
           {payloadEntries.length === 0 ? (
             <p className="muted">No payload properties stored for this entity.</p>
           ) : (
@@ -203,7 +203,7 @@ function SequenceDescriptionEditor({
   return (
     <div className="sequenceDescription">
       <div className="sequenceDescriptionHead">
-        <h3>Description</h3>
+        <h2>description</h2>
         {!editing ? (
           <button
             type="button"
@@ -308,7 +308,7 @@ export function ConfigPanel({
     return (
       <div className="panel configPanel">
         <div className="panel__body">
-          <h2>Properties</h2>
+          <h1>properties</h1>
           <p className="muted">Selected element not found in the current step flow.</p>
           <div className="buttonRow">
             <button type="button" onClick={onCloseInspect}>
@@ -356,7 +356,7 @@ export function ConfigPanel({
               ) : null}
             </div>
           ) : null}
-          <h2>Parameters</h2>
+          <h1>parameters</h1>
           {inputParams.length === 0 ? (
             <p className="muted">
               Inputs appear here as the sequence reaches steps that pause for them. Run the sequence
@@ -401,7 +401,7 @@ export function ConfigPanel({
 
           {hasResponseParams ? (
             <div className="responseParamsSection">
-              <h3>Response parameters</h3>
+              <h2>response parameters</h2>
               <p className="muted">Values returned and updated as the sequence runs.</p>
               <table className="responseParamsTable">
                 <tbody>

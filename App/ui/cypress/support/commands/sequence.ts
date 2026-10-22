@@ -3,9 +3,7 @@ import { openAttributiveLabelPicker, scrollConfigBuilderToTop } from "./helpers"
 Cypress.Commands.add("openSequenceCreator", () => {
   cy.get('[data-testid="nav-add-sequence"]').click();
   scrollConfigBuilderToTop();
-  cy.get('.createSequenceFields input[placeholder="Sequence name"]', { timeout: 20_000 }).should(
-    "be.visible"
-  );
+  cy.get('[data-testid="builder-sequence-name"]', { timeout: 20_000 }).should("be.visible");
 });
 
 Cypress.Commands.add(
@@ -17,11 +15,9 @@ Cypress.Commands.add(
       .contains("button.builderPickerItem", options.stepLabel)
       .click();
 
-    cy.get('.createSequenceFields input[placeholder="Sequence name"]')
-      .clear()
-      .type(options.name);
+    cy.get('[data-testid="builder-sequence-name"]').clear().type(options.name);
 
-    cy.contains(".createSequenceFields label", "group title")
+    cy.contains(".createSequenceFields label", "group")
       .closest(".builderField")
       .find(".builderPickerToggle")
       .click();
@@ -64,7 +60,7 @@ Cypress.Commands.add("selectSingleStepInNav", (sequenceLabel: string) => {
   )
     .closest(".sequenceItem")
     .should("have.class", "active");
-  cy.contains("h2", "Parameters", { timeout: 20_000 }).should("be.visible");
+  cy.contains("h2", "parameters", { timeout: 20_000 }).should("be.visible");
   cy.get('[data-testid="topbar-run-btn"]').should("be.visible");
   cy.get("main.layoutResizable").should("have.class", "layoutVizHidden");
 });

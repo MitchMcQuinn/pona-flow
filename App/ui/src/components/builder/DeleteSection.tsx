@@ -74,9 +74,9 @@ export function DeleteSection() {
   }, [boundDelete, label, state.query, patchQuery]);
 
   return (
-    <section className="builderSection">
+    <section className="builderSection" data-issue="delete-target">
       <div className="builderHeadRow">
-        <h3 style={{ margin: 0 }}>Delete</h3>
+        <h2 style={{ margin: 0 }}>delete</h2>
         <button
           type="button"
           className="builderTinyBtn builderAddBtn"
@@ -94,7 +94,7 @@ export function DeleteSection() {
 
       {del.targets.map((target, index) => (
         <div className="builderItemRow" key={index}>
-          <div className="builderField">
+          <div className="builderField" data-issue="delete-target">
             <label>target</label>
             {boundDelete ? (
               <Picker

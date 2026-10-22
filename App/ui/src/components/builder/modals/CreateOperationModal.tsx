@@ -79,7 +79,7 @@ export function CreateOperationModal({
         data-testid="modal-create-operation"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ marginTop: 0 }}>Save as sequence</h3>
+        <h2 style={{ marginTop: 0 }}>save as sequence</h2>
         <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>
           {VARIANT_HINT[variant]}
         </p>

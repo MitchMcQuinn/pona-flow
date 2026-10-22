@@ -122,7 +122,7 @@ export function ReadReturnProjectionRow({
   return (
     <div className="builderItemRow">
       <div className="builderRow">
-        <div className="builderField">
+        <div className="builderField" data-issue="return-expression">
           <label>schema</label>
           <Picker
             value={resolved.path_variable}
@@ -211,7 +211,7 @@ export function ReadReturnProjectionRow({
           />
         </div>
         {resolved.boolean_mode ? (
-          <div className="builderField">
+          <div className="builderField" data-issue="return-operator">
             <label>operator</label>
             <select
               value={resolved.comparison_operator ?? DEFAULT_COMPARISON_OPERATOR}
@@ -233,7 +233,7 @@ export function ReadReturnProjectionRow({
           </div>
         ) : null}
         {resolved.boolean_mode && needsComparisonValue ? (
-          <div className="builderField">
+          <div className="builderField" data-issue="return-value">
             <label>value</label>
             <input
               className="builderMono"
@@ -249,7 +249,7 @@ export function ReadReturnProjectionRow({
             />
           </div>
         ) : null}
-        <div className="builderField">
+        <div className="builderField" data-issue="return-alias">
           <label>{aliasRequired ? "alias" : "alias (optional)"}</label>
           <input
             className="builderMono"

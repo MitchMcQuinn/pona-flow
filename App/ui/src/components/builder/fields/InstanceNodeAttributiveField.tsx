@@ -41,8 +41,7 @@ export function InstanceNodeAttributiveField({
   }, [spaceId, state.spaceLabels]);
 
   return (
-    <div className="builderField">
-      <label>attributive_label</label>
+    <div className="builderField" data-issue="attributive_label">
       <Picker
         value={attributiveLabel}
         placeholder="(select schema)"
@@ -54,7 +53,7 @@ export function InstanceNodeAttributiveField({
         }}
         disabled={disabled}
         title={disabled ? "Locked because this entry has an alias." : undefined}
-        emptyHint="No SCHEMA nodes in both the graph and this space's label catalog."
+        emptyHint="No schema nodes available"
       />
       {showParamModal ? (
         <AddParameterModal

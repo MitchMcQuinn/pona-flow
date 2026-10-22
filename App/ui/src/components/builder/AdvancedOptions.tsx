@@ -17,10 +17,10 @@ function AdvancedOptionsAccordion({ children }: { children: ReactNode }) {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        <span>Advanced options</span>
         <span className="builderStepParamsChevron" aria-hidden>
           ▸
         </span>
+        <span>Advanced options</span>
       </button>
 
       {open ? <div className="builderStepParamsBody">{children}</div> : null}

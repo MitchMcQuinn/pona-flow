@@ -32,6 +32,10 @@ Cypress.Commands.add("openEventCreator", () => {
   cy.get("#event-name", { timeout: 20_000 }).should("be.visible");
 });
 
+function selectEventType(type: "time" | "external" | "simulated"): void {
+  cy.get(`[data-testid="event-type-toggle-option-${type}"]`).click();
+}
+
 function selectEventSequences(labels: string[]): void {
   for (const label of labels) {
     cy.contains(".eventSeqList .eventCheckboxLabel", label).find('input[type="checkbox"]').check({
@@ -42,7 +46,7 @@ function selectEventSequences(labels: string[]): void {
 
 /** Fill (but do not save) a time-schedule event in the open event builder. */
 Cypress.Commands.add("fillTimeEvent", (options: TimeEventOptions) => {
-  cy.get("#event-type").select("time");
+  selectEventType("time");
   cy.get("#event-name").clear().type(options.name);
 
   for (const day of options.weekdays ?? []) {
@@ -61,7 +65,7 @@ Cypress.Commands.add("fillTimeEvent", (options: TimeEventOptions) => {
 
 /** Fill (but do not save) an external (webhook) event in the open event builder. */
 Cypress.Commands.add("fillExternalEvent", (options: ExternalEventOptions) => {
-  cy.get("#event-type").select("external");
+  selectEventType("external");
   cy.get("#event-name").clear().type(options.name);
 
   if (options.secret) {

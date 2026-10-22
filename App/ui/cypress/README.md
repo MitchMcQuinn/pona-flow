@@ -38,7 +38,7 @@ Every spec gets a clean slate: `cypress/support/e2e.ts` runs
 ## Selector convention (`data-testid`)
 
 Prefer `data-testid` for anything a test interacts with or asserts on. Existing
-stable IDs (`#space-selector`, `#builder-operation-label`, `#event-name`, …) and
+stable IDs (`#space-selector`, `[data-testid="builder-operation-toggle"]`, `#event-name`, …) and
 ARIA labels remain valid and are still used where they are already stable.
 
 Format: `data-testid="<area>-<element>[-<qualifier>]"`, kebab-case.

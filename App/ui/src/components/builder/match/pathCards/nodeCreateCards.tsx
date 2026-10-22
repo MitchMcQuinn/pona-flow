@@ -159,9 +159,9 @@ export function InstanceCreateNodeCard(props: NodeCardProps) {
       </div>
 
       {!isAliasRef && isInstanceTarget ? (
-        <div className="builderField">
-          <label>attributive_label</label>
+        <div className="builderField" data-issue="attributive_label">
           <input
+            aria-label="attributive_label"
             readOnly
             value={node.attributive_label ?? ""}
             placeholder="(set by relationship)"

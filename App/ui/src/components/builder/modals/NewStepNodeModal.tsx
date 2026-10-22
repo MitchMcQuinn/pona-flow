@@ -35,10 +35,10 @@ export function NewStepNodeModal({ onCancel, onSave }: NewStepNodeModalProps) {
         data-testid="modal-new-step-node"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ marginTop: 0 }}>New node</h3>
-        <div className="builderField">
-          <label>attributive_label</label>
+        <h2 style={{ marginTop: 0 }}>new node</h2>
+        <div className="builderField" data-issue="attributive_label">
           <input
+            aria-label="attributive_label"
             autoFocus
             value={value}
             placeholder="Label"

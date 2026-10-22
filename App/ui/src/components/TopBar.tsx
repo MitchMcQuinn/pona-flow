@@ -1,4 +1,5 @@
-import logoUrl from "../../../assets/pona-flow-white.svg";
+import { Picker } from "./builder/Picker";
+import "./builder/builder.css";
 
 function BackIcon() {
   return (
@@ -32,9 +33,24 @@ function MenuIcon() {
   );
 }
 
+function GearIcon() {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z" />
+    </svg>
+  );
+}
+
 interface TopBarProps {
-  /** Phone/tablet: shorter button labels and a smaller logo. */
+  /** Phone/tablet: shorter button labels. */
   compact?: boolean;
+  spaces: Array<{ id: string; label: string }>;
+  selectedSpaceId: string | null;
+  onSelectSpace: (spaceId: string) => void;
+  onCreateSpace: () => void;
+  canCreateSpace: boolean;
+  spaceConfigActive: boolean;
+  onOpenSpaceConfig: () => void;
   /** Tablet: toggles the navigation drawer. */
   onToggleNav?: () => void;
   navOpen?: boolean;
@@ -51,6 +67,13 @@ interface TopBarProps {
 
 export function TopBar({
   compact = false,
+  spaces,
+  selectedSpaceId,
+  onSelectSpace,
+  onCreateSpace,
+  canCreateSpace,
+  spaceConfigActive,
+  onOpenSpaceConfig,
   onToggleNav,
   navOpen = false,
   showBackToBuilder,
@@ -83,7 +106,22 @@ export function TopBar({
             <MenuIcon />
           </button>
         ) : null}
-        <img src={logoUrl} alt="pona flow" className="topbarLogo" />
+        <Picker
+          id="space-selector"
+          ariaLabel="Space"
+          dataTour="space-picker"
+          className="topbarSpacePicker"
+          toggleClassName="topbarSpaceSelect"
+          toggleTestId="space-selector-toggle"
+          menuTestId="space-selector-menu"
+          caret="end"
+          menuFit="content"
+          value={selectedSpaceId || ""}
+          placeholder="Select a space"
+          options={spaces.map((space) => ({ value: space.id, label: space.label }))}
+          onSelect={onSelectSpace}
+          emptyHint="No spaces yet."
+        />
       </div>
       <div className="topbarActions" data-tour="topbar-actions">
         {showBackToBuilder ? (
@@ -91,11 +129,11 @@ export function TopBar({
             type="button"
             className="topbarBackBtn"
             data-testid="topbar-back-btn"
-            aria-label="Back to builder"
+            aria-label="Back to workbench"
             onClick={onBackToBuilder}
           >
             <BackIcon />
-            {compact ? "Builder" : "Back to builder"}
+            {compact ? "Workbench" : "Back to workbench"}
           </button>
         ) : null}
         {showStop ? (
@@ -122,6 +160,31 @@ export function TopBar({
             {running ? "Running..." : compact ? "Run" : "Run Sequence"}
           </button>
         ) : null}
+        <span className="topbarSpaceActions">
+          {canCreateSpace ? (
+            <button
+              type="button"
+              className="navAddBtn"
+              aria-label="Create space"
+              data-testid="nav-create-space"
+              onClick={onCreateSpace}
+            >
+              +
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={`tinyBtn tinyBtnIcon navSpaceConfigBtn${spaceConfigActive ? " active" : ""}`}
+            aria-label="Open space settings"
+            title="Space settings"
+            data-testid="nav-space-settings"
+            data-tour="space-settings"
+            disabled={!selectedSpaceId}
+            onClick={onOpenSpaceConfig}
+          >
+            <GearIcon />
+          </button>
+        </span>
       </div>
     </header>
   );

@@ -96,15 +96,21 @@ export function MatchAttributiveLabelField({
   const emptyHint = graphUnavailable
     ? `Could not load ${fetchLabel} nodes from the graph. Check the space Neo4j connection.`
     : requireSpaceCatalog
-      ? `No ${fetchLabel} nodes in both the graph and this space's label catalog.`
+      ? fetchLabel === "SCHEMA"
+        ? "No schema nodes available"
+        : `No ${fetchLabel} nodes in both the graph and this space's label catalog.`
       : `No ${fetchLabel} nodes in this space.`;
 
+  const missing = !attributiveLabel.trim();
+
   return (
-    <div className="builderField">
-      <label>attributive_label</label>
+    <div
+      className={missing ? "builderField builderFieldMissing" : "builderField"}
+      data-issue="attributive_label"
+    >
       <Picker
         value={attributiveLabel}
-        placeholder="(select node)"
+        placeholder="select or create node"
         options={options}
         createActions={
           createSequenceMode || !allowParameter

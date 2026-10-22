@@ -20,14 +20,13 @@ Cypress.Commands.add("createSpace", (name: string) => {
     .click();
   cy.get('[data-testid="modal-create-space"]').should("not.exist");
   cy.get("#space-selector").should("have.value", spaceId);
-  cy.get(`#space-selector option[value="${spaceId}"]`).should("exist");
 });
 
 /** Create the shared E2E space and wait until the builder is ready for mutations. */
 Cypress.Commands.add("bootstrapApp", () => {
   cy.createSpace(E2E_SPACE_DISPLAY_NAME);
-  cy.get("#builder-operation-label", { timeout: 20_000 }).should("be.visible");
-  cy.get("#builder-label-label").should("be.visible");
+  cy.get('[data-testid="builder-operation-toggle"]', { timeout: 20_000 }).should("be.visible");
+  cy.get('[data-testid="builder-label-toggle"]').should("be.visible");
 });
 
 type SpaceTab = "settings" | "users" | "agents" | "credentials" | "templates" | "audit";

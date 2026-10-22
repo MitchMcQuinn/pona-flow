@@ -23,7 +23,7 @@ export function DeleteSpaceConfirmModal({
         data-testid="modal-delete-space"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ marginTop: 0 }}>Delete space</h3>
+        <h2 style={{ marginTop: 0 }}>delete space</h2>
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
           Are you sure you want to delete <strong>{spaceName}</strong>? This removes the space
           from the catalog; it does not delete Neo4j or SQLite data files.

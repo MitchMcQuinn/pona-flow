@@ -98,12 +98,12 @@ export function InstanceUpdates() {
   }
 
   const headline = !status
-    ? "Instance updates"
+    ? "instance updates"
     : status.up_to_date
-      ? "This instance is on latest main"
+      ? "this instance is on latest main"
       : status.behind
-        ? `${status.commits.length || "New"} commit${status.commits.length === 1 ? "" : "s"} on main`
-        : "Instance updates";
+        ? `${status.commits.length || "new"} commit${status.commits.length === 1 ? "" : "s"} on main`
+        : "instance updates";
 
   return (
     <div className="instanceUpdates" data-testid="instance-updates">

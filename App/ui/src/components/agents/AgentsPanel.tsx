@@ -105,7 +105,7 @@ export function AgentsPanel({ spaceId }: AgentsPanelProps) {
   return (
     <>
       <div className="rbacHeaderRow">
-        <h3>Agents</h3>
+        <h2>agents</h2>
       </div>
       <p className="muted rbacSectionHint">
         Agents are non-human callers (AI tools, external systems) that run this space&apos;s
@@ -115,7 +115,7 @@ export function AgentsPanel({ spaceId }: AgentsPanelProps) {
       {error ? <div className="errorText">{error}</div> : null}
       {loading ? <p className="muted">Loading…</p> : null}
 
-      <h3 className="navSectionHeader">Connection</h3>
+      <h2 className="navSectionHeader">connection</h2>
       <p className="muted rbacSectionHint">
         Connect an MCP client (Claude, IDE assistants, agents) to this space using the URL
         below plus an agent key in the <code>X-Pona-Flow-Key</code> header. The space&apos;s
@@ -151,7 +151,7 @@ export function AgentsPanel({ spaceId }: AgentsPanelProps) {
         </button>
       </form>
 
-      <h3 className="navSectionHeader">Keys</h3>
+      <h2 className="navSectionHeader">keys</h2>
       {keys.length === 0 ? (
         <p className="muted">No agent keys yet.</p>
       ) : (
@@ -208,7 +208,7 @@ function AgentKeyCreatedModal({
   return (
     <ModalBackdrop role="dialog" aria-modal="true">
       <div className="builderModalPanel" data-testid="modal-agent-key">
-        <h3>Agent key created</h3>
+        <h2>agent key created</h2>
         <p className="muted">
           Copy this key now — it is shown only once and cannot be retrieved later. If you
           lose it, revoke the key and create a new one.

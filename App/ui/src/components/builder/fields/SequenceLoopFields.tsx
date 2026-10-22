@@ -3,19 +3,17 @@ import {
   DEFAULT_MAX_ITERATIONS,
   LOOP_COLLECT_REDUCE,
   LOOP_COMPARISON_OPERATORS,
-  LOOP_TYPES,
-  LOOP_TYPE_LABELS,
   isDagLoop
 } from "@pona-flow/authoring";
 import type {
   LoopCollectItem,
   LoopCollectReduce,
   LoopComparisonOperator,
-  LoopConfig,
-  LoopType
+  LoopConfig
 } from "@pona-flow/authoring";
 import type { ExecutionAvailableParameters } from "../../../services/api";
 import { DurationField } from "./DurationField";
+import { FieldLabel, FieldTip } from "../FieldTip";
 import { Picker } from "../Picker";
 
 interface SequenceLoopFieldsProps {
@@ -86,50 +84,39 @@ export function SequenceLoopFields({
     patch({ collect: rows });
   }
 
+  if (type === "dag" && warnings.length === 0) return null;
+
   return (
     <section className="builderBlock createSequenceFields">
-      <div className="builderField">
-        <label>sequence type</label>
-        <Picker
-          value={type}
-          placeholder="DAG (no looping)"
-          disabled={disabled}
-          options={LOOP_TYPES.map((value) => ({
-            value,
-            label: LOOP_TYPE_LABELS[value as LoopType]
-          }))}
-          onSelect={(value) => patch({ type: value as LoopType })}
-        />
-        <span className="createSequenceHint">
-          {type === "dag"
-            ? "Each step runs once, so a transition back to an earlier step ends the run."
-            : "Draw the cycle as a transition from a later step back to an earlier one. This sets when it stops."}
-        </span>
-      </div>
-
       {type === "for" ? (
         <div className="builderField">
-          <div className="createSequenceLabelRow">
-            <label>iterations</label>
-          </div>
+          <FieldLabel tip="Zero skips the looped steps entirely.">iterations</FieldLabel>
           <input
-            type="number"
-            min={0}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={loop.count ?? ""}
             placeholder="How many passes"
             disabled={disabled}
-            onChange={(e) =>
-              patch({ count: e.target.value === "" ? undefined : Number(e.target.value) })
-            }
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === "") {
+                patch({ count: undefined });
+                return;
+              }
+              if (!/^\d+$/.test(raw)) return;
+              patch({ count: Number(raw) });
+            }}
           />
-          <span className="createSequenceHint">Zero skips the looped steps entirely.</span>
         </div>
       ) : null}
 
       {type === "for_while" ? (
         <>
           <div className="builderField">
-            <label>while parameter</label>
+            <FieldLabel tip={unsaved ? "Save the sequence once so these pickers can list aliases from its steps." : undefined}>
+              while parameter
+            </FieldLabel>
             <Picker
               value={condition.parameter}
               placeholder={unsaved ? "Save the sequence first" : "Please select"}
@@ -161,7 +148,9 @@ export function SequenceLoopFields({
             </select>
           </div>
           <div className="builderField">
-            <label>value</label>
+            <FieldLabel tip="Tested before every pass, including the first — an already-false condition skips the looped steps.">
+              value
+            </FieldLabel>
             <input
               className="builderMono"
               value={condition.value}
@@ -169,17 +158,21 @@ export function SequenceLoopFields({
               disabled={disabled}
               onChange={(e) => patch({ condition: { ...condition, value: e.target.value } })}
             />
-            <span className="createSequenceHint">
-              Tested before every pass, including the first — an already-false condition
-              skips the looped steps.
-            </span>
           </div>
         </>
       ) : null}
 
       {type === "for_each" ? (
         <div className="builderField">
-          <label>iterate rows of</label>
+          <FieldLabel
+            tip={
+              unsaved
+                ? "Save the sequence once so these pickers can list aliases from its steps."
+                : "One pass per row. Each pass binds that row’s columns under their aliases, so the looped steps see one entity at a time."
+            }
+          >
+            iterate rows of
+          </FieldLabel>
           <Picker
             value={loop.source ?? ""}
             placeholder={unsaved ? "Save the sequence first" : "Please select"}
@@ -188,16 +181,14 @@ export function SequenceLoopFields({
             emptyHint="No RETURN aliases found on this sequence's steps."
             onSelect={(value) => patch({ source: value })}
           />
-          <span className="createSequenceHint">
-            One pass per row. Each pass binds that row&rsquo;s columns under their aliases,
-            so the looped steps see one entity at a time.
-          </span>
         </div>
       ) : null}
 
       {looping ? (
         <div className="builderField">
-          <label>maximum iterations (optional)</label>
+          <FieldLabel tip="Safety cap: a run that exceeds it fails instead of looping forever.">
+            maximum iterations
+          </FieldLabel>
           <input
             type="number"
             min={1}
@@ -210,16 +201,28 @@ export function SequenceLoopFields({
               })
             }
           />
-          <span className="createSequenceHint">
-            Safety cap: a run that exceeds it fails instead of looping forever.
-          </span>
         </div>
+      ) : null}
+
+      {looping ? (
+        <DurationField
+          label="delay between iterations"
+          value={loop.delay_seconds ?? 0}
+          disabled={disabled}
+          hint="Parks the run between completed passes. The first pass starts immediately."
+          onChange={(next) =>
+            patch({
+              delay_seconds: typeof next === "number" ? next : undefined
+            })
+          }
+        />
       ) : null}
 
       {looping ? (
         <div className="builderField">
           <div className="createSequenceLabelRow">
-            <label>collect across passes (optional)</label>
+            <label>collect across passes</label>
+            <FieldTip text="Keep a result from every pass, not just the last one, so a later step can use them all." />
             <button
               type="button"
               className="builderTinyBtn builderAddBtn"
@@ -277,32 +280,7 @@ export function SequenceLoopFields({
               </button>
             </div>
           ))}
-          <span className="createSequenceHint">
-            Last-pass overwrite is unchanged. These names keep every pass, so a later step
-            can use every id — not just the last one.
-          </span>
         </div>
-      ) : null}
-
-      {looping ? (
-        <DurationField
-          label="delay between iterations (optional)"
-          value={loop.delay_seconds ?? 0}
-          disabled={disabled}
-          hint="Parks the run between completed passes. The first pass starts immediately."
-          onChange={(next) =>
-            patch({
-              delay_seconds: typeof next === "number" ? next : undefined
-            })
-          }
-        />
-      ) : null}
-
-      {looping && unsaved ? (
-        <span className="createSequenceHint">
-          A sequence has to be saved once before its steps can be inspected, so the
-          pickers stay empty until then.
-        </span>
       ) : null}
 
       {warnings.length > 0 ? (

@@ -14,9 +14,8 @@ export function OperationSelect() {
 
   return (
     <div className="builderField builderSegmentField">
-      <label id="builder-operation-label">operation</label>
       <SegmentToggle
-        labelledBy="builder-operation-label"
+        ariaLabel="operation"
         testId="builder-operation-toggle"
         value={current}
         options={OPERATIONS.map((op) => ({

@@ -51,9 +51,9 @@ export function StepDeleteConfirmModal({
         data-testid="modal-step-delete"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ marginTop: 0 }}>
-          Delete step <span className="builderMono">{preview.attributive_label}</span>
-        </h3>
+        <h2 style={{ marginTop: 0 }}>
+          delete step <span className="builderMono">{preview.attributive_label}</span>
+        </h2>
 
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
           This step will be <strong>permanently deleted</strong> along with every sequence

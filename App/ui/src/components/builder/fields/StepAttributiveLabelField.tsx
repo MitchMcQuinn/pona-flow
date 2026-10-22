@@ -92,19 +92,21 @@ export function StepAttributiveLabelField({
 
   const check = state.checks[checkKey];
 
+  const missing = !attributiveLabel.trim();
+
   return (
-    <div className="builderField">
-      <label>
-        attributive_label
-        {enforceUnique && !isParameterLabel && check && check.status !== "idle" ? (
-          <span className={`builderCheckMsg ${check.status}`}>
-            {check.status === "checking" ? "checking…" : check.message}
-          </span>
-        ) : null}
-      </label>
+    <div
+      className={missing ? "builderField builderFieldMissing" : "builderField"}
+      data-issue="attributive_label"
+    >
+      {enforceUnique && !isParameterLabel && check && check.status !== "idle" ? (
+        <span className={`builderCheckMsg ${check.status}`}>
+          {check.status === "checking" ? "checking…" : check.message}
+        </span>
+      ) : null}
       <Picker
         value={attributiveLabel}
-        placeholder="(select node)"
+        placeholder="select or create node"
         options={options}
         createActions={[
           { label: "+ ADD NEW NODE", onClick: () => setShowModal(true) },
@@ -119,7 +121,11 @@ export function StepAttributiveLabelField({
         }}
         disabled={disabled}
         title={disabled ? "Locked because this entry has an alias." : undefined}
-        emptyHint={`No ${nodeLabel} nodes in both the graph and this space's label catalog.`}
+        emptyHint={
+          nodeLabel === "SCHEMA"
+            ? "No schema nodes available"
+            : `No ${nodeLabel} nodes in both the graph and this space's label catalog.`
+        }
       />
       {showModal ? (
         <NewStepNodeModal

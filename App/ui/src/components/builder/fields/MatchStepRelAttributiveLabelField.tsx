@@ -113,8 +113,7 @@ export function MatchStepRelAttributiveLabelField({
         : "No outbound STEP relationships from this node in both the graph and label catalog.";
 
   return (
-    <div className="builderField">
-      <label>attributive_label</label>
+    <div className="builderField" data-issue="attributive_label">
       <Picker
         value={selectedValue}
         placeholder="(select relationship)"

@@ -74,9 +74,9 @@ export function AttributiveLabelField({
   const check = state.checks[checkKey];
 
   return (
-    <div className="builderField">
-      <label>attributive_label</label>
+    <div className="builderField" data-issue="attributive_label">
       <input
+        aria-label="attributive_label"
         value={attributiveLabel}
         onFocus={() => setLabelAtFocus(attributiveLabel)}
         onChange={(e) => onChange(normalizeAttributiveLabel(e.target.value))}

@@ -455,7 +455,7 @@ export function PathWhereCard({
   return (
     <div className="builderCard nested">
       <div className="builderHeadRow">
-        <label className="matchPaneTitle">WHERE</label>
+        <label className="matchPaneTitle">where</label>
       </div>
       <GroupEditor
         group={root}

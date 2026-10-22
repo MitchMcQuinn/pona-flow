@@ -80,7 +80,7 @@ export function CreateSpaceModal({
       return;
     }
     if (!nameValid) {
-      setLocalError("Name may only contain letters, numbers, and spaces.");
+      setLocalError("Name needs at least one letter or number.");
       return;
     }
     if (duplicate) {
@@ -100,7 +100,7 @@ export function CreateSpaceModal({
         data-testid="modal-create-space"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ marginTop: 0 }}>{isEdit ? "Edit space" : "Create space"}</h3>
+        <h2 style={{ marginTop: 0 }}>{isEdit ? "edit space" : "create space"}</h2>
         <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>
           {required
             ? "You're in. Create your first space to start building. A space is a working environment (a project, a team, a client); it uses the instance's Neo4j connection unless you configure a space-specific one later."

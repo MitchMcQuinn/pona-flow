@@ -49,7 +49,7 @@ export function UnwindSection() {
   return (
     <section className="builderSection">
       <div className="builderHeadRow">
-        <h3 style={{ margin: 0 }}>Unwind into rows</h3>
+        <h2 style={{ margin: 0 }}>unwind into rows</h2>
         <div className="builderInline">
           <button
             type="button"

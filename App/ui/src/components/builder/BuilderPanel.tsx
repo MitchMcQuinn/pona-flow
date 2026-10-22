@@ -18,12 +18,15 @@ import {
   updateSequencePackage
 } from "../../services/execute";
 import { QueryRunActions } from "./QueryRunActions";
+import { partitionWarnings } from "./fieldIssues";
 import { runButtonLabel } from "./runButtonLabels";
 import { regenerateQueryIdAfterOperationSave } from "../../state/builder/afterOperationSave";
 import { BuilderProvider, useBuilder } from "../../state/builder/BuilderContext";
 import { builderSelectors } from "../../state/builder/selectors";
 import {
   DEFAULT_LOOP_CONFIG,
+  LOOP_TYPES,
+  LOOP_TYPE_LABELS,
   catalogNamesTakenForOperationRename,
   collectStepCreateAttributiveLabels,
   isHydratableBuilderConfig,
@@ -37,7 +40,7 @@ import {
   serializeSequenceParameterValues,
   sequenceEntryPointWarnings
 } from "@pona-flow/authoring";
-import type { LoopCollectItem, LoopComparisonOperator, LoopConfig, QueryObject } from "@pona-flow/authoring";
+import type { LoopCollectItem, LoopComparisonOperator, LoopConfig, LoopType, QueryObject } from "@pona-flow/authoring";
 import type { BuilderSeed, RunResult } from "../../state/builder/types";
 import {
   loadStepNodeIntoQuery,
@@ -50,6 +53,7 @@ import {
   CreateOperationModal,
   type CreateOperationFormValues
 } from "./modals/CreateOperationModal";
+import { FieldLabel, FieldTip } from "./FieldTip";
 import { Picker } from "./Picker";
 import { QueryCard } from "./QueryCard";
 import { SequenceLoopFields } from "./fields/SequenceLoopFields";
@@ -396,7 +400,9 @@ function CreateSequenceFields({
   nameTaken,
   groupValid,
   initialGroup = "",
-  editing = false
+  editing = false,
+  loopType,
+  onLoopType
 }: {
   name: string;
   onName: (value: string) => void;
@@ -412,6 +418,8 @@ function CreateSequenceFields({
   initialGroup?: string;
   /** When editing, the name is a workspace title; the graph wrap follows only if free. */
   editing?: boolean;
+  loopType: LoopType;
+  onLoopType: (type: LoopType) => void;
 }) {
   const [groupChoice, setGroupChoice] = useState<string>(() => initialGroup);
   const [newGroupTitle, setNewGroupTitle] = useState("");
@@ -424,77 +432,101 @@ function CreateSequenceFields({
 
   return (
     <section className="builderBlock createSequenceFields">
-      <div className="builderField">
-        <div className="createSequenceLabelRow">
-          <label>query name</label>
-          {!nameValid ? (
-            <span className="createSequenceRequired">Required</span>
-          ) : nameTaken ? (
-            <span className="createSequenceRequired">Already used by another sequence</span>
+      <div
+        className={
+          !nameValid || nameTaken
+            ? "builderField builderFieldMissing builderPropertyName"
+            : "builderField builderPropertyName"
+        }
+      >
+        <div className="createSequenceNameRow">
+          <input
+            className="builderPropertyNameInput"
+            aria-label="query name"
+            value={name}
+            placeholder="Enter a sequence name"
+            data-testid="builder-sequence-name"
+            disabled={disabled}
+            onChange={(e) => onName(e.target.value)}
+          />
+          {editing ? (
+            <FieldTip text="Workspace title. The graph label updates only when this name is not already used by another STEP or SCHEMA." />
           ) : null}
         </div>
-        <input
-          value={name}
-          placeholder="Sequence name"
-          data-testid="builder-sequence-name"
-          disabled={disabled}
-          onChange={(e) => onName(e.target.value)}
-        />
-        {editing ? (
-          <span className="createSequenceHint">
-            Workspace title. The graph label updates only when this name is not already used
-            by another STEP or SCHEMA.
-          </span>
+        {nameTaken ? (
+          <span className="builderCheckMsg duplicate">already used by another sequence</span>
         ) : null}
       </div>
       <div className="builderField">
-        <label>description (optional)</label>
+        <FieldLabel tip="What this sequence does. Shown to MCP agents as the tool description.">
+          description
+        </FieldLabel>
         <textarea
           value={description}
           rows={2}
-          placeholder="What this sequence does. Shown to MCP agents as the tool description."
+          placeholder="optional"
           disabled={disabled}
           onChange={(e) => onDescription(e.target.value)}
         />
       </div>
-      <div className="builderField">
-        <div className="createSequenceLabelRow">
-          <label>group title</label>
-          {!groupValid ? <span className="createSequenceRequired">Required</span> : null}
-        </div>
-        {isNewGroup ? (
-          <div className="createSequenceNewGroup">
-            <input
-              autoFocus
-              value={newGroupTitle}
-              placeholder="New group title"
+      <div className="createSequenceInlineRow">
+        <div className={`builderField${!groupValid ? " builderFieldMissing" : ""}`}>
+          <FieldLabel>group</FieldLabel>
+          {isNewGroup ? (
+            <div className="createSequenceNewGroup">
+              <input
+                autoFocus
+                value={newGroupTitle}
+                placeholder="New group title"
+                disabled={disabled}
+                onChange={(e) => setNewGroupTitle(e.target.value)}
+              />
+              <button
+                type="button"
+                className="createSequenceClearBtn"
+                aria-label="Back to group list"
+                disabled={disabled}
+                onClick={() => {
+                  setGroupChoice("");
+                  setNewGroupTitle("");
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ) : (
+            <Picker
+              value={groupChoice}
+              placeholder="Please select"
               disabled={disabled}
-              onChange={(e) => setNewGroupTitle(e.target.value)}
+              options={existingGroups.map((group) => ({ value: group, label: group }))}
+              createLabel="+ New group title"
+              onCreate={() => setGroupChoice(CREATE_NEW_GROUP)}
+              onSelect={(value) => setGroupChoice(value)}
             />
-            <button
-              type="button"
-              className="createSequenceClearBtn"
-              aria-label="Back to group list"
-              disabled={disabled}
-              onClick={() => {
-                setGroupChoice("");
-                setNewGroupTitle("");
-              }}
-            >
-              ×
-            </button>
-          </div>
-        ) : (
+          )}
+        </div>
+        <div className="builderField">
+          <FieldLabel
+            tip={
+              loopType === "dag"
+                ? "Each step runs once, so a transition back to an earlier step ends the run."
+                : "Draw the cycle as a transition from a later step back to an earlier one. This sets when it stops."
+            }
+          >
+            type
+          </FieldLabel>
           <Picker
-            value={groupChoice}
-            placeholder="Please select"
+            value={loopType}
+            placeholder="DAG (no looping)"
             disabled={disabled}
-            options={existingGroups.map((group) => ({ value: group, label: group }))}
-            createLabel="+ New group title"
-            onCreate={() => setGroupChoice(CREATE_NEW_GROUP)}
-            onSelect={(value) => setGroupChoice(value)}
+            options={LOOP_TYPES.map((value) => ({
+              value,
+              label: LOOP_TYPE_LABELS[value]
+            }))}
+            onSelect={(value) => onLoopType(value as LoopType)}
           />
-        )}
+        </div>
       </div>
     </section>
   );
@@ -685,6 +717,10 @@ function BuilderBody({
       ...(loopComposeError ? [loopComposeError] : [])
     ],
     [baseWarnings, sequenceWarnings, loopComposeError]
+  );
+  const { issueClasses, unmatched: unmatchedWarnings } = useMemo(
+    () => partitionWarnings(warnings),
+    [warnings]
   );
 
   // Display names stay unique among sequences (nav / MCP title). The server enforces this
@@ -1086,18 +1122,18 @@ function BuilderBody({
   }, [state.spaceId, dispatch]);
 
   return (
-    <div className="builderRoot">
+    <div className={["builderRoot", ...issueClasses].join(" ")}>
       <fieldset className="builderFormFieldset">
         <div className="builderHeadRow">
-          <strong>
+          <h1 className="builderPanelTitle">
             {createSequenceMode
               ? editingSequence
-                ? "Edit sequence"
-                : "Create a sequence"
+                ? "edit sequence"
+                : "create a sequence"
               : editingOperation
-                ? "Edit step"
-                : "Builder"}
-          </strong>
+                ? "edit step"
+                : "workbench"}
+          </h1>
           {editingSequence && editingSequenceId ? (
             <button
               type="button"
@@ -1123,6 +1159,8 @@ function BuilderBody({
             groupValid={sequenceGroupValid}
             initialGroup={editSeed?.groupTitle ?? ""}
             editing={editingSequence}
+            loopType={sequenceLoop.type}
+            onLoopType={(type) => setSequenceLoop((current) => ({ ...current, type }))}
           />
         ) : null}
 
@@ -1182,11 +1220,11 @@ function BuilderBody({
 
         {createSequenceMode ? null : <AdvancedOptions />}
 
-        {warnings.length > 0 ? (
+        {unmatchedWarnings.length > 0 ? (
           <div className="builderWarnings">
             <strong>Warnings</strong>
             <ul>
-              {warnings.map((w, i) => (
+              {unmatchedWarnings.map((w, i) => (
                 <li key={i}>{w}</li>
               ))}
             </ul>

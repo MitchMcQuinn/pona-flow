@@ -78,9 +78,9 @@ export function SetSection() {
   }, [boundSet, state.query, items, patchQuery]);
 
   return (
-    <section className="builderSection">
+    <section className="builderSection" data-issue="set-expression">
       <div className="builderHeadRow">
-        <h3 style={{ margin: 0 }}>Set (update)</h3>
+        <h2 style={{ margin: 0 }}>set (update)</h2>
         <button
           type="button"
           className="builderTinyBtn builderAddBtn"
@@ -100,7 +100,7 @@ export function SetSection() {
           />
         ) : (
           <div className="builderItemRow" key={index}>
-            <div className="builderField">
+            <div className="builderField" data-issue="set-expression">
               <label>expression</label>
               <input
                 className="builderMono"

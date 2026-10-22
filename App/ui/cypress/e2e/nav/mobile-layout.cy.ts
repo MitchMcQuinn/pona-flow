@@ -63,7 +63,7 @@ describe("mobile layout", () => {
     // Tabs switch panes; the builder stays mounted (state survives).
     cy.get('[data-testid="mobile-tab-workbench"]').click();
     expectPane("workbench");
-    cy.get("#builder-operation-label").should("be.visible");
+    cy.get('[data-testid="builder-operation-toggle"]').should("be.visible");
     cy.get('[data-testid="mobile-tab-map"]').click();
     expectPane("map");
     cy.get('[data-testid="mobile-tab-menu"]').click();

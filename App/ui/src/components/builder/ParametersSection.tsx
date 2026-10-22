@@ -130,159 +130,187 @@ function ParameterRow({
     }
   );
   const uniquenessCheck = state.checks[uniquenessKey];
+  const nameMissing = !isValidParameterName(param.name) || duplicateName;
+  const canRemove = declared && !locked;
 
   return (
-    <div className="builderItemRow">
-      <div className="builderRow">
-        <div className="builderField">
-          <label>name</label>
-          <input
-            className="builderMono"
-            value={param.name}
-            readOnly={locked}
-            onChange={(e) => patchQuery(updateParameterAt(index, { name: e.target.value }))}
-          />
-          {nameInvalid ? (
-            <span className="builderCheckMsg duplicate">
-              start with a letter or underscore; no leading digit
-            </span>
-          ) : duplicateName ? (
-            <span className="builderCheckMsg duplicate">
-              another parameter already uses this name
-            </span>
-          ) : null}
-        </div>
-        <div className="builderField">
-          <label>value_type</label>
-          <select
-            value={(schema?.value_type ?? "string") as ValueType}
-            disabled={typeLocked}
-            onChange={(e) => {
-              const value_type = e.target.value as ValueType;
-              patchQuery(
-                updateParameterAt(index, {
-                  data_type: parameterDataType(value_type),
-                  schematic_properties: {
-                    ...newSchematicProperties(),
-                    ...(schema ?? {}),
-                    value_type
-                  }
-                })
-              );
-            }}
-          >
-            {valueTypeOptions.map((vt) => (
-              <option key={vt} value={vt}>
-                {vt}
-              </option>
-            ))}
-          </select>
-        </div>
-        {valueType === "string" ? (
+    <div
+      className={`builderCard nested builderItemRow builderParameterCard${
+        canRemove ? " builderParameterCardRemovable" : ""
+      }`}
+    >
+      {canRemove ? (
+        <button
+          type="button"
+          className="builderPropertyRemove"
+          aria-label="Remove parameter"
+          title="Remove parameter"
+          onClick={onRemove}
+        >
+          <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+            <path
+              d="M2 2 L10 10 M10 2 L2 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      ) : null}
+      <div
+        className={
+          nameMissing
+            ? "builderField builderFieldMissing builderPropertyName"
+            : "builderField builderPropertyName"
+        }
+        data-issue="parameter-name"
+      >
+        <input
+          className="builderPropertyNameInput"
+          aria-label="parameter name"
+          value={param.name}
+          placeholder="name"
+          readOnly={locked}
+          onChange={(e) => patchQuery(updateParameterAt(index, { name: e.target.value }))}
+        />
+        {nameInvalid ? (
+          <span className="builderCheckMsg duplicate">
+            start with a letter or underscore; no leading digit
+          </span>
+        ) : duplicateName ? (
+          <span className="builderCheckMsg duplicate">
+            another parameter already uses this name
+          </span>
+        ) : null}
+      </div>
+      {!isAttributiveLabel ? (
+        <div className="builderPropertyTypeRow">
           <div className="builderField">
-            <label>format</label>
+            <label>value type</label>
             <select
-              value={schema?.format ?? "any"}
+              value={(schema?.value_type ?? "string") as ValueType}
               disabled={typeLocked}
               onChange={(e) => {
-                if (e.target.value === ADD_REGEX_VALUE) {
-                  onOpenRegexModal();
-                  return;
-                }
+                const value_type = e.target.value as ValueType;
                 patchQuery(
                   updateParameterAt(index, {
+                    data_type: parameterDataType(value_type),
                     schematic_properties: {
                       ...newSchematicProperties(),
                       ...(schema ?? {}),
-                      format: e.target.value || undefined
+                      value_type
                     }
                   })
                 );
               }}
             >
-              {!typeLocked ? <option value={ADD_REGEX_VALUE}>+ REGEX PATTERN</option> : null}
-              {formatOptions.map((f) => (
-                <option key={f} value={f}>
-                  {f}
+              {valueTypeOptions.map((vt) => (
+                <option key={vt} value={vt}>
+                  {vt}
                 </option>
               ))}
             </select>
           </div>
-        ) : null}
-        <div className="builderField">
-          <label>
-            default_value
-            {!formatCheck.valid ? (
-              <span className="builderCheckMsg duplicate">{formatCheck.message}</span>
-            ) : isAttributiveLabel && uniquenessCheck && uniquenessCheck.status !== "idle" ? (
-              <span className={`builderCheckMsg ${uniquenessCheck.status}`}>
-                {uniquenessCheck.status === "checking" ? "checking…" : uniquenessCheck.message}
-              </span>
-            ) : rawValue.trim() && formatCheck.message ? (
-              <span className="builderCheckMsg ok">{formatCheck.message}</span>
-            ) : null}
-          </label>
-          {isChoiceType ? (
-            <TypedValueInput
-              valueType={valueType}
-              options={schema?.options}
-              minChoices={schema?.min_choices}
-              maxChoices={schema?.max_choices}
-              value={rawValue}
-              placeholder="(no default)"
-              onChange={(next) => patchQuery(updateParameterAt(index, { value: next }))}
+          {valueType === "string" ? (
+            <div className="builderField">
+              <label>format</label>
+              <select
+                value={schema?.format ?? "any"}
+                disabled={typeLocked}
+                onChange={(e) => {
+                  if (e.target.value === ADD_REGEX_VALUE) {
+                    onOpenRegexModal();
+                    return;
+                  }
+                  patchQuery(
+                    updateParameterAt(index, {
+                      schematic_properties: {
+                        ...newSchematicProperties(),
+                        ...(schema ?? {}),
+                        format: e.target.value || undefined
+                      }
+                    })
+                  );
+                }}
+              >
+                {!typeLocked ? <option value={ADD_REGEX_VALUE}>+ REGEX PATTERN</option> : null}
+                {formatOptions.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          <div className="builderField builderParameterRequired">
+            <label aria-hidden="true">&nbsp;</label>
+            <Toggle
+              checked={Boolean(param.is_required)}
+              onChange={(checked) => patchQuery(updateParameterAt(index, { is_required: checked }))}
+              label="Required (pause for input)"
+              labelFirst
+              disabled={locked}
             />
-          ) : (
-            <input
-              value={rawValue}
-              onChange={(e) =>
-                patchQuery(
-                  updateParameterAt(index, {
-                    value: isAttributiveLabel
-                      ? e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "")
-                      : e.target.value
-                  })
-                )
-              }
-            />
-          )}
-        </div>
-      </div>
-      {isChoiceType ? (
-        <div className="builderRow">
-          <ChoiceOptionsEditor
-            valueType={valueType as "radio" | "checkbox"}
-            options={schema?.options ?? []}
-            minChoices={schema?.min_choices}
-            maxChoices={schema?.max_choices}
-            disabled={typeLocked}
-            onChange={patchSchema}
-          />
+          </div>
         </div>
       ) : null}
-      <div className="builderRow">
-        <div className="builderField">
-          <label>description (optional)</label>
-          <input
-            value={String(param.description ?? "")}
-            placeholder="What this parameter is. Shown to MCP agents in the tool's input schema."
-            onChange={(e) => patchQuery(updateParameterAt(index, { description: e.target.value }))}
-          />
-        </div>
-      </div>
-      <div className="builderRowActions builderRowActionsSpread">
-        <Toggle
-          checked={Boolean(param.is_required)}
-          onChange={(checked) => patchQuery(updateParameterAt(index, { is_required: checked }))}
-          label="Required (pause for input)"
-          labelFirst
-          disabled={locked}
+      {isChoiceType ? (
+        <ChoiceOptionsEditor
+          valueType={valueType as "radio" | "checkbox"}
+          options={schema?.options ?? []}
+          minChoices={schema?.min_choices}
+          maxChoices={schema?.max_choices}
+          disabled={typeLocked}
+          onChange={patchSchema}
         />
-        {declared && !locked ? (
-          <button type="button" className="builderTinyBtn builderDanger" onClick={onRemove}>
-            Remove
-          </button>
-        ) : null}
+      ) : null}
+      <div className="builderField">
+        <label>
+          default value
+          {!formatCheck.valid ? (
+            <span className="builderCheckMsg duplicate">{formatCheck.message}</span>
+          ) : isAttributiveLabel && uniquenessCheck && uniquenessCheck.status !== "idle" ? (
+            <span className={`builderCheckMsg ${uniquenessCheck.status}`}>
+              {uniquenessCheck.status === "checking" ? "checking…" : uniquenessCheck.message}
+            </span>
+          ) : rawValue.trim() && formatCheck.message ? (
+            <span className="builderCheckMsg ok">{formatCheck.message}</span>
+          ) : null}
+        </label>
+        {isChoiceType ? (
+          <TypedValueInput
+            valueType={valueType}
+            options={schema?.options}
+            minChoices={schema?.min_choices}
+            maxChoices={schema?.max_choices}
+            value={rawValue}
+            placeholder="Enter a default value"
+            onChange={(next) => patchQuery(updateParameterAt(index, { value: next }))}
+          />
+        ) : (
+          <input
+            value={rawValue}
+            placeholder="Enter a default value"
+            onChange={(e) =>
+              patchQuery(
+                updateParameterAt(index, {
+                  value: isAttributiveLabel
+                    ? e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "")
+                    : e.target.value
+                })
+              )
+            }
+          />
+        )}
+      </div>
+      <div className="builderField">
+        <label>description (optional)</label>
+        <input
+          value={String(param.description ?? "")}
+          placeholder="What this parameter is. Shown to MCP agents in the tool's input schema."
+          onChange={(e) => patchQuery(updateParameterAt(index, { description: e.target.value }))}
+        />
       </div>
     </div>
   );
@@ -310,20 +338,10 @@ export function ParametersSection() {
 
   return (
     <section className="builderSection">
-      <div className="builderHeadRow">
-        <h3 style={{ margin: 0 }}>Parameters</h3>
-        <button
-          type="button"
-          className="builderTinyBtn builderAddBtn"
-          data-testid="builder-add-parameter-btn"
-          onClick={() => patchQuery(addParameter())}
-        >
-          + ADD PARAMETER
-        </button>
-      </div>
+      <h2 className={`builderPanelTitle${params.length === 0 ? " muted" : ""}`}>parameters</h2>
 
       {params.length === 0 ? (
-        <p className="builderCheckMsg">
+        <p className="builderCheckMsg muted">
           {schemaCreate
             ? "No parameters yet. Reference one with $name in a property name or default value field, or add one here."
             : "No parameters found in value fields. Reference one with $name, or add one here to collect it at run time."}
@@ -348,6 +366,16 @@ export function ParametersSection() {
           />
         );
       })}
+      <div className="builderCardFooter">
+        <button
+          type="button"
+          className="builderTinyBtn builderAddBtn builderAddParameterBtn"
+          data-testid="builder-add-parameter-btn"
+          onClick={() => patchQuery(addParameter())}
+        >
+          + parameter
+        </button>
+      </div>
       {showRegexModal ? <RegexPatternModal onClose={() => setShowRegexModal(false)} /> : null}
     </section>
   );

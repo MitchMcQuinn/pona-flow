@@ -78,7 +78,7 @@ export function RegexPatternModal({ onClose }: RegexPatternModalProps) {
   return (
     <ModalBackdrop onClick={onClose}>
       <div className="builderModalPanel" onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ marginTop: 0 }}>Regex patterns</h3>
+        <h2 style={{ marginTop: 0 }}>regex patterns</h2>
 
         <div className="builderField">
           <label>existing patterns</label>

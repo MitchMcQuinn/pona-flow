@@ -1,5 +1,38 @@
-.eventBuilder .eventInlineField {
-  margin-top: 0.25rem;
+.eventTypeRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.eventInlineRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.eventInlineRow > .field,
+.eventInlineRow > .builderField {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.eventInlineRow > .eventCheckboxLabel,
+.eventInlineRow > .builderToggle {
+  flex: 0 0 auto;
+  align-self: center;
+  padding-top: 0;
+}
+
+.eventBuilder .builderPropertyNameInput::placeholder {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.eventSection {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(199, 199, 199, 0.35);
 }
 
 .eventCheckboxLabel {
@@ -26,9 +59,14 @@
 .eventGroup {
   border: none;
   border-radius: 0;
-  padding: 0.75rem;
-  background: var(--panel2);
-  box-shadow: var(--shadow-in-sm);
+  padding: 0 0 16px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.eventGroup + .eventGroup {
+  border-top: 1px solid rgba(199, 199, 199, 0.35);
+  padding-top: 16px;
 }
 
 .eventGroupHeader {
@@ -42,6 +80,7 @@
   font-weight: 600;
   font-size: 0.85rem;
   margin-right: auto;
+  text-transform: lowercase;
 }
 
 .eventChips {
@@ -88,10 +127,11 @@
 .eventTest {
   border: none;
   border-radius: 0;
-  padding: 0.75rem;
-  background: var(--panel2);
-  box-shadow: var(--shadow-in-sm);
-  margin: 0.25rem 0 0.85rem;
+  padding: 16px 0;
+  background: transparent;
+  box-shadow: none;
+  margin: 0;
+  border-top: 1px solid rgba(199, 199, 199, 0.35);
 }
 
 .eventTest .field {
@@ -189,7 +229,8 @@
 
 /* Narrow panes (phones, the tablet drawer): stack side-by-side fields. */
 @container builder (max-width: 480px) {
-  .eventRow {
+  .eventRow,
+  .eventInlineRow {
     flex-direction: column;
     gap: 0.5rem;
   }
@@ -205,7 +246,8 @@
 }
 
 @media (max-width: 767.98px) {
-  .eventRow {
+  .eventRow,
+  .eventInlineRow {
     flex-direction: column;
     gap: 0.5rem;
   }
@@ -220,10 +262,55 @@
   }
 }
 
+.simSectionTitle {
+  margin: 16px 0 12px;
+}
+
+.simOutcomes {
+  margin-top: 8px;
+}
+
+.simOutcomesTitle {
+  margin: 16px 0 10px;
+}
+
+.simOutcomeTitleRow {
+  align-items: center;
+  padding-right: 36px;
+}
+
+.simOutcomeTitleRow > .builderPropertyName {
+  flex: 1 1 auto;
+}
+
+.simOutcomeTitleRow > .simOutcomeWeight {
+  flex: 0 1 160px;
+}
+
+.simPayloadRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.eventCardRemovable {
+  position: relative;
+}
+
+.eventCardRemovable > .builderPropertyName {
+  padding-right: 36px;
+}
+
 .simOutcome {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
+  margin-top: 0;
+  padding: 0 0 16px;
   border-top: none;
+}
+
+.simOutcome + .simOutcome {
+  border-top: 1px solid rgba(199, 199, 199, 0.35);
+  padding-top: 16px;
 }
 
 .simSessions {

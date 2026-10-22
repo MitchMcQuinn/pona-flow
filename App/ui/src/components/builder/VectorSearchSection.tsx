@@ -54,7 +54,7 @@ function KField({
   }, [JSON.stringify(value ?? null)]);
 
   return (
-    <div className="builderField">
+    <div className="builderField" data-issue="vector-k">
       <label htmlFor="vector-search-k">k (top results)</label>
       <input
         id="vector-search-k"
@@ -139,8 +139,8 @@ export function VectorSearchSection() {
   if (enabled && schemaVectorized === false) {
     hints.push(
       attributiveLabel
-        ? `${attributiveLabel} is not marked is_vectorized — reindex will skip it.`
-        : "Select an attributive_label that is marked is_vectorized."
+        ? `${attributiveLabel} is not marked vectorized — reindex will skip it.`
+        : "Select an attributive_label that is marked vectorized."
     );
   }
   if (enabled && allLabels) {
@@ -168,7 +168,7 @@ export function VectorSearchSection() {
   return (
     <section className="builderSection" data-testid="vector-search-section">
       <div className="builderHeadRow">
-        <h3 style={{ margin: 0 }}>Vector search</h3>
+        <h2 style={{ margin: 0 }}>vector search</h2>
         <Toggle
           checked={enabled}
           onChange={(value) =>
@@ -188,7 +188,7 @@ export function VectorSearchSection() {
 
       {enabled ? (
         <div className="builderFormTransition">
-          <div className="builderField">
+          <div className="builderField" data-issue="vector-text">
             <label htmlFor="vector-search-text">Search text</label>
             <textarea
               id="vector-search-text"

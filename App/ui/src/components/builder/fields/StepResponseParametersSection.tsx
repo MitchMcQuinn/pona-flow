@@ -1,5 +1,6 @@
 import type { StepResponseParameter } from "../../../state/builder/types";
 import { isValidParameterName } from "@pona-flow/authoring";
+import { FieldLabel, FieldTip } from "../FieldTip";
 
 export function emptyStepResponseParameter(): StepResponseParameter {
   return { property_path: "", parameter: "", default_value: "" };
@@ -32,12 +33,11 @@ export function StepResponseParametersSection({
 
   return (
     <div className="builderField">
-      <label>Response parameters</label>
-      <p className="builderCheckMsg">
-        Map JSON paths from the webhook response to parameter names. Default value is used when
-        the response does not include a value at that path.
-      </p>
-      <div className="builderBlock" style={{ gap: 8 }}>
+      <div className="createSequenceLabelRow">
+        <h2 className="builderPanelTitle">response parameters</h2>
+        <FieldTip text="Map JSON paths from the response to parameter names. The default is used when that path is missing." />
+      </div>
+      <div className="builderBlock">
         {rows.map((row, index) => {
           const pathTrimmed = row.property_path.trim();
           const paramTrimmed = row.parameter.trim();
@@ -45,12 +45,57 @@ export function StepResponseParametersSection({
           const paramInvalid = paramTrimmed !== "" && !isValidParameterName(paramTrimmed);
           const pathMissing = partialRow && !pathTrimmed;
           const paramMissing = partialRow && !paramTrimmed;
+          const nameMissing = paramMissing || paramInvalid;
 
           return (
-            <div className="builderCard nested builderItemRow" key={index}>
-              <div className="builderRow">
+            <div
+              className="builderCard nested builderItemRow builderParameterCard builderParameterCardRemovable"
+              key={index}
+            >
+              <button
+                type="button"
+                className="builderPropertyRemove"
+                aria-label="Remove response parameter"
+                title="Remove response parameter"
+                onClick={() => removeAt(index)}
+              >
+                <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+                  <path
+                    d="M2 2 L10 10 M10 2 L2 10"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+              <div
+                className={
+                  nameMissing
+                    ? "builderField builderFieldMissing builderPropertyName"
+                    : "builderField builderPropertyName"
+                }
+              >
+                <input
+                  className="builderPropertyNameInput"
+                  aria-label="parameter"
+                  placeholder="name"
+                  value={row.parameter}
+                  onChange={(e) => updateAt(index, { parameter: e.target.value })}
+                />
+                {paramInvalid ? (
+                  <span className="builderCheckMsg duplicate">
+                    start with a letter or underscore; no leading digit
+                  </span>
+                ) : paramMissing ? (
+                  <span className="builderCheckMsg duplicate">parameter is required</span>
+                ) : null}
+              </div>
+              <div className="builderPropertyTypeRow">
                 <div className="builderField">
-                  <label>property path</label>
+                  <FieldLabel tip="JSON path in the response body, for example $.data.id.">
+                    property path
+                  </FieldLabel>
                   <input
                     className="builderMono"
                     placeholder="$.data.id"
@@ -62,24 +107,9 @@ export function StepResponseParametersSection({
                   ) : null}
                 </div>
                 <div className="builderField">
-                  <label>parameter</label>
-                  <input
-                    className="builderMono"
-                    placeholder="userId"
-                    value={row.parameter}
-                    onChange={(e) => updateAt(index, { parameter: e.target.value })}
-                  />
-                  {paramInvalid ? (
-                    <span className="builderCheckMsg duplicate">
-                      start with a letter or underscore; no leading digit
-                    </span>
-                  ) : null}
-                  {paramMissing ? (
-                    <span className="builderCheckMsg duplicate">parameter is required</span>
-                  ) : null}
-                </div>
-                <div className="builderField">
-                  <label>default value</label>
+                  <FieldLabel tip="Used when the response does not include a value at that path.">
+                    default value
+                  </FieldLabel>
                   <input
                     placeholder="(optional fallback)"
                     value={row.default_value ?? ""}
@@ -87,21 +117,16 @@ export function StepResponseParametersSection({
                   />
                 </div>
               </div>
-              <div className="builderRowActions">
-                <button
-                  type="button"
-                  className="builderTinyBtn builderDanger"
-                  onClick={() => removeAt(index)}
-                >
-                  Remove
-                </button>
-              </div>
             </div>
           );
         })}
         <div className="builderCardFooter">
-          <button type="button" className="builderTinyBtn builderAddBtn" onClick={addRow}>
-            + ADD RESPONSE PARAMETER
+          <button
+            type="button"
+            className="builderTinyBtn builderAddBtn builderAddParameterBtn"
+            onClick={addRow}
+          >
+            + Add response parameter
           </button>
         </div>
       </div>

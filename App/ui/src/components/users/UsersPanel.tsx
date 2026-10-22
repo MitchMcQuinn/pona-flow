@@ -86,7 +86,7 @@ export function UsersPanel({ spaceId, me, sequences, onClose, embedded = false }
   if (!spaceId) {
     const body = (
       <>
-        {!embedded ? <h2>Users</h2> : null}
+        {!embedded ? <h1>users</h1> : null}
         <p className="muted">Select a space to manage its users.</p>
       </>
     );
@@ -106,7 +106,7 @@ export function UsersPanel({ spaceId, me, sequences, onClose, embedded = false }
   const content = (
     <>
         <div className="rbacHeaderRow">
-          {!embedded ? <h2>Users</h2> : <h3>Users</h3>}
+          {!embedded ? <h1>users</h1> : <h2>users</h2>}
           {onClose ? (
             <button type="button" onClick={onClose}>
               Close
@@ -136,7 +136,7 @@ export function UsersPanel({ spaceId, me, sequences, onClose, embedded = false }
           </button>
         </form>
 
-        <h3 className="navSectionHeader">Members</h3>
+        <h2 className="navSectionHeader">members</h2>
         {members.length === 0 ? (
           <p className="muted">No members yet.</p>
         ) : (
@@ -370,7 +370,7 @@ function RolesSection({
 
   return (
     <div className="rbacRolesSection">
-      <h3 className="navSectionHeader">Roles</h3>
+      <h2 className="navSectionHeader">roles</h2>
       <ul className="rbacMemberList">
         {roles
           .filter((role) => role.name.trim().toLowerCase() !== "admin")
@@ -455,7 +455,7 @@ function PrincipalsSection({
 }) {
   return (
     <div className="rbacPrincipalsSection">
-      <h3 className="navSectionHeader">Instance principals</h3>
+      <h2 className="navSectionHeader">instance principals</h2>
       <p className="muted rbacSectionHint">
         Every account that has signed in to this instance. The “superadmin” badge marks
         instance administrators; others are ordinary principals.
