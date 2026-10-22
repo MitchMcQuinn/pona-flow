@@ -1174,7 +1174,6 @@ export function NavigationPanel({
   return (
     <div className="panel navPanel">
       <div className="panel__body">
-        <h2>Navigation</h2>
         <div className="navSectionHeader">
           <h3 className="navSectionTitle" id="space-selector-label">
             Space

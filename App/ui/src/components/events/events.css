@@ -24,8 +24,8 @@
 }
 
 .eventGroup {
-  border: 1px solid rgba(0, 0, 0, 0.25);
-  border-radius: 12px;
+  border: none;
+  border-radius: 0;
   padding: 0.75rem;
   background: var(--panel2);
   box-shadow: var(--shadow-in-sm);
@@ -51,10 +51,10 @@
 }
 
 .eventChip {
-  border: 1px solid var(--border);
+  border: none;
   background: linear-gradient(145deg, var(--raise), var(--panel2));
   color: var(--muted);
-  border-radius: 999px;
+  border-radius: 0;
   padding: 0.2rem 0.6rem;
   font-size: 0.78rem;
   cursor: pointer;
@@ -86,8 +86,8 @@
 }
 
 .eventTest {
-  border: 1px solid rgba(0, 0, 0, 0.25);
-  border-radius: 12px;
+  border: none;
+  border-radius: 0;
   padding: 0.75rem;
   background: var(--panel2);
   box-shadow: var(--shadow-in-sm);
@@ -132,8 +132,8 @@
   max-height: 16rem;
   overflow: auto;
   padding: 0.6rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: none;
+  border-radius: 0;
   background: var(--well);
   box-shadow: var(--shadow-in-sm);
   white-space: pre-wrap;
@@ -163,8 +163,8 @@
   gap: 0.35rem;
   max-height: 12rem;
   overflow-y: auto;
-  border: 1px solid rgba(0, 0, 0, 0.25);
-  border-radius: 10px;
+  border: none;
+  border-radius: 0;
   padding: 0.5rem;
   background: var(--well);
   box-shadow: var(--shadow-in-sm);
@@ -223,7 +223,7 @@
 .simOutcome {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid var(--border);
+  border-top: none;
 }
 
 .simSessions {

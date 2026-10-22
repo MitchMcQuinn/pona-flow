@@ -91,8 +91,8 @@
 
 .resultTableWrap {
   overflow: auto;
-  border: 1px solid rgba(0, 0, 0, 0.25);
-  border-radius: 12px;
+  border: none;
+  border-radius: 0;
   background: var(--well);
   box-shadow: var(--shadow-in-sm);
 }
@@ -105,7 +105,7 @@
 
 .resultTable th,
 .resultTable td {
-  border: 1px solid var(--border);
+  border: none;
   padding: 5px 8px;
   text-align: left;
   white-space: nowrap;
@@ -139,7 +139,7 @@
 
 .resultResponseBadge {
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: 0;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -163,8 +163,8 @@
 .resultResponseBody {
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid rgba(0, 0, 0, 0.25);
-  border-radius: 12px;
+  border: none;
+  border-radius: 0;
   background: var(--well);
   box-shadow: var(--shadow-in-sm);
   font-size: 12px;

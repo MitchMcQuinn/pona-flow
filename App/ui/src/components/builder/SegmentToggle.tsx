@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { TouchHint } from "./TouchHint";
 
 export interface SegmentOption<T extends string> {
@@ -17,7 +17,7 @@ interface SegmentToggleProps<T extends string> {
   testId?: string;
 }
 
-/** Segmented control with a mesh-lit indicator that slides between options. */
+/** Segmented control with a white indicator that slides between options. */
 export function SegmentToggle<T extends string>({
   labelledBy,
   options,
@@ -25,25 +25,34 @@ export function SegmentToggle<T extends string>({
   onChange,
   testId
 }: SegmentToggleProps<T>) {
-  const activeIndex = Math.max(
-    0,
-    options.findIndex((option) => option.value === value)
-  );
+  const groupRef = useRef<HTMLDivElement>(null);
   const disabledReasons = options.filter((o) => o.disabled && o.title).map((o) => o.title);
+
+  useLayoutEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+
+    const measure = () => {
+      const active = group.querySelector<HTMLButtonElement>("button.active");
+      if (!active) return;
+      group.style.setProperty("--segment-indicator-x", `${active.offsetLeft}px`);
+      group.style.setProperty("--segment-indicator-width", `${active.offsetWidth}px`);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(group);
+    return () => observer.disconnect();
+  }, [value, options]);
 
   return (
     <>
     <div
+      ref={groupRef}
       className="builderSegmentToggle"
       role="radiogroup"
       aria-labelledby={labelledBy}
       data-testid={testId}
-      style={
-        {
-          "--segment-count": options.length,
-          "--segment-index": activeIndex
-        } as CSSProperties
-      }
     >
       <div className="builderSegmentIndicator" aria-hidden="true" />
       {options.map((option) => (

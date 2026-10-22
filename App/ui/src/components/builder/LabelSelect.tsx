@@ -22,7 +22,7 @@ export function LabelSelect() {
         value={current}
         options={GRAPH_NODE_LABELS.map((label) => ({
           value: label,
-          label,
+          label: label.toLowerCase(),
           disabled: locked || !flowAllowed(flows, operation, label),
           title: flowAllowed(flows, operation, label)
             ? undefined

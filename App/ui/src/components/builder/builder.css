@@ -98,16 +98,12 @@
 
 .builderBlock > h3 {
   margin: 0;
-  font-size: 13px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
 }
 
-/* Sections read as soft recessed trays carved into the panel. */
+/* Sections are flat groups, with no frame. */
 .builderSection {
-  border: 1px solid rgba(0, 0, 0, 0.25);
-  border-radius: 12px;
+  border: none;
+  border-radius: 0;
   padding: 10px;
   background: var(--panel2);
   box-shadow: var(--shadow-in-sm);
@@ -115,10 +111,6 @@
 
 .builderSection > h3 {
   margin: 0 0 8px;
-  font-size: 13px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
 }
 
 /* Stacked field groups (default for form fields). */
@@ -196,7 +188,7 @@
   flex-direction: column;
   gap: 8px;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: none;
 }
 
 .builderItemRow:last-child {
@@ -219,33 +211,19 @@
   color: var(--muted);
 }
 
-/* Operation / label segment toggles: full width in narrow panels; cap width and
-   leave right breathing room when the builder has horizontal space. */
-@container builder (min-width: 768px) {
-  .builderSegmentField {
-    max-width: min(100%, 768px);
-  }
-}
-
-@container builder (min-width: 768px) {
-  .builderSegmentField {
-    max-width: min(100%, 768px);
-    margin-right: clamp(48px, 12cqi, 144px);
-  }
-}
-
-/* Segmented control: recessed track with a sliding mesh-lit active segment. */
+/* Segmented control. The highlight sits flush with the control's edges. */
 .builderSegmentToggle {
   --segment-gap: 3px;
-  --segment-pad: 3px;
+  --segment-pad: 0px;
   position: relative;
   display: flex;
-  width: 100%;
-  border: 1px solid rgba(0, 0, 0, 0.3);
-  border-radius: 10px;
+  width: max-content;
+  max-width: 100%;
+  border: none;
+  border-radius: 0;
   overflow: hidden;
   background: var(--well);
-  box-shadow: var(--shadow-in-sm);
+  box-shadow: none;
   padding: var(--segment-pad);
   gap: var(--segment-gap);
 }
@@ -254,30 +232,28 @@
   position: absolute;
   top: var(--segment-pad);
   bottom: var(--segment-pad);
-  left: var(--segment-pad);
+  left: 0;
   z-index: 0;
-  border-radius: 7px;
+  border-radius: 0;
   pointer-events: none;
-  width: calc(
-    (100% - (2 * var(--segment-pad)) - ((var(--segment-count) - 1) * var(--segment-gap))) /
-      var(--segment-count)
-  );
-  transform: translateX(calc(var(--segment-index) * (100% + var(--segment-gap))));
-  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
-  background: var(--mesh-soft), linear-gradient(145deg, var(--raise), var(--panel2));
-  box-shadow: var(--shadow-out-sm), var(--mesh-glow);
+  width: var(--segment-indicator-width, 0px);
+  transform: translateX(var(--segment-indicator-x, 0px));
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  background: #fff;
+  box-shadow: none;
 }
 
 .builderSegmentToggle button {
   position: relative;
   z-index: 1;
-  flex: 1 1 0;
+  flex: 0 0 auto;
   min-width: 0;
   margin: 0;
-  padding: 6px 10px;
+  padding: 6px 16px;
   font-size: 12px;
   border: none;
-  border-radius: 7px;
+  border-radius: 0;
   background: transparent;
   box-shadow: none;
   color: var(--muted);
@@ -290,8 +266,13 @@
 }
 
 .builderSegmentToggle button.active {
-  color: #fff;
+  color: #000;
   font-weight: 600;
+  background: transparent;
+  box-shadow: none;
+}
+
+.builderSegmentToggle button:active {
   background: transparent;
   box-shadow: none;
 }
@@ -299,7 +280,7 @@
 .builderSegmentToggle button:focus-visible {
   position: relative;
   z-index: 1;
-  outline: 2px solid rgba(129, 140, 248, 0.55);
+  outline: 2px solid #fff;
   outline-offset: -2px;
 }
 
@@ -357,8 +338,8 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: none;
+  border-radius: 0;
   padding: 8px;
   margin-top: 8px;
   background: linear-gradient(145deg, var(--panel), var(--panel2));
@@ -430,9 +411,9 @@
   margin: 0;
   padding: 8px 10px;
   background: var(--well);
-  box-shadow: var(--shadow-in-sm);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  box-shadow: none;
+  border: none;
+  border-radius: 0;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-x: auto;
@@ -535,7 +516,7 @@
 .builderWarnings {
   border: 1px solid rgba(251, 191, 36, 0.4);
   background: rgba(251, 191, 36, 0.08);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 8px 10px;
   font-size: 12px;
 }
@@ -564,10 +545,10 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   background: linear-gradient(145deg, var(--panel), var(--panel2));
-  border: 1px solid var(--border);
-  border-radius: 18px;
+  border: none;
+  border-radius: 0;
   padding: 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), var(--shadow-out), var(--edge-hi);
+  box-shadow: none;
 }
 
 /* Phones: modals rise from the bottom as full-width sheets, clear of the home indicator. */
@@ -580,7 +561,7 @@
     width: 100%;
     max-height: 88vh;
     max-height: 88dvh;
-    border-radius: 18px 18px 0 0;
+    border-radius: 0;
     border-bottom: none;
     padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   }
@@ -617,8 +598,8 @@
   gap: 10px;
   align-items: flex-start;
   padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: none;
+  border-radius: 0;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
@@ -660,7 +641,7 @@
 .builderStatusPill {
   font-size: 12px;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: 0;
   border: 1px solid var(--border);
 }
 
@@ -742,7 +723,7 @@
   flex-direction: column;
   gap: 8px;
   border: none;
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
   border-radius: 0;
   padding: 0;
   background: transparent;
@@ -782,8 +763,8 @@
   min-height: 120px;
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: 0;
   background: var(--well);
   box-shadow: var(--shadow-in-sm);
   white-space: pre-wrap;
@@ -821,7 +802,7 @@
 
 .builderBodyTokenKnown,
 .builderBodyTokenUnknown {
-  border-radius: 3px;
+  border-radius: 0;
   padding: 0 1px;
 }
 
@@ -837,8 +818,8 @@
 
 /* STEP parameters accordion (lives under the request body). */
 .builderStepParams {
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: none;
+  border-radius: 0;
   background: linear-gradient(145deg, var(--panel), var(--panel2));
   box-shadow: var(--shadow-out-sm), var(--edge-hi);
   overflow: hidden;
@@ -882,7 +863,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 10px;
-  border-top: 1px solid var(--border);
+  border-top: none;
 }
 
 /* Dropdown picker (attributive_label / alias selectors). */
@@ -900,16 +881,19 @@
   width: 100%;
   padding: 7px 10px;
   text-align: left;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 1px solid transparent;
+  border-radius: 0;
   background: var(--well);
   box-shadow: var(--shadow-in-sm);
   color: var(--text);
   cursor: pointer;
 }
 
-.builderPickerToggle:active {
-  background: var(--well);
+.builderPickerToggle:focus,
+.builderPickerToggle:focus-visible {
+  outline: none;
+  border-color: #fff;
+  box-shadow: none;
 }
 
 .builderPickerToggle:disabled {
@@ -948,10 +932,10 @@
   max-height: 260px;
   overflow: auto;
   padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: none;
+  border-radius: 0;
   background: linear-gradient(145deg, var(--raise), var(--panel));
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), var(--edge-hi);
+  box-shadow: none;
 }
 
 /* Portaled to document.body so menus aren't clipped by builder scroll containers
@@ -968,7 +952,7 @@
   padding: 7px 10px;
   text-align: left;
   border: none;
-  border-radius: 6px;
+  border-radius: 0;
   background: transparent;
   box-shadow: none;
   color: var(--ok);
@@ -991,8 +975,8 @@
 .builderPickerSearchInput {
   width: 100%;
   padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: 0;
   background: var(--well);
   box-shadow: var(--shadow-in-sm);
   color: var(--text);
@@ -1005,8 +989,8 @@
 
 .builderPickerSearchInput:focus {
   outline: none;
-  border-color: rgba(129, 140, 248, 0.55);
-  box-shadow: var(--shadow-in-sm), 0 0 0 2px rgba(129, 140, 248, 0.25);
+  border-color: #fff;
+  box-shadow: none;
 }
 
 .builderPickerList {
@@ -1020,7 +1004,7 @@
   padding: 7px 10px;
   text-align: left;
   border: none;
-  border-radius: 6px;
+  border-radius: 0;
   background: transparent;
   box-shadow: none;
   color: var(--text);
@@ -1088,7 +1072,7 @@
   cursor: not-allowed;
 }
 
-/* Recessed track; thumb pops out. Checked state lights up with the mesh accent. */
+/* Flat track; thumb is a white disc. Checked state lights up with the mesh accent. */
 .builderToggleTrack {
   position: relative;
   flex-shrink: 0;
@@ -1096,8 +1080,8 @@
   height: 20px;
   border-radius: 999px;
   background: var(--well);
-  border: 1px solid rgba(0, 0, 0, 0.3);
-  box-shadow: var(--shadow-in-sm);
+  border: 1px solid var(--border);
+  box-shadow: none;
   transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -1108,8 +1092,8 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: linear-gradient(145deg, var(--raise), var(--panel));
-  box-shadow: -1px -1px 2px rgba(255, 255, 255, 0.08), 2px 2px 4px rgba(0, 0, 0, 0.55);
+  background: #fff;
+  box-shadow: none;
   transition: transform 0.2s ease, background 0.2s ease;
 }
 
@@ -1125,7 +1109,7 @@
 }
 
 .builderToggleSwitch:focus-visible .builderToggleTrack {
-  outline: 2px solid rgba(129, 140, 248, 0.55);
+  outline: 2px solid #fff;
   outline-offset: 2px;
 }
 
@@ -1203,14 +1187,13 @@
   width: 3px;
   transform: translateX(-50%);
   border-radius: 2px;
-  background: rgba(1, 1, 2, 0.94);
-  transition: background 0.15s, width 0.15s;
+  background: var(--mesh);
+  box-shadow: var(--mesh-glow);
+  transition: width 0.15s;
 }
 
 .matchSplitHandle:hover::after,
 body.matchResizing .matchSplitHandle::after {
-  background: var(--mesh);
-  box-shadow: var(--mesh-glow);
   width: 4px;
 }
 
@@ -1388,8 +1371,8 @@ body.matchResizing {
 
 .matchElementConfigEmpty {
   padding: 12px;
-  border: 1px dashed var(--border);
-  border-radius: 8px;
+  border: none;
+  border-radius: 0;
   color: var(--muted);
   font-size: 12px;
   text-align: center;
