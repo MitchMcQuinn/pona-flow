@@ -399,7 +399,7 @@
 }
 
 .builderCard.nested {
-  border-style: dashed;
+  border: none;
 }
 
 /* Property cards stack flat. A second card picks up a quiet divider above it. */
@@ -518,7 +518,8 @@
 
 .builderParameterCardRemovable > .builderPropertyTypeRow,
 .builderParameterCardRemovable > .builderInlineRow,
-.builderParameterCardRemovable > .builderAssignmentFields {
+.builderParameterCardRemovable > .builderAssignmentFields,
+.builderParameterCardRemovable > .builderRow {
   padding-right: 36px;
 }
 
@@ -1871,7 +1872,7 @@ body.matchResizing {
 }
 
 /* Reused path-entry cards: strip outer card chrome (panel head already labels the selection).
-   Nested property / WHERE cards keep their own styling. */
+   Nested property / filter cards use the same divider stack as parameters. */
 .matchElementConfig > .builderCard {
   border: none;
   background: none;

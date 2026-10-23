@@ -40,6 +40,28 @@ import type { SchematicProperties } from "../../../state/builder/types";
 
 const ADD_PARAMETER_VALUE = "__add_parameter_value__";
 
+function CardRemove({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="builderPropertyRemove"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+        <path
+          d="M2 2 L10 10 M10 2 L2 10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+        />
+      </svg>
+    </button>
+  );
+}
+
 interface PathWhereCardProps {
   clauseIndex: number;
   patternIndex: number;
@@ -194,8 +216,9 @@ function FilterRow({
   }
 
   return (
-    <div className="builderItemRow">
-      <div className="builderRow">
+    <div className="builderCard nested builderItemRow builderParameterCard builderParameterCardRemovable">
+      <CardRemove label="Remove filter" onClick={remove} />
+      <div className="builderInlineRow">
         <div className="builderField">
           <label>property</label>
           {attributiveLabelIsParameter ? (
@@ -304,11 +327,6 @@ function FilterRow({
           </div>
         ) : null}
       </div>
-      <div className="builderRowActions">
-        <button type="button" className="builderTinyBtn builderDanger" onClick={remove}>
-          Remove filter
-        </button>
-      </div>
     </div>
   );
 }
@@ -355,29 +373,39 @@ function GroupEditor({
     onRootChange(next);
   };
 
-  return (
-    <div className={path.length ? "builderCard nested" : ""}>
-      <div className="builderHeadRow">
-        <div className="builderInline">
-          <button type="button" className="builderTinyBtn builderAddBtn" onClick={addFilter}>
-            + filter
-          </button>
-          <button type="button" className="builderTinyBtn builderAddBtn" onClick={addGroup}>
-            + group
-          </button>
-          {path.length > 0 ? (
-            <button type="button" className="builderTinyBtn builderDanger" onClick={removeThisGroup}>
-              Remove group
-            </button>
-          ) : null}
-        </div>
-      </div>
+  const showCombine = group.items.length > 1;
+  const empty = group.items.length === 0;
 
-      <div className="builderRow">
+  return (
+    <div className={path.length ? "builderStackCard" : undefined}>
+      {path.length > 0 ? (
+        <div className="builderOperationGroupHead">
+          {showCombine ? (
+            <div className="builderField builderSegmentField">
+              <label id={`builder-where-combine-${path.join("-")}`}>combine</label>
+              <SegmentToggle
+                labelledBy={`builder-where-combine-${path.join("-")}`}
+                value={group.operator}
+                options={[
+                  { value: "AND", label: "AND" },
+                  { value: "OR", label: "OR" }
+                ]}
+                onChange={(operator) => {
+                  const next = setEntityWhereOperator(group, [], operator);
+                  updateThisGroup(next);
+                }}
+              />
+            </div>
+          ) : (
+            <h3 className="builderPanelTitle">group</h3>
+          )}
+          <CardRemove label="Remove group" onClick={removeThisGroup} />
+        </div>
+      ) : showCombine ? (
         <div className="builderField builderSegmentField">
-          <label id={`builder-where-combine-${path.join("-") || "root"}`}>combine</label>
+          <label id="builder-where-combine-root">combine</label>
           <SegmentToggle
-            labelledBy={`builder-where-combine-${path.join("-") || "root"}`}
+            labelledBy="builder-where-combine-root"
             value={group.operator}
             options={[
               { value: "AND", label: "AND" },
@@ -389,9 +417,9 @@ function GroupEditor({
             }}
           />
         </div>
-      </div>
+      ) : null}
 
-      {group.items.length === 0 ? <p className="builderCheckMsg">No filters in this group.</p> : null}
+      {empty ? <p className="builderCheckMsg muted">No filters yet.</p> : null}
 
       {group.items.map((item: WhereItem, index) => {
         const itemPath = fullPath([index]);
@@ -425,6 +453,23 @@ function GroupEditor({
         }
         return null;
       })}
+
+      <div className="builderCardFooter">
+        <button
+          type="button"
+          className="builderTinyBtn builderAddBtn builderAddParameterBtn"
+          onClick={addFilter}
+        >
+          + filter
+        </button>
+        <button
+          type="button"
+          className="builderTinyBtn builderAddBtn builderAddParameterBtn"
+          onClick={addGroup}
+        >
+          + group
+        </button>
+      </div>
     </div>
   );
 }
@@ -452,11 +497,11 @@ export function PathWhereCard({
 
   if (!attributiveLabel.trim()) return null;
 
+  const empty = !root.items.length;
+
   return (
-    <div className="builderCard nested">
-      <div className="builderHeadRow">
-        <label className="matchPaneTitle">where</label>
-      </div>
+    <div>
+      <h2 className={`builderPanelTitle${empty ? " muted" : ""}`}>where</h2>
       <GroupEditor
         group={root}
         path={[]}
