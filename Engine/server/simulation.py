@@ -399,6 +399,22 @@ def create_session(event: dict[str, Any], world_start_at: str) -> dict[str, Any]
     return created
 
 
+def rename_session(event: dict[str, Any], session_id: str, name: str) -> dict[str, Any]:
+    """Store a custom session name. A blank name clears it back to the start time."""
+    _require_simulated(event)
+    session = _require_session(str(event.get("id") or ""), session_id)
+    cleaned = (name or "").strip()
+    with _session_lock(session["id"]):
+        if cleaned:
+            catalog.update_simulation_session(session["id"], name=cleaned)
+        else:
+            catalog.update_simulation_session(session["id"], clear_name=True)
+        detail = catalog.get_simulation_session_detail(session["id"], str(event.get("id") or ""))
+    if detail is None:
+        raise LookupError("Session not found")
+    return detail
+
+
 def delete_session(event: dict[str, Any], session_id: str) -> None:
     """Delete one session and its emissions."""
     _require_simulated(event)

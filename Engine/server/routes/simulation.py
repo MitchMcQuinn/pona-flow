@@ -100,6 +100,19 @@ async def create_session(
     return JSONResponse(content=created, status_code=201)
 
 
+@router.post("/api/events/{event_id}/sessions/{session_id}/name")
+async def rename_session(
+    event_id: str,
+    session_id: str,
+    request: Request,
+    principal: Principal = Depends(auth.current_principal_or_agent),
+):
+    event = _event_for_principal(event_id, principal)
+    body = await json_body(request)
+    raw = body.get("name")
+    return _call(lambda: simulation.rename_session(event, session_id, str(raw or "")))
+
+
 @router.delete("/api/events/{event_id}/sessions/{session_id}")
 def delete_session(
     event_id: str,

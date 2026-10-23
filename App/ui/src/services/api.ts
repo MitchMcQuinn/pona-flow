@@ -1005,6 +1005,8 @@ export interface SimulationSession {
   currentWorldTime: string;
   createdAt: string;
   errorMessage: string | null;
+  /** Set only when the user has renamed the session. Otherwise the start time is the name. */
+  name: string | null;
   emissions?: SimulationEmission[];
 }
 
@@ -1028,6 +1030,7 @@ interface SimulationSessionRow {
   current_world_time?: string;
   created_at?: string;
   error_message?: string | null;
+  name?: string | null;
   emissions?: SimulationEmissionRow[];
 }
 
@@ -1054,6 +1057,7 @@ function toSimulationSession(row: SimulationSessionRow): SimulationSession {
     currentWorldTime: row.current_world_time || "",
     createdAt: row.created_at || "",
     errorMessage: row.error_message ?? null,
+    name: row.name?.trim() || null,
     emissions: Array.isArray(row.emissions) ? row.emissions.map(toSimulationEmission) : undefined
   };
 }
@@ -1111,6 +1115,19 @@ export async function clearSimulationSessionError(
     `/api/events/${encodeURIComponent(eventId)}/sessions/${encodeURIComponent(sessionId)}/clear-error`,
     {},
     "Failed to clear simulation error"
+  );
+  return toSimulationSession(data);
+}
+
+export async function renameSimulationSession(
+  eventId: string,
+  sessionId: string,
+  name: string
+): Promise<SimulationSession> {
+  const data = await postJson<SimulationSessionRow>(
+    `/api/events/${encodeURIComponent(eventId)}/sessions/${encodeURIComponent(sessionId)}/name`,
+    { name },
+    "Failed to rename simulation session"
   );
   return toSimulationSession(data);
 }

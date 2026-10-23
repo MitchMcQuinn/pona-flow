@@ -435,7 +435,7 @@
 .builderOperationConditions,
 .builderOperationStatements {
   position: relative;
-  padding-left: 16px;
+  padding-left: var(--rail-step);
 }
 
 .builderOperationConditions::before,
@@ -445,7 +445,7 @@
   top: 0;
   bottom: 0;
   left: 0;
-  width: 2px;
+  width: var(--rail-width);
   background: var(--mesh);
   box-shadow: var(--mesh-glow);
   pointer-events: none;
@@ -754,7 +754,8 @@
 
 .builderAddBtn {
   font-size: 12px;
-  border-style: dashed;
+  border-style: solid;
+  border-color: #fff;
 }
 
 .builderAddParameterBtn {

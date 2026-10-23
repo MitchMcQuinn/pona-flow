@@ -4,7 +4,7 @@ import {
   fetchEventTestCapture,
   type EventTestCapture
 } from "../../services/api";
-import { FieldLabel } from "../builder/FieldTip";
+import { EventInlineField } from "./EventInlineField";
 
 interface EventTestListenerProps {
   /** Saved event id. Null while the event has not been created yet. */
@@ -115,22 +115,20 @@ export function EventTestListener({ eventId, ingestToken, signed }: EventTestLis
 
   return (
     <div className="eventTest" data-testid="event-test-endpoint">
-      <div className="field">
-        <FieldLabel
-          tip={
-            signed
-              ? "POST a sample payload here to preview it. Sequences do not run. Send X-Pona-Signature when a signing secret is set."
-              : "POST a sample payload here to preview it. Sequences do not run."
-          }
-        >
-          test endpoint
-        </FieldLabel>
+      <EventInlineField
+        label="test endpoint"
+        tip={
+          signed
+            ? "POST a sample payload here to preview it. Sequences do not run. Send X-Pona-Signature when a signing secret is set."
+            : "POST a sample payload here to preview it. Sequences do not run."
+        }
+      >
         {testUrl ? (
           <CopyField value={testUrl} testId="event-test-url" />
         ) : (
           <p className="muted">Save to generate a test endpoint.</p>
         )}
-      </div>
+      </EventInlineField>
 
       {testUrl ? (
         <div className="eventTestMeta">

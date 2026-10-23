@@ -310,6 +310,11 @@ assert event is not None
 session = simulation.create_session(event, "2026-01-01T00:00:00Z")
 check("session starts at tic 0", session["current_tic"] == 0)
 check("session clock is the in-world start", session["world_start_at"].startswith("2026-01-01T00:00:00"))
+check("session name defaults to the start time", not session.get("name"))
+renamed = simulation.rename_session(event, session["id"], "Morning shift")
+check("session keeps a custom name", renamed.get("name") == "Morning shift")
+cleared = simulation.rename_session(event, session["id"], "  ")
+check("blank name falls back to the start time", not cleared.get("name"))
 
 runs.clear()
 waiters.clear()

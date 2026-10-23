@@ -76,6 +76,14 @@ def _ensure_events_simulation_column(conn: sqlite3.Connection) -> None:
     )
 
 
+def _ensure_simulation_session_name(conn: sqlite3.Connection) -> None:
+    """Additive migration: optional custom name on a simulation session.
+
+    A blank name means the session is addressed by its start time.
+    """
+    sqlite_util.ensure_column(conn, "simulation_sessions", "name", "TEXT")
+
+
 def _ensure_audit_log_trigger_check(conn: sqlite3.Connection) -> None:
     """Rebuild ``audit_log`` if its trigger CHECK predates ``simulated``.
 
@@ -115,6 +123,7 @@ def run_startup_migrations() -> None:
         # Add the events.external_package / simulation_package columns on older catalogs.
         _ensure_events_external_column(conn)
         _ensure_events_simulation_column(conn)
+        _ensure_simulation_session_name(conn)
         # Rebuild events when its type CHECK predates 'simulated'.
         catalog._rebuild_events_type_check(conn)
         # Rebuild audit_log when its trigger CHECK is missing 'simulated',

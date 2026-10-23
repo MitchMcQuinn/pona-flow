@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type {
   Combinator,
   EventRuleGroup,
@@ -22,6 +22,9 @@ import { browserTimeZone, supportedTimeZones, timeZoneLabel } from "../../servic
 import { FieldLabel, FieldTip } from "../builder/FieldTip";
 import { SegmentToggle } from "../builder/SegmentToggle";
 import { Toggle } from "../builder/Toggle";
+import { SequenceMultiPicker } from "./SequenceMultiPicker";
+import { TimeEventGroups } from "./TimeEventGroups";
+import { EventInlineField } from "./EventInlineField";
 import "../builder/builder.css";
 import "./events.css";
 
@@ -41,33 +44,7 @@ interface EventBuilderProps {
   defaultTimezone: string | null;
   onSaved: (eventId: string) => void;
   onDeleted: () => void;
-  onCancel: () => void;
 }
-
-const WEEKDAYS: Array<{ value: number; label: string }> = [
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
-  { value: 7, label: "Sun" }
-];
-
-const MONTHS: Array<{ value: number; label: string }> = [
-  { value: 1, label: "Jan" },
-  { value: 2, label: "Feb" },
-  { value: 3, label: "Mar" },
-  { value: 4, label: "Apr" },
-  { value: 5, label: "May" },
-  { value: 6, label: "Jun" },
-  { value: 7, label: "Jul" },
-  { value: 8, label: "Aug" },
-  { value: 9, label: "Sep" },
-  { value: 10, label: "Oct" },
-  { value: 11, label: "Nov" },
-  { value: 12, label: "Dec" }
-];
 
 function emptyGroup(): EventRuleGroup {
   return {
@@ -124,51 +101,13 @@ function CopyField({ value, testId }: { value: string; testId?: string }) {
   );
 }
 
-function parseNumberList(text: string): number[] | null {
-  const values = text
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0)
-    .map((part) => Number.parseInt(part, 10))
-    .filter((n) => Number.isFinite(n));
-  return values.length > 0 ? values : null;
-}
-
-function formatNumberList(values: number[] | null): string {
-  return values && values.length > 0 ? values.join(", ") : "";
-}
-
-/** Normalize a stored time-of-day for an <input type="time"> (tolerates a legacy "z"). */
-function timeToInput(value: string | null): string {
-  if (!value) return "";
-  return value.trim().toLowerCase().replace(/z$/, "");
-}
-
-/** Times are stored as a plain local "HH:MM" (interpreted in the event's timezone). */
-function inputToTime(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed || null;
-}
-
-function toggleValue(current: number[] | null, value: number): number[] | null {
-  const set = new Set(current ?? []);
-  if (set.has(value)) {
-    set.delete(value);
-  } else {
-    set.add(value);
-  }
-  const next = Array.from(set).sort((a, b) => a - b);
-  return next.length > 0 ? next : null;
-}
-
 export function EventBuilder({
   spaceId,
   sequences,
   eventId,
   defaultTimezone,
   onSaved,
-  onDeleted,
-  onCancel
+  onDeleted
 }: EventBuilderProps) {
   const newEventTimezone = defaultTimezone || browserTimeZone();
 
@@ -178,6 +117,8 @@ export function EventBuilder({
   const [combinator, setCombinator] = useState<Combinator>("OR");
   const [timezone, setTimezone] = useState<string>(newEventTimezone);
   const [groups, setGroups] = useState<EventRuleGroup[]>([emptyGroup()]);
+  /** Bumps when a load or a new-event reset replaces `groups`, so the group editor remounts on that data. */
+  const [scheduleEpoch, setScheduleEpoch] = useState(0);
   const [selectedSequences, setSelectedSequences] = useState<string[]>([]);
   const [selectedRecovery, setSelectedRecovery] = useState<string[]>([]);
   const [parameters, setParameters] = useState<Record<string, unknown>>({});
@@ -189,9 +130,11 @@ export function EventBuilder({
   const [mappings, setMappings] = useState<ExternalParamMapping[]>([]);
   const [simulation, setSimulation] = useState<SimulationPackage>(emptySimulationPackage);
   const simFieldsRef = useRef<SimulatedEventFieldsHandle>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(eventId));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [simView, setSimView] = useState<"endpoints" | "sessions">("sessions");
 
   // Rule values are authored directly in this zone, so no conversion is needed here.
   const timeZoneNote = timeZoneLabel(timezone);
@@ -207,6 +150,8 @@ export function EventBuilder({
   }, [timezone]);
 
   useEffect(() => {
+    setSettingsOpen(false);
+    setSimView("sessions");
     if (!eventId) {
       setName("");
       setEnabled(true);
@@ -214,6 +159,7 @@ export function EventBuilder({
       setCombinator("OR");
       setTimezone(newEventTimezone);
       setGroups([emptyGroup()]);
+      setScheduleEpoch((epoch) => epoch + 1);
       setSelectedSequences([]);
       setSelectedRecovery([]);
       setParameters({});
@@ -246,6 +192,7 @@ export function EventBuilder({
             ? detail.eventPackage.groups.map((group) => ({ ...emptyGroup(), ...group }))
             : [emptyGroup()]
         );
+        setScheduleEpoch((epoch) => epoch + 1);
         setSelectedSequences(detail.sequences);
         setSelectedRecovery(detail.recoverySequences);
         setParameters(detail.eventPackage.parameters || {});
@@ -267,26 +214,6 @@ export function EventBuilder({
       cancelled = true;
     };
   }, [eventId]);
-
-  function updateGroup(index: number, patch: Partial<EventRuleGroup>) {
-    setGroups((current) =>
-      current.map((group, i) => (i === index ? { ...group, ...patch } : group))
-    );
-  }
-
-  function addGroup() {
-    setGroups((current) => [...current, emptyGroup()]);
-  }
-
-  function removeGroup(index: number) {
-    setGroups((current) =>
-      current.length <= 1 ? current : current.filter((_, i) => i !== index)
-    );
-  }
-
-  function toggleSequence(list: string[], setList: (next: string[]) => void, id: string) {
-    setList(list.includes(id) ? list.filter((entry) => entry !== id) : [...list, id]);
-  }
 
   function updateFilter(index: number, patch: Partial<ExternalFilter>) {
     setFilters((current) =>
@@ -370,31 +297,122 @@ export function EventBuilder({
     }
   }
 
+  const savedSimulation = eventType === "simulated" && Boolean(eventId) && !loading;
+
+  const typePicker = (
+    <div className="eventTypeRow">
+      <SegmentToggle
+        ariaLabel="trigger type"
+        testId="event-type-toggle"
+        value={eventType}
+        onChange={(next) => {
+          setEventType(next);
+          if (next === "simulated") setEnabled(true);
+        }}
+        options={[
+          { value: "time", label: "time" },
+          { value: "external", label: "external" },
+          { value: "simulated", label: "simulated" }
+        ]}
+      />
+      <FieldTip text={EVENT_TYPE_TIPS[eventType]} />
+    </div>
+  );
+
+  const saveAndDelete = (
+    <>
+      <button
+        className="btnPrimary"
+        type="button"
+        data-testid="event-save-btn"
+        disabled={!canSave}
+        onClick={handleSave}
+      >
+        {busy ? "Saving..." : eventId ? "Save changes" : "Create event"}
+      </button>
+      {eventId ? (
+        <button
+          className="btnDanger"
+          type="button"
+          data-testid="event-delete-btn"
+          disabled={busy}
+          onClick={handleDelete}
+        >
+          Delete
+        </button>
+      ) : null}
+    </>
+  );
+
+  const simulationEditor =
+    eventType === "simulated" && !loading ? (
+      <SimulatedEventFields
+        key={eventId ?? "new-simulated"}
+        ref={simFieldsRef}
+        initial={simulation}
+        sequences={sequenceOptions}
+        onChange={(next) =>
+          setSimulation((current) => ({ ...next, token: next.token || current.token }))
+        }
+      />
+    ) : null;
+
   return (
     <div className="panel configPanel eventBuilder">
       <div className="panel__body">
-        <h1>{eventId ? "edit event" : "create an event"}</h1>
+        <div className="eventHeader">
+          {eventId && !loading ? (
+            <div
+              className={
+                name.trim()
+                  ? "builderField builderPropertyName eventTitleField"
+                  : "builderField builderFieldMissing builderPropertyName eventTitleField"
+              }
+            >
+              <input
+                id="event-name"
+                className="builderPropertyNameInput"
+                aria-label="event name"
+                value={name}
+                placeholder="Enter an event name"
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+          ) : eventId ? null : (
+            <h1>create an event</h1>
+          )}
+          {savedSimulation ? (
+            <button
+              type="button"
+              className={`eventSettingsGear${settingsOpen ? " is-open" : ""}`}
+              aria-pressed={settingsOpen}
+              aria-label="event settings"
+              data-testid="event-settings-toggle"
+              onClick={() => setSettingsOpen((open) => !open)}
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z" />
+              </svg>
+            </button>
+          ) : null}
+        </div>
 
         {loading ? <p className="muted">Loading event...</p> : null}
 
-        <div className="eventTypeRow">
-          <SegmentToggle
-            ariaLabel="trigger type"
-            testId="event-type-toggle"
-            value={eventType}
-            onChange={(next) => {
-              setEventType(next);
-              if (next === "simulated") setEnabled(true);
-            }}
-            options={[
-              { value: "time", label: "time" },
-              { value: "external", label: "external" },
-              { value: "simulated", label: "simulated" }
-            ]}
-          />
-          <FieldTip text={EVENT_TYPE_TIPS[eventType]} />
-        </div>
+        {!savedSimulation || settingsOpen ? typePicker : null}
 
+        {eventId && !loading ? (
+          eventType !== "simulated" ? (
+            <div className="eventInlineRow">
+              <Toggle
+                id="event-enabled-toggle"
+                checked={enabled}
+                onChange={setEnabled}
+                label="enabled"
+              />
+            </div>
+          ) : null
+        ) : (
         <div className="eventInlineRow">
           <div
             className={
@@ -421,19 +439,20 @@ export function EventBuilder({
             />
           ) : null}
         </div>
+        )}
 
         {eventType === "external" ? (
           <div className="eventExternal eventSection">
-            <div className="field">
-              <FieldLabel tip="External services POST their payload here to run the sequences below. The URL is created when you first save.">
-                inbound URL
-              </FieldLabel>
+            <EventInlineField
+              label="inbound URL"
+              tip="External services POST their payload here to run the sequences below. The URL is created when you first save."
+            >
               {ingestUrl ? (
                 <CopyField value={ingestUrl} testId="event-ingest-url" />
               ) : (
                 <p className="muted">Save to generate the URL.</p>
               )}
-            </div>
+            </EventInlineField>
 
             <EventTestListener
               eventId={eventId}
@@ -441,143 +460,226 @@ export function EventBuilder({
               signed={secret.trim().length > 0}
             />
 
-            <div className="field">
-              <FieldLabel tip="When set, callers must send an X-Pona-Signature HMAC-SHA256 of the raw body. Leave blank to accept any request.">
-                signing secret
-              </FieldLabel>
+            <EventInlineField
+              label="signing secret"
+              htmlFor="event-secret"
+              tip="When set, callers must send an X-Pona-Signature HMAC-SHA256 of the raw body. Leave blank to accept any request."
+            >
               <input
                 id="event-secret"
                 value={secret}
                 placeholder="optional"
                 onChange={(e) => setSecret(e.target.value)}
               />
-            </div>
+            </EventInlineField>
 
-            <div className="eventInlineRow">
-              <div className="field">
-                <FieldLabel tip="Only matching payloads fire the event. No filters means every request.">
-                  filters
-                </FieldLabel>
+            <EventInlineField
+              label="filters"
+              heading={filters.length > 0 ? "h2" : undefined}
+              tip="Only matching payloads fire the event. No filters means every request."
+            >
+              {filters.length > 0 ? (
                 <select
                   id="event-ext-combinator"
+                  aria-label="filter combinator"
                   value={externalCombinator}
                   onChange={(e) => setExternalCombinator(e.target.value as Combinator)}
                 >
                   <option value="AND">all (AND)</option>
                   <option value="OR">any (OR)</option>
                 </select>
+              ) : (
+                <button
+                  type="button"
+                  className="tinyBtn"
+                  onClick={() => setFilters((c) => [...c, emptyFilter()])}
+                >
+                  + Add filter
+                </button>
+              )}
+            </EventInlineField>
+
+            {filters.length > 0 ? (
+              <div className="eventInlineNest">
+              <div className="eventInlineList">
+                {filters.map((filter, index) => (
+                  <Fragment key={index}>
+                  {index > 0 ? (
+                    <div className="builderJunctionDivider" aria-hidden="true">
+                      <span>{externalCombinator}</span>
+                    </div>
+                  ) : null}
+                  <div className="eventInlineGroup">
+                    <button
+                      type="button"
+                      className="builderPropertyRemove"
+                      aria-label={`Remove filter ${index + 1}`}
+                      title="Remove filter"
+                      onClick={() => setFilters((c) => c.filter((_, i) => i !== index))}
+                    >
+                      <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+                        <path
+                          d="M2 2 L10 10 M10 2 L2 10"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </button>
+                    <EventInlineField label="path">
+                      <input
+                        aria-label={`Filter ${index + 1} path`}
+                        value={filter.path}
+                        placeholder="event.type"
+                        onChange={(e) => updateFilter(index, { path: e.target.value })}
+                      />
+                    </EventInlineField>
+                    <EventInlineField label="operator">
+                      <select
+                        aria-label={`Filter ${index + 1} operator`}
+                        value={filter.operator}
+                        onChange={(e) =>
+                          updateFilter(index, {
+                            operator: e.target.value as ExternalFilterOperator
+                          })
+                        }
+                      >
+                        {FILTER_OPERATORS.map((op) => (
+                          <option key={op.value} value={op.value}>
+                            {op.label}
+                          </option>
+                        ))}
+                      </select>
+                    </EventInlineField>
+                    <EventInlineField label="value">
+                      <input
+                        aria-label={`Filter ${index + 1} value`}
+                        value={filter.value}
+                        placeholder="value"
+                        disabled={filter.operator === "exists"}
+                        onChange={(e) => updateFilter(index, { value: e.target.value })}
+                      />
+                    </EventInlineField>
+                  </div>
+                  </Fragment>
+                ))}
+                <button
+                  type="button"
+                  className="tinyBtn eventInlineAdd"
+                  onClick={() => setFilters((c) => [...c, emptyFilter()])}
+                >
+                  + Add filter
+                </button>
               </div>
-            </div>
+              </div>
+            ) : null}
 
-            <div className="eventGroups">
-              {filters.map((filter, index) => (
-                <div className="eventFilterRow" key={index}>
-                  <input
-                    aria-label={`Filter ${index + 1} path`}
-                    value={filter.path}
-                    placeholder="payload path e.g. event.type"
-                    onChange={(e) => updateFilter(index, { path: e.target.value })}
-                  />
-                  <select
-                    aria-label={`Filter ${index + 1} operator`}
-                    value={filter.operator}
-                    onChange={(e) =>
-                      updateFilter(index, {
-                        operator: e.target.value as ExternalFilterOperator
-                      })
-                    }
-                  >
-                    {FILTER_OPERATORS.map((op) => (
-                      <option key={op.value} value={op.value}>
-                        {op.label}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    aria-label={`Filter ${index + 1} value`}
-                    value={filter.value}
-                    placeholder="value"
-                    disabled={filter.operator === "exists"}
-                    onChange={(e) => updateFilter(index, { value: e.target.value })}
-                  />
-                  <button
-                    type="button"
-                    className="tinyBtn danger"
-                    onClick={() => setFilters((c) => c.filter((_, i) => i !== index))}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                className="tinyBtn"
-                onClick={() => setFilters((c) => [...c, emptyFilter()])}
-              >
-                + Add filter
-              </button>
-            </div>
+            <EventInlineField
+              label="mappings"
+              heading={mappings.length > 0 ? "h2" : undefined}
+              tip="Copy values from the inbound payload into sequence parameters."
+            >
+              {mappings.length === 0 ? (
+                <button
+                  type="button"
+                  className="tinyBtn"
+                  onClick={() => setMappings((c) => [...c, emptyMapping()])}
+                >
+                  + Add mapping
+                </button>
+              ) : null}
+            </EventInlineField>
 
-            <div className="field">
-              <FieldLabel tip="Copy values from the inbound payload into sequence parameters.">
-                mappings
-              </FieldLabel>
-            </div>
-
-            <div className="eventGroups">
-              {mappings.map((mapping, index) => (
-                <div className="eventFilterRow" key={index}>
-                  <input
-                    aria-label={`Mapping ${index + 1} source path`}
-                    value={mapping.source_path}
-                    placeholder="payload path e.g. user.email"
-                    onChange={(e) => updateMapping(index, { source_path: e.target.value })}
-                  />
-                  <span className="eventMapArrow">→</span>
-                  <input
-                    aria-label={`Mapping ${index + 1} parameter`}
-                    value={mapping.parameter}
-                    placeholder="parameter name"
-                    onChange={(e) => updateMapping(index, { parameter: e.target.value })}
-                  />
-                  <button
-                    type="button"
-                    className="tinyBtn danger"
-                    onClick={() => setMappings((c) => c.filter((_, i) => i !== index))}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                className="tinyBtn"
-                onClick={() => setMappings((c) => [...c, emptyMapping()])}
-              >
-                + Add mapping
-              </button>
-            </div>
+            {mappings.length > 0 ? (
+              <div className="eventInlineNest">
+              <div className="eventInlineList">
+                {mappings.map((mapping, index) => (
+                  <div className="eventInlineGroup" key={index}>
+                    <button
+                      type="button"
+                      className="builderPropertyRemove"
+                      aria-label={`Remove mapping ${index + 1}`}
+                      title="Remove mapping"
+                      onClick={() => setMappings((c) => c.filter((_, i) => i !== index))}
+                    >
+                      <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+                        <path
+                          d="M2 2 L10 10 M10 2 L2 10"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </button>
+                    <EventInlineField label="source">
+                      <input
+                        aria-label={`Mapping ${index + 1} source path`}
+                        value={mapping.source_path}
+                        placeholder="user.email"
+                        onChange={(e) => updateMapping(index, { source_path: e.target.value })}
+                      />
+                    </EventInlineField>
+                    <EventInlineField label="parameter">
+                      <input
+                        aria-label={`Mapping ${index + 1} parameter`}
+                        value={mapping.parameter}
+                        placeholder="parameter name"
+                        onChange={(e) => updateMapping(index, { parameter: e.target.value })}
+                      />
+                    </EventInlineField>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="tinyBtn eventInlineAdd"
+                  onClick={() => setMappings((c) => [...c, emptyMapping()])}
+                >
+                  + Add mapping
+                </button>
+              </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
-        {eventType === "simulated" && !loading ? (
-          <div className="eventSection">
-            <SimulatedEventFields
-              key={eventId ?? "new-simulated"}
-              ref={simFieldsRef}
-              initial={simulation}
-              sequences={sequenceOptions}
-              onChange={(next) =>
-                setSimulation((current) => ({ ...next, token: next.token || current.token }))
-              }
-            />
+        {savedSimulation ? (
+          <div className="eventExternal eventSection eventSettingsFields" hidden={!settingsOpen}>
+            {simulationEditor}
+            <div className="buttonRow eventSettingsActions">{saveAndDelete}</div>
+          </div>
+        ) : eventType === "simulated" && !loading ? (
+          <div className="eventExternal eventSection">
+            {simulationEditor}
             <SimulationSessions eventId={eventId} token={simulation.token || ""} />
+          </div>
+        ) : null}
+
+        {savedSimulation ? (
+          <div className="eventSimViews">
+            <SegmentToggle
+              ariaLabel="simulation view"
+              testId="sim-view-toggle"
+              value={simView}
+              onChange={setSimView}
+              options={[
+                { value: "sessions", label: "sessions" },
+                { value: "endpoints", label: "endpoints" }
+              ]}
+            />
+            <div className="eventExternal">
+              <SimulationSessions
+                view={simView}
+                eventId={eventId}
+                token={simulation.token || ""}
+              />
+            </div>
           </div>
         ) : null}
 
         {eventType === "time" ? (
         <div className="eventSection">
-        <div className="eventInlineRow">
           <div className="field">
             <FieldLabel tip="Dates and times below are read in this zone. DST is handled automatically.">
               timezone
@@ -594,209 +696,51 @@ export function EventBuilder({
               ))}
             </select>
           </div>
-          <div className="field">
-            <FieldLabel tip="Whether any group or every group must match for the event to fire.">
-              match
-            </FieldLabel>
-            <select
-              id="event-combinator"
-              value={combinator}
-              onChange={(e) => setCombinator(e.target.value as Combinator)}
-            >
-              <option value="OR">any group</option>
-              <option value="AND">all groups</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="eventGroups">
-          {groups.map((group, index) => (
-            <div className="eventGroup" key={index}>
-              <div className="eventGroupHeader">
-                <span className="eventGroupTitle">group {index + 1}</span>
-                <select
-                  aria-label={`Group ${index + 1} combinator`}
-                  value={group.combinator}
-                  onChange={(e) => updateGroup(index, { combinator: e.target.value as Combinator })}
-                >
-                  <option value="AND">AND</option>
-                  <option value="OR">OR</option>
-                </select>
-                <button
-                  type="button"
-                  className="tinyBtn danger"
-                  disabled={groups.length <= 1}
-                  onClick={() => removeGroup(index)}
-                >
-                  Remove
-                </button>
-              </div>
-
-              <div className="field">
-                <FieldLabel>weekdays</FieldLabel>
-                <div className="eventChips">
-                  {WEEKDAYS.map((day) => (
-                    <button
-                      type="button"
-                      key={day.value}
-                      className={`eventChip${(group.is_weekday ?? []).includes(day.value) ? " active" : ""}`}
-                      onClick={() =>
-                        updateGroup(index, { is_weekday: toggleValue(group.is_weekday, day.value) })
-                      }
-                    >
-                      {day.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="field">
-                <FieldLabel>months</FieldLabel>
-                <div className="eventChips">
-                  {MONTHS.map((month) => (
-                    <button
-                      type="button"
-                      key={month.value}
-                      className={`eventChip${(group.is_month ?? []).includes(month.value) ? " active" : ""}`}
-                      onClick={() =>
-                        updateGroup(index, { is_month: toggleValue(group.is_month, month.value) })
-                      }
-                    >
-                      {month.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="eventInlineRow">
-                <div className="field">
-                  <FieldLabel tip="1–31, comma separated.">days</FieldLabel>
-                  <input
-                    id={`group-${index}-ordinal`}
-                    value={formatNumberList(group.is_date_ordinal)}
-                    placeholder="1, 15"
-                    onChange={(e) => updateGroup(index, { is_date_ordinal: parseNumberList(e.target.value) })}
-                  />
-                </div>
-                <div className="field">
-                  <FieldLabel>years</FieldLabel>
-                  <input
-                    id={`group-${index}-years`}
-                    value={formatNumberList(group.is_year)}
-                    placeholder="2026, 2027"
-                    onChange={(e) => updateGroup(index, { is_year: parseNumberList(e.target.value) })}
-                  />
-                </div>
-              </div>
-
-              <div className="eventInlineRow">
-                <div className="field">
-                  <FieldLabel>date</FieldLabel>
-                  <input
-                    id={`group-${index}-date`}
-                    type="date"
-                    value={group.is_date ?? ""}
-                    onChange={(e) => updateGroup(index, { is_date: e.target.value || null })}
-                  />
-                </div>
-                <div className="field">
-                  <FieldLabel tip={`Empty is midnight. Times are in ${timeZoneNote}.`}>
-                    time
-                  </FieldLabel>
-                  <input
-                    id={`group-${index}-time`}
-                    type="time"
-                    value={timeToInput(group.is_time)}
-                    onChange={(e) => updateGroup(index, { is_time: inputToTime(e.target.value) })}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-          <button type="button" className="tinyBtn" onClick={addGroup}>
-            + Add group
-          </button>
-        </div>
+          {!loading ? (
+            <TimeEventGroups
+              key={scheduleEpoch}
+              groups={groups}
+              combinator={combinator}
+              timeZoneNote={timeZoneNote}
+              onGroupsChange={setGroups}
+              onCombinatorChange={setCombinator}
+            />
+          ) : null}
         </div>
         ) : null}
 
         {eventType !== "simulated" ? (
-        <div className="field eventSection">
-          <FieldLabel tip="Sequences that run when this event fires.">sequences</FieldLabel>
-          {sequenceOptions.length === 0 ? (
-            <p className="muted">No sequences available in this space.</p>
-          ) : (
-            <div className="eventSeqList">
-              {sequenceOptions.map((sequence) => (
-                <label key={sequence.id} className="eventCheckboxLabel">
-                  <input
-                    type="checkbox"
-                    checked={selectedSequences.includes(sequence.id)}
-                    onChange={() =>
-                      toggleSequence(selectedSequences, setSelectedSequences, sequence.id)
-                    }
-                  />
-                  {sequence.label}
-                </label>
-              ))}
-            </div>
-          )}
+        <div className={eventType === "external" ? "eventSection eventSectionFlat" : "eventSection"}>
+          <SequenceMultiPicker
+            label="sequences"
+            tip="Sequences that run when this event fires."
+            sequences={sequenceOptions}
+            selected={selectedSequences}
+            onChange={setSelectedSequences}
+            pickerTestId="event-sequence-picker"
+            menuTestId="event-sequence-menu"
+          />
         </div>
         ) : null}
 
         {eventType === "time" ? (
-        <div className="field eventSection">
-          <FieldLabel tip="Run these if a scheduled fire was missed while the engine was offline.">
-            recovery
-          </FieldLabel>
-          {sequenceOptions.length === 0 ? (
-            <p className="muted">No sequences available in this space.</p>
-          ) : (
-            <div className="eventSeqList">
-              {sequenceOptions.map((sequence) => (
-                <label key={sequence.id} className="eventCheckboxLabel">
-                  <input
-                    type="checkbox"
-                    checked={selectedRecovery.includes(sequence.id)}
-                    onChange={() =>
-                      toggleSequence(selectedRecovery, setSelectedRecovery, sequence.id)
-                    }
-                  />
-                  {sequence.label}
-                </label>
-              ))}
-            </div>
-          )}
+        <div className="eventSection">
+          <SequenceMultiPicker
+            label="recovery"
+            tip="Run these if a scheduled fire was missed while the engine was offline."
+            sequences={sequenceOptions}
+            selected={selectedRecovery}
+            onChange={setSelectedRecovery}
+            pickerTestId="event-recovery-picker"
+            menuTestId="event-recovery-menu"
+            placeholder="Add a recovery sequence"
+          />
         </div>
         ) : null}
 
         {error ? <p className="errorText">{error}</p> : null}
 
-        <div className="buttonRow">
-          <button
-            className="btnPrimary"
-            type="button"
-            data-testid="event-save-btn"
-            disabled={!canSave}
-            onClick={handleSave}
-          >
-            {busy ? "Saving..." : eventId ? "Save changes" : "Create event"}
-          </button>
-          {eventId ? (
-            <button
-              className="btnDanger"
-              type="button"
-              data-testid="event-delete-btn"
-              disabled={busy}
-              onClick={handleDelete}
-            >
-              Delete
-            </button>
-          ) : null}
-          <button type="button" disabled={busy} onClick={onCancel}>
-            Cancel
-          </button>
-        </div>
+        {savedSimulation ? null : <div className="buttonRow">{saveAndDelete}</div>}
       </div>
     </div>
   );

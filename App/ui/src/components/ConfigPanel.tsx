@@ -26,7 +26,6 @@ interface ConfigPanelProps {
   builderKey?: number;
   onEventSaved: (eventId: string) => void;
   onEventDeleted: () => void;
-  onEventCancel: () => void;
   spaces: Array<{ id: string; label: string }>;
   onSpaceSaved: (values: {
     name: string;
@@ -271,7 +270,6 @@ export function ConfigPanel({
   builderKey,
   onEventSaved,
   onEventDeleted,
-  onEventCancel,
   spaces,
   onSpaceSaved,
   savingSpace,
@@ -464,7 +462,6 @@ export function ConfigPanel({
         defaultTimezone={state.me?.timezone ?? null}
         onSaved={onEventSaved}
         onDeleted={onEventDeleted}
-        onCancel={onEventCancel}
       />
     );
   }

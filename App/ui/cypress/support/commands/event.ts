@@ -38,9 +38,8 @@ function selectEventType(type: "time" | "external" | "simulated"): void {
 
 function selectEventSequences(labels: string[]): void {
   for (const label of labels) {
-    cy.contains(".eventSeqList .eventCheckboxLabel", label).find('input[type="checkbox"]').check({
-      force: true
-    });
+    cy.get('[data-testid="event-sequence-picker"]').click();
+    cy.get('[data-testid="event-sequence-menu"]').contains("button", label).click();
   }
 }
 

@@ -74,7 +74,7 @@ export function ChoiceOptionsEditor({
           </button>
         </div>
       ))}
-      <button type="button" className="builderTinyBtn" disabled={disabled} onClick={addOption}>
+      <button type="button" className="builderTinyBtn builderAddBtn" disabled={disabled} onClick={addOption}>
         + option
       </button>
 

@@ -30,6 +30,15 @@
   --mesh-glow: 0 0 18px rgba(139, 92, 246, 0.28), 0 0 36px rgba(6, 182, 212, 0.14);
   /* Horizontal panel padding — room for mesh-glow to paint inside overflow clips. */
   --glow-bleed: 32px;
+  /* Rainbow rails. Nested lines step in by the same distance as the column
+     divider to the first in-pane rail, so every level has the same gap. */
+  --rail-width: 2px;
+  --column-divider-track: 10px;
+  --column-divider-gutter: 2px;
+  --rail-step: calc(
+    (var(--column-divider-track) - var(--rail-width)) / 2 + var(--rail-width) +
+      var(--column-divider-gutter) + var(--glow-bleed)
+  );
   /* Inline bleed for mesh-glow buttons inside nested overflow-x clips (cards, builder rows). */
   --btn-glow-bleed: 20px;
 
@@ -386,16 +395,23 @@ body.layoutResizing {
 }
 
 .layoutConfigSlot > .panel.builderPanel .panel__body,
-.configPanel.builderPanel .panel__body {
+.configPanel.builderPanel .panel__body,
+.layoutConfigSlot > .panel.eventBuilder .panel__body,
+.configPanel.eventBuilder .panel__body {
   display: flex;
   flex-direction: column;
   padding-top: 48px;
   padding-bottom: 48px;
 }
 
+.layoutNavSlot > .navPanel .panel__body {
+  padding-top: 48px;
+  padding-bottom: 48px;
+}
+
 .layoutResizeHandle {
-  flex: 0 0 10px;
-  margin: 0 2px;
+  flex: 0 0 var(--column-divider-track);
+  margin: 0 var(--column-divider-gutter);
   cursor: col-resize;
   border-radius: 0;
   align-self: stretch;
@@ -410,7 +426,7 @@ body.layoutResizing {
   top: 12px;
   bottom: 12px;
   left: 50%;
-  width: 2px;
+  width: var(--rail-width);
   transform: translateX(-50%);
   border-radius: 0;
   background: var(--mesh);
@@ -1454,11 +1470,46 @@ td {
   height: 100%;
 }
 
-/* Soft edge so scrolling titles fade out instead of clipping hard. */
-.configPanel.builderPanel::after {
+/* Soft edge so scrolling titles fade out instead of clipping hard.
+   The workbench and create-sequence form share builderPanel. Event forms use
+   the same overlay. The nav fade sits in the list's grid cell, above the
+   scroller and short of the pinned account footer. */
+.configPanel.builderPanel::after,
+.configPanel.eventBuilder::after {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, var(--bg) 0%, transparent 100%),
+    linear-gradient(to top, var(--bg) 0%, transparent 100%);
+  background-repeat: no-repeat;
+  background-position: top, bottom;
+  background-size: 100% 48px, 100% 48px;
+}
+
+.layoutNavSlot > .navPanel {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.layoutNavSlot > .navPanel > .panel__body {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.layoutNavSlot > .navPanel > .navUserSettings {
+  grid-row: 2;
+  grid-column: 1;
+  z-index: 5;
+}
+
+.layoutNavSlot > .navPanel::after {
+  content: "";
+  grid-row: 1;
+  grid-column: 1;
   z-index: 4;
   pointer-events: none;
   background:
@@ -1483,6 +1534,8 @@ td {
 .layoutVizSlot .vizPanel .panel__body {
   display: flex;
   flex-direction: column;
+  padding-top: 48px;
+  padding-bottom: 48px;
 }
 
 .layoutVizSlot .resultView {

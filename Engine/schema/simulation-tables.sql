@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS simulation_sessions (
     world_start_at TEXT NOT NULL,
     current_world_time TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    error_message TEXT
+    error_message TEXT,
+    name TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_simulation_sessions_event ON simulation_sessions (event_id);

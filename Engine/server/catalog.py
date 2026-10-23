@@ -137,12 +137,13 @@ def _rebuild_events_type_check(conn: sqlite3.Connection) -> None:
 
 def _ensure_simulation_tables(conn: sqlite3.Connection) -> None:
     """Create simulation session/emission tables when this catalog predates them."""
-    if sqlite_util.table_exists(conn, "simulation_sessions") and sqlite_util.table_exists(
-        conn, "simulation_emissions"
+    if not (
+        sqlite_util.table_exists(conn, "simulation_sessions")
+        and sqlite_util.table_exists(conn, "simulation_emissions")
     ):
-        return
-    conn.executescript(_SIMULATION_TABLES_SQL.read_text(encoding="utf-8"))
-    conn.commit()
+        conn.executescript(_SIMULATION_TABLES_SQL.read_text(encoding="utf-8"))
+        conn.commit()
+    sqlite_util.ensure_column(conn, "simulation_sessions", "name", "TEXT")
 
 
 def _ensure_event_test_captures(conn: sqlite3.Connection) -> None:
@@ -1107,7 +1108,7 @@ def _delete_simulation_for_event(conn: sqlite3.Connection, event_id: str) -> Non
 
 _SESSION_COLUMNS = (
     "id, event_id, space_id, status, current_tic, world_start_at, "
-    "current_world_time, created_at, error_message"
+    "current_world_time, created_at, error_message, name"
 )
 
 _EMISSION_COLUMNS = (
@@ -1127,6 +1128,7 @@ def _simulation_session_row(row: sqlite3.Row | tuple) -> dict[str, Any]:
         "current_world_time": row[6],
         "created_at": row[7],
         "error_message": row[8],
+        "name": row[9] or None,
     }
 
 
@@ -1240,8 +1242,14 @@ def update_simulation_session(
     current_world_time: str | None = None,
     error_message: str | None = None,
     clear_error: bool = False,
+    name: str | None = None,
+    clear_name: bool = False,
 ) -> None:
-    """Patch session clock/status. ``clear_error`` nulls ``error_message``."""
+    """Patch session clock/status. ``clear_error`` nulls ``error_message``.
+
+    ``name`` stores a caller-chosen label. ``clear_name`` nulls it so the
+    session is addressed by its start time again.
+    """
     sid = (session_id or "").strip()
     if not sid:
         return
@@ -1261,6 +1269,11 @@ def update_simulation_session(
     elif error_message is not None:
         sets.append("error_message = ?")
         params.append(error_message)
+    if clear_name:
+        sets.append("name = NULL")
+    elif name is not None:
+        sets.append("name = ?")
+        params.append(name)
     if not sets:
         return
     params.append(sid)

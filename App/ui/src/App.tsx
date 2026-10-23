@@ -745,7 +745,6 @@ export default function App() {
             builderKey={sequenceBuilderKey}
             onEventSaved={eventsNav.handleEventSaved}
             onEventDeleted={eventsNav.handleEventDeleted}
-            onEventCancel={() => dispatch({ type: "EVENT_DESELECTED" })}
             spaces={spaces}
             onSpaceSaved={spacesLifecycle.handleUpdateSpace}
             savingSpace={spacesLifecycle.savingSpaceEdit}
