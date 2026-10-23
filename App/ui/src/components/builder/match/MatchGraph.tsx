@@ -393,6 +393,13 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
       .filter((event) => {
         // Wheel only zooms while holding ctrl/cmd; plain scroll passes through to the page.
         if (event.type === "wheel") return event.ctrlKey || event.metaKey;
+        // On phones/tablets one finger must scroll the workbench. Two fingers pan and zoom.
+        if (coarse) {
+          if (typeof event.type === "string" && event.type.startsWith("touch")) {
+            return (event.touches?.length ?? 0) >= 2;
+          }
+          if (event.type === "mousedown" || event.type === "pointerdown") return false;
+        }
         // Let node / handle / edge clicks through; pan only on background gestures.
         const target = event.target as Element;
         return (
@@ -813,6 +820,7 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
       d3
         .drag<SVGGElement, SimNode>()
         .filter((event) => {
+          if (coarse && (event.touches?.length ?? 0) > 1) return false;
           const target = event.target as Element;
           return !target.closest?.("[data-port]");
         })

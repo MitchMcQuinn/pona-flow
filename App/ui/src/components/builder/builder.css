@@ -2028,9 +2028,22 @@ body.matchResizing {
   min-height: min(45dvh, 320px);
 }
 
-/* d3-zoom/drag handle pan, pinch and node drags; stop the browser scrolling the page. */
+/* Desktop: d3-zoom owns the pointer so click-drag can pan. */
 .matchGraphCanvas > svg {
   touch-action: none;
+}
+
+/* Mobile: one finger scrolls the workbench; two fingers pan/zoom the clause graph. */
+@media (pointer: coarse) {
+  .matchGraphCanvas > svg {
+    touch-action: pan-y;
+  }
+
+  .matchGraphCanvas > svg [data-node],
+  .matchGraphCanvas > svg [data-port],
+  .matchGraphCanvas > svg [data-edge] {
+    touch-action: none;
+  }
 }
 
 .matchConnectToggle {
