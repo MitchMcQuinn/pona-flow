@@ -385,9 +385,12 @@ body.layoutResizing {
   padding: 12px var(--glow-bleed);
 }
 
-.layoutConfigSlot > .panel.builderPanel .panel__body {
+.layoutConfigSlot > .panel.builderPanel .panel__body,
+.configPanel.builderPanel .panel__body {
   display: flex;
   flex-direction: column;
+  padding-top: 48px;
+  padding-bottom: 48px;
 }
 
 .layoutResizeHandle {
@@ -1451,6 +1454,21 @@ td {
   height: 100%;
 }
 
+/* Soft edge so scrolling titles fade out instead of clipping hard. */
+.configPanel.builderPanel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, var(--bg) 0%, transparent 100%),
+    linear-gradient(to top, var(--bg) 0%, transparent 100%);
+  background-repeat: no-repeat;
+  background-position: top, bottom;
+  background-size: 100% 48px, 100% 48px;
+}
+
 .builderPanel .builderRoot {
   flex: 0 0 auto;
   min-height: auto;
@@ -2282,7 +2300,7 @@ td {
 
 @media (pointer: coarse) {
   /* Below 16px, iOS Safari zooms the page when a field gains focus. */
-  input,
+  input:not(.builderTitleInput):not(.builderPropertyNameInput),
   select,
   textarea {
     font-size: 16px;

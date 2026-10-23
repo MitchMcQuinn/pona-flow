@@ -123,6 +123,8 @@ export interface OperationAssignment {
   type: OperationAssignmentType;
   key: string;
   value: OperationOperand;
+  /** How this row writes when the key already exists. Falls back to the evaluation collision. */
+  collision?: OperationCollision;
 }
 export type CodeLanguage = "python" | "javascript";
 /** How a wait STEP parks the run. */

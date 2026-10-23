@@ -202,11 +202,8 @@
 
 .builderTipBubble {
   display: none;
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
   width: max-content;
-  max-width: min(280px, 70vw);
+  max-width: min(280px, calc(100vw - 16px));
   padding: 8px 10px;
   background: #111;
   color: var(--text);
@@ -216,8 +213,12 @@
   line-height: 1.4;
   letter-spacing: 0;
   white-space: normal;
-  z-index: 20;
+  z-index: 1200;
   text-align: left;
+}
+
+.builderTipBubble.isOpen {
+  display: block;
 }
 
 /* Stacked toggles that shrink-wrap so labelFirst rows stay left-aligned. */
@@ -431,9 +432,23 @@
   padding-top: 16px;
 }
 
-.builderOperationConditions {
-  border-left: 1px solid #fff;
+.builderOperationConditions,
+.builderOperationStatements {
+  position: relative;
   padding-left: 16px;
+}
+
+.builderOperationConditions::before,
+.builderOperationStatements::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--mesh);
+  box-shadow: var(--mesh-glow);
+  pointer-events: none;
 }
 
 .builderOperationConditions > .builderStackCard {
@@ -446,31 +461,34 @@
 }
 
 .builderOperationStatements {
-  border-left: 1px solid #fff;
   margin-top: 8px;
-  padding-left: 16px;
 }
 
 .builderOperationConditionHead,
 .builderOperationGroupHead {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
 }
 
 .builderOperationConditionHead > .builderPanelTitle,
-.builderOperationGroupHead > .builderPanelTitle,
-.builderOperationStatementHead > .builderPanelTitle {
+.builderOperationGroupHead > .builderPanelTitle {
   margin: 0;
 }
 
 .builderOperationGroupHead > .builderJunctionField {
-  margin-left: auto;
+  margin-left: 0;
 }
 
-.builderParameterCardRemovable > .builderOperationStatementHead {
-  padding-right: 36px;
+.builderStatementRow > .builderField {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.builderStatementRow > .builderField.builderInlineRowOperator {
+  flex: 0 0 auto;
+  width: auto;
 }
 
 .builderJunctionDivider {
@@ -499,7 +517,8 @@
 }
 
 .builderParameterCardRemovable > .builderPropertyTypeRow,
-.builderParameterCardRemovable > .builderInlineRow {
+.builderParameterCardRemovable > .builderInlineRow,
+.builderParameterCardRemovable > .builderAssignmentFields {
   padding-right: 36px;
 }
 
@@ -543,6 +562,43 @@
   opacity: 1;
 }
 
+.builderPickerAsTitle .builderPickerToggle,
+.builderRoot input.builderTitleInput,
+.builderRoot input.builderTitleInput::placeholder,
+.builderTitleInput,
+.builderTitleInput::placeholder {
+  font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-size: clamp(22px, 13cqi, 26px);
+  color: var(--text);
+  opacity: 1;
+  text-transform: none;
+}
+
+.builderPickerAsTitle .builderPickerToggle,
+.builderTitleInput {
+  background: transparent;
+  box-shadow: none;
+  padding: 8px 0;
+}
+
+.builderPickerAsTitle .builderPickerCaret {
+  width: 20px;
+  height: 20px;
+}
+
+.builderFieldMissing > .builderPickerAsTitle .builderPickerToggle,
+.builderPickerAsTitle .builderPickerToggle:focus,
+.builderPickerAsTitle .builderPickerToggle:focus-visible,
+.builderFieldMissing > .builderTitleInput,
+.builderTitleInput:focus,
+.builderTitleInput:focus-visible {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
 .builderPropertyNameInput {
   width: 100%;
   padding: 8px 0;
@@ -560,6 +616,38 @@
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 12px;
+}
+
+.builderPropertyMetaRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px 24px;
+}
+
+.builderPropertyTypeCol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.builderPropertyFlagCol {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+}
+
+.builderPropertyFlagCol .builderToggle {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  margin: 0;
 }
 
 .builderInlineRow {
@@ -580,8 +668,10 @@
 }
 
 .builderOperatorSelect {
-  display: grid;
-  width: max-content;
+  display: inline-grid;
+  width: fit-content;
+  max-width: 100%;
+  vertical-align: top;
 }
 
 .builderOperatorSelect::after {
@@ -589,26 +679,30 @@
   grid-area: 1 / 1;
   visibility: hidden;
   white-space: nowrap;
-  padding: 8px 10px 8px 34px;
+  padding: 8px 28px 8px 10px;
   font: inherit;
 }
 
 .builderOperatorSelect select {
   grid-area: 1 / 1;
-  width: 100%;
-  min-width: 0;
+  box-sizing: border-box;
+  width: 0;
+  min-width: 100%;
+  max-width: 100%;
   margin: 0;
+  field-sizing: content;
 }
 
-.builderInlineRow > .builderField.builderJunctionField {
-  margin-left: auto;
+.builderOperatorSelect select:not([multiple]):not([size]) {
+  background-position: right 8px center;
+  padding-left: 10px;
+  padding-right: 28px;
 }
 
-.builderInlineRow > .builderField.builderJunctionField,
 .builderJunctionField {
   flex: 0 0 auto;
   width: max-content;
-  align-items: flex-end;
+  align-items: flex-start;
 }
 
 .builderJunctionField select {
@@ -1512,9 +1606,10 @@
   gap: 6px;
 }
 
-.builderTip:hover .builderTipBubble,
-.builderTip:focus-within .builderTipBubble {
-  display: block;
+.builderAssignmentFields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .builderToggle.disabled .builderTip {
@@ -1651,12 +1746,18 @@ body.matchResizing {
 .matchElementConfigHead {
   flex-wrap: nowrap;
   align-items: flex-start;
+  justify-content: flex-end;
   margin-bottom: 16px;
 }
 
-.matchElementConfigHead > .builderPanelTitle {
-  flex: 1 1 auto;
-  min-width: 0;
+.matchElementConfig .builderPickerToggle {
+  flex-direction: row-reverse;
+}
+
+.matchElementConfig select:not([multiple]):not([size]) {
+  background-position: right 10px center;
+  padding-left: 10px;
+  padding-right: 34px;
 }
 
 .matchGraphCanvas {
@@ -1899,11 +2000,11 @@ body.matchResizing {
 /* ---------- Narrow builder (phones, slim panels) ---------- */
 @container builder (max-width: 480px) {
   .createSequenceInlineRow,
-  .builderInlineRow {
+  .builderInlineRow:not(.builderStatementRow) {
     flex-direction: column;
   }
 
-  .builderInlineRow > .builderField.builderInlineRowOperator {
+  .builderInlineRow:not(.builderStatementRow) > .builderField.builderInlineRowOperator {
     flex: 0 0 auto;
   }
 

@@ -373,8 +373,6 @@ export function StepSequencialConfig({
                 <label id="builder-wait-mode-label">wait for</label>
                 {waitWarnings.length > 0 ? (
                   <span className="builderCheckMsg error">{waitWarnings[0]}</span>
-                ) : bodyCheck?.status === "ok" ? (
-                  <span className="builderCheckMsg ok">{bodyCheck.message}</span>
                 ) : null}
                 <SegmentToggle
                   labelledBy="builder-wait-mode-label"
@@ -514,7 +512,10 @@ export function StepSequencialConfig({
                 <FieldLabel tip="JSON body sent with the request. $parameter tokens become run values.">
                   body
                 </FieldLabel>
-                {bodyCheck && bodyCheck.status !== "idle" ? (
+                {bodyCheck &&
+                (bodyCheck.status === "error" ||
+                  bodyCheck.status === "duplicate" ||
+                  bodyCheck.status === "checking") ? (
                   <span className={`builderCheckMsg ${bodyCheck.status}`}>{bodyCheck.message}</span>
                 ) : null}
                 <StepBodyEditor

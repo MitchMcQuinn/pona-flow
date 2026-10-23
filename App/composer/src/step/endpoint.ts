@@ -98,7 +98,8 @@ function operationAssignmentsPayload(
     when: item.when,
     type: item.type,
     key: String(item.key ?? "").trim(),
-    value: item.value
+    value: item.value,
+    collision: item.collision || "overwrite"
   }));
 }
 

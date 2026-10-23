@@ -9,7 +9,7 @@ import { useBuilder } from "../../../state/builder/BuilderContext";
 import connector from "../../../services/connector";
 import type { GraphNodeLabel } from "../../../state/builder/types";
 import { Picker } from "../Picker";
-import { AddParameterModal } from "../modals/AddParameterModal";
+import { InlineCreateNameField } from "./InlineCreateNameField";
 
 interface MatchAttributiveLabelFieldProps {
   /** Graph label used to load nodes (INSTANCE uses SCHEMA). */
@@ -36,7 +36,7 @@ export function MatchAttributiveLabelField({
   const spaceId = state.spaceId ?? "";
   const [options, setOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [graphUnavailable, setGraphUnavailable] = useState(false);
-  const [showParamModal, setShowParamModal] = useState(false);
+  const [creatingParameter, setCreatingParameter] = useState(false);
 
   useEffect(() => {
     if (!spaceId) {
@@ -101,35 +101,39 @@ export function MatchAttributiveLabelField({
         : `No ${fetchLabel} nodes in both the graph and this space's label catalog.`
       : `No ${fetchLabel} nodes in this space.`;
 
-  const missing = !attributiveLabel.trim();
+  const missing = !attributiveLabel.trim() || creatingParameter;
 
   return (
     <div
       className={missing ? "builderField builderFieldMissing" : "builderField"}
       data-issue="attributive_label"
     >
-      <Picker
-        value={attributiveLabel}
-        placeholder="select or create node"
-        options={options}
-        createActions={
-          createSequenceMode || !allowParameter
-            ? []
-            : [{ label: "+ ADD A PARAMETER", onClick: () => setShowParamModal(true) }]
-        }
-        onSelect={onSelect}
-        disabled={disabled}
-        emptyHint={emptyHint}
-      />
-      {showParamModal ? (
-        <AddParameterModal
-          onCancel={() => setShowParamModal(false)}
-          onSave={(param) => {
-            setShowParamModal(false);
+      {creatingParameter ? (
+        <InlineCreateNameField
+          kind="parameter"
+          className="builderTitleInput"
+          onCommit={(param) => {
+            setCreatingParameter(false);
             onSelect(param);
           }}
+          onCancel={() => setCreatingParameter(false)}
         />
-      ) : null}
+      ) : (
+        <Picker
+          className="builderPickerAsTitle"
+          value={attributiveLabel}
+          placeholder="select or create node"
+          options={options}
+          createActions={
+            createSequenceMode || !allowParameter
+              ? []
+              : [{ label: "+ ADD A PARAMETER", onClick: () => setCreatingParameter(true) }]
+          }
+          onSelect={onSelect}
+          disabled={disabled}
+          emptyHint={emptyHint}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,8 @@
 import { useState } from "react";
+import {
+  finalizeAttributiveLabelInput,
+  sanitizeAttributiveLabelInput
+} from "@pona-flow/authoring";
 import { ModalBackdrop } from "../../modals/ModalBackdrop";
 
 interface NewStepNodeModalProps {
@@ -6,21 +10,12 @@ interface NewStepNodeModalProps {
   onSave: (attributiveLabel: string) => void;
 }
 
-// Normalize to an attributive_label (uppercase letters, digits, underscores).
-// Parameters ($...) are not accepted: create-STEP identity must be a literal.
-function sanitizeInput(raw: string): string {
-  return raw
-    .replace(/\s+/g, "_")
-    .toUpperCase()
-    .replace(/[^A-Z0-9_]/g, "");
-}
-
 export function NewStepNodeModal({ onCancel, onSave }: NewStepNodeModalProps) {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   function save() {
-    const v = sanitizeInput(value);
+    const v = finalizeAttributiveLabelInput(value);
     if (!v) {
       setError("attributive_label is required.");
       return;
@@ -43,7 +38,7 @@ export function NewStepNodeModal({ onCancel, onSave }: NewStepNodeModalProps) {
             value={value}
             placeholder="Label"
             onChange={(e) => {
-              setValue(sanitizeInput(e.target.value));
+              setValue(sanitizeAttributiveLabelInput(e.target.value));
               setError(null);
             }}
             onKeyDown={(e) => {
@@ -51,7 +46,7 @@ export function NewStepNodeModal({ onCancel, onSave }: NewStepNodeModalProps) {
             }}
           />
           <span className="builderCheckMsg">
-            Enter a literal attributive_label (letters, digits, underscores).
+            Enter a literal attributive_label (letters, digits, spaces).
           </span>
         </div>
         {error ? <p className="builderCheckMsg error">{error}</p> : null}

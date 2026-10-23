@@ -187,7 +187,7 @@ assert.deepEqual(
 );
 
 const schemaNode = snapshot.query.match[0].patterns[0].path[0].node;
-assert.equal(schemaNode.attributive_label, "CUSTOMER_RECORD");
+assert.equal(schemaNode.attributive_label, "customer_record");
 
 const before = queries.get(createdSchema.operation_id);
 const updated = parse(
@@ -231,7 +231,7 @@ const createdStep = parse(
 assert.equal(createdStep.ok, true);
 assert.equal(createdStep.operation_id, null, "create STEP does not mint a catalog factory");
 assert.equal(createdStep.executed, true, "the designed STEP is materialized");
-assert.equal(createdStep.step_attributive_label, "LOG_SHIPMENT_CALL");
+assert.equal(createdStep.step_attributive_label, "log_shipment_call");
 assert.ok(createdStep.sequence_id, "add_as_sequence defaults to a one-step sequence");
 
 const stepCreateIndex = calls.findIndex((c) => c.path === "/api/execute-create");
@@ -251,11 +251,11 @@ assert.equal(oneStep.kind, "sequence");
 assert.equal(oneStep.name, "Log shipment");
 assert.match(
   oneStep.cypher.join(" "),
-  /attributive_label: 'LOG_SHIPMENT_CALL'/,
+  /attributive_label: 'log_shipment_call'/,
   "the sequence MATCHES the designed STEP, not a wrap of the create-query"
 );
 
-assert.ok(stepNodes.has("LOG_SHIPMENT_CALL"), "the designed STEP is in the graph");
+assert.ok(stepNodes.has("log_shipment_call"), "the designed STEP is in the graph");
 
 // --- Wiring two published steps and sequencing them ---
 
@@ -288,8 +288,8 @@ assert.match(edgeWrite.cypher.join(" "), /MATCH \(LOG_SHIPMENT_CALL:STEP \{ id: 
 assert.match(edgeWrite.cypher.join(" "), /MATCH \(NOTIFY_CUSTOMER_CALL:STEP \{ id: '/);
 assert.match(
   edgeWrite.cypher.join(" "),
-  /MERGE \(LOG_SHIPMENT_CALL\)-\[THEN_NOTIFY:POINTS_TO \{[^}]*\}\]->\(NOTIFY_CUSTOMER_CALL\)/,
-  "the relationship label is normalized to UPPER_SNAKE"
+  /MERGE \(LOG_SHIPMENT_CALL\)-\[then_notify:POINTS_TO \{[^}]*\}\]->\(NOTIFY_CUSTOMER_CALL\)/,
+  "the relationship label is normalized to lowercase"
 );
 
 const sequence = parse(

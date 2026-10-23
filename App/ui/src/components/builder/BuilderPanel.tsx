@@ -34,7 +34,7 @@ import {
   isSingleNewStepCreate,
   isStepCreateQuery,
   loopConfigWarnings,
-  normalizeAttributiveLabel,
+  finalizeAttributiveLabelInput,
   sanitizeAttributiveLabelInput,
   parseSequenceParameterValues,
   serializeSequenceParameterValues,
@@ -1182,7 +1182,7 @@ function BuilderBody({
                 dispatch({ type: "SET_NAME", name: sanitizeAttributiveLabelInput(e.target.value) })
               }
               onBlur={(e) =>
-                dispatch({ type: "SET_NAME", name: normalizeAttributiveLabel(e.target.value) })
+                dispatch({ type: "SET_NAME", name: finalizeAttributiveLabelInput(e.target.value) })
               }
             />
             <span className="createSequenceHint">

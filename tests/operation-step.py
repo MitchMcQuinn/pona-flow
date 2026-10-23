@@ -6,7 +6,7 @@ Covers:
   - missing operands stay false (IS EMPTY is the exception) and the step still succeeds;
   - exists, is empty, and regex, including an invalid pattern;
   - dotted $name.field reads and a rejected $secret reference;
-  - overwrite, skip, append, and sequence;
+  - overwrite, skip, append, and sequence, including a per-assignment override;
   - true / false / always assignments, including a key that matches the evaluation name;
   - compose publishes the evaluation name and assignment keys;
   - a run writes the boolean and a later edge branches on it;
@@ -260,6 +260,19 @@ try:
         [{"when": "true", "type": "string", "key": "flag", "value": "High"}],
     )
     check("skip keeps the evaluation boolean when the assignment key matches", skipped.get("flag") is True)
+
+    mixed = {"note": "ab", "slot": "kept"}
+    apply_to(
+        evaluation([group([statement(1, "=", 1)])], name="ok", collision="overwrite"),
+        mixed,
+        [
+            {"when": "always", "type": "string", "key": "note", "value": "!", "collision": "append"},
+            {"when": "always", "type": "string", "key": "slot", "value": "new", "collision": "skip"},
+        ],
+    )
+    check("per-assignment append concatenates that key", mixed.get("note") == "ab!")
+    check("per-assignment skip leaves that key", mixed.get("slot") == "kept")
+    check("evaluation collision still writes the boolean", mixed.get("ok") is True)
 
     empty_groups = False
     try:

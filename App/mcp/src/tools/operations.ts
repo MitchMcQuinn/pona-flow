@@ -73,7 +73,7 @@ const intentSchema = {
     .string()
     .optional()
     .describe(
-      "UPPER_SNAKE name of the primary node. Globally unique across STEP and SCHEMA — call " +
+      "lowercase name of the primary node. Globally unique across STEP and SCHEMA — call " +
         "describe_space first. For INSTANCE it names the SCHEMA being instantiated."
     ),
   schema_properties: z
@@ -213,7 +213,8 @@ const intentSchema = {
         .enum(["overwrite", "skip", "append", "sequence"])
         .optional()
         .describe(
-          "How every write behaves when the key already exists. overwrite replaces. " +
+          "How the evaluation boolean is written when that name already exists, and the " +
+            "default for assignments that omit their own collision. overwrite replaces. " +
             "skip keeps the current value. append concatenates strings, pushes onto a list, " +
             "or wraps other values into a list. sequence writes key_2, key_3, and so on. " +
             "Default overwrite."
@@ -270,6 +271,13 @@ const intentSchema = {
             value: z
               .union([z.string(), z.number(), z.boolean()])
               .describe("A literal. Not a $parameter."),
+            collision: z
+              .enum(["overwrite", "skip", "append", "sequence"])
+              .optional()
+              .describe(
+                "How this row writes when the key already exists. Falls back to the " +
+                  "evaluation collision, then overwrite."
+              ),
           })
         )
         .optional()

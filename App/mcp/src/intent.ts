@@ -134,6 +134,7 @@ export interface StepOperationIntent {
     type: "boolean" | "string" | "number";
     key: string;
     value: string | number | boolean;
+    collision?: "overwrite" | "skip" | "append" | "sequence";
   }>;
 }
 
@@ -306,7 +307,7 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
   query.parameters = parameters(intent);
 
   const clause = newMatchClause(intent.node_label);
-  // Labels and property keys are UPPER_SNAKE. Normalizing rather than rejecting mirrors the
+  // Labels and property keys are lowercase. Normalizing rather than rejecting mirrors the
   // builder, which rewrites these fields as the author types, and spares the agent a
   // round-trip over a naming convention it has no way to know in advance.
   const attributiveLabel = normalizeAttributiveLabel(intent.attributive_label || "");

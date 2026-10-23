@@ -6,8 +6,8 @@
  * Python (tests/embeddings-reserved-properties.py) because any client can call the API
  * directly, so these two sets have to stay in step.
  *
- * Property keys are normalized to UPPER_SNAKE, so the check is case-insensitive — but a
- * name that merely *starts* with a reserved word (EMBEDDING_DATE) is perfectly legal.
+ * Property keys are normalized to lowercase, so the check is case-insensitive — but a
+ * name that merely *starts* with a reserved word (embedding_date) is perfectly legal.
  */
 
 import assert from "node:assert/strict";
@@ -36,7 +36,7 @@ for (const key of ["id", "ID", "embedding", "EMBEDDING", "embedding_stale", "EMB
 }
 
 // --- names that merely share a prefix stay legal ---
-for (const key of ["EMBEDDING_DATE", "EMBEDDINGS", "IDENTIFIER", "STALE"]) {
+for (const key of ["embedding_date", "embeddings", "identifier", "stale"]) {
   assert.equal(isReservedSchemaPropertyKey(key), false, `${key} should not be reserved`);
   assert.equal(validateSchemaPropertyKey(key).valid, true, `${key} should validate`);
 }

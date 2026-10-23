@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  normalizeAttributiveLabel,
+  finalizeAttributiveLabelInput,
   sanitizeAttributiveLabelInput
 } from "@pona-flow/authoring";
 import { Picker } from "../Picker";
@@ -42,7 +42,7 @@ export function CreateOperationModal({
   takenSequenceNames = [],
   variant = "query"
 }: CreateOperationModalProps) {
-  const [name, setName] = useState(() => normalizeAttributiveLabel(initialName));
+  const [name, setName] = useState(() => finalizeAttributiveLabelInput(initialName));
   const [description, setDescription] = useState("");
   const [groupChoice, setGroupChoice] = useState("");
   const [newGroupTitle, setNewGroupTitle] = useState("");
@@ -52,7 +52,7 @@ export function CreateOperationModal({
   const groupTitle = (isNewGroup ? newGroupTitle : groupChoice).trim();
 
   function save() {
-    const trimmedName = normalizeAttributiveLabel(name);
+    const trimmedName = finalizeAttributiveLabelInput(name);
     if (!trimmedName) {
       setError("Query name is required.");
       return;
@@ -97,7 +97,7 @@ export function CreateOperationModal({
                   setName(sanitizeAttributiveLabelInput(e.target.value));
                   setError(null);
                 }}
-                onBlur={(e) => setName(normalizeAttributiveLabel(e.target.value))}
+                onBlur={(e) => setName(finalizeAttributiveLabelInput(e.target.value))}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") save();
                 }}

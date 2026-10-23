@@ -24,8 +24,7 @@ import {
   supportsIncomingHop
 } from "@pona-flow/authoring";
 import {
-  normalizeAlias,
-  normalizeAttributiveLabel
+  normalizeAlias
 } from "@pona-flow/authoring";
 import {
   addSchemaProperty,
@@ -338,8 +337,7 @@ export function MatchRelCard(props: RelCardProps) {
   }
 
   function selectMatchSchemaRel(al: string) {
-    const normalized = normalizeAttributiveLabel(al);
-    if (!attributiveLabelChanged(relationship.attributive_label, normalized)) return;
+    if (!attributiveLabelChanged(relationship.attributive_label, al)) return;
     clearRelCardChecks();
     clearDownstream();
     patchQuery((q) => {
@@ -350,7 +348,7 @@ export function MatchRelCard(props: RelCardProps) {
         clauseIndex,
         patternIndex,
         pathIndex,
-        matchRelAliasPatch(normalized, cleared)
+        matchRelAliasPatch(al, cleared)
       )(cleared);
     });
   }

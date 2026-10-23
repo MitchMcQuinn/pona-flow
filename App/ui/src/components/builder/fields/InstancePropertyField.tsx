@@ -166,7 +166,10 @@ export function InstancePropertyField({
           <span className="builderCheckMsg ok"> parameter (supplied at run time)</span>
         ) : !valueCheck.valid ? (
           <span className="builderCheckMsg duplicate"> {valueCheck.message}</span>
-        ) : keyCheck && keyCheck.status !== "idle" ? (
+        ) : keyCheck &&
+          (keyCheck.status === "duplicate" ||
+            keyCheck.status === "error" ||
+            keyCheck.status === "checking") ? (
           <span className={`builderCheckMsg ${keyCheck.status}`}>
             {" "}
             {keyCheck.status === "checking" ? "checking…" : keyCheck.message}

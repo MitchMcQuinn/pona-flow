@@ -227,5 +227,6 @@ def apply(step: dict[str, Any], resolved: dict[str, Any]) -> bool:
         if when != "always" and when != ("true" if result else "false"):
             continue
         key = _parameter_name(item.get("key"), "Assignment key")
-        write_collision(resolved, key, _assignment_value(item), mode)
+        item_mode = _collision(item.get("collision")) if item.get("collision") else mode
+        write_collision(resolved, key, _assignment_value(item), item_mode)
     return result

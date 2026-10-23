@@ -2,7 +2,7 @@
 // (PropertyBinding) and Run gating (validation.ts).
 import { regexValidator } from "@pona-flow/regex-validator";
 import { extractExactParameterRef } from "./parameterRefs.js";
-import { normalizeAttributiveLabel, normalizeSchemaPropertyKey } from "./normalizeField.js";
+import { finalizeAttributiveLabelInput, normalizeSchemaPropertyKey } from "./normalizeField.js";
 import type { SchemaPropertyConstraint } from "@pona-flow/connector";
 import type { PropertyBinding, SchematicProperties, ValueType } from "./types.js";
 
@@ -58,6 +58,9 @@ export function isEmptyCheckboxRaw(valueType: ValueType, raw: string): boolean {
 /** Default INSTANCE key column when the SCHEMA author does not define is_key. */
 export const DEFAULT_SCHEMA_KEY_PROPERTY_NAME = "id";
 
+/** Default display-name property preloaded on a new SCHEMA node. */
+export const DEFAULT_SCHEMA_LABEL_PROPERTY_NAME = "name";
+
 /**
  * System property names an author may not define, and why.
  *
@@ -89,10 +92,10 @@ export function validateSchemaPropertyKey(key: string): { valid: boolean; messag
   if (reservedReason) {
     return { valid: false, message: `"${name}" is ${reservedReason}` };
   }
-  if (normalizeSchemaPropertyKey(name) !== name || !/^[A-Z]/.test(name)) {
+  if (normalizeSchemaPropertyKey(name) !== name || !/^[a-z]/.test(name)) {
     return {
       valid: false,
-      message: "must be an UPPER_SNAKE property name"
+      message: "must be a lowercase property name"
     };
   }
   return { valid: true, message: "" };
@@ -315,14 +318,14 @@ export function validateSchemaDefaultValue(
 }
 
 // Parameter default with value_type "attributive label": empty means "no default";
-// any provided value must satisfy attributive_label formatting (uppercase A–Z, digits, _).
+// any provided value must satisfy attributive_label formatting (lowercase, spaces ok).
 export function validateAttributiveLabelValue(raw: string): DefaultValueCheck {
   const t = (raw ?? "").trim();
   if (isSchemaNullRaw(t)) return { valid: true, message: "" };
-  if (normalizeAttributiveLabel(t) !== t || !/^[A-Z]/.test(t)) {
+  if (finalizeAttributiveLabelInput(t) !== t || !/^[a-z]/.test(t)) {
     return {
       valid: false,
-      message: "must be an UPPER_SNAKE attributive label"
+      message: "must be a lowercase attributive label"
     };
   }
   return { valid: true, message: "valid" };

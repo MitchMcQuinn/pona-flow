@@ -50,7 +50,7 @@ Build order (this matters — each stage depends on the previous one existing):
 Skipping ahead fails: a sequence created before its steps exist matches nothing, and a
 transition cannot attach to a STEP node that has not been created yet.
 
-Before writing, read. attributive_labels are UPPER_SNAKE and globally unique across STEP and
+Before writing, read. attributive_labels are lowercase and globally unique across STEP and
 SCHEMA *nodes* (and SCHEMA relationship types) in a space, so call describe_space to see
 what is taken and describe_schema before creating instances of one. STEP-to-STEP POINTS_TO
 edges are the exception: they default to NEXT and that label may be reused on every link.

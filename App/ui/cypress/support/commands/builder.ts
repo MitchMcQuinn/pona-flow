@@ -1,13 +1,13 @@
 import { openAttributiveLabelPicker, pickFromOpenPicker } from "./helpers";
 
-/** Match SCHEMA property name live-input normalization (UPPER_SNAKE, $param preserved). */
+/** Match SCHEMA property name live-input normalization (lowercase, $param preserved). */
 function normalizeSchemaPropertyKey(name: string): string {
   const trimmed = name.trim();
   if (/^\$(?![0-9])[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) return trimmed;
   if (trimmed.startsWith("$")) {
     return "$" + trimmed.slice(1).replace(/[^A-Za-z0-9_]/g, "");
   }
-  return trimmed.replace(/\s+/g, "_").toUpperCase().replace(/[^A-Z0-9_]/g, "");
+  return trimmed.replace(/\s+/g, "_").toLowerCase().replace(/[^a-z0-9_]/g, "");
 }
 
 export interface SchemaPropertySpec {
@@ -45,53 +45,55 @@ Cypress.Commands.add("selectAttributiveLabelFromPicker", (optionText: string) =>
 });
 
 Cypress.Commands.add("addNewAttributiveLabelNode", (attributiveLabel: string) => {
-  const normalized = attributiveLabel.trim().toUpperCase();
+  const normalized = attributiveLabel.trim().toLowerCase();
 
   openAttributiveLabelPicker();
   cy.get('[data-testid="builder-picker-menu"]')
     .contains("button.builderPickerCreate", "+ ADD NEW NODE")
     .click();
 
-  cy.get('[data-testid="modal-new-step-node"]').should("be.visible");
-  cy.get('[data-testid="modal-new-step-node"]')
-    .contains("label", "attributive_label")
-    .parent()
-    .find("input")
-    .clear()
-    .type(normalized);
-  cy.get('[data-testid="modal-new-step-node"] [data-testid="modal-confirm-btn"]').click();
-  cy.get('[data-testid="modal-new-step-node"]').should("not.exist");
+  cy.get('[data-testid="inline-create-name"]').should("be.visible").clear().type(normalized).type("{enter}");
 
-  cy.contains(".builderField label", "attributive_label")
+  cy.get('[data-issue="attributive_label"]')
     .first()
-    .parent()
     .find(".builderPickerToggle")
     .should("contain.text", normalized);
 
-  cy.contains(".builderField label", "attributive_label")
+  cy.get('[data-issue="attributive_label"]')
     .first()
-    .parent()
-    .find(".builderCheckMsg.ok", { timeout: 15_000 })
-    .should("contain.text", "valid");
+    .should("have.attr", "data-check", "ok");
 });
 
 Cypress.Commands.add(
   "addSchemaProperty",
   (propertyName: string, options: { isLabel?: boolean } = {}) => {
-    cy.contains("button", "+ property").click();
-    cy.get('input[aria-label="property name"]').last().clear().type(propertyName);
+    const key = normalizeSchemaPropertyKey(propertyName);
+
+    cy.get("body").then(($body) => {
+      const exists = [...$body.find('input[aria-label="property name"]')].some(
+        (el) => (el as HTMLInputElement).value === key
+      );
+      if (!exists) {
+        cy.contains("button", "+ property").click();
+        cy.get('input[aria-label="property name"]').last().clear().type(propertyName);
+      }
+    });
 
     if (options.isLabel) {
-      cy.contains(".builderToggleLabel", /^label$/)
-        .last()
-        .parent()
-        .find('button[role="switch"]')
-        .then(($switch) => {
-          if ($switch.attr("aria-checked") !== "true") {
-            cy.wrap($switch).click();
-          }
-        })
-        .should("have.attr", "aria-checked", "true");
+      cy.get('input[aria-label="property name"]').then(($inputs) => {
+        const idx = [...$inputs].findIndex((el) => (el as HTMLInputElement).value === key);
+        cy.wrap($inputs.eq(idx >= 0 ? idx : $inputs.length - 1))
+          .closest(".builderPropertyCard")
+          .contains(".builderToggleLabel", /^label$/)
+          .parent()
+          .find('button[role="switch"]')
+          .then(($switch) => {
+            if ($switch.attr("aria-checked") !== "true") {
+              cy.wrap($switch).click();
+            }
+          })
+          .should("have.attr", "aria-checked", "true");
+      });
     }
   }
 );

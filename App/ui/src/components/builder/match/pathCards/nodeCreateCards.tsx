@@ -25,11 +25,11 @@ import {
   isAliasSet
 } from "@pona-flow/authoring";
 import {
-  normalizeAlias,
-  normalizeAttributiveLabel
+  finalizeAttributiveLabelInput,
+  normalizeAlias
 } from "@pona-flow/authoring";
 import { addSchemaProperty } from "../../../../state/builder/queryHelpers";
-import { propertiesFromSchemata } from "@pona-flow/authoring";
+import { defaultSchemaCreateProperties, propertiesFromSchemata } from "@pona-flow/authoring";
 import { PropertyBinding } from "../../PropertyBinding";
 import { AliasField } from "../../fields/AliasField";
 import { InstanceNodeAttributiveField } from "../../fields/InstanceNodeAttributiveField";
@@ -257,13 +257,14 @@ export function PickerCreateNodeCard(props: NodeCardProps) {
     if (!generatedId) {
       return;
     }
-    const al = normalizeAttributiveLabel(attributiveLabel);
+    const al = finalizeAttributiveLabelInput(attributiveLabel);
     if (attributiveLabelChanged(node.attributive_label, al)) clearCardChecks();
     patch({
       ...nodeClearedForAttributiveLabel(label, al, node),
       node_source: "new",
       id_binding: { key: "id", value: generatedId },
-      variable: aliasLocked ? node.variable : generatedId
+      variable: aliasLocked ? node.variable : generatedId,
+      ...(schemaMode ? { properties: defaultSchemaCreateProperties() } : {})
     });
   }
 

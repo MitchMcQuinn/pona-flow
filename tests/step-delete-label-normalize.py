@@ -1,6 +1,6 @@
 """
 Diagnostic test: STEP delete must treat a display-title attributive_label as the same
-node as its UPPER_SNAKE form (Call Discord General Webhook ↔ CALL_DISCORD_GENERAL_WEBHOOK).
+node as its snake form (Call Discord General Webhook ↔ call_discord_general_webhook).
 
 Covers ``normalize_attributive_label``, ``attributive_labels_equivalent``, and
 ``sequence_references_step`` without a live Neo4j store.
@@ -28,21 +28,21 @@ def check(name: str, condition: bool) -> None:
 
 
 check(
-    "display title normalizes to UPPER_SNAKE",
+    "display title normalizes to lowercase snake",
     cypher_utils.normalize_attributive_label("Call Discord General Webhook")
-    == "CALL_DISCORD_GENERAL_WEBHOOK",
+    == "call_discord_general_webhook",
 )
 check(
     "already-normalized label is unchanged",
-    cypher_utils.normalize_attributive_label("CALL_DISCORD_GENERAL_WEBHOOK")
-    == "CALL_DISCORD_GENERAL_WEBHOOK",
+    cypher_utils.normalize_attributive_label("call_discord_general_webhook")
+    == "call_discord_general_webhook",
 )
 check(
     "$param attributive_label is preserved",
     cypher_utils.normalize_attributive_label("$stepName") == "$stepName",
 )
 check(
-    "display title and UPPER_SNAKE are equivalent",
+    "display title and uppercase form are equivalent",
     cypher_utils.attributive_labels_equivalent(
         "Call Discord General Webhook", "CALL_DISCORD_GENERAL_WEBHOOK"
     ),

@@ -7,6 +7,7 @@
  * `initialBuilderState` stays in the UI: it reads localStorage.
  */
 
+import { DEFAULT_SCHEMA_LABEL_PROPERTY_NAME } from "./schemaRules.js";
 import type {
   GraphNodeLabel,
   GraphPattern,
@@ -39,6 +40,58 @@ export function newSchematicProperties(): SchematicProperties {
 // A plain schema property (added via "+ property").
 export function newSchemaProperty(): PropertyBinding {
   return { key: "", value: "", schematic_properties: newSchematicProperties() };
+}
+
+/** SCHEMA create starts with a NAME property flagged is_label (required by the schema rules). */
+export function newSchemaLabelProperty(): PropertyBinding {
+  return {
+    key: DEFAULT_SCHEMA_LABEL_PROPERTY_NAME,
+    value: "",
+    schematic_properties: {
+      ...newSchematicProperties(),
+      is_label: true,
+      is_required: true
+    }
+  };
+}
+
+export function defaultSchemaCreateProperties(): PropertyBinding[] {
+  return [newSchemaLabelProperty()];
+}
+
+/** Seed the first MATCH node of a create-SCHEMA query with the assumed label property. */
+export function applySchemaCreateDefaults(
+  query: QueryObject,
+  operation: Operation,
+  label: GraphNodeLabel
+): QueryObject {
+  if (operation !== "create" || label !== "SCHEMA") return query;
+  const clause = query.match[0];
+  const pattern = clause?.patterns[0];
+  const element = pattern?.path[0];
+  if (!clause || !pattern || !element || element.kind !== "node") return query;
+  return {
+    ...query,
+    match: [
+      {
+        ...clause,
+        patterns: [
+          {
+            ...pattern,
+            path: [
+              {
+                kind: "node",
+                node: { ...element.node, properties: defaultSchemaCreateProperties() }
+              },
+              ...pattern.path.slice(1)
+            ]
+          },
+          ...clause.patterns.slice(1)
+        ]
+      },
+      ...query.match.slice(1)
+    ]
+  };
 }
 
 let varCounter = 0;

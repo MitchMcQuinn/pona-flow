@@ -18,7 +18,7 @@ export const GOLDEN_SEQUENCE_GROUP = "E2E Golden Path";
 export const SCHEMA = {
   /** A second schema used for update/delete cascade specs. */
   COMPANY_LABEL: "COMPANY",
-  COMPANY_PROPS: { name: "NAME", founded: "FOUNDED" }
+  COMPANY_PROPS: { name: "name", founded: "founded" }
 } as const;
 
 export const INSTANCE = {

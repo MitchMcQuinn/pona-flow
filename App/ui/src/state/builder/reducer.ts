@@ -1,5 +1,5 @@
 import type { BuilderAction } from "./actions";
-import { localId, newMatchClause, newQuery } from "./defaults";
+import { applySchemaCreateDefaults, localId, newMatchClause, newQuery } from "./defaults";
 import type { BuilderState, GraphNodeLabel, Operation, QueryObject } from "./types";
 
 // Changing the operation or the label resets every form input to defaults,
@@ -10,7 +10,11 @@ function freshForm(
   id: string,
   name: string
 ): QueryObject {
-  return { ...newQuery(operation), id, name, match: [newMatchClause(label)] };
+  return applySchemaCreateDefaults(
+    { ...newQuery(operation), id, name, match: [newMatchClause(label)] },
+    operation,
+    label
+  );
 }
 
 export function builderReducer(state: BuilderState, action: BuilderAction): BuilderState {

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useBuilder } from "../../../state/builder/BuilderContext";
 import connector from "../../../services/connector";
 import { attributiveLabelChanged } from "../../../state/builder/cardReset";
-import { normalizeAttributiveLabel } from "@pona-flow/authoring";
+import { finalizeAttributiveLabelInput, sanitizeAttributiveLabelInput } from "@pona-flow/authoring";
 import type { GraphNodeLabel, NodePattern } from "../../../state/builder/types";
 import { useDebouncedCheck } from "../hooks/useDebouncedCheck";
 import { Picker } from "../Picker";
@@ -79,15 +79,18 @@ export function AttributiveLabelField({
         aria-label="attributive_label"
         value={attributiveLabel}
         onFocus={() => setLabelAtFocus(attributiveLabel)}
-        onChange={(e) => onChange(normalizeAttributiveLabel(e.target.value))}
+        onChange={(e) => onChange(sanitizeAttributiveLabelInput(e.target.value))}
         onBlur={(e) => {
-          const next = normalizeAttributiveLabel(e.target.value);
+          const next = finalizeAttributiveLabelInput(e.target.value);
+          if (next !== attributiveLabel) onChange(next);
           if (onLabelCommitted && attributiveLabelChanged(labelAtFocus, next)) {
             onLabelCommitted(next, labelAtFocus);
           }
         }}
       />
-      {check && check.status !== "idle" && enforceUnique ? (
+      {check &&
+      enforceUnique &&
+      (check.status === "duplicate" || check.status === "error" || check.status === "checking") ? (
         <span className={`builderCheckMsg ${check.status}`}>
           {check.status === "checking" ? "checking…" : check.message}
         </span>

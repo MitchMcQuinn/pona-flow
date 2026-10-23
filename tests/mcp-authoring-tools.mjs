@@ -221,16 +221,16 @@ const schemaQuery = buildOperationQuery(
 assert.deepEqual(validateQuery(schemaQuery, true), [], "intent output must pass validation");
 assert.equal(
   schemaQuery.match[0].patterns[0].path[0].node.attributive_label,
-  "CUSTOMER_RECORD",
-  "a free-text label is normalized to UPPER_SNAKE rather than rejected"
+  "customer_record",
+  "a free-text label is normalized to lowercase rather than rejected"
 );
 assert.deepEqual(
   schemaQuery.match[0].patterns[0].path[0].node.properties.map((p) => p.key),
-  ["EMAIL_ADDRESS", "NAME"],
+  ["email_address", "name"],
   "property keys are normalized the same way the builder normalizes them as you type"
 );
 const schemaCypher = composer.composeQuery(schemaQuery).cypher;
-assert.match(schemaCypher, /MERGE \(CUSTOMER_RECORD:SCHEMA \{[^}]*id: 'ent-1'/);
+assert.match(schemaCypher, /MERGE \(customer_record:SCHEMA \{[^}]*id: 'ent-1'/);
 
 const readQuery = buildOperationQuery(
   {
@@ -415,7 +415,7 @@ assert.deepEqual(validateQuery(transition, false), []);
 const transitionCypher = composer.composeQuery(transition).cypher;
 assert.match(transitionCypher, /MATCH \(STEP_A:STEP \{ id: 'step-a' \}\)/);
 assert.match(transitionCypher, /MATCH \(STEP_B:STEP \{ id: 'step-b' \}\)/);
-assert.match(transitionCypher, /MERGE \(STEP_A\)-\[ON_APPROVAL:POINTS_TO \{[^}]*id: 'rel-1'/);
+assert.match(transitionCypher, /MERGE \(STEP_A\)-\[on_approval:POINTS_TO \{[^}]*id: 'rel-1'/);
 assert.doesNotMatch(
   transitionCypher,
   /MERGE \(STEP_A:STEP/,

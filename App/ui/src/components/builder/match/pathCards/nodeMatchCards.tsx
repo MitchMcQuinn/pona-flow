@@ -22,8 +22,7 @@ import {
   matchPickerNodeLabel
 } from "@pona-flow/authoring";
 import {
-  normalizeAlias,
-  normalizeAttributiveLabel
+  normalizeAlias
 } from "@pona-flow/authoring";
 import {
   addSchemaProperty,
@@ -232,8 +231,7 @@ export function MatchNodeCard(props: NodeCardProps) {
   }
 
   function selectMatchStepNode(al: string) {
-    const normalized = normalizeAttributiveLabel(al);
-    if (!attributiveLabelChanged(node.attributive_label, normalized)) return;
+    if (!attributiveLabelChanged(node.attributive_label, al)) return;
     clearCardChecks();
     clearDownstream();
     patchQuery((q) => {
@@ -244,21 +242,20 @@ export function MatchNodeCard(props: NodeCardProps) {
         clauseIndex,
         patternIndex,
         pathIndex,
-        matchNodeAliasPatch(normalized)
+        matchNodeAliasPatch(al)
       )(cleared);
     });
   }
 
   function selectMatchSchemaNode(al: string) {
-    const normalized = normalizeAttributiveLabel(al);
-    if (!attributiveLabelChanged(node.attributive_label, normalized)) return;
+    if (!attributiveLabelChanged(node.attributive_label, al)) return;
     clearCardChecks();
     clearDownstream();
     patchQuery((q) => {
       const cleared = clearPathAttributiveLabelsAfter(clauseIndex, patternIndex, pathIndex, {
         preserveIdentity: graphMode
       })(q);
-      return updateNode(clauseIndex, patternIndex, pathIndex, matchNodeAliasPatch(normalized))(
+      return updateNode(clauseIndex, patternIndex, pathIndex, matchNodeAliasPatch(al))(
         cleared
       );
     });

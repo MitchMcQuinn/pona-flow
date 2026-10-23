@@ -87,6 +87,7 @@ export interface GraphNodeRow {
       type: "boolean" | "string" | "number";
       key: string;
       value: string | number | boolean;
+      collision?: "overwrite" | "skip" | "append" | "sequence";
     }>;
   };
   /** Custom-endpoint STEP input parameters (from the entities ``parameters`` column). */

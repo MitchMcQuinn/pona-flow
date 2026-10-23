@@ -83,7 +83,7 @@ export function defaultOperationEvaluation(): OperationEvaluation {
 }
 
 export function emptyOperationAssignment(): OperationAssignment {
-  return { when: "true", type: "string", key: "", value: "" };
+  return { when: "true", type: "string", key: "", value: "", collision: "overwrite" };
 }
 
 function operandWarnings(label: string, raw: OperationOperand | undefined, required: boolean): string[] {
@@ -186,6 +186,13 @@ export function operationStepWarnings(sp: SequencialProperties | null | undefine
       warnings.push(`${at} key is required.`);
     } else if (!isValidParameterName(key)) {
       warnings.push(`${at} key must be a parameter name.`);
+    }
+    const assignmentCollision = item.collision ?? collision;
+    if (
+      !assignmentCollision ||
+      !(OPERATION_COLLISIONS as readonly string[]).includes(assignmentCollision)
+    ) {
+      warnings.push(`${at} collision must be overwrite, skip, append, or sequence.`);
     }
     warnings.push(...assignmentValueWarnings(item).map((message) => `${at}: ${message}`));
   });

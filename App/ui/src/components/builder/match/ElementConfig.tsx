@@ -53,14 +53,13 @@ export function ElementConfig({ clauseIndex, label, operation }: ElementConfigPr
     const canRemoveNode = nodeConfigured && graph.nodes.length > 1;
     return (
       <div className="matchElementConfig">
-        <div className="matchElementConfigHead">
-          <h2 className="builderPanelTitle">node config</h2>
-          {canRemoveNode ? (
+        {canRemoveNode ? (
+          <div className="matchElementConfigHead">
             <button type="button" className="builderTinyBtn builderDanger" onClick={removeNode}>
               Remove node
             </button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
         <NodePathEntry
           clauseIndex={clauseIndex}
           patternIndex={gn.address.patternIndex}
@@ -90,7 +89,6 @@ export function ElementConfig({ clauseIndex, label, operation }: ElementConfigPr
   return (
     <div className="matchElementConfig">
       <div className="matchElementConfigHead">
-        <h2 className="builderPanelTitle">relationship config</h2>
         <button type="button" className="builderTinyBtn builderDanger" onClick={removeRelationship}>
           Remove relationship
         </button>

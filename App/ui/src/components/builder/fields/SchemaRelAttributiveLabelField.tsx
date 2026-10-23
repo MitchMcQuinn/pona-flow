@@ -83,7 +83,10 @@ export function SchemaRelAttributiveLabelField({
 
   return (
     <div className="builderField" data-issue="attributive_label">
-      {enforceUnique && !isParameterLabel && check && check.status !== "idle" ? (
+      {enforceUnique &&
+      !isParameterLabel &&
+      check &&
+      (check.status === "duplicate" || check.status === "error" || check.status === "checking") ? (
         <span className={`builderCheckMsg ${check.status}`}>
           {check.status === "checking" ? "checking…" : check.message}
         </span>

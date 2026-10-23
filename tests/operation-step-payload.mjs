@@ -29,7 +29,7 @@ const payload = JSON.parse(
       ],
     },
     operation_assignments: [
-      { when: "true", type: "boolean", key: " has_seniority ", value: true },
+      { when: "true", type: "boolean", key: " has_seniority ", value: true, collision: "skip" },
     ],
   })
 );
@@ -42,5 +42,6 @@ assert.equal(payload.evaluation.group_junction, "OR");
 assert.equal(payload.evaluation.groups[0].statements[1].y, undefined);
 assert.equal(payload.assignments[0].key, "has_seniority");
 assert.equal(payload.assignments[0].value, true);
+assert.equal(payload.assignments[0].collision, "skip");
 
 console.log("All operation-step-payload checks passed.");

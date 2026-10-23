@@ -168,28 +168,7 @@ export function OperationStepConfig({
           <FieldTip text="Written into the run as a boolean. $name and $name.field read parameters already in the run." />
         </div>
       </div>
-      <div className="builderInlineRow">
-        <div className="builderField">
-          <FieldLabel tip="overwrite replaces, skip keeps the current value, append adds on, sequence uses key_2, key_3, and so on.">
-            collision
-          </FieldLabel>
-          <select
-            data-testid="builder-operation-collision"
-            value={evaluation.collision}
-            onChange={(e) =>
-              commitEvaluation({
-                ...evaluation,
-                collision: e.target.value as OperationCollision
-              })
-            }
-          >
-            {OPERATION_COLLISIONS.map((mode) => (
-              <option key={mode} value={mode}>
-                {mode}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="builderField">
         {evaluation.groups.length > 1 ? (
           <div className="builderField builderJunctionField">
             <FieldLabel>condition junction</FieldLabel>
@@ -211,9 +190,6 @@ export function OperationStepConfig({
             </select>
           </div>
         ) : null}
-      </div>
-
-      <div className="builderField">
         <div className="builderOperationConditionHead">
           <h2 className="builderPanelTitle">condition</h2>
           {evaluation.groups.length === 1 && evaluation.groups[0].statements.length > 1 ? (
@@ -281,9 +257,6 @@ export function OperationStepConfig({
                             : "builderCard nested builderItemRow builderParameterCard"
                         }
                       >
-                      <div className="builderOperationStatementHead">
-                        <h4 className="builderPanelTitle">statement</h4>
-                      </div>
                       {group.statements.length > 1 ? (
                         <CardRemove
                           label="Remove statement"
@@ -300,11 +273,11 @@ export function OperationStepConfig({
                           }}
                         />
                       ) : null}
-                      <div className="builderInlineRow">
+                      <div className="builderInlineRow builderStatementRow">
                         <div className="builderField">
-                          <FieldLabel>X</FieldLabel>
                           <input
                             className="builderMono"
+                            aria-label="X"
                             data-testid={`builder-operation-x-${groupIndex}-${statementIndex}`}
                             placeholder="$user.email"
                             value={operandText(statement.x)}
@@ -316,12 +289,12 @@ export function OperationStepConfig({
                           />
                         </div>
                         <div className="builderField builderInlineRowOperator">
-                          <FieldLabel>operator</FieldLabel>
                           <div
                             className="builderOperatorSelect"
                             data-value={OPERATOR_LABELS[statement.operator]}
                           >
                             <select
+                              aria-label="operator"
                               data-testid={`builder-operation-operator-${groupIndex}-${statementIndex}`}
                               value={statement.operator}
                               onChange={(e) => {
@@ -342,9 +315,9 @@ export function OperationStepConfig({
                         </div>
                         {unary ? null : (
                           <div className="builderField">
-                            <FieldLabel>Y</FieldLabel>
                             <input
                               className="builderMono"
+                              aria-label="Y"
                               data-testid={`builder-operation-y-${groupIndex}-${statementIndex}`}
                               placeholder="@corp.example.com"
                               value={operandText(statement.y)}
@@ -421,6 +394,7 @@ export function OperationStepConfig({
                   onClick={() => commitAssignments(assignments.filter((_, i) => i !== index))}
                 />
               ) : null}
+              <div className="builderAssignmentFields">
               <div className="builderPropertyTypeRow">
                 <div className="builderField">
                   <FieldLabel>if condition is...</FieldLabel>
@@ -462,6 +436,31 @@ export function OperationStepConfig({
                     ))}
                   </select>
                 </div>
+                <div className="builderField">
+                  <FieldLabel tip="overwrite replaces, skip keeps the current value, append adds on, sequence uses key_2, key_3, and so on.">
+                    collision
+                  </FieldLabel>
+                  <select
+                    data-testid={`builder-operation-collision-${index}`}
+                    value={item.collision ?? evaluation.collision}
+                    onChange={(e) => {
+                      const next = assignments.map((row, i) =>
+                        i === index
+                          ? { ...row, collision: e.target.value as OperationCollision }
+                          : row
+                      );
+                      commitAssignments(next);
+                    }}
+                  >
+                    {OPERATION_COLLISIONS.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {mode}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="builderPropertyTypeRow">
                 <div className="builderField">
                   <FieldLabel>key</FieldLabel>
                   <input
@@ -513,6 +512,7 @@ export function OperationStepConfig({
                     />
                   )}
                 </div>
+              </div>
               </div>
             </div>
           ))}

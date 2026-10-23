@@ -1,10 +1,10 @@
 import { openAttributiveLabelPicker, pickFromOpenPicker, pickTargetPickerAction } from "./helpers";
 
-/** Match SCHEMA property name live-input normalization (UPPER_SNAKE, $param preserved). */
+/** Match SCHEMA property name live-input normalization (lowercase, $param preserved). */
 function normalizeSchemaPropertyKey(name: string): string {
   const trimmed = name.trim();
   if (/^\$(?![0-9])[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed)) return trimmed;
-  return trimmed.replace(/\s+/g, "_").toUpperCase().replace(/[^A-Z0-9_]/g, "");
+  return trimmed.replace(/\s+/g, "_").toLowerCase().replace(/[^a-z0-9_]/g, "");
 }
 
 Cypress.Commands.add(

@@ -6,8 +6,7 @@ import { useBuilder } from "../../../state/builder/BuilderContext";
 import connector from "../../../services/connector";
 import type { GraphNodeLabel, SequencialProperties } from "../../../state/builder/types";
 import { Picker } from "../Picker";
-import { NewStepNodeModal } from "../modals/NewStepNodeModal";
-import { AddParameterModal } from "../modals/AddParameterModal";
+import { InlineCreateNameField, type InlineCreateKind } from "./InlineCreateNameField";
 import { useDebouncedCheck } from "../hooks/useDebouncedCheck";
 
 export interface ExistingStepNode {
@@ -42,8 +41,7 @@ export function StepAttributiveLabelField({
   const { state } = useBuilder();
   const spaceId = state.spaceId ?? "";
   const [existing, setExisting] = useState<ExistingStepNode[]>([]);
-  const [showModal, setShowModal] = useState(false);
-  const [showParamModal, setShowParamModal] = useState(false);
+  const [createKind, setCreateKind] = useState<InlineCreateKind | null>(null);
   // Custom-endpoint STEP creates MERGE a concrete graph identity, so attributive_label
   // cannot be a $parameter. SCHEMA create still allows one (meta-authoring).
   const allowParameter = nodeLabel !== "STEP";
@@ -91,60 +89,61 @@ export function StepAttributiveLabelField({
     .map((n) => ({ value: n.attributive_label, label: n.attributive_label }));
 
   const check = state.checks[checkKey];
+  const showCheck =
+    enforceUnique &&
+    !isParameterLabel &&
+    check &&
+    (check.status === "duplicate" || check.status === "error" || check.status === "checking");
 
-  const missing = !attributiveLabel.trim();
+  const missing = !attributiveLabel.trim() || Boolean(createKind);
 
   return (
     <div
       className={missing ? "builderField builderFieldMissing" : "builderField"}
       data-issue="attributive_label"
+      data-check={check?.status ?? "idle"}
     >
-      {enforceUnique && !isParameterLabel && check && check.status !== "idle" ? (
+      {showCheck ? (
         <span className={`builderCheckMsg ${check.status}`}>
           {check.status === "checking" ? "checking…" : check.message}
         </span>
       ) : null}
-      <Picker
-        value={attributiveLabel}
-        placeholder="select or create node"
-        options={options}
-        createActions={[
-          { label: "+ ADD NEW NODE", onClick: () => setShowModal(true) },
-          ...(allowParameter
-            ? [{ label: "+ ADD A PARAMETER", onClick: () => setShowParamModal(true) }]
-            : [])
-        ]}
-        onSelect={(value) => {
-          if (!attributiveLabelChanged(attributiveLabel, value)) return;
-          const rec = existing.find((n) => n.attributive_label === value);
-          if (rec) onSelectExisting(rec);
-        }}
-        disabled={disabled}
-        title={disabled ? "Locked because this entry has an alias." : undefined}
-        emptyHint={
-          nodeLabel === "SCHEMA"
-            ? "No schema nodes available"
-            : `No ${nodeLabel} nodes in both the graph and this space's label catalog.`
-        }
-      />
-      {showModal ? (
-        <NewStepNodeModal
-          onCancel={() => setShowModal(false)}
-          onSave={(al) => {
-            setShowModal(false);
-            onSelectNew(al);
+      {createKind ? (
+        <InlineCreateNameField
+          kind={createKind}
+          className="builderTitleInput"
+          onCommit={(value) => {
+            setCreateKind(null);
+            onSelectNew(value);
           }}
+          onCancel={() => setCreateKind(null)}
         />
-      ) : null}
-      {allowParameter && showParamModal ? (
-        <AddParameterModal
-          onCancel={() => setShowParamModal(false)}
-          onSave={(param) => {
-            setShowParamModal(false);
-            onSelectNew(param);
+      ) : (
+        <Picker
+          className="builderPickerAsTitle"
+          value={attributiveLabel}
+          placeholder="select or create node"
+          options={options}
+          createActions={[
+            { label: "+ ADD NEW NODE", onClick: () => setCreateKind("node") },
+            ...(allowParameter
+              ? [{ label: "+ ADD A PARAMETER", onClick: () => setCreateKind("parameter") }]
+              : [])
+          ]}
+          onSelect={(value) => {
+            if (!attributiveLabelChanged(attributiveLabel, value)) return;
+            const rec = existing.find((n) => n.attributive_label === value);
+            if (rec) onSelectExisting(rec);
           }}
+          disabled={disabled}
+          title={disabled ? "Locked because this entry has an alias." : undefined}
+          emptyHint={
+            nodeLabel === "SCHEMA"
+              ? "No schema nodes available"
+              : `No ${nodeLabel} nodes in both the graph and this space's label catalog.`
+          }
         />
-      ) : null}
+      )}
     </div>
   );
 }

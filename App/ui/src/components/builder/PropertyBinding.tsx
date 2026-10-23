@@ -169,72 +169,74 @@ export function PropertyBinding({
             <span className="builderCheckMsg duplicate">{keyCheck.message}</span>
           ) : null}
         </div>
-        <div className="builderRowFlags">
-          <Toggle
-            checked={schema.is_required}
-            onChange={(value) => patchSchema({ is_required: value })}
-            label="required"
-            disabled={requiredLocked}
-          />
-          <Toggle
-            checked={schema.is_label}
-            onChange={(value) => patchSchema({ is_label: value })}
-            label="label"
-            disabled={readOnly}
-          />
-          <Toggle
-            checked={schema.is_indexed}
-            onChange={(value) => patchSchema({ is_indexed: value })}
-            label="indexed"
-            disabled={readOnly}
-          />
-          {vectorized && embeddingsEnabled ? (
-            <Toggle
-              checked={schema.is_embedded === true}
-              onChange={(value) => patchSchema({ is_embedded: value })}
-              label="is_embedded"
-              disabled={readOnly}
-            />
-          ) : null}
-        </div>
-        <div className="builderPropertyTypeRow">
-          <div className="builderField">
-            <label>type</label>
-            <select
-              value={schema.value_type}
-              disabled={structuralLock}
-              onChange={(e) => patchSchema({ value_type: e.target.value as ValueType })}
-            >
-              {VALUE_TYPES.map((vt) => (
-                <option key={vt} value={vt}>
-                  {vt}
-                </option>
-              ))}
-            </select>
-          </div>
-          {schema.value_type === "string" ? (
+        <div className="builderPropertyMetaRow">
+          <div className="builderPropertyTypeCol">
             <div className="builderField">
-              <label>format</label>
+              <label>type</label>
               <select
-                value={schema.format ?? "any"}
+                value={schema.value_type}
                 disabled={structuralLock}
-                onChange={(e) => {
-                  if (e.target.value === ADD_REGEX_VALUE) {
-                    setShowRegexModal(true);
-                    return;
-                  }
-                  patchSchema({ format: e.target.value });
-                }}
+                onChange={(e) => patchSchema({ value_type: e.target.value as ValueType })}
               >
-                <option value={ADD_REGEX_VALUE}>+ REGEX PATTERN</option>
-                {formatOptions.map((f) => (
-                  <option key={f} value={f}>
-                    {f}
+                {VALUE_TYPES.map((vt) => (
+                  <option key={vt} value={vt}>
+                    {vt}
                   </option>
                 ))}
               </select>
             </div>
-          ) : null}
+            {schema.value_type === "string" ? (
+              <div className="builderField">
+                <label>format</label>
+                <select
+                  value={schema.format ?? "any"}
+                  disabled={structuralLock}
+                  onChange={(e) => {
+                    if (e.target.value === ADD_REGEX_VALUE) {
+                      setShowRegexModal(true);
+                      return;
+                    }
+                    patchSchema({ format: e.target.value });
+                  }}
+                >
+                  <option value={ADD_REGEX_VALUE}>+ REGEX PATTERN</option>
+                  {formatOptions.map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+          </div>
+          <div className="builderPropertyFlagCol">
+            <Toggle
+              checked={schema.is_required}
+              onChange={(value) => patchSchema({ is_required: value })}
+              label="required"
+              disabled={requiredLocked}
+            />
+            <Toggle
+              checked={schema.is_label}
+              onChange={(value) => patchSchema({ is_label: value })}
+              label="label"
+              disabled={readOnly}
+            />
+            <Toggle
+              checked={schema.is_indexed}
+              onChange={(value) => patchSchema({ is_indexed: value })}
+              label="indexed"
+              disabled={readOnly}
+            />
+            {vectorized && embeddingsEnabled ? (
+              <Toggle
+                checked={schema.is_embedded === true}
+                onChange={(value) => patchSchema({ is_embedded: value })}
+                label="is_embedded"
+                disabled={readOnly}
+              />
+            ) : null}
+          </div>
         </div>
 
         {isChoiceType ? (
@@ -254,8 +256,6 @@ export function PropertyBinding({
               default_value
               {!defaultCheck.valid ? (
                 <span className="builderCheckMsg duplicate">{defaultCheck.message}</span>
-              ) : defaultRaw.trim() && defaultCheck.message ? (
-                <span className="builderCheckMsg ok">{defaultCheck.message}</span>
               ) : null}
             </label>
             <TypedValueInput

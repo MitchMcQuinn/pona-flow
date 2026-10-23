@@ -43,7 +43,7 @@ function goldenSchemaContext() {
     id_binding: { key: "id", value: "ent-customer-1" },
     properties: [
       {
-        key: "EMAIL",
+        key: "email",
         value: "",
         schematic_properties: {
           ...newSchematicProperties(),
@@ -53,7 +53,7 @@ function goldenSchemaContext() {
         },
       },
       {
-        key: "NAME",
+        key: "name",
         value: "",
         schematic_properties: { ...newSchematicProperties(), is_label: true },
       },

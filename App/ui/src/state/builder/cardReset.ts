@@ -1,4 +1,4 @@
-import { normalizeAttributiveLabel } from "@pona-flow/authoring";
+import { finalizeAttributiveLabelInput, normalizeAttributiveLabel } from "@pona-flow/authoring";
 import type { GraphNodeLabel, NodePattern, QueryObject, RelationshipPattern } from "./types";
 
 export function attributiveLabelChanged(before: string | undefined, after: string): boolean {
@@ -25,7 +25,7 @@ export function nodeClearedForAttributiveLabel(
   current: NodePattern
 ): Partial<NodePattern> {
   const patch: Partial<NodePattern> = {
-    attributive_label: normalizeAttributiveLabel(attributiveLabel),
+    attributive_label: finalizeAttributiveLabelInput(attributiveLabel),
     node_source: undefined,
     id_binding: undefined,
     properties: [],
@@ -46,7 +46,7 @@ export function relationshipClearedForAttributiveLabel(
   current: RelationshipPattern
 ): Partial<RelationshipPattern> {
   const patch: Partial<RelationshipPattern> = {
-    attributive_label: normalizeAttributiveLabel(attributiveLabel),
+    attributive_label: finalizeAttributiveLabelInput(attributiveLabel),
     node_source: undefined,
     id_binding: undefined,
     properties: [],

@@ -1,5 +1,5 @@
 /**
- * SCHEMA property name inputs enforce UPPER_SNAKE (same rules as attributive_label).
+ * SCHEMA property name inputs enforce lowercase snake_case ($param is preserved).
  */
 import assert from "node:assert/strict";
 
@@ -9,19 +9,19 @@ const {
 } = await import("../App/authoring/src/normalizeField.ts");
 const { validateSchemaPropertyKey } = await import("../App/authoring/src/schemaRules.ts");
 
-assert.equal(normalizeSchemaPropertyKey("first name"), "FIRST_NAME");
-assert.equal(normalizeSchemaPropertyKey("status"), "STATUS");
+assert.equal(normalizeSchemaPropertyKey("first name"), "first_name");
+assert.equal(normalizeSchemaPropertyKey("STATUS"), "status");
 assert.equal(normalizeSchemaPropertyKey("$dynamicName"), "$dynamicName");
 
-assert.equal(sanitizeSchemaPropertyKeyInput("na"), "NA");
+assert.equal(sanitizeSchemaPropertyKeyInput("NA"), "na");
 assert.equal(sanitizeSchemaPropertyKeyInput("$dyn"), "$dyn");
 
-const valid = validateSchemaPropertyKey("STATUS");
+const valid = validateSchemaPropertyKey("status");
 assert.equal(valid.valid, true);
 
-const invalid = validateSchemaPropertyKey("status");
+const invalid = validateSchemaPropertyKey("STATUS");
 assert.equal(invalid.valid, false);
-assert.match(invalid.message, /UPPER_SNAKE/);
+assert.match(invalid.message, /lowercase/);
 
 const param = validateSchemaPropertyKey("$fieldName");
 assert.equal(param.valid, true);

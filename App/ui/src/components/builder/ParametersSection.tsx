@@ -270,12 +270,14 @@ function ParameterRow({
           default value
           {!formatCheck.valid ? (
             <span className="builderCheckMsg duplicate">{formatCheck.message}</span>
-          ) : isAttributiveLabel && uniquenessCheck && uniquenessCheck.status !== "idle" ? (
+          ) : isAttributiveLabel &&
+            uniquenessCheck &&
+            (uniquenessCheck.status === "duplicate" ||
+              uniquenessCheck.status === "error" ||
+              uniquenessCheck.status === "checking") ? (
             <span className={`builderCheckMsg ${uniquenessCheck.status}`}>
               {uniquenessCheck.status === "checking" ? "checking…" : uniquenessCheck.message}
             </span>
-          ) : rawValue.trim() && formatCheck.message ? (
-            <span className="builderCheckMsg ok">{formatCheck.message}</span>
           ) : null}
         </label>
         {isChoiceType ? (

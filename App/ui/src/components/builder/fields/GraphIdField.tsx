@@ -40,7 +40,8 @@ export function GraphIdField({ checkKey, idValue, onChange }: GraphIdFieldProps)
           Generate
         </button>
       </div>
-      {check && check.status !== "idle" ? (
+      {check &&
+      (check.status === "duplicate" || check.status === "error" || check.status === "checking") ? (
         <span className={`builderCheckMsg ${check.status}`}>
           {check.status === "checking" ? "checking…" : check.message}
         </span>

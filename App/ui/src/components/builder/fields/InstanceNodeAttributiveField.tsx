@@ -4,7 +4,7 @@ import { intersectGraphLabelsWithCatalog } from "../../../state/builder/attribut
 import { useBuilder } from "../../../state/builder/BuilderContext";
 import connector from "../../../services/connector";
 import { Picker } from "../Picker";
-import { AddParameterModal } from "../modals/AddParameterModal";
+import { InlineCreateNameField } from "./InlineCreateNameField";
 
 interface InstanceNodeAttributiveFieldProps {
   attributiveLabel: string;
@@ -22,7 +22,7 @@ export function InstanceNodeAttributiveField({
   const { state } = useBuilder();
   const spaceId = state.spaceId ?? "";
   const [schemas, setSchemas] = useState<string[]>([]);
-  const [showParamModal, setShowParamModal] = useState(false);
+  const [creatingParameter, setCreatingParameter] = useState(false);
 
   useEffect(() => {
     if (!spaceId) return;
@@ -40,30 +40,37 @@ export function InstanceNodeAttributiveField({
     };
   }, [spaceId, state.spaceLabels]);
 
+  const missing = !attributiveLabel.trim() || creatingParameter;
+
   return (
-    <div className="builderField" data-issue="attributive_label">
-      <Picker
-        value={attributiveLabel}
-        placeholder="(select schema)"
-        options={schemas.map((s) => ({ value: s, label: s }))}
-        createActions={[{ label: "+ ADD A PARAMETER", onClick: () => setShowParamModal(true) }]}
-        onSelect={(value) => {
-          if (!attributiveLabelChanged(attributiveLabel, value)) return;
-          onSelect(value);
-        }}
-        disabled={disabled}
-        title={disabled ? "Locked because this entry has an alias." : undefined}
-        emptyHint="No schema nodes available"
-      />
-      {showParamModal ? (
-        <AddParameterModal
-          onCancel={() => setShowParamModal(false)}
-          onSave={(param) => {
-            setShowParamModal(false);
+    <div
+      className={missing ? "builderField builderFieldMissing" : "builderField"}
+      data-issue="attributive_label"
+    >
+      {creatingParameter ? (
+        <InlineCreateNameField
+          kind="parameter"
+          onCommit={(param) => {
+            setCreatingParameter(false);
             if (attributiveLabelChanged(attributiveLabel, param)) onSelect(param);
           }}
+          onCancel={() => setCreatingParameter(false)}
         />
-      ) : null}
+      ) : (
+        <Picker
+          value={attributiveLabel}
+          placeholder="(select schema)"
+          options={schemas.map((s) => ({ value: s, label: s }))}
+          createActions={[{ label: "+ ADD A PARAMETER", onClick: () => setCreatingParameter(true) }]}
+          onSelect={(value) => {
+            if (!attributiveLabelChanged(attributiveLabel, value)) return;
+            onSelect(value);
+          }}
+          disabled={disabled}
+          title={disabled ? "Locked because this entry has an alias." : undefined}
+          emptyHint="No schema nodes available"
+        />
+      )}
     </div>
   );
 }

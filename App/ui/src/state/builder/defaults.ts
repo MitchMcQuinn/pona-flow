@@ -7,11 +7,13 @@
  * operation/label out of localStorage, which has no meaning in Node.
  */
 
-import { newMatchClause, newQuery } from "@pona-flow/authoring";
+import { applySchemaCreateDefaults, newMatchClause, newQuery } from "@pona-flow/authoring";
 import uiPersistence from "../../services/uiPersistence";
 import type { BuilderState } from "./types";
 
 export {
+  applySchemaCreateDefaults,
+  defaultSchemaCreateProperties,
   emptyWhereGroup,
   localId,
   newMatchClause,
@@ -23,6 +25,7 @@ export {
   newRelationshipPattern,
   newReturnItem,
   newUnwindItem,
+  newSchemaLabelProperty,
   newSchemaProperty,
   newSchematicProperties,
   newWhereFilter,
@@ -39,7 +42,11 @@ export function initialBuilderState(spaceId: string | null = null): BuilderState
   return {
     spaceId,
     runtimeEnabled,
-    query: { ...newQuery(operation), match: [newMatchClause(label)] },
+    query: applySchemaCreateDefaults(
+      { ...newQuery(operation), match: [newMatchClause(label)] },
+      operation,
+      label
+    ),
     checks: {},
     modal: { kind: null, context: null },
     savedQueries: [],

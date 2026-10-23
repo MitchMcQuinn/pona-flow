@@ -239,7 +239,7 @@ export function registerSequenceTools(server: McpServer, config: McpConfig): voi
           .string()
           .optional()
           .describe(
-            "UPPER_SNAKE name for the edge. Defaults to NEXT, which may be reused on every " +
+            "lowercase name for the edge. Defaults to NEXT, which may be reused on every " +
               "STEP-to-STEP edge. Use a distinct name like ON_APPROVAL only to describe why " +
               "this branch fires."
           ),

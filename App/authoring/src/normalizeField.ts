@@ -14,30 +14,48 @@ export function normalizeAttributiveLabel(value: string): string {
   if (isAttributiveLabelParameter(trimmed)) return trimmed;
   return String(value ?? "")
     .replace(/\s+/g, "_")
-    .toUpperCase()
-    .replace(/[^A-Z0-9_]/g, "");
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "");
 }
 
 /**
- * Live-typing sanitizer for free-text attributive_label inputs. While the value
- * begins with "$" it is treated as an in-progress parameter (keep "$" + identifier
- * characters) so the user can start typing a parameter; otherwise it normalizes to
- * a literal attributive_label. Unlike `normalizeAttributiveLabel`, this preserves a
- * lone or partial "$name" instead of stripping the leading "$".
+ * Live-typing sanitizer for free-text attributive_label inputs. Lowercase only;
+ * spaces stay so a display name can be typed. While the value begins with "$"
+ * it is treated as an in-progress parameter (keep "$" + identifier characters).
  */
 export function sanitizeAttributiveLabelInput(value: string): string {
+  const raw = String(value ?? "");
+  if (raw.trimStart().startsWith("$")) {
+    return "$" + raw.trim().replace(/^\$/, "").replace(/[^A-Za-z0-9_]/g, "");
+  }
+  return raw.toLowerCase().replace(/[^a-z0-9_ ]/g, "").replace(/^ +/, "");
+}
+
+/** Commit form of a typed attributive_label: lowercase, trimmed, internal spaces kept. */
+export function finalizeAttributiveLabelInput(value: string): string {
+  const sanitized = sanitizeAttributiveLabelInput(value);
+  if (isAttributiveLabelParameter(sanitized.trim())) return sanitized.trim();
+  return sanitized.replace(/ +/g, " ").trim();
+}
+
+/** SCHEMA property name/key: lowercase snake_case (spaces become `_`; $param is preserved). */
+export function normalizeSchemaPropertyKey(value: string): string {
+  const trimmed = String(value ?? "").trim();
+  if (isAttributiveLabelParameter(trimmed)) return trimmed;
+  return String(value ?? "")
+    .replace(/\s+/g, "_")
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "");
+}
+
+/** Live-typing sanitizer for SCHEMA property name inputs. */
+export function sanitizeSchemaPropertyKeyInput(value: string): string {
   const trimmed = String(value ?? "").trim();
   if (trimmed.startsWith("$")) {
     return "$" + trimmed.slice(1).replace(/[^A-Za-z0-9_]/g, "");
   }
-  return normalizeAttributiveLabel(value);
+  return normalizeSchemaPropertyKey(value);
 }
-
-/** SCHEMA property name/key: same UPPER_SNAKE rules as attributive_label (incl. $param). */
-export const normalizeSchemaPropertyKey = normalizeAttributiveLabel;
-
-/** Live-typing sanitizer for SCHEMA property name inputs. */
-export const sanitizeSchemaPropertyKeyInput = sanitizeAttributiveLabelInput;
 
 /**
  * Enforce parameter formatting for a field that must hold a $parameter reference

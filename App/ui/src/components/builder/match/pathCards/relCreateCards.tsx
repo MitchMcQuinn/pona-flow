@@ -25,8 +25,8 @@ import {
   isAliasSet
 } from "@pona-flow/authoring";
 import {
+  finalizeAttributiveLabelInput,
   normalizeAlias,
-  normalizeAttributiveLabel,
   sanitizeAttributiveLabelInput
 } from "@pona-flow/authoring";
 import { addSchemaProperty, updateNode } from "../../../../state/builder/queryHelpers";
@@ -330,7 +330,7 @@ export function SchemaCreateRelCard(props: RelCardProps) {
         id = "";
       }
     }
-    const al = normalizeAttributiveLabel(attributiveLabel);
+    const al = finalizeAttributiveLabelInput(attributiveLabel);
     if (attributiveLabelChanged(relationship.attributive_label, al)) clearRelCardChecks();
     patch({
       ...relationshipClearedForAttributiveLabel(al, label, relationship),
