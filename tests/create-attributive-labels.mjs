@@ -193,7 +193,7 @@ function newRel(label, id, extra = {}) {
 }
 
 // STEP transition: existing endpoints, new POINTS_TO edge.
-// STEP-to-STEP labels (NEXT, ON_APPROVAL, …) are reusable — they register in the
+// STEP-to-STEP labels (next, on_approval, …) are reusable — they register in the
 // space catalog but are not uniqueness-claimed.
 
 {
@@ -212,7 +212,7 @@ function newRel(label, id, extra = {}) {
   );
   assert.deepEqual(
     collectCreateCatalogLabels(query),
-    ["ON_APPROVAL"],
+    ["on_approval"],
     "STEP relationship labels still register in the space catalog"
   );
   assert.deepEqual(collectCreateEntityIds(query), ["rel-1"]);
@@ -222,7 +222,7 @@ function newRel(label, id, extra = {}) {
     { includeQueriesCatalog: false }
   );
   assert.equal(body.attributive_labels, undefined);
-  assert.deepEqual(body.catalog_labels, ["ON_APPROVAL"]);
+  assert.deepEqual(body.catalog_labels, ["on_approval"]);
 }
 
 {
@@ -235,7 +235,7 @@ function newRel(label, id, extra = {}) {
     { queryId: "q-next", entityIds: ["rel-2"] }
   );
   assert.deepEqual(collectCreateAttributiveLabels(query), []);
-  assert.deepEqual(collectCreateCatalogLabels(query), ["NEXT"]);
+  assert.deepEqual(collectCreateCatalogLabels(query), ["next"]);
 }
 
 // New STEP node plus a NEXT edge: only the node label is uniqueness-claimed.
