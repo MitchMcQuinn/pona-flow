@@ -166,7 +166,7 @@ def get_thread(thread_id: str, space_id: str, user_id: str) -> dict[str, Any] | 
             return None
         thread = _thread_row(row)
         messages = conn.execute(
-            "SELECT * FROM chat_messages WHERE thread_id = ? ORDER BY created_at ASC, id ASC",
+            "SELECT * FROM chat_messages WHERE thread_id = ? ORDER BY created_at ASC, rowid ASC",
             (thread["id"],),
         ).fetchall()
         stack = conn.execute(

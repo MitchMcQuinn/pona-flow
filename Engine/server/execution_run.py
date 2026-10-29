@@ -1494,21 +1494,12 @@ def run_execution(
 
         try:
             response = _execute_step(space_id, step, resolved)
-        except Exception as err:
-            # A step that raises (for example a delete blocked by relationships)
-            # must end the run. Leaving status active makes Stop look broken:
-            # nothing is left in the loop to notice the cancel flag.
-            return _finish_run(
-                state_id,
-                {
-                    "status": "error",
-                    "state_id": state_id,
-                    "message": str(err),
-                    "resolved": resolved,
-                    "executed": executed,
-                },
-                audit_id=audit_id,
-            )
+        except Exception:
+            # The id mint was written before this step ran. Keep that progress so
+            # a retry reuses it instead of creating a second entity, and clear the
+            # active flag so a dead run is not stuck looking in-flight.
+            catalog.update_state_status(state_id, "inactive")
+            raise
         final_step = step
         final_response = response if isinstance(response, dict) else {}
         in_loop_body = bool(loop) and step_id in loop_body
