@@ -17,7 +17,7 @@ export function SetSection() {
   // Update INSTANCE binds SET assignments to the MATCH schema (path/property
   // pickers + value), mirroring the read INSTANCE return/filter cards. Other
   // labels keep the free-form expression input.
-  const boundSet = state.query.match[0]?.label === "INSTANCE";
+  const boundSet = state.query.match?.[0]?.label === "INSTANCE";
 
   // Changing a node/relationship's attributive_label (or renaming its variable)
   // invalidates any assignment bound to it. Reset such assignments so we never

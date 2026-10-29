@@ -2,40 +2,53 @@ import type { SequenceSummary } from "./types";
 
 export const UNGROUPED_LABEL = "Ungrouped";
 
-export interface NavGroup {
+/** A nav row that can sit in a named group or in the ungrouped tail. */
+export interface GroupableNavItem {
+  id: string;
+  groupTitle: string | null;
+  sortOrder: number | null;
+}
+
+export interface NavGroup<T extends GroupableNavItem = GroupableNavItem> {
   title: string;
   /** True for the synthetic "Ungrouped" bucket (not a real, persisted group). */
   ungrouped: boolean;
-  sequences: SequenceSummary[];
+  items: T[];
 }
 
-export function compareSortOrder(a: SequenceSummary, b: SequenceSummary): number {
-  const ao = a.sortOrder;
-  const bo = b.sortOrder;
-  if (ao != null && bo != null && ao !== bo) return ao - bo;
-  if (ao != null && bo == null) return -1;
-  if (ao == null && bo != null) return 1;
-  return a.label.localeCompare(b.label);
+export function compareSortOrder<T extends GroupableNavItem>(
+  labelOf: (item: T) => string
+): (a: T, b: T) => number {
+  return (a, b) => {
+    const ao = a.sortOrder;
+    const bo = b.sortOrder;
+    if (ao != null && bo != null && ao !== bo) return ao - bo;
+    if (ao != null && bo == null) return -1;
+    if (ao == null && bo != null) return 1;
+    return labelOf(a).localeCompare(labelOf(b));
+  };
 }
 
 /**
  * Build the ordered nav group list.
  *
- * - Named groups follow ``groupOrder`` (the persisted ``spaces.groups`` order) and are
- *   included even when they currently hold no sequences (so users can see/drop into them).
- * - Any group title found on a sequence but missing from ``groupOrder`` is appended after.
+ * - Named groups follow ``groupOrder`` and are included even when empty (so users can
+ *   see them and drop into them).
+ * - Any group title found on an item but missing from ``groupOrder`` is appended after.
  * - The synthetic "Ungrouped" bucket always sorts last and only appears when populated.
- * - Sequences within a group are ordered by ``sortOrder``.
+ *   The nav renders those items as a flat list under the named groups, with no header.
+ * - Items within a group are ordered by ``sortOrder``.
  */
-export function buildNavGroups(
-  sequences: SequenceSummary[],
-  groupOrder: string[]
-): NavGroup[] {
-  const byTitle = new Map<string, SequenceSummary[]>();
-  for (const sequence of sequences) {
-    const key = sequence.groupTitle?.trim() || UNGROUPED_LABEL;
+export function buildNavGroups<T extends GroupableNavItem>(
+  entries: T[],
+  groupOrder: string[],
+  labelOf: (item: T) => string
+): NavGroup<T>[] {
+  const byTitle = new Map<string, T[]>();
+  for (const entry of entries) {
+    const key = entry.groupTitle?.trim() || UNGROUPED_LABEL;
     const list = byTitle.get(key) ?? [];
-    list.push(sequence);
+    list.push(entry);
     byTitle.set(key, list);
   }
 
@@ -47,17 +60,18 @@ export function buildNavGroups(
     seen.add(title);
     orderedTitles.push(title);
   }
-  // Defensive: surface any group titles that exist on sequences but not in groupOrder.
+  // Defensive: surface any group titles that exist on items but not in groupOrder.
   for (const key of byTitle.keys()) {
     if (key === UNGROUPED_LABEL || seen.has(key)) continue;
     seen.add(key);
     orderedTitles.push(key);
   }
 
-  const groups: NavGroup[] = orderedTitles.map((title) => ({
+  const order = compareSortOrder(labelOf);
+  const groups: NavGroup<T>[] = orderedTitles.map((title) => ({
     title,
     ungrouped: false,
-    sequences: (byTitle.get(title) ?? []).slice().sort(compareSortOrder)
+    items: (byTitle.get(title) ?? []).slice().sort(order)
   }));
 
   const ungrouped = byTitle.get(UNGROUPED_LABEL);
@@ -65,7 +79,7 @@ export function buildNavGroups(
     groups.push({
       title: UNGROUPED_LABEL,
       ungrouped: true,
-      sequences: ungrouped.slice().sort(compareSortOrder)
+      items: ungrouped.slice().sort(order)
     });
   }
 
@@ -73,13 +87,31 @@ export function buildNavGroups(
 }
 
 /** Flatten nav groups into display order (used as the basis for drag reindexing). */
-export function flattenNavGroups(groups: NavGroup[]): SequenceSummary[] {
-  return groups.flatMap((group) => group.sequences);
+export function flattenNavGroups<T extends GroupableNavItem>(groups: NavGroup<T>[]): T[] {
+  return groups.flatMap((group) => group.items);
 }
 
 /** Reassign sequential ``sortOrder`` values matching the array order. */
-export function reindexSequences(sequences: SequenceSummary[]): SequenceSummary[] {
-  return sequences.map((sequence, index) => ({ ...sequence, sortOrder: index }));
+export function reindexSequences<T extends GroupableNavItem>(entries: T[]): T[] {
+  return entries.map((entry, index) => ({ ...entry, sortOrder: index }));
+}
+
+/**
+ * Delete a named group by moving its items onto the ungrouped tail (after anything
+ * already ungrouped) and reindexing.
+ */
+export function moveGroupToUngrouped<T extends GroupableNavItem>(
+  entries: T[],
+  groupOrder: string[],
+  title: string,
+  labelOf: (item: T) => string
+): T[] {
+  const display = flattenNavGroups(buildNavGroups(entries, groupOrder, labelOf));
+  const kept = display.filter((entry) => (entry.groupTitle ?? null) !== title);
+  const moved = display
+    .filter((entry) => (entry.groupTitle ?? null) === title)
+    .map((entry) => ({ ...entry, groupTitle: null }));
+  return reindexSequences([...kept, ...moved]);
 }
 
 /** True when a nav row is a one-step (synthetic) sequence wrap around a single STEP. */

@@ -165,7 +165,9 @@ private/loopback/link-local/reserved targets.
   private or loopback, so a self-hosted
   [local-llm-server](https://github.com/MitchMcQuinn/local-llm-server) is reachable as
   `PONA_FLOW_OUTBOUND_ALLOWLIST=127.0.0.1`. Do not allowlist Ollama (`:11434`); the
-  engine reaches it only through the embeddings module.
+  engine reaches it only through the embeddings module. Cloud embeddings are a
+  separate setting (`PONA_FLOW_EMBED_PROVIDER=gemini`): the engine calls that https
+  host itself and does not use this allowlist.
 - `PONA_FLOW_ALLOW_PRIVATE_OUTBOUND=1` opens every private/loopback target. Only on a
   trusted network; prefer the allowlist.
 

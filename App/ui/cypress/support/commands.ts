@@ -130,7 +130,7 @@ declare global {
       fillExternalEvent(options: ExternalEventOptions): Chainable<void>;
       /** Save the open event and wait for it to appear in the nav. */
       saveEvent(name: string): Chainable<void>;
-      /** Delete an event from the nav (handles window.confirm). */
+      /** Delete an event from the nav (confirms the delete card). */
       deleteEventInNav(name: string): Chainable<void>;
 
       // --- space admin (commands/space.ts) ---

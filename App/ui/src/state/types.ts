@@ -18,6 +18,8 @@ export interface Me {
   timezone: string | null;
   /** Finished or skipped the product tour; false auto-starts it on first visit. */
   onboardingTourSeen: boolean;
+  /** Home screen. ``chat`` replaces the nav; ``classic`` is the three-pane workbench. */
+  workbenchMode: "chat" | "classic";
 }
 
 /** A principal's effective permissions in the current space (from /api/space/permissions). */
@@ -42,6 +44,8 @@ export interface AuditEntry {
   trigger: string;
   principalId: string | null;
   principalEmail: string | null;
+  /** Resolved parameter map for this run. Null on rows written before the column existed. */
+  parameterMap: Record<string, unknown> | null;
 }
 
 export type Combinator = "AND" | "OR";
@@ -104,6 +108,8 @@ export interface SimulationPackage {
   tic_duration: number;
   /** Sequence run when an outcome is chosen. Empty records the emission only. */
   sequence_id?: string;
+  /** Console refreshed on every tic. Empty leaves the simulation unattached. */
+  console_id?: string;
   probabilities: SimulationProbability[];
 }
 
@@ -147,6 +153,16 @@ export interface EventSummary {
   enabled: boolean;
   sequences: string[];
   recoverySequences: string[];
+  groupTitle: string | null;
+  sortOrder: number | null;
+}
+
+/** Console row as shown in the nav (grouping fields included). */
+export interface ConsoleNavItem {
+  id: string;
+  name: string;
+  groupTitle: string | null;
+  sortOrder: number | null;
 }
 
 export interface EventDetail extends EventSummary {
@@ -298,11 +314,23 @@ export interface AppState {
   createSequence: boolean;
   events: {
     items: EventSummary[];
+    groups: string[];
     selectedEventId: string | null;
     loading: boolean;
     error: string | null;
+    /** Bumps when the nav edit icon opens this event's settings. */
+    editNonce: number;
   };
   createEvent: boolean;
+  consoles: {
+    items: ConsoleNavItem[];
+    groups: string[];
+    selectedConsoleId: string | null;
+    loading: boolean;
+    error: string | null;
+    /** Bumps when the nav edit icon opens this console's edit mode. */
+    editNonce: number;
+  };
   auditLog: {
     entries: AuditEntry[];
     loading: boolean;

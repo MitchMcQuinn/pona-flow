@@ -907,16 +907,37 @@ def preview_sequence_inputs(
     if seq_id:
         try:
             package = compose_execution_package(sid, seq_id)
-            return {
-                "parameters": bindable_step_parameters(package),
-                "parameter_values": dict(package.get("parameter_values") or {}),
-            }
+            return _preview_payload(package)
         except Exception:
             if not label:
                 raise
     return {
         "parameters": preview_sequence_parameters(sid, label, traversal),
         "parameter_values": {},
+        "parameter_steps": [],
+        "response_parameter_names": [],
+    }
+
+
+def _preview_payload(package: dict[str, Any]) -> dict[str, Any]:
+    """Bindable inputs plus the per-step lists a form uses to paginate pauses."""
+    steps: list[list[dict[str, Any]]] = []
+    for step in package.get("steps") or []:
+        if not isinstance(step, dict):
+            continue
+        steps.append([param for param in (step.get("parameters") or []) if isinstance(param, dict)])
+    names: list[str] = []
+    for response in package.get("response_parameters") or []:
+        if not isinstance(response, dict):
+            continue
+        name = str(response.get("parameter") or "").strip()
+        if name and name not in names:
+            names.append(name)
+    return {
+        "parameters": bindable_step_parameters(package),
+        "parameter_values": dict(package.get("parameter_values") or {}),
+        "parameter_steps": steps,
+        "response_parameter_names": names,
     }
 
 

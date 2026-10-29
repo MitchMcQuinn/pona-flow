@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
     can_create_spaces INTEGER NOT NULL DEFAULT 0 CHECK (can_create_spaces IN (0, 1)),
     is_instance_admin INTEGER NOT NULL DEFAULT 0 CHECK (is_instance_admin IN (0, 1)),
     timezone TEXT,
+    -- chat is the home screen; classic is the three-pane nav workbench.
+    workbench_mode TEXT NOT NULL DEFAULT 'chat' CHECK (workbench_mode IN ('chat', 'classic')),
     creation_date TEXT NOT NULL DEFAULT (datetime('now')),
     modified_date TEXT NOT NULL DEFAULT (datetime('now'))
 );

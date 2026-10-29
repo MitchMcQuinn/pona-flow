@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.exceptions import HTTPException
 
-from .. import auth, config, rbac, spaces
+from .. import auth, config, operation_nav, rbac, spaces
 from ..auth import Principal
 from ..http_utils import (
     DOMAIN_ERRORS,
@@ -128,6 +128,7 @@ def space_record(
 ):
     sid = require_query_space_id(space_id)
     auth.require_space_access(principal, sid)
+    operation_nav.publish_chat_operations(sid)
     try:
         return spaces.fetch_space_record(sid)
     except ValueError as e:
@@ -163,7 +164,7 @@ def space_groups(
     sid = require_query_space_id(space_id)
     auth.require_space_access(principal, sid)
     with domain_500():
-        return {"space_id": sid, "groups": spaces.fetch_space_groups(sid)}
+        return {"space_id": sid, **spaces.fetch_nav_groups(sid)}
 
 
 @router.post("/api/space/groups")
@@ -176,6 +177,9 @@ async def set_space_groups(
     groups = body.get("groups")
     if not isinstance(groups, list):
         raise bad_request("groups must be an array")
+    section = str(body.get("section") or "sequences").strip().lower()
+    if section not in ("sequences", "events", "consoles"):
+        raise bad_request("section must be sequences, events, or consoles")
     with domain_500():
-        result = spaces.set_space_groups(space_id, [str(g) for g in groups])
+        result = spaces.set_section_groups(space_id, section, [str(g) for g in groups])
     return {"space_id": space_id, **result}

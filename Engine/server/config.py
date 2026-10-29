@@ -195,6 +195,51 @@ def ollama_embed_model() -> str:
     return (os.environ.get("PONA_FLOW_OLLAMA_EMBED_MODEL") or "").strip()
 
 
+# Gemini's public embedContent API. A space may point at another host that speaks the
+# same contract; this is only the instance default.
+GEMINI_EMBED_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+
+
+def embed_provider() -> str:
+    """Instance embedding provider (``PONA_FLOW_EMBED_PROVIDER``).
+
+    ``ollama`` when unset or unrecognized, so a deployment that only set the Ollama
+    variables keeps the local default.
+    """
+    raw = (os.environ.get("PONA_FLOW_EMBED_PROVIDER") or "").strip().lower()
+    if raw in ("ollama", "gemini"):
+        return raw
+    return "ollama"
+
+
+def embed_base_url() -> str:
+    """Gemini-compatible API root (``PONA_FLOW_EMBED_BASE_URL``).
+
+    The embeddings client appends ``/models/{model}:embedContent``.
+    """
+    return (
+        os.environ.get("PONA_FLOW_EMBED_BASE_URL") or GEMINI_EMBED_BASE_URL
+    ).strip().rstrip("/")
+
+
+def embed_model() -> str:
+    """Cloud (or override) embedding model (``PONA_FLOW_EMBED_MODEL``).
+
+    Empty when unset. The Ollama provider falls back to ``ollama_embed_model``; the
+    Gemini provider does not, because an Ollama model name is not a Gemini model id.
+    """
+    return (os.environ.get("PONA_FLOW_EMBED_MODEL") or "").strip()
+
+
+def embed_api_key() -> str:
+    """Instance API key for an inherited cloud embedding config (``PONA_FLOW_EMBED_API_KEY``).
+
+    Used only when a space has never saved its own settings. A saved space names a
+    credential instead, and this value is never written into the catalog.
+    """
+    return (os.environ.get("PONA_FLOW_EMBED_API_KEY") or "").strip()
+
+
 def embedding_reindex_seconds() -> int:
     """How often the engine sweeps stale records back into the vector index.
 

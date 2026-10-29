@@ -45,6 +45,7 @@ _FINISHED_STATUSES = ("inactive", "cancelled")
 _REGEX_TABLE_SQL = config.ROOT / "Engine" / "schema" / "regex-table.sql"
 _STATE_TABLE_SQL = config.ROOT / "Engine" / "schema" / "state-table.sql"
 _EVENTS_TABLE_SQL = config.ROOT / "Engine" / "schema" / "events-table.sql"
+_CONSOLES_TABLE_SQL = config.ROOT / "Engine" / "schema" / "consoles-table.sql"
 _SIMULATION_TABLES_SQL = config.ROOT / "Engine" / "schema" / "simulation-tables.sql"
 _EVENT_TEST_CAPTURES_SQL = config.ROOT / "Engine" / "schema" / "event-test-captures-table.sql"
 _AUDIT_LOG_TABLE_SQL = config.ROOT / "Engine" / "schema" / "audit-log-table.sql"
@@ -106,6 +107,7 @@ def _ensure_events_table(conn: sqlite3.Connection) -> None:
     sqlite_util.ensure_column(
         conn, "events", "simulation_package", "TEXT NOT NULL DEFAULT '{}'"
     )
+    _ensure_events_nav_columns(conn)
     _rebuild_events_type_check(conn)
 
 
@@ -135,6 +137,27 @@ def _rebuild_events_type_check(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _ensure_events_nav_columns(conn: sqlite3.Connection) -> None:
+    """Additive migration: nav group title and sort order on events."""
+    sqlite_util.ensure_column(conn, "events", "group_title", "TEXT", commit=False)
+    sqlite_util.ensure_column(conn, "events", "sort_order", "INTEGER", commit=False)
+    conn.commit()
+
+
+def _ensure_consoles_nav_columns(conn: sqlite3.Connection) -> None:
+    """Additive migration: nav group title and sort order on consoles."""
+    sqlite_util.ensure_column(conn, "consoles", "group_title", "TEXT", commit=False)
+    sqlite_util.ensure_column(conn, "consoles", "sort_order", "INTEGER", commit=False)
+    conn.commit()
+
+
+def _ensure_consoles_table(conn: sqlite3.Connection) -> None:
+    """Create the consoles table when this catalog predates it."""
+    _create_table_from_ddl(conn, "consoles", _CONSOLES_TABLE_SQL)
+    if sqlite_util.table_exists(conn, "consoles"):
+        _ensure_consoles_nav_columns(conn)
+
+
 def _ensure_simulation_tables(conn: sqlite3.Connection) -> None:
     """Create simulation session/emission tables when this catalog predates them."""
     if not (
@@ -159,6 +182,8 @@ def _ensure_audit_log_table(conn: sqlite3.Connection) -> None:
     if not _create_table_from_ddl(conn, "audit_log", _AUDIT_LOG_TABLE_SQL):
         return
     sqlite_util.ensure_column(conn, "audit_log", "principal_id", "TEXT")
+    sqlite_util.ensure_column(conn, "audit_log", "detail", "TEXT")
+    sqlite_util.ensure_column(conn, "audit_log", "parameter_map", "TEXT")
 
 
 # Catalog DB paths whose lazy table ensures already ran in this process. Startup
@@ -176,6 +201,7 @@ def catalog_conn() -> sqlite3.Connection:
         _ensure_regex_table(conn)
         _ensure_state_table(conn)
         _ensure_events_table(conn)
+        _ensure_consoles_table(conn)
         _ensure_event_test_captures(conn)
         _ensure_simulation_tables(conn)
         _ensure_audit_log_table(conn)
@@ -510,6 +536,26 @@ def fetch_query_for_compose(query_id: str) -> dict[str, Any] | None:
             return None
 
 
+def find_query_by_name(name: str) -> dict[str, Any] | None:
+    """A catalog query with this name. A sequence wins over an operation with the same name."""
+    token = (name or "").strip()
+    if not token:
+        return None
+    with catalog_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id FROM queries
+            WHERE name = ?
+            ORDER BY CASE kind WHEN 'sequence' THEN 0 WHEN 'operation' THEN 1 ELSE 2 END, id
+            LIMIT 1
+            """,
+            (token,),
+        ).fetchone()
+    if row is None:
+        return None
+    return fetch_query_for_compose(str(row[0]))
+
+
 def insert_state_package(
     package: dict[str, Any], status: str = "inactive", run_start_date: str | None = None
 ) -> str:
@@ -598,13 +644,18 @@ def state_cancel_requested(state_id: str) -> bool:
 
 
 def request_state_cancel(state_id: str) -> dict[str, Any]:
-    """Stop a parked run immediately, or flag an active run to halt between steps."""
+    """Stop an in-flight run.
+
+    Parked runs (waiting, pending) and active runs are marked cancelled immediately.
+    A live runner also notices the cancelled status between steps. Marking an active
+    run here is what stops a run whose worker already died inside a step.
+    """
     row = fetch_state_package(state_id)
     if not row:
         return {"status": "error", "message": "state not found", "state_id": state_id}
     status = str(row.get("status") or "")
     sid = str(row.get("id") or state_id)
-    if status in ("waiting", "pending"):
+    if status in ("waiting", "pending", "active"):
         payload = {
             "status": "cancelled",
             "state_id": sid,
@@ -614,11 +665,6 @@ def request_state_cancel(state_id: str) -> dict[str, Any]:
         update_state_progress(sid, None)
         update_state_status(sid, "cancelled")
         return payload
-    if status == "active":
-        progress = dict(row.get("progress") or {}) if isinstance(row.get("progress"), dict) else {}
-        progress["cancel_requested"] = True
-        update_state_progress(sid, progress)
-        return {"status": "cancelling", "state_id": sid}
     if status == "cancelled":
         return {"status": "cancelled", "state_id": sid, "message": "Sequence stopped."}
     return {"status": status or "inactive", "state_id": sid}
@@ -843,13 +889,18 @@ def _event_row_to_dict(row: sqlite3.Row | tuple) -> dict[str, Any]:
         "creation_date": row[10],
         "modified_date": row[11],
         "simulation_package": _json_loads_or(row[12], {}) if len(row) > 12 else {},
+        "group_title": (str(row[13]).strip() or None) if len(row) > 13 and row[13] else None,
+        "sort_order": int(row[14]) if len(row) > 14 and row[14] is not None else None,
     }
 
 
 _EVENT_COLUMNS = (
     "id, space_id, name, type, enabled, event_package, external_package, sequences, "
-    "timers, recovery_sequences, creation_date, modified_date, simulation_package"
+    "timers, recovery_sequences, creation_date, modified_date, simulation_package, "
+    "group_title, sort_order"
 )
+
+_NAV_LIST_ORDER = "ORDER BY sort_order IS NULL, sort_order ASC, name ASC, id ASC"
 
 
 def list_events(space_id: str | None = None) -> list[dict[str, Any]]:
@@ -857,13 +908,12 @@ def list_events(space_id: str | None = None) -> list[dict[str, Any]]:
     with catalog_connection() as conn:
         if space_id:
             cur = conn.execute(
-                f"SELECT {_EVENT_COLUMNS} FROM events WHERE space_id = ? "
-                "ORDER BY name ASC, id ASC",
+                f"SELECT {_EVENT_COLUMNS} FROM events WHERE space_id = ? {_NAV_LIST_ORDER}",
                 (space_id,),
             )
         else:
             cur = conn.execute(
-                f"SELECT {_EVENT_COLUMNS} FROM events ORDER BY name ASC, id ASC"
+                f"SELECT {_EVENT_COLUMNS} FROM events {_NAV_LIST_ORDER}"
             )
         return [_event_row_to_dict(row) for row in cur.fetchall()]
 
@@ -1362,6 +1412,161 @@ def update_simulation_emission_status(emission_id: str, run_status: str | None) 
         conn.commit()
 
 
+def _normalize_console_document(raw: Any) -> dict[str, Any]:
+    source = raw if isinstance(raw, dict) else {}
+    views = source.get("views")
+    if not isinstance(views, list):
+        views = []
+    active = source.get("activeViewId")
+    return {
+        "views": views,
+        "activeViewId": active if isinstance(active, str) else "",
+    }
+
+
+def _console_row_to_dict(row: sqlite3.Row | tuple) -> dict[str, Any]:
+    return {
+        "id": row[0],
+        "space_id": row[1],
+        "name": row[2],
+        "trigger_kind": row[3] or "",
+        "listen_url": row[4] or "",
+        "trigger_event_id": row[5] or "",
+        "document": _normalize_console_document(_json_loads_or(row[6], {})),
+        "creation_date": row[7],
+        "modified_date": row[8],
+        "group_title": (str(row[9]).strip() or None) if len(row) > 9 and row[9] else None,
+        "sort_order": int(row[10]) if len(row) > 10 and row[10] is not None else None,
+    }
+
+
+_CONSOLE_COLUMNS = (
+    "id, space_id, name, trigger_kind, listen_url, trigger_event_id, document, "
+    "creation_date, modified_date, group_title, sort_order"
+)
+
+
+def list_consoles(space_id: str | None = None) -> list[dict[str, Any]]:
+    """List consoles, optionally filtered to one space."""
+    with catalog_connection() as conn:
+        if space_id:
+            cur = conn.execute(
+                f"SELECT {_CONSOLE_COLUMNS} FROM consoles WHERE space_id = ? {_NAV_LIST_ORDER}",
+                (space_id,),
+            )
+        else:
+            cur = conn.execute(
+                f"SELECT {_CONSOLE_COLUMNS} FROM consoles {_NAV_LIST_ORDER}"
+            )
+        return [_console_row_to_dict(row) for row in cur.fetchall()]
+
+
+def list_consoles_for_trigger(event_id: str) -> list[dict[str, Any]]:
+    """Consoles whose trigger is this time or external event."""
+    eid = (event_id or "").strip()
+    if not eid:
+        return []
+    with catalog_connection() as conn:
+        cur = conn.execute(
+            f"SELECT {_CONSOLE_COLUMNS} FROM consoles "
+            "WHERE trigger_kind = 'event' AND trigger_event_id = ?",
+            (eid,),
+        )
+        return [_console_row_to_dict(row) for row in cur.fetchall()]
+
+
+def get_console(console_id: str) -> dict[str, Any] | None:
+    cid = (console_id or "").strip()
+    if not cid:
+        return None
+    with catalog_connection() as conn:
+        cur = conn.execute(
+            f"SELECT {_CONSOLE_COLUMNS} FROM consoles WHERE id = ?", (cid,)
+        )
+        row = cur.fetchone()
+        return _console_row_to_dict(row) if row is not None else None
+
+
+def upsert_console(
+    console_id: str,
+    space_id: str,
+    name: str,
+    trigger_kind: str = "",
+    listen_url: str = "",
+    trigger_event_id: str = "",
+    document: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Insert or update a console. A trigger event must be time or external in the same space."""
+    cid = (console_id or "").strip()
+    if not cid:
+        raise ValueError("console id is required")
+    sid = (space_id or "").strip()
+    if not sid:
+        raise ValueError("space_id is required")
+    name_val = (name or "").strip()
+    if not name_val:
+        raise ValueError("console name is required")
+    kind = (trigger_kind or "").strip().lower()
+    if kind not in ("", "url", "event"):
+        raise ValueError("trigger_kind must be url or event")
+    listen = (listen_url or "").strip()
+    event_id = (trigger_event_id or "").strip()
+    if kind == "event":
+        if not event_id:
+            raise ValueError("trigger_event_id is required")
+        event = get_event(event_id)
+        if event is None or str(event.get("space_id") or "") != sid:
+            raise ValueError("trigger event was not found in this space")
+        if str(event.get("type") or "") not in ("time", "external"):
+            raise ValueError("a console trigger must be a time or external event")
+    else:
+        event_id = ""
+    if kind != "url":
+        listen = ""
+    doc = _normalize_console_document(document if isinstance(document, dict) else {})
+    with catalog_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO consoles (
+              id, space_id, name, trigger_kind, listen_url, trigger_event_id,
+              document, creation_date, modified_date
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            ON CONFLICT(id) DO UPDATE SET
+              space_id = excluded.space_id,
+              name = excluded.name,
+              trigger_kind = excluded.trigger_kind,
+              listen_url = excluded.listen_url,
+              trigger_event_id = excluded.trigger_event_id,
+              document = excluded.document,
+              modified_date = datetime('now')
+            """,
+            (cid, sid, name_val, kind, listen, event_id, json.dumps(doc)),
+        )
+        conn.commit()
+    return get_console(cid) or {"id": cid}
+
+
+def delete_console(console_id: str) -> dict[str, Any]:
+    """Delete a console and clear it from any simulation that pointed at it."""
+    cid = (console_id or "").strip()
+    if not cid:
+        raise ValueError("console id is required")
+    with catalog_connection() as conn:
+        conn.execute(
+            """
+            UPDATE events
+            SET simulation_package = json_set(simulation_package, '$.console_id', ''),
+                modified_date = datetime('now')
+            WHERE json_extract(simulation_package, '$.console_id') = ?
+            """,
+            (cid,),
+        )
+        cur = conn.execute("DELETE FROM consoles WHERE id = ?", (cid,))
+        conn.commit()
+        return {"id": cid, "rowcount": cur.rowcount}
+
+
 def delete_event(event_id: str) -> dict[str, Any]:
     """Delete one event row and its simulation history; returns the affected row count."""
     eid = (event_id or "").strip()
@@ -1370,9 +1575,33 @@ def delete_event(event_id: str) -> dict[str, Any]:
     with catalog_connection() as conn:
         conn.execute("DELETE FROM event_test_captures WHERE event_id = ?", (eid,))
         _delete_simulation_for_event(conn, eid)
+        if sqlite_util.table_exists(conn, "consoles"):
+            conn.execute(
+                "UPDATE consoles SET trigger_event_id = '', trigger_kind = '', "
+                "modified_date = datetime('now') "
+                "WHERE trigger_kind = 'event' AND trigger_event_id = ?",
+                (eid,),
+            )
         cur = conn.execute("DELETE FROM events WHERE id = ?", (eid,))
         conn.commit()
         return {"id": eid, "rowcount": cur.rowcount}
+
+
+def _parameter_map_json(parameter_map: dict[str, Any] | None) -> str | None:
+    """Serialize a run's resolved parameter map. Non-dicts are omitted.
+
+    Credential-store secrets are not part of this map; the executor resolves
+    ``$secret.<NAME>`` only for the outbound call and never merges those values.
+    """
+    if not isinstance(parameter_map, dict):
+        return None
+    try:
+        return json.dumps(parameter_map, default=str, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return json.dumps(
+            {str(key): str(value) for key, value in parameter_map.items()},
+            ensure_ascii=False,
+        )
 
 
 def record_audit(
@@ -1382,13 +1611,15 @@ def record_audit(
     trigger: str = "manual",
     principal_id: str | None = None,
     detail: dict[str, Any] | None = None,
+    parameter_map: dict[str, Any] | None = None,
 ) -> str:
     """Append an audit_log row for a sequence run; return the generated UID.
 
     ``principal_id`` is the principal that triggered the run (user or agent); it is
     left NULL for scheduler-fired event/recovery runs, which have no acting principal.
     ``detail`` is optional JSON context; it must never contain parameters, outputs,
-    or secrets.
+    or secrets. ``parameter_map`` is the run's resolved parameter map at the moment
+    the row is written (the executor updates it again as the run progresses).
     """
     audit_id = config.generate_entity_id()
     trigger_val = (
@@ -1399,11 +1630,13 @@ def record_audit(
     )
     ids_json = json.dumps([str(s) for s in (sequence_ids or []) if str(s).strip()])
     detail_json = json.dumps(detail) if isinstance(detail, dict) and detail else None
+    parameter_map_json = _parameter_map_json(parameter_map)
     with catalog_connection() as conn:
         conn.execute(
             "INSERT INTO audit_log "
-            "(id, run_at, space_id, sequence_ids, event_id, trigger, principal_id, detail) "
-            "VALUES (?, datetime('now'), ?, ?, ?, ?, ?, ?)",
+            "(id, run_at, space_id, sequence_ids, event_id, trigger, principal_id, "
+            "detail, parameter_map) "
+            "VALUES (?, datetime('now'), ?, ?, ?, ?, ?, ?, ?)",
             (
                 audit_id,
                 (space_id or "").strip() or None,
@@ -1412,10 +1645,33 @@ def record_audit(
                 trigger_val,
                 (principal_id or "").strip() or None,
                 detail_json,
+                parameter_map_json,
             ),
         )
         conn.commit()
         return audit_id
+
+
+def update_audit_parameter_map(audit_id: str, parameter_map: dict[str, Any] | None) -> None:
+    """Replace the parameter map stored on an existing audit row.
+
+    No-op when the id is blank or the map is not a dict. Audit failures must not
+    break a run; callers catch exceptions around this.
+    """
+    aid = (audit_id or "").strip()
+    payload = _parameter_map_json(parameter_map)
+    if not aid or payload is None:
+        return
+    with catalog_connection() as conn:
+        if not sqlite_util.table_exists(conn, "audit_log"):
+            return
+        if "parameter_map" not in sqlite_util.column_names(conn, "audit_log"):
+            return
+        conn.execute(
+            "UPDATE audit_log SET parameter_map = ? WHERE id = ?",
+            (payload, aid),
+        )
+        conn.commit()
 
 
 def list_audit_log(space_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
@@ -1438,16 +1694,18 @@ def list_audit_log(space_id: str | None = None, limit: int = 200) -> list[dict[s
         join_clause = (
             "LEFT JOIN users u ON u.id = a.principal_id" if has_users else ""
         )
-        # Legacy catalogs may predate the detail column.
-        has_detail = any(
-            r[1] == "detail"
-            for r in conn.execute("PRAGMA table_info(audit_log)").fetchall()
+        audit_cols = {
+            r[1] for r in conn.execute("PRAGMA table_info(audit_log)").fetchall()
+        }
+        # Legacy catalogs may predate detail / parameter_map.
+        detail_select = "a.detail" if "detail" in audit_cols else "NULL"
+        parameter_map_select = (
+            "a.parameter_map" if "parameter_map" in audit_cols else "NULL"
         )
-        detail_select = "a.detail" if has_detail else "NULL"
         if space_id:
             cur = conn.execute(
                 "SELECT a.id, a.run_at, a.space_id, a.sequence_ids, a.event_id, a.trigger, "
-                f"a.principal_id, {email_select}, {detail_select} "
+                f"a.principal_id, {email_select}, {detail_select}, {parameter_map_select} "
                 f"FROM audit_log a {join_clause} "
                 "WHERE a.space_id = ? ORDER BY a.run_at DESC, a.rowid DESC LIMIT ?",
                 (space_id, limit),
@@ -1455,25 +1713,29 @@ def list_audit_log(space_id: str | None = None, limit: int = 200) -> list[dict[s
         else:
             cur = conn.execute(
                 "SELECT a.id, a.run_at, a.space_id, a.sequence_ids, a.event_id, a.trigger, "
-                f"a.principal_id, {email_select}, {detail_select} "
+                f"a.principal_id, {email_select}, {detail_select}, {parameter_map_select} "
                 f"FROM audit_log a {join_clause} "
                 "ORDER BY a.run_at DESC, a.rowid DESC LIMIT ?",
                 (limit,),
             )
-        return [
-            {
-                "id": row[0],
-                "run_at": row[1],
-                "space_id": row[2],
-                "sequence_ids": _json_loads_or(row[3], []),
-                "event_id": row[4],
-                "trigger": row[5],
-                "principal_id": row[6],
-                "principal_email": row[7],
-                "detail": _json_loads_or(row[8], None) if row[8] else None,
-            }
-            for row in cur.fetchall()
-        ]
+        rows = []
+        for row in cur.fetchall():
+            raw_map = _json_loads_or(row[9], None) if row[9] else None
+            rows.append(
+                {
+                    "id": row[0],
+                    "run_at": row[1],
+                    "space_id": row[2],
+                    "sequence_ids": _json_loads_or(row[3], []),
+                    "event_id": row[4],
+                    "trigger": row[5],
+                    "principal_id": row[6],
+                    "principal_email": row[7],
+                    "detail": _json_loads_or(row[8], None) if row[8] else None,
+                    "parameter_map": raw_map if isinstance(raw_map, dict) else None,
+                }
+            )
+        return rows
 
 
 def _is_queries_catalog_upsert_sql(text: str) -> bool:
@@ -1791,6 +2053,55 @@ def reorder_queries(items: list[dict[str, Any]]) -> dict[str, Any]:
                 sort_order = index
             cur = conn.execute(
                 "UPDATE queries SET sort_order = ?, group_title = ?, "
+                "modified_date = datetime('now') WHERE id = ?",
+                (sort_order, group_title, row_id),
+            )
+            updated += cur.rowcount
+        conn.commit()
+        return {"updated": updated}
+
+
+_NAV_ROW_TABLES = frozenset({"events", "consoles"})
+
+
+def rows_space_id(table: str, ids: list[str]) -> str | None:
+    """The single space that owns these nav rows, or None when none of the ids exist."""
+    if table not in _NAV_ROW_TABLES:
+        raise ValueError("unsupported table")
+    cleaned = [str(row_id).strip() for row_id in ids if str(row_id).strip()]
+    if not cleaned:
+        return None
+    with catalog_connection() as conn:
+        placeholders = ", ".join("?" * len(cleaned))
+        rows = conn.execute(
+            f"SELECT DISTINCT space_id FROM {table} WHERE id IN ({placeholders})",
+            tuple(cleaned),
+        ).fetchall()
+    found = {str(row[0]) for row in rows if row[0]}
+    if len(found) > 1:
+        raise ValueError("items must belong to one space")
+    return next(iter(found), None)
+
+
+def reorder_nav_rows(table: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Persist nav drag ordering for events or consoles (sort_order + group_title)."""
+    if table not in _NAV_ROW_TABLES:
+        raise ValueError("unsupported table")
+    with catalog_connection() as conn:
+        updated = 0
+        for index, item in enumerate(items):
+            row_id = str(item.get("id") or "").strip()
+            if not row_id:
+                continue
+            raw_group = item.get("group_title")
+            group_title = (str(raw_group).strip() or None) if raw_group is not None else None
+            raw_order = item.get("sort_order")
+            try:
+                sort_order = int(raw_order) if raw_order is not None else index
+            except (TypeError, ValueError):
+                sort_order = index
+            cur = conn.execute(
+                f"UPDATE {table} SET sort_order = ?, group_title = ?, "
                 "modified_date = datetime('now') WHERE id = ?",
                 (sort_order, group_title, row_id),
             )

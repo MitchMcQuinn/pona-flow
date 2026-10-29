@@ -4,8 +4,10 @@
  */
 
 import { useEffect, type Dispatch } from "react";
-import { deleteEvent, fetchEvents } from "../services/api";
+import { deleteEvent, fetchEvents, fetchNavGroups, reorderEvents, setSpaceGroups } from "../services/api";
+import { confirmDialog } from "../components/modals/confirmDialog";
 import type { AppEvent } from "../state/events";
+import { moveGroupToUngrouped } from "../state/navOrder";
 import type { AppState, EventSummary } from "../state/types";
 
 export function useEventsNav(options: {
@@ -59,7 +61,7 @@ export function useEventsNav(options: {
 
   async function handleDeleteEvent(eventId: string) {
     const target = state.events.items.find((item) => item.id === eventId);
-    if (!window.confirm(`Delete event "${target?.name ?? eventId}"?`)) return;
+    if (!(await confirmDialog(`Delete event "${target?.name ?? eventId}"?`))) return;
     try {
       await deleteEvent(eventId);
       if (state.events.selectedEventId === eventId) {
@@ -71,5 +73,85 @@ export function useEventsNav(options: {
     }
   }
 
-  return { handleEventSaved, handleEventDeleted, handleDeleteEvent };
+  function reloadGroups() {
+    if (!state.spaceId) return;
+    fetchNavGroups(state.spaceId)
+      .then((loaded) =>
+        dispatch({
+          type: "GROUPS_LOADED",
+          groups: loaded.groups,
+          eventGroups: loaded.eventGroups,
+          consoleGroups: loaded.consoleGroups
+        })
+      )
+      .catch(() => undefined);
+  }
+
+  function persistGroups(groups: string[]) {
+    if (!state.spaceId) return;
+    setSpaceGroups(state.spaceId, groups, "events").catch(() => reloadGroups());
+  }
+
+  function persistOrder(reordered: EventSummary[]) {
+    reorderEvents(
+      reordered.map((event) => ({
+        id: event.id,
+        groupTitle: event.groupTitle,
+        sortOrder: event.sortOrder ?? 0
+      }))
+    ).catch(() => reloadEvents());
+  }
+
+  function handleReorderEvents(reordered: EventSummary[]) {
+    dispatch({ type: "EVENTS_REORDERED", events: reordered });
+    persistOrder(reordered);
+  }
+
+  function handleReorderEventGroups(groups: string[]) {
+    dispatch({ type: "EVENT_GROUPS_CHANGED", groups });
+    persistGroups(groups);
+  }
+
+  function handleAddEventGroup(title: string) {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    if (state.events.groups.some((group) => group.toLowerCase() === trimmed.toLowerCase())) return;
+    handleReorderEventGroups([...state.events.groups, trimmed]);
+  }
+
+  async function handleDeleteEventGroup(title: string) {
+    const affected = state.events.items.filter((event) => (event.groupTitle ?? null) === title);
+    if (
+      affected.length > 0 &&
+      !(await confirmDialog(`Delete group "${title}"? Its events will become ungrouped.`))
+    ) {
+      return;
+    }
+    const groups = state.events.groups.filter((group) => group !== title);
+    if (affected.length === 0) {
+      dispatch({ type: "EVENT_GROUPS_CHANGED", groups });
+      persistGroups(groups);
+      return;
+    }
+    const reordered = moveGroupToUngrouped(
+      state.events.items,
+      state.events.groups,
+      title,
+      (event) => event.name
+    );
+    dispatch({ type: "EVENT_GROUPS_CHANGED", groups, events: reordered });
+    persistGroups(groups);
+    persistOrder(reordered);
+  }
+
+  return {
+    reloadEvents,
+    handleEventSaved,
+    handleEventDeleted,
+    handleDeleteEvent,
+    handleReorderEvents,
+    handleReorderEventGroups,
+    handleAddEventGroup,
+    handleDeleteEventGroup
+  };
 }

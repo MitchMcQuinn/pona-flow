@@ -36,7 +36,7 @@ export function useUpdateInstanceGuard(): void {
   const { query, spaceId } = state;
 
   const enabled =
-    query.operation === "update" && query.match[0]?.label === "INSTANCE" && Boolean(spaceId);
+    query.operation === "update" && query.match?.[0]?.label === "INSTANCE" && Boolean(spaceId);
 
   // Re-run whenever any input that affects targeting, assignment, or parameterization changes.
   const signature = useMemo(

@@ -28,6 +28,8 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 os.environ["PONA_FLOW_OLLAMA_EMBED_MODEL"] = "test-embed"
+os.environ.pop("PONA_FLOW_EMBED_PROVIDER", None)
+os.environ.pop("PONA_FLOW_EMBED_MODEL", None)
 
 from Engine.server import embeddings as emb  # noqa: E402
 
@@ -413,6 +415,8 @@ except emb.EmbeddingsUnavailable:
     check("a response with no vector is an error", True)
 
 os.environ["PONA_FLOW_OLLAMA_EMBED_MODEL"] = ""
+os.environ.pop("PONA_FLOW_EMBED_MODEL", None)
+os.environ.pop("PONA_FLOW_EMBED_PROVIDER", None)
 try:
     emb.embed_text("text")
     check("embedding without a configured model is rejected", False)

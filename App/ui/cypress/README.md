@@ -96,7 +96,8 @@ Space admin:
   `space-tab-credentials`, `space-tab-embeddings`, `space-tab-templates`,
   `space-tab-audit`
 - `space-settings-save-btn`, `space-delete-btn`
-- `embeddings-url-input`, `embeddings-model-input`, `embeddings-save-btn`,
+- `embeddings-provider-select`, `embeddings-url-input`, `embeddings-base-url-input`,
+  `embeddings-credential-select`, `embeddings-model-input`, `embeddings-save-btn`,
   `embeddings-check-btn`, `embeddings-reindex-btn` (the enabled switch is the
   `#embeddings-enabled-toggle` element id, as elsewhere for `Toggle`)
 - `template-select-sequences`, `template-select-operations`,

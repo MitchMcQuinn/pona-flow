@@ -339,6 +339,9 @@ _SPACES_COLUMN_MIGRATIONS = (
     ("hide_empty_sequence_groups", "INTEGER NOT NULL DEFAULT 0"),
     ("description", "TEXT NOT NULL DEFAULT ''"),
     ("embeddings_config", "TEXT NOT NULL DEFAULT '{}'"),
+    ("event_groups", "TEXT NOT NULL DEFAULT '{\"groups\":[]}'"),
+    ("console_groups", "TEXT NOT NULL DEFAULT '{\"groups\":[]}'"),
+    ("chat_model", "TEXT NOT NULL DEFAULT '{}'"),
 )
 
 
@@ -419,10 +422,12 @@ def _ensure_spaces_embeddings_config_column(conn: sqlite3.Connection) -> None:
 def parse_space_embeddings_config(raw: str | None) -> dict[str, Any]:
     """Parse spaces.embeddings_config JSON into a normalized dict.
 
-    Vector-search settings for a space: whether the feature is on, which local Ollama
-    serves it, and the model's vector width (probed on save, not typed by hand — the
-    dimension is baked into the Neo4j index). An unset/corrupt column reads as ``{}``,
-    which means "never configured" and lets the instance env vars stand in.
+    Vector-search settings for a space: whether the feature is on, which provider embeds
+    (local Ollama or a Gemini-compatible host), and the model's vector width (probed on
+    save, not typed by hand — the dimension is baked into the Neo4j index). An
+    unset/corrupt column reads as ``{}``, which means "never configured" and lets the
+    instance env vars stand in. A saved blob with no ``provider`` is local Ollama.
+    ``credential`` is a credential name, never the secret. ``space_id`` is not stored.
     """
     if raw is None:
         return {}
@@ -440,20 +445,32 @@ def parse_space_embeddings_config(raw: str | None) -> dict[str, Any]:
         dims = int(dimensions) if dimensions not in (None, "") else None
     except (TypeError, ValueError):
         dims = None
+    provider = str(data.get("provider") or "").strip().lower()
+    if provider != "gemini":
+        provider = "ollama"
     return {
         "enabled": bool(data.get("enabled")),
+        "provider": provider,
         "ollama_url": str(data.get("ollama_url") or "").strip(),
+        "base_url": str(data.get("base_url") or "").strip(),
         "embed_model": str(data.get("embed_model") or "").strip(),
+        "credential": str(data.get("credential") or "").strip(),
         "dimensions": dims,
     }
 
 
 def format_space_embeddings_config(cfg: dict[str, Any]) -> str:
     """Serialize vector-search settings for the spaces.embeddings_config column."""
+    provider = str(cfg.get("provider") or "").strip().lower()
+    if provider != "gemini":
+        provider = "ollama"
     payload = {
         "enabled": bool(cfg.get("enabled")),
+        "provider": provider,
         "ollama_url": str(cfg.get("ollama_url") or "").strip(),
+        "base_url": str(cfg.get("base_url") or "").strip(),
         "embed_model": str(cfg.get("embed_model") or "").strip(),
+        "credential": str(cfg.get("credential") or "").strip(),
         "dimensions": cfg.get("dimensions"),
     }
     return json.dumps(payload, separators=(",", ":"))
@@ -617,15 +634,17 @@ def remove_attributive_labels_from_all_spaces(
         return stripped
 
 
-def set_space_groups(space_id: str, groups: Iterable[str]) -> dict[str, Any]:
-    """Replace catalog ``spaces.groups`` with an ordered, de-duplicated title list.
+# Nav group lists are per section. Sequence titles stay in ``spaces.groups``; events
+# and consoles keep their own ordered lists so an empty sequence group does not
+# show up under events.
+_NAV_GROUP_COLUMNS = {
+    "sequences": "groups",
+    "events": "event_groups",
+    "consoles": "console_groups",
+}
 
-    Powers nav-bar group add / reorder / delete (the full ordered list is sent each time).
-    """
-    sid = (space_id or "").strip()
-    if not sid:
-        raise ValueError("space_id is required")
 
+def _clean_group_titles(groups: Iterable[str]) -> list[str]:
     cleaned: list[str] = []
     seen: set[str] = set()
     for raw in groups:
@@ -635,32 +654,85 @@ def set_space_groups(space_id: str, groups: Iterable[str]) -> dict[str, Any]:
             continue
         seen.add(key)
         cleaned.append(title)
+    return cleaned
+
+
+def _nav_group_column(section: str) -> str:
+    column = _NAV_GROUP_COLUMNS.get((section or "").strip().lower())
+    if column is None:
+        raise ValueError("section must be sequences, events, or consoles")
+    return column
+
+
+def set_section_groups(space_id: str, section: str, groups: Iterable[str]) -> dict[str, Any]:
+    """Replace one section's ordered group-title list (add / reorder / delete)."""
+    sid = (space_id or "").strip()
+    if not sid:
+        raise ValueError("space_id is required")
+    column = _nav_group_column(section)
+    cleaned = _clean_group_titles(groups)
 
     with catalog_db() as conn:
-        _ensure_spaces_groups_column(conn)
+        ensure_catalog_space_schema(conn)
         cur = conn.execute("SELECT id FROM spaces WHERE id = ?", (sid,))
         if cur.fetchone() is None:
             raise ValueError(f"Unknown space id: {sid!r}")
         conn.execute(
-            "UPDATE spaces SET groups = ? WHERE id = ?",
+            f"UPDATE spaces SET {column} = ? WHERE id = ?",
             (format_space_groups_column(cleaned), sid),
         )
         conn.commit()
-        return {"groups": cleaned}
+        return {"groups": cleaned, "section": section}
 
 
-def fetch_space_groups(space_id: str) -> list[str]:
-    """Return group title strings from catalog ``spaces.groups`` for *space_id*."""
+def set_space_groups(space_id: str, groups: Iterable[str]) -> dict[str, Any]:
+    """Replace catalog ``spaces.groups`` with an ordered, de-duplicated title list.
+
+    Powers nav-bar group add / reorder / delete (the full ordered list is sent each time).
+    """
+    result = set_section_groups(space_id, "sequences", groups)
+    return {"groups": result["groups"]}
+
+
+def fetch_section_groups(space_id: str, section: str) -> list[str]:
+    """Return the ordered group titles for one nav section."""
     sid = (space_id or "").strip()
     if not sid:
         raise ValueError("space_id is required")
+    column = _nav_group_column(section)
     with catalog_db() as conn:
-        _ensure_spaces_groups_column(conn)
-        cur = conn.execute("SELECT groups FROM spaces WHERE id = ?", (sid,))
+        ensure_catalog_space_schema(conn)
+        cur = conn.execute(f"SELECT {column} FROM spaces WHERE id = ?", (sid,))
         row = cur.fetchone()
         if row is None:
             raise ValueError(f"Unknown space id: {sid!r}")
         return parse_space_groups_column(row[0])
+
+
+def fetch_space_groups(space_id: str) -> list[str]:
+    """Return sequence group title strings from catalog ``spaces.groups`` for *space_id*."""
+    return fetch_section_groups(space_id, "sequences")
+
+
+def fetch_nav_groups(space_id: str) -> dict[str, list[str]]:
+    """Sequence, event, and console group lists for one space."""
+    sid = (space_id or "").strip()
+    if not sid:
+        raise ValueError("space_id is required")
+    with catalog_db() as conn:
+        ensure_catalog_space_schema(conn)
+        cur = conn.execute(
+            "SELECT groups, event_groups, console_groups FROM spaces WHERE id = ?",
+            (sid,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"Unknown space id: {sid!r}")
+        return {
+            "groups": parse_space_groups_column(row[0]),
+            "event_groups": parse_space_groups_column(row[1]),
+            "console_groups": parse_space_groups_column(row[2]),
+        }
 
 
 def fetch_space_labels(space_id: str) -> list[str]:
@@ -1003,6 +1075,8 @@ def delete_space(space_id: str) -> dict[str, Any]:
                 "DELETE FROM simulation_sessions WHERE space_id = ?",
                 (sid,),
             )
+        if sqlite_util.table_exists(conn, "consoles"):
+            conn.execute("DELETE FROM consoles WHERE space_id = ?", (sid,))
         for table in (
             "agent_keys",
             "events",

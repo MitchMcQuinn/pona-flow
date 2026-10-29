@@ -27,7 +27,7 @@ Install these before cloning (or as you hit each step):
 No third-party sign-in service is needed: accounts are built in. Clerk is optional
 (see Auth below).
 
-Optional later: Ollama (for local vector search — [README.md § Vector search](../README.md#vector-search)).
+Optional later: Ollama for local vector search, or a Gemini API key for a cloud embedding model ([README.md § Vector search](../README.md#vector-search)).
 
 ---
 

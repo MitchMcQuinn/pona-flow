@@ -361,7 +361,7 @@ function validateStepSequencialProperties(
 }
 
 export function isStepCreateQuery(query: QueryObject): boolean {
-  return query.operation === "create" && query.match[0]?.label === "STEP";
+  return query.operation === "create" && query.match?.[0]?.label === "STEP";
 }
 
 /** True when a create STEP match clause includes at least one relationship (a hop). */
@@ -480,15 +480,16 @@ export function validateQuery(query: QueryObject, _runtimeEnabled: boolean): str
   const warnings: string[] = [];
   const op = query.operation;
 
-  if (!query.match.length) {
+  const match = query.match ?? [];
+  if (!match.length) {
     warnings.push("At least one MATCH/CREATE clause is required.");
   }
 
-  query.match.forEach((clause) => {
+  for (const clause of match) {
     validateClause(clause, op, query, warnings);
-  });
+  }
 
-  if (op === "read" && query.return && query.return.items.some((item) => !item.expression.trim())) {
+  if (op === "read" && query.return?.items?.some((item) => !item.expression.trim())) {
     warnings.push("RETURN has an empty projection expression.");
   }
 
@@ -559,7 +560,7 @@ export function validateQuery(query: QueryObject, _runtimeEnabled: boolean): str
   // clause; only INSTANCE updates run a graph MATCH…SET that requires a SET expression.
   if (
     op === "update" &&
-    !isEntityConfigUpdate(op, query.match[0]?.label) &&
+    !isEntityConfigUpdate(op, match[0]?.label) &&
     (!query.set || query.set.every((s) => !s.expression.trim()))
   ) {
     warnings.push("UPDATE requires at least one SET expression.");
@@ -570,7 +571,7 @@ export function validateQuery(query: QueryObject, _runtimeEnabled: boolean): str
   // target list is required for every other delete.
   if (
     op === "delete" &&
-    !isLabelOnlyDelete(op, query.match[0]?.label) &&
+    !isLabelOnlyDelete(op, match[0]?.label) &&
     (!query.delete || !query.delete.targets.some((t) => t.trim()))
   ) {
     warnings.push("DELETE requires at least one target variable.");
@@ -578,7 +579,7 @@ export function validateQuery(query: QueryObject, _runtimeEnabled: boolean): str
 
   validateAbsentTailReferences(query, warnings);
 
-  validateParameterDefaults(query.parameters, warnings);
+  validateParameterDefaults(query.parameters ?? [], warnings);
 
   validateVectorSearch(query, warnings);
 
@@ -607,7 +608,7 @@ function validateVectorSearch(query: QueryObject, warnings: string[]): void {
     return;
   }
 
-  const primaryLabel = query.match[0]?.label;
+  const primaryLabel = query.match?.[0]?.label;
   if (primaryLabel !== "INSTANCE") {
     warnings.push("Vector search is only available for READ INSTANCE.");
     return;

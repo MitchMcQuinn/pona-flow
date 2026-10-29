@@ -1,12 +1,16 @@
 """
-Local vector search over INSTANCE records (Ollama embeddings + Neo4j vector indexes).
+Vector search over INSTANCE records (Ollama or Gemini embeddings + Neo4j vector indexes).
 
 Purpose in the project
 ----------------------
-Semantic find for graph data: serialize an INSTANCE record to text, embed it with a
-local Ollama model, and store the vector on the record itself so a similarity query
-returns the graph nodes/relationships directly. Sequences take those hits and traverse
-``POINTS_TO`` as usual — "find similar, then traverse" is two steps, not one read.
+Semantic find for graph data: serialize an INSTANCE record to text, embed it, and store
+the vector on the record itself so a similarity query returns the graph nodes/relationships
+directly. Sequences take those hits and traverse ``POINTS_TO`` as usual — "find similar,
+then traverse" is two steps, not one read.
+
+The default embedder is a local Ollama. A space can instead use a Gemini-compatible
+``embedContent`` host. Either way the engine makes the call itself: sequence endpoint
+STEPs stay behind the D7 SSRF guard and never see the API key.
 
 Design constraints (see README.md § Vector search)
 -----------------------------------------------------
@@ -14,9 +18,10 @@ Design constraints (see README.md § Vector search)
   Because every data node is ``:INSTANCE`` and every data edge is ``:POINTS_TO``, a space
   gets **one** node index and **one** relationship index, which forces a single embedding
   model (and therefore a single dimension) per space.
-- **The engine owns the Ollama call.** Ollama listens on localhost, which the D7 SSRF
-  guard blocks for sequence endpoint STEPs. This module uses a trusted
-  engine-to-localhost client instead.
+- **The engine owns the embedder call.** Ollama listens on localhost, which the D7 SSRF
+  guard blocks for sequence endpoint STEPs. A cloud host is the inverse: https, and public
+  unless the operator allowlists it. The API key is a credential name, resolved at call
+  time and never stored in the space config.
 - **Relationship work is INSTANCE-scoped.** ``POINTS_TO`` also carries STEP and SCHEMA
   pattern edges; every relationship statement here matches
   ``(:INSTANCE)-[:POINTS_TO]->(:INSTANCE)`` only, the same guard ``schema_currency`` uses.
@@ -32,6 +37,7 @@ import ipaddress
 import json
 import os
 import re
+import socket
 import sys
 import urllib.error
 import urllib.parse
@@ -39,7 +45,7 @@ import urllib.request
 from collections.abc import Iterable
 from typing import Any
 
-from . import config, cypher_utils, graph, spaces
+from . import config, credentials, cypher_utils, graph, spaces
 
 # Reserved system properties, written here and nowhere else. Never authorable in a SCHEMA's
 # ``schemata[]`` (see App/authoring/src/schemaRules.ts and schema_update.validate_schema_update)
@@ -75,7 +81,7 @@ _OLLAMA_RESPONSE_MAX_BYTES = 8 * 1024 * 1024
 # run forever on a huge label.
 REINDEX_PAGE_SIZE = 50
 REINDEX_MAX_RECORDS = 5000
-# Ollama going away mid-run should stop the loop, not retry thousands of times.
+# The embedder going away mid-run should stop the loop, not retry thousands of times.
 _REINDEX_MAX_CONSECUTIVE_FAILURES = 5
 
 # Label filtering happens *after* the index returns its nearest neighbours, so ask for
@@ -92,9 +98,20 @@ _INSTANCE_REL_MATCH = "(a:INSTANCE)-[r:POINTS_TO {attributive_label: $al}]->(b:I
 
 _escape_identifier = cypher_utils.escape_identifier
 
+PROVIDER_OLLAMA = "ollama"
+PROVIDER_GEMINI = "gemini"
+
+# Reindex and the dimension probe embed records. Search embeds the query text. Gemini
+# wants those two purposes wrapped differently; the difference does not change the index.
+PURPOSE_DOCUMENT = "document"
+PURPOSE_QUERY = "query"
+
+# The model id is placed in the embedContent path, so it cannot carry a slash or colon.
+_GEMINI_MODEL_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
 
 class EmbeddingsUnavailable(RuntimeError):
-    """Ollama could not be reached, or answered with something unusable."""
+    """The embedding provider could not be reached, or answered with something unusable."""
 
 
 # ---------------------------------------------------------------------------
@@ -143,13 +160,147 @@ def validate_ollama_url(url: str) -> str:
     )
 
 
+def allowed_embed_hosts() -> list[str]:
+    """Hosts a cloud embedding URL may use (``PONA_FLOW_EMBED_ALLOWED_HOSTS``).
+
+    Empty means any public https host. A listed host may be private: that is how an
+    operator names an internal Gemini-compatible server. This does not consult
+    ``PONA_FLOW_ALLOW_PRIVATE_OUTBOUND``.
+    """
+    raw = (os.environ.get("PONA_FLOW_EMBED_ALLOWED_HOSTS") or "").strip()
+    return [host.strip().lower() for host in raw.split(",") if host.strip()]
+
+
+def _ip_is_blocked(addr: str) -> bool:
+    """True when ``addr`` is an IP that must not be used as a public cloud host.
+
+    A hostname (not an IP literal) is not blocked here; the caller resolves it.
+    An address that does not parse as an IP is treated as blocked, which is the
+    safe answer for a resolved sockaddr that is somehow not an IP.
+    """
+    try:
+        ip = ipaddress.ip_address(addr)
+    except ValueError:
+        return True
+    return bool(
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+    )
+
+
+def _host_literal_is_blocked(host: str) -> bool:
+    """True for localhost and for IP literals that are not public. Hostnames pass."""
+    if host.lower().rstrip(".") == "localhost":
+        return True
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return _ip_is_blocked(host)
+
+
+def validate_cloud_embed_url(url: str) -> str:
+    """Accept an https Gemini-compatible API root, public unless the operator allowlists it.
+
+    The client appends ``/models/{model}:embedContent``, so a URL that already names that
+    method is rejected. Credentials and query strings are rejected too: the API key travels
+    in a header, never in the URL.
+    """
+    text = (url or "").strip().rstrip("/")
+    if not text:
+        raise ValueError("Cloud embedding URL is required")
+    if text.endswith(":embedContent"):
+        raise ValueError(
+            "Cloud embedding URL is the API root, not the embedContent method "
+            "(for example https://generativelanguage.googleapis.com/v1beta)."
+        )
+    parts = urllib.parse.urlsplit(text)
+    if parts.scheme != "https":
+        raise ValueError(
+            f"Cloud embedding URL scheme {parts.scheme!r} is not allowed (use https)."
+        )
+    if parts.username or parts.password:
+        raise ValueError("Cloud embedding URL must not include credentials.")
+    if parts.query or parts.fragment:
+        raise ValueError("Cloud embedding URL must not include a query string.")
+    host = (parts.hostname or "").strip()
+    if not host:
+        raise ValueError("Cloud embedding URL host is missing.")
+
+    allowlist = allowed_embed_hosts()
+    if allowlist:
+        if host.lower() not in allowlist:
+            raise ValueError(
+                f"Cloud embedding host {host!r} is not in PONA_FLOW_EMBED_ALLOWED_HOSTS."
+            )
+        return text
+
+    if _host_literal_is_blocked(host):
+        raise ValueError(f"Cloud embedding host {host!r} is not a public address.")
+
+    port = parts.port or 443
+    try:
+        infos = socket.getaddrinfo(host, port)
+    except socket.gaierror as e:
+        raise ValueError(f"Could not resolve cloud embedding host {host!r}: {e}") from e
+    for info in infos:
+        addr = info[4][0]
+        if _ip_is_blocked(addr):
+            raise ValueError(
+                f"Cloud embedding host {host!r} resolves to a blocked address ({addr})."
+            )
+    return text
+
+
+def validate_gemini_model(model: str) -> str:
+    """Accept a Gemini model id that is safe to interpolate into the embedContent path."""
+    text = (model or "").strip()
+    if not text:
+        raise ValueError("An embedding model is required to enable vector search.")
+    if not _GEMINI_MODEL_RE.fullmatch(text):
+        raise ValueError(
+            "Gemini model id must contain only letters, digits, dots, underscores, and hyphens."
+        )
+    return text
+
+
+def _normalize_provider(value: Any) -> str:
+    """Map a missing or unknown provider to local Ollama."""
+    text = str(value or "").strip().lower()
+    if text == PROVIDER_GEMINI:
+        return PROVIDER_GEMINI
+    return PROVIDER_OLLAMA
+
+
+def _require_provider(value: Any) -> str:
+    """Accept only the two providers a space manager can save."""
+    text = str(value or "").strip().lower()
+    if text in (PROVIDER_OLLAMA, PROVIDER_GEMINI):
+        return text
+    raise ValueError(
+        f"Embedding provider {text!r} is not supported (use ollama or gemini)."
+    )
+
+
 def env_config() -> dict[str, Any]:
     """Instance-level fallback used by a space that has never saved settings."""
-    model = config.ollama_embed_model()
+    provider = config.embed_provider()
+    if provider == PROVIDER_GEMINI:
+        model = config.embed_model()
+    else:
+        provider = PROVIDER_OLLAMA
+        model = config.embed_model() or config.ollama_embed_model()
     return {
         "enabled": bool(model),
+        "provider": provider,
         "ollama_url": config.ollama_url(),
+        "base_url": config.embed_base_url() if provider == PROVIDER_GEMINI else "",
         "embed_model": model,
+        "credential": "",
         "dimensions": None,
         "source": "env",
     }
@@ -160,18 +311,32 @@ def resolve_config(space_id: str) -> dict[str, Any]:
 
     A space that never saved settings inherits the environment, so an operator can enable
     vector search instance-wide without touching every space. Once saved, the space's own
-    ``enabled`` flag governs.
+    ``enabled`` flag governs. ``space_id`` is attached for credential lookup and is not
+    part of the stored column.
     """
     stored = spaces.fetch_space_embeddings_config(space_id)
     env = env_config()
+    sid = (space_id or "").strip()
     if not stored:
-        return env
+        cfg = dict(env)
+        cfg["space_id"] = sid
+        return cfg
+    provider = _normalize_provider(stored.get("provider"))
+    stored_base = str(stored.get("base_url") or "").strip()
+    if provider == PROVIDER_GEMINI:
+        base_url = stored_base or env["base_url"] or config.embed_base_url()
+    else:
+        base_url = stored_base
     return {
         "enabled": bool(stored.get("enabled")),
+        "provider": provider,
         "ollama_url": stored.get("ollama_url") or env["ollama_url"],
+        "base_url": base_url,
         "embed_model": stored.get("embed_model") or env["embed_model"],
+        "credential": str(stored.get("credential") or "").strip(),
         "dimensions": stored.get("dimensions"),
         "source": "space",
+        "space_id": sid,
     }
 
 
@@ -187,25 +352,51 @@ def _require_enabled(cfg: dict[str, Any]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Ollama client (localhost; the D7 SSRF guard deliberately does not apply)
+# Embedder clients. Ollama is loopback; Gemini is a public https host. Neither
+# call goes through a sequence endpoint STEP, so D7 does not apply here.
 # ---------------------------------------------------------------------------
 
 
-def _call_ollama(
-    path: str, payload: dict[str, Any], base_url: str | None = None
-) -> dict[str, Any]:
-    """POST to the local Ollama API and return its parsed JSON object.
+def _error_detail(data: Any, status: int) -> str:
+    """A short message from an Ollama string ``error`` or a Gemini ``error.message``."""
+    if isinstance(data, dict):
+        err = data.get("error")
+        if isinstance(err, dict):
+            message = str(err.get("message") or "").strip()
+            if message:
+                return message
+        if isinstance(err, str) and err.strip():
+            return err.strip()
+        if err not in (None, "", {}, []):
+            text = str(err).strip()
+            if text:
+                return text
+    return f"HTTP {status}"
 
-    Shaped after other engine-owned localhost clients: explicit timeout, ``HTTPError`` body
-    parsed for a usable message, response size capped, every transport failure turned
-    into one exception type the callers can report.
+
+def _redact(text: str, secret: str) -> str:
+    if secret and secret in text:
+        return text.replace(secret, "[redacted]")
+    return text
+
+
+def _post_json(
+    url: str,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    *,
+    service: str,
+) -> dict[str, Any]:
+    """POST JSON and return the parsed object. Transport failures become one exception type.
+
+    ``headers`` may carry an API key. This function does not log them, and callers must
+    not put the key in ``url``.
     """
-    url = (base_url or config.ollama_url()).rstrip("/")
     request = urllib.request.Request(
-        f"{url}{path}",
+        url,
         data=json.dumps(payload).encode("utf-8"),
         method="POST",
-        headers={"Content-Type": "application/json"},
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(request, timeout=_OLLAMA_TIMEOUT_SECONDS) as resp:
@@ -219,19 +410,32 @@ def _call_ollama(
             data = json.loads(body.decode("utf-8")) if body else {}
         except (json.JSONDecodeError, UnicodeDecodeError):
             data = {}
-        detail = str(data.get("error") or "").strip() or f"HTTP {e.code}"
-        raise EmbeddingsUnavailable(f"Ollama rejected the request: {detail}") from e
+        detail = _error_detail(data, e.code)
+        raise EmbeddingsUnavailable(f"{service} rejected the request: {detail}") from e
     except Exception as e:  # noqa: BLE001 - connection refused, DNS, timeout, ...
-        raise EmbeddingsUnavailable(f"Ollama is unavailable at {url}: {e}") from e
+        raise EmbeddingsUnavailable(f"{service} is unavailable at {url}: {e}") from e
     if len(raw) > _OLLAMA_RESPONSE_MAX_BYTES:
-        raise EmbeddingsUnavailable("Ollama response exceeded the size limit")
+        raise EmbeddingsUnavailable(f"{service} response exceeded the size limit")
     try:
         data = json.loads(raw.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        raise EmbeddingsUnavailable("Invalid Ollama response (not JSON)") from e
+        raise EmbeddingsUnavailable(f"Invalid {service} response (not JSON)") from e
     if not isinstance(data, dict):
-        raise EmbeddingsUnavailable("Invalid Ollama response (not an object)")
+        raise EmbeddingsUnavailable(f"Invalid {service} response (not an object)")
     return data
+
+
+def _call_ollama(
+    path: str, payload: dict[str, Any], base_url: str | None = None
+) -> dict[str, Any]:
+    """POST to the local Ollama API and return its parsed JSON object."""
+    url = (base_url or config.ollama_url()).rstrip("/")
+    return _post_json(
+        f"{url}{path}",
+        payload,
+        {"Content-Type": "application/json"},
+        service="Ollama",
+    )
 
 
 def _vector_from_response(data: dict[str, Any]) -> list[float]:
@@ -241,17 +445,132 @@ def _vector_from_response(data: dict[str, Any]) -> list[float]:
         first = embeddings[0]
         if isinstance(first, list) and first:
             return [float(v) for v in first]
-    # /api/embeddings (older single-vector shape) answers with "embedding".
+    # /api/embeddings (older single-vector shape) answers with "embedding" as a list.
+    # Gemini's object-shaped ``embedding`` is handled by ``_vector_from_gemini``.
     legacy = data.get("embedding")
     if isinstance(legacy, list) and legacy:
         return [float(v) for v in legacy]
     raise EmbeddingsUnavailable("Ollama returned no embedding vector")
 
 
-def embed_text(text: str, cfg: dict[str, Any] | None = None) -> list[float]:
-    """Embed one string with the configured Ollama embedding model."""
+def _gemini_uses_prompt_prefix(model: str) -> bool:
+    """``gemini-embedding-2`` rejects ``taskType`` and wants the task written into the text."""
+    return "embedding-2" in model
+
+
+def _gemini_text(text: str, model: str, purpose: str) -> tuple[str, str | None]:
+    """Return ``(text to send, taskType or None)`` for one Gemini embed call."""
+    if _gemini_uses_prompt_prefix(model):
+        if purpose == PURPOSE_QUERY:
+            return f"task: search result | query: {text}", None
+        return f"title: none | text: {text}", None
+    task = "RETRIEVAL_QUERY" if purpose == PURPOSE_QUERY else "RETRIEVAL_DOCUMENT"
+    return text, task
+
+
+def _gemini_endpoint(base_url: str, model: str) -> str:
+    root = validate_cloud_embed_url(base_url)
+    model_id = validate_gemini_model(model)
+    return f"{root}/models/{urllib.parse.quote(model_id, safe='')}:embedContent"
+
+
+def _vector_from_gemini(data: dict[str, Any]) -> list[float]:
+    """Read ``embedding.values`` from an embedContent response."""
+    embedding = data.get("embedding")
+    if isinstance(embedding, dict):
+        values = embedding.get("values")
+        if isinstance(values, list) and values:
+            return [float(v) for v in values]
+    raise EmbeddingsUnavailable("Gemini returned no embedding vector")
+
+
+def _embed_api_key(cfg: dict[str, Any]) -> str:
+    """The cloud API key for this call. Never persist or log the return value."""
+    if str(cfg.get("source") or "env") == "space":
+        name = str(cfg.get("credential") or "").strip()
+        if not name:
+            raise EmbeddingsUnavailable(
+                "A credential is required for the cloud embedding provider."
+            )
+        space_id = str(cfg.get("space_id") or "").strip()
+        key = credentials.resolve(space_id, name) if space_id else None
+        if not key:
+            raise EmbeddingsUnavailable(
+                f"Credential {name!r} is not configured for this space."
+            )
+        return key
+    key = config.embed_api_key()
+    if not key:
+        raise EmbeddingsUnavailable(
+            "No embedding API key is configured (set PONA_FLOW_EMBED_API_KEY)."
+        )
+    return key
+
+
+def _call_gemini(
+    base_url: str,
+    model: str,
+    text: str,
+    api_key: str,
+    *,
+    purpose: str,
+) -> dict[str, Any]:
+    """POST embedContent. The key is an ``x-goog-api-key`` header, never a query parameter."""
+    body_text, task_type = _gemini_text(text, model, purpose)
+    payload: dict[str, Any] = {"content": {"parts": [{"text": body_text}]}}
+    if task_type:
+        payload["taskType"] = task_type
+    try:
+        return _post_json(
+            _gemini_endpoint(base_url, model),
+            payload,
+            {"Content-Type": "application/json", "x-goog-api-key": api_key},
+            service="Gemini",
+        )
+    except EmbeddingsUnavailable as e:
+        redacted = _redact(str(e), api_key)
+        if redacted != str(e):
+            raise EmbeddingsUnavailable(redacted) from e
+        raise
+
+
+def _require_purpose(purpose: str) -> str:
+    if purpose not in (PURPOSE_DOCUMENT, PURPOSE_QUERY):
+        raise ValueError(f"Embedding purpose must be document or query, got {purpose!r}")
+    return purpose
+
+
+def embed_text(
+    text: str,
+    cfg: dict[str, Any] | None = None,
+    *,
+    purpose: str = PURPOSE_DOCUMENT,
+) -> list[float]:
+    """Embed one string with the configured provider.
+
+    ``purpose`` is ``document`` for records and the dimension probe, and ``query`` for
+    search text. Ollama ignores it. Gemini uses it to choose the retrieval wrapping.
+    """
     settings = cfg or env_config()
+    _require_purpose(purpose)
     model = str(settings.get("embed_model") or "").strip()
+    provider = _normalize_provider(settings.get("provider"))
+    if provider == PROVIDER_GEMINI:
+        if not model:
+            raise ValueError("No embedding model is configured (set PONA_FLOW_EMBED_MODEL).")
+        validate_gemini_model(model)
+        api_key = _embed_api_key(settings)
+        base_url = str(settings.get("base_url") or "").strip() or config.embed_base_url()
+        try:
+            return _vector_from_gemini(
+                _call_gemini(base_url, model, text, api_key, purpose=purpose)
+            )
+        except EmbeddingsUnavailable:
+            raise
+        except (TypeError, ValueError) as e:
+            raise EmbeddingsUnavailable(
+                _redact(f"Gemini returned a malformed vector: {e}", api_key)
+            ) from e
     if not model:
         raise ValueError(
             "No embedding model is configured "
@@ -271,34 +590,63 @@ def embed_text(text: str, cfg: dict[str, Any] | None = None) -> list[float]:
 def probe_dimensions(cfg: dict[str, Any] | None = None) -> int:
     """Embed a probe string to learn the model's vector width.
 
-    Doubles as a model check: a generate/chat model does not answer ``/api/embed`` with a
-    vector, so this fails loudly instead of quietly building a wrong-width index.
+    Doubles as a model check: a generate/chat model does not answer with a vector, so
+    this fails loudly instead of quietly building a wrong-width index. The probe is a
+    document, the same wrapping reindex uses.
     """
-    dims = len(embed_text("dimension probe", cfg))
+    dims = len(embed_text("dimension probe", cfg, purpose=PURPOSE_DOCUMENT))
     if dims <= 0:
-        raise EmbeddingsUnavailable("Ollama returned an empty embedding vector")
+        raise EmbeddingsUnavailable("The embedding provider returned an empty vector")
     return dims
 
 
+def _credential_configured(cfg: dict[str, Any]) -> bool:
+    """Whether a cloud key can be resolved. The key itself is discarded."""
+    if _normalize_provider(cfg.get("provider")) != PROVIDER_GEMINI:
+        return False
+    try:
+        return bool(_embed_api_key(cfg))
+    except (EmbeddingsUnavailable, ValueError):
+        return False
+
+
+def _public_config(cfg: dict[str, Any]) -> dict[str, Any]:
+    """Settings safe to return from the API. No API key, no live secret."""
+    return {
+        "provider": _normalize_provider(cfg.get("provider")),
+        "ollama_url": cfg.get("ollama_url") or "",
+        "base_url": cfg.get("base_url") or "",
+        "embed_model": cfg.get("embed_model") or "",
+        "model": cfg.get("embed_model") or "",
+        "credential": str(cfg.get("credential") or ""),
+        "credential_configured": _credential_configured(cfg),
+        "enabled": bool(cfg.get("enabled")),
+        "source": cfg.get("source"),
+        "dimensions": cfg.get("dimensions"),
+    }
+
+
 def health(space_id: str | None = None) -> dict[str, Any]:
-    """Report whether Ollama answers and which model/dimensions are in play.
+    """Report whether the configured embedder answers, and the model's vector width.
 
     Returns the failure as data rather than raising, so the settings UI can render it as
-    status instead of an error.
+    status instead of an error. ``credential_configured`` says a cloud key resolved; the
+    key is not included.
     """
     try:
         cfg = resolve_config(space_id) if space_id else env_config()
     except ValueError as e:
-        return {"ok": False, "error": str(e), "enabled": False, "dimensions": None}
-    out: dict[str, Any] = {
-        "ollama_url": cfg.get("ollama_url"),
-        "model": cfg.get("embed_model"),
-        "enabled": bool(cfg.get("enabled")),
-        "source": cfg.get("source"),
-        "ok": False,
-        "dimensions": cfg.get("dimensions"),
-        "error": None,
-    }
+        return {
+            "ok": False,
+            "error": str(e),
+            "enabled": False,
+            "dimensions": None,
+            "provider": PROVIDER_OLLAMA,
+            "credential_configured": False,
+        }
+    out = _public_config(cfg)
+    out["ok"] = False
+    out["error"] = None
     try:
         out["dimensions"] = probe_dimensions(cfg)
         out["ok"] = True
@@ -393,36 +741,87 @@ def clear_vectors(space_id: str) -> dict[str, int]:
     return counts
 
 
+def _pick_text(incoming: str | None, previous: Any) -> str:
+    """Prefer a non-blank incoming value, otherwise the previous stored one."""
+    if incoming is not None and str(incoming).strip():
+        return str(incoming).strip()
+    return str(previous or "").strip()
+
+
 def apply_space_config(
     space_id: str,
     *,
     enabled: bool,
+    provider: str | None = None,
     ollama_url: str | None = None,
+    base_url: str | None = None,
     embed_model: str | None = None,
+    credential: str | None = None,
 ) -> dict[str, Any]:
     """Save a space's vector-search settings and reconcile the Neo4j index to match.
 
-    Enabling probes the model for its width and creates the indexes. Changing the model
-    (or disabling) drops the indexes and clears stored vectors, because a dimension is
-    baked into an index and vectors from two models cannot be compared.
+    Enabling probes the model for its width and creates the indexes. Changing the
+    embedding identity — provider, model, or (for Gemini) the base URL — drops the
+    indexes and clears stored vectors, because a dimension is baked into an index and
+    vectors from two models cannot be compared. An Ollama URL change alone does not:
+    the same local model is the same vector space. A credential change does not either.
     """
     sid = (space_id or "").strip()
     if not sid:
         raise ValueError("space_id is required")
     previous = resolve_config(sid)
     env = env_config()
-    url = validate_ollama_url(ollama_url or previous.get("ollama_url") or env["ollama_url"])
-    model = str(
-        embed_model if embed_model is not None else (previous.get("embed_model") or "")
-    ).strip()
+    provider_norm = (
+        _require_provider(provider)
+        if provider is not None
+        else _normalize_provider(previous.get("provider"))
+    )
+    url = validate_ollama_url(
+        _pick_text(ollama_url, previous.get("ollama_url")) or env["ollama_url"]
+    )
+    # None keeps the saved model. An explicit blank does not fall back — enabling
+    # with no model is rejected below.
+    model = (
+        str(embed_model).strip()
+        if embed_model is not None
+        else str(previous.get("embed_model") or "").strip()
+    )
+    cred = str(credential).strip() if credential is not None else str(previous.get("credential") or "").strip()
+
+    if provider_norm == PROVIDER_GEMINI:
+        # An explicit blank base URL means the documented Google root, not "keep
+        # whatever was saved". Omitted (None) keeps a previously saved root.
+        if base_url is not None and not str(base_url).strip():
+            raw_base = config.embed_base_url()
+        else:
+            raw_base = (
+                _pick_text(base_url, previous.get("base_url")) or config.embed_base_url()
+            )
+        cloud = validate_cloud_embed_url(raw_base)
+    elif base_url is not None:
+        # Kept for a later switch to Gemini. Not contacted, so not resolved here.
+        cloud = str(base_url).strip().rstrip("/")
+    elif previous.get("source") == "space":
+        cloud = str(previous.get("base_url") or "").strip()
+    else:
+        cloud = ""
+
+    prev_provider = _normalize_provider(previous.get("provider"))
+    prev_model = str(previous.get("embed_model") or "").strip()
+    prev_base = str(previous.get("base_url") or "").strip().rstrip("/")
+    identity_changed = model != prev_model or provider_norm != prev_provider
+    if provider_norm == PROVIDER_GEMINI and cloud.rstrip("/") != prev_base:
+        identity_changed = True
 
     saved: dict[str, Any] = {
         "enabled": bool(enabled),
+        "provider": provider_norm,
         "ollama_url": url,
+        "base_url": cloud,
         "embed_model": model,
+        "credential": cred,
         "dimensions": previous.get("dimensions"),
     }
-    model_changed = model != str(previous.get("embed_model") or "").strip()
     cleared: dict[str, int] | None = None
 
     if not enabled:
@@ -432,9 +831,24 @@ def apply_space_config(
     else:
         if not model:
             raise ValueError("An embedding model is required to enable vector search.")
-        dims = probe_dimensions({"ollama_url": url, "embed_model": model})
+        probe_cfg: dict[str, Any] = {
+            "provider": provider_norm,
+            "ollama_url": url,
+            "base_url": cloud,
+            "embed_model": model,
+            "credential": cred,
+            "source": "space",
+            "space_id": sid,
+        }
+        if provider_norm == PROVIDER_GEMINI:
+            validate_gemini_model(model)
+            if not cred:
+                raise ValueError("A credential is required to enable a cloud embedding model.")
+            if not credentials.resolve(sid, cred):
+                raise ValueError(f"Credential {cred!r} is not configured for this space.")
+        dims = probe_dimensions(probe_cfg)
         saved["dimensions"] = dims
-        if model_changed and previous.get("dimensions"):
+        if identity_changed and previous.get("dimensions"):
             drop_vector_indexes(sid)
             cleared = clear_vectors(sid)
         ensure_vector_indexes(sid, dims)
@@ -442,7 +856,7 @@ def apply_space_config(
     stored = spaces.write_space_embeddings_config(sid, saved)
     result = dict(stored)
     result["space_id"] = sid
-    result["model_changed"] = model_changed
+    result["model_changed"] = identity_changed
     if cleared is not None:
         result["cleared"] = cleared
     return result
@@ -482,7 +896,7 @@ def resolve_embedded_keys(space_id: str, attributive_label: str) -> list[str]:
     """A vectorized SCHEMA's embedded property keys (node or relationship).
 
     Raises when the SCHEMA has not opted in: embedding a type nobody asked to embed would
-    spend an Ollama round trip per record and pollute the shared index with types that
+    spend an embed round trip per record and pollute the shared index with types that
     then compete with the ones that were asked for.
     """
     definition = graph.fetch_schema_definition(space_id, attributive_label)
@@ -627,7 +1041,7 @@ def reindex_label(
 ) -> dict[str, Any]:
     """Embed the INSTANCE records of one ``attributive_label``.
 
-    Dimensions are probed up front so an unreachable Ollama or a non-embedding model
+    Dimensions are probed up front so an unreachable embedder or a non-embedding model
     fails before any graph writes. Records are then walked a page at a time; a record
     whose text is empty is skipped, and a record whose embed call fails is stamped
     ``embedding_stale`` so it stays findable as "not yet in the index".
@@ -720,7 +1134,7 @@ def reindex_label(
                 stats["skipped"] += 1
                 continue
             try:
-                vector = embed_text(text, cfg)
+                vector = embed_text(text, cfg, purpose=PURPOSE_DOCUMENT)
             except (EmbeddingsUnavailable, ValueError):
                 stats["failed"] += 1
                 consecutive_failures += 1
@@ -771,7 +1185,7 @@ def reindex_space(space_id: str, *, only_stale: bool = False) -> dict[str, Any]:
     """Reindex every vectorized SCHEMA in the space.
 
     Dimensions are probed once and passed down, so a space with twenty vectorized types
-    still only asks Ollama for its vector width once. ``only_stale`` is the periodic job's
+    still only asks the embedder for its vector width once. ``only_stale`` is the periodic job's
     incremental pass; the Reindex button rebuilds everything.
     """
     sid = (space_id or "").strip()
@@ -955,7 +1369,7 @@ def search(
 ) -> dict[str, Any]:
     """Nearest-neighbour search over a space's vector index.
 
-    Unlike a write, this cannot degrade when Ollama is down: the query itself has to be
+    Unlike a write, this cannot degrade when the embedder is down: the query itself has to be
     embedded with the same model, so failure raises instead of returning empty results.
     ``attributive_label`` is applied after the index returns candidates, so the request
     overfetches to keep k achievable for one type out of the shared index.
@@ -984,7 +1398,7 @@ def search(
     )
 
     cfg = _require_enabled(resolve_config(sid))
-    vector = embed_text(query, cfg)
+    vector = embed_text(query, cfg, purpose=PURPOSE_QUERY)
     params: dict[str, Any] = {
         "index": index_name,
         "overfetch": overfetch,
@@ -1001,6 +1415,7 @@ def search(
         "space_id": sid,
         "kind": kind_norm,
         "attributive_label": label or None,
+        "provider": _normalize_provider(cfg.get("provider")),
         "model": cfg.get("embed_model"),
         "k": top_k,
         "overfetch": overfetch,
@@ -1107,7 +1522,7 @@ def resolve_search_params(
     # Composed builder Cypher always filters by attributive_label, so overfetch.
     overfetch = min(top_k * SEARCH_OVERFETCH_FACTOR, SEARCH_MAX_OVERFETCH)
 
-    vector = embed_text(text, cfg)
+    vector = embed_text(text, cfg, purpose=PURPOSE_QUERY)
     # Write the coerced int back under whichever name the LIMIT clause binds: Neo4j
     # rejects a string LIMIT, and run-panel forms submit every value as a string.
     out[k_name] = top_k

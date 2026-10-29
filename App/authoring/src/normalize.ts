@@ -81,7 +81,7 @@ export function normalizeForCompose(query: QueryObject): QueryObject {
 
 /** Graph element the query primarily writes; drives RBAC flow checks and catalog metadata. */
 export function primaryNodeLabel(query: QueryObject): string {
-  return query.match[0]?.label ?? "STEP";
+  return query.match?.[0]?.label ?? "STEP";
 }
 
 /** Split the composer's single Cypher string into the statement array the API expects. */

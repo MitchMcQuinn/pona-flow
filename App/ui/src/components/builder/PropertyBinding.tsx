@@ -116,6 +116,7 @@ export function PropertyBinding({
         className={`builderCard nested builderItemRow builderPropertyCard${
           canDelete ? " builderPropertyCardRemovable" : ""
         }`}
+        data-pin-target={prop.key}
       >
         {canDelete ? (
           <button
@@ -276,7 +277,7 @@ export function PropertyBinding({
   }
 
   return (
-    <div className="builderCard nested builderItemRow builderPropertyCard">
+    <div className="builderCard nested builderItemRow builderPropertyCard" data-pin-target={prop.key}>
       <div className="builderRow">
         <div className="builderField">
           <label>key</label>

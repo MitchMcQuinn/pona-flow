@@ -1,4 +1,12 @@
 import type {
+  ChatBatchResult,
+  ChatModelSettings,
+  ChatStackItem,
+  ChatStreamEvent,
+  ChatThread,
+  ChatThreadSummary
+} from "../chat/types";
+import type {
   AuditEntry,
   EventDetail,
   EventPackage,
@@ -523,13 +531,68 @@ export async function fetchSpaceGroups(spaceId: string): Promise<string[]> {
   return connectorFetchSpaceGroups(spaceId);
 }
 
-/** Replace the ordered group-title list for a space (add / reorder / delete). */
-export async function setSpaceGroups(spaceId: string, groups: string[]): Promise<void> {
+export type NavSection = "sequences" | "events" | "consoles";
+
+export async function fetchNavGroups(spaceId: string): Promise<{
+  groups: string[];
+  eventGroups: string[];
+  consoleGroups: string[];
+}> {
+  const data = await getJson<{
+    groups?: string[];
+    event_groups?: string[];
+    console_groups?: string[];
+  }>(
+    `/api/space/groups?space_id=${encodeURIComponent(spaceId)}`,
+    "Failed to load groups",
+    { cache: "no-store" }
+  );
+  return {
+    groups: Array.isArray(data.groups) ? data.groups : [],
+    eventGroups: Array.isArray(data.event_groups) ? data.event_groups : [],
+    consoleGroups: Array.isArray(data.console_groups) ? data.console_groups : []
+  };
+}
+
+/** Replace the ordered group-title list for one nav section (add / reorder / delete). */
+export async function setSpaceGroups(
+  spaceId: string,
+  groups: string[],
+  section: NavSection = "sequences"
+): Promise<void> {
   await postJson<unknown>(
     "/api/space/groups",
-    { space_id: spaceId, groups },
+    { space_id: spaceId, groups, section },
     "Failed to save groups"
   );
+}
+
+export interface NavReorderItem {
+  id: string;
+  groupTitle: string | null;
+  sortOrder: number;
+}
+
+async function reorderNavRows(path: string, items: NavReorderItem[], label: string): Promise<void> {
+  await postJson<unknown>(
+    path,
+    {
+      items: items.map((item) => ({
+        id: item.id,
+        group_title: item.groupTitle,
+        sort_order: item.sortOrder
+      }))
+    },
+    label
+  );
+}
+
+export function reorderEvents(items: NavReorderItem[]): Promise<void> {
+  return reorderNavRows("/api/events/reorder", items, "Failed to save event order");
+}
+
+export function reorderConsoles(items: NavReorderItem[]): Promise<void> {
+  return reorderNavRows("/api/consoles/reorder", items, "Failed to save console order");
 }
 
 /** Run a saved sequence's stored read cypher and return the visualization result. */
@@ -651,6 +714,10 @@ export async function previewSequenceParameters(
 ): Promise<{
   parameters: ExecutionStepParameter[];
   parameter_values: Record<string, unknown>;
+  /** STEP parameter lists in run order, before caller-facing filtering. */
+  parameter_steps?: ExecutionStepParameter[][];
+  /** Names produced by an earlier step, so a caller does not supply them. */
+  response_parameter_names?: string[];
 }> {
   return postJson(
     "/api/sequence/preview-parameters",
@@ -886,10 +953,20 @@ interface EventApiRow {
   sequences?: string[];
   recovery_sequences?: string[];
   timers?: { next_fire_at?: string | null; last_fired_at?: string | null };
+  group_title?: string | null;
+  sort_order?: number | null;
 }
 
 function emptyExternalPackage(): ExternalPackage {
   return { combinator: "AND", filters: [], param_mappings: [], parameters: {} };
+}
+
+function toGroupTitle(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function toSortOrder(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function toEventSummary(row: EventApiRow): EventSummary {
@@ -899,7 +976,9 @@ function toEventSummary(row: EventApiRow): EventSummary {
     type: row.type || "time",
     enabled: row.enabled === undefined ? true : Boolean(row.enabled),
     sequences: Array.isArray(row.sequences) ? row.sequences : [],
-    recoverySequences: Array.isArray(row.recovery_sequences) ? row.recovery_sequences : []
+    recoverySequences: Array.isArray(row.recovery_sequences) ? row.recovery_sequences : [],
+    groupTitle: toGroupTitle(row.group_title),
+    sortOrder: toSortOrder(row.sort_order)
   };
 }
 
@@ -985,6 +1064,138 @@ export async function deleteEvent(eventId: string): Promise<{ id: string }> {
   return { id: data.id ?? eventId };
 }
 
+// ----- consoles -------------------------------------------------------------
+
+export interface ConsoleSummary {
+  id: string;
+  name: string;
+  triggerKind: "" | "url" | "event";
+  listenUrl: string;
+  triggerEventId: string;
+  groupTitle: string | null;
+  sortOrder: number | null;
+}
+
+export interface ConsoleDetail extends Omit<ConsoleSummary, "groupTitle" | "sortOrder"> {
+  spaceId: string;
+  document: { views: unknown[]; activeViewId: string };
+}
+
+interface ConsoleApiRow {
+  id?: string;
+  space_id?: string;
+  name?: string;
+  trigger_kind?: string;
+  listen_url?: string;
+  trigger_event_id?: string;
+  document?: { views?: unknown[]; activeViewId?: string };
+  group_title?: string | null;
+  sort_order?: number | null;
+}
+
+function toConsoleSummary(row: ConsoleApiRow): ConsoleSummary {
+  const kind = row.trigger_kind;
+  return {
+    id: row.id || "",
+    name: row.name || "Console",
+    triggerKind: kind === "url" || kind === "event" ? kind : "",
+    listenUrl: row.listen_url || "",
+    triggerEventId: row.trigger_event_id || "",
+    groupTitle: toGroupTitle(row.group_title),
+    sortOrder: toSortOrder(row.sort_order)
+  };
+}
+
+export async function fetchConsoles(spaceId: string): Promise<ConsoleSummary[]> {
+  const data = await getJson<{ consoles?: ConsoleApiRow[] }>(
+    `/api/consoles?space_id=${encodeURIComponent(spaceId)}`,
+    "Failed to load consoles",
+    { cache: "no-store" }
+  );
+  return (data.consoles || []).map(toConsoleSummary);
+}
+
+export async function fetchConsole(consoleId: string): Promise<ConsoleApiRow> {
+  return getJson<ConsoleApiRow>(
+    `/api/consoles/${encodeURIComponent(consoleId)}`,
+    "Failed to load console",
+    { cache: "no-store" }
+  );
+}
+
+export async function saveConsole(input: ConsoleDetail): Promise<{ id: string }> {
+  const data = await postJson<{ id?: string }>(
+    "/api/consoles/upsert",
+    {
+      id: input.id,
+      space_id: input.spaceId,
+      name: input.name,
+      trigger_kind: input.triggerKind,
+      listen_url: input.listenUrl,
+      trigger_event_id: input.triggerEventId,
+      document: input.document
+    },
+    "Failed to save console"
+  );
+  return { id: data.id ?? input.id };
+}
+
+export async function deleteConsole(consoleId: string): Promise<{ id: string }> {
+  const data = await postJson<{ id?: string }>(
+    "/api/consoles/delete",
+    { id: consoleId },
+    "Failed to delete console"
+  );
+  return { id: data.id ?? consoleId };
+}
+
+export type ConsoleSequenceOutcome =
+  | { status: "inactive"; final_result: unknown }
+  | {
+      status: "pending";
+      state_id: string;
+      step_id: string;
+      parameters: ExecutionStepParameter[];
+    };
+
+export async function runConsoleSequenceOutcome(input: {
+  consoleId: string;
+  sequenceId: string;
+  viewId: string;
+  role: "data" | "action";
+  params: Record<string, unknown>;
+  stateId?: string;
+}): Promise<ConsoleSequenceOutcome> {
+  const data = await postJson<ConsoleSequenceOutcome>(
+    `/api/consoles/${encodeURIComponent(input.consoleId)}/run`,
+    {
+      sequenceId: input.sequenceId,
+      viewId: input.viewId,
+      role: input.role,
+      params: input.params,
+      stateId: input.stateId
+    },
+    (_response, body) =>
+      (typeof body.detail === "string" && body.detail) || body.error || "Failed to run sequence"
+  );
+  if (data.status === "pending") return data;
+  return { status: "inactive", final_result: data.final_result };
+}
+
+export async function runConsoleSequence(input: {
+  consoleId: string;
+  sequenceId: string;
+  viewId: string;
+  role: "data" | "action";
+  params: Record<string, unknown>;
+}): Promise<unknown> {
+  const outcome = await runConsoleSequenceOutcome(input);
+  if (outcome.status === "pending") {
+    throw new Error("sequence is waiting for parameters");
+  }
+  return outcome.final_result;
+}
+
 export interface SimulationEmission {
   id: string;
   probabilityId: string;
@@ -1008,6 +1219,8 @@ export interface SimulationSession {
   /** Set only when the user has renamed the session. Otherwise the start time is the name. */
   name: string | null;
   emissions?: SimulationEmission[];
+  /** Present on a tic response when the simulated event has a console. */
+  consoleId?: string;
 }
 
 interface SimulationEmissionRow {
@@ -1032,6 +1245,7 @@ interface SimulationSessionRow {
   error_message?: string | null;
   name?: string | null;
   emissions?: SimulationEmissionRow[];
+  console_id?: string;
 }
 
 function toSimulationEmission(row: SimulationEmissionRow): SimulationEmission {
@@ -1058,7 +1272,8 @@ function toSimulationSession(row: SimulationSessionRow): SimulationSession {
     createdAt: row.created_at || "",
     errorMessage: row.error_message ?? null,
     name: row.name?.trim() || null,
-    emissions: Array.isArray(row.emissions) ? row.emissions.map(toSimulationEmission) : undefined
+    emissions: Array.isArray(row.emissions) ? row.emissions.map(toSimulationEmission) : undefined,
+    consoleId: row.console_id || undefined
   };
 }
 
@@ -1184,6 +1399,7 @@ export async function fetchAuditLog(spaceId: string, limit = 200): Promise<Audit
       trigger?: string;
       principal_id?: string | null;
       principal_email?: string | null;
+      parameter_map?: Record<string, unknown> | null;
     }>;
   }>(
     `/api/audit-log?space_id=${encodeURIComponent(spaceId)}&limit=${encodeURIComponent(String(limit))}`,
@@ -1197,7 +1413,11 @@ export async function fetchAuditLog(spaceId: string, limit = 200): Promise<Audit
     eventId: entry.event_id ?? null,
     trigger: entry.trigger || "manual",
     principalId: entry.principal_id ?? null,
-    principalEmail: entry.principal_email ?? null
+    principalEmail: entry.principal_email ?? null,
+    parameterMap:
+      entry.parameter_map && typeof entry.parameter_map === "object" && !Array.isArray(entry.parameter_map)
+        ? entry.parameter_map
+        : null
   }));
 }
 
@@ -1279,6 +1499,7 @@ export type MePayload = {
   can_create_spaces?: boolean;
   timezone?: string | null;
   onboarding_tour_seen?: boolean;
+  workbench_mode?: "chat" | "classic";
 };
 
 export function meFromPayload(data: MePayload): Me {
@@ -1291,7 +1512,8 @@ export function meFromPayload(data: MePayload): Me {
     canCreateSpaces: Boolean(data.can_create_spaces),
     timezone: data.timezone ?? null,
     // Older servers omit the flag; treat that as "seen" so the tour never nags there.
-    onboardingTourSeen: data.onboarding_tour_seen ?? true
+    onboardingTourSeen: data.onboarding_tour_seen ?? true,
+    workbenchMode: data.workbench_mode === "classic" ? "classic" : "chat"
   };
 }
 
@@ -1364,16 +1586,23 @@ export async function applyInstanceUpdate(): Promise<{
   return postJson("/api/instance/updates/apply", {}, "Failed to start instance update");
 }
 
-/** Persist the signed-in principal's preferred timezone (null clears it). */
+/** Persist the signed-in principal's settings. Only the fields you pass are written. */
 export async function updateMySettings(settings: {
-  timezone: string | null;
-}): Promise<{ timezone: string | null }> {
-  const data = await postJson<{ timezone?: string | null }>(
+  timezone?: string | null;
+  workbenchMode?: "chat" | "classic";
+}): Promise<{ timezone: string | null; workbenchMode: "chat" | "classic" }> {
+  const body: { timezone?: string | null; workbench_mode?: "chat" | "classic" } = {};
+  if ("timezone" in settings) body.timezone = settings.timezone ?? null;
+  if (settings.workbenchMode) body.workbench_mode = settings.workbenchMode;
+  const data = await postJson<{ timezone?: string | null; workbench_mode?: "chat" | "classic" }>(
     "/api/me/settings",
-    { timezone: settings.timezone },
+    body,
     "Failed to save settings"
   );
-  return { timezone: data.timezone ?? null };
+  return {
+    timezone: data.timezone ?? null,
+    workbenchMode: data.workbench_mode === "classic" ? "classic" : "chat"
+  };
 }
 
 /** Mark the product tour finished/skipped (true) or reset it so it auto-starts again (false). */
@@ -1642,22 +1871,31 @@ export async function deleteCredential(spaceId: string, name: string): Promise<v
   );
 }
 
-// ----- Embeddings (local vector search) -------------------------------------
+// ----- Embeddings (Ollama or Gemini vector search) --------------------------
+
+export type EmbeddingProvider = "ollama" | "gemini";
 
 /** A space's vector-search settings. `dimensions` is probed from the model, never typed. */
 export interface EmbeddingsConfig {
   enabled: boolean;
+  provider: EmbeddingProvider;
   ollamaUrl: string;
+  /** Gemini-compatible API root. Blank until a cloud provider is saved. */
+  baseUrl: string;
   embedModel: string;
+  /** Credential name for a cloud provider. Never the secret. */
+  credential: string;
   dimensions: number | null;
   /** "space" once saved here; "env" while inheriting the instance defaults. */
   source: string;
 }
 
-/** Live check of the configured Ollama. A failure is data, not an exception. */
+/** Live check of the configured embedder. A failure is data, not an exception. */
 export interface EmbeddingsHealth extends EmbeddingsConfig {
   ok: boolean;
   error: string | null;
+  /** True when a cloud API key resolved. The key itself is never returned. */
+  credentialConfigured: boolean;
 }
 
 export interface ReindexResult {
@@ -1673,12 +1911,19 @@ export interface ReindexResult {
   aborted: boolean;
 }
 
+function mapEmbeddingProvider(value: unknown): EmbeddingProvider {
+  return value === "gemini" ? "gemini" : "ollama";
+}
+
 function mapEmbeddingsConfig(data: Record<string, unknown>): EmbeddingsConfig {
   const dimensions = Number(data.dimensions);
   return {
     enabled: Boolean(data.enabled),
+    provider: mapEmbeddingProvider(data.provider),
     ollamaUrl: String(data.ollama_url || ""),
+    baseUrl: String(data.base_url || ""),
     embedModel: String(data.embed_model || data.model || ""),
+    credential: String(data.credential || ""),
     dimensions: Number.isFinite(dimensions) && dimensions > 0 ? dimensions : null,
     source: String(data.source || "")
   };
@@ -1695,11 +1940,21 @@ export async function fetchEmbeddingsConfig(spaceId: string): Promise<Embeddings
 
 export async function saveEmbeddingsConfig(
   spaceId: string,
-  values: { enabled: boolean; ollamaUrl?: string; embedModel?: string }
+  values: {
+    enabled: boolean;
+    provider?: EmbeddingProvider;
+    ollamaUrl?: string;
+    baseUrl?: string;
+    embedModel?: string;
+    credential?: string;
+  }
 ): Promise<EmbeddingsConfig> {
   const body: Record<string, unknown> = { enabled: values.enabled };
+  if (values.provider !== undefined) body.provider = values.provider;
   if (values.ollamaUrl !== undefined) body.ollama_url = values.ollamaUrl;
+  if (values.baseUrl !== undefined) body.base_url = values.baseUrl;
   if (values.embedModel !== undefined) body.embed_model = values.embedModel;
+  if (values.credential !== undefined) body.credential = values.credential;
   const data = await postJson<Record<string, unknown>>(
     `/api/spaces/${encodeURIComponent(spaceId)}/embeddings/config`,
     body,
@@ -1717,7 +1972,8 @@ export async function fetchEmbeddingsHealth(spaceId: string): Promise<Embeddings
   return {
     ...mapEmbeddingsConfig(data),
     ok: Boolean(data.ok),
-    error: data.error ? String(data.error) : null
+    error: data.error ? String(data.error) : null,
+    credentialConfigured: Boolean(data.credential_configured)
   };
 }
 
@@ -1903,4 +2159,174 @@ export async function getTemplateImportStatus(
   };
   if (!response.ok) throw new Error(data.error || "Failed to load import status");
   return data;
+}
+
+export class ChatRequestError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function mapThreadSummary(row: Record<string, unknown>): ChatThreadSummary {
+  return {
+    id: String(row.id || ""),
+    title: String(row.title || ""),
+    turn_status: row.turn_status === "running" ? "running" : "idle",
+    updated_at: String(row.updated_at || "")
+  };
+}
+
+function mapMessage(row: Record<string, unknown>): ChatThread["messages"][number] {
+  const batch = row.batch;
+  return {
+    id: String(row.id || ""),
+    role: row.role === "assistant" ? "assistant" : "user",
+    content: String(row.content || ""),
+    tool_calls: Array.isArray(row.tool_calls) ? row.tool_calls : [],
+    batch: batch && typeof batch === "object" ? (batch as ChatThread["messages"][number]["batch"]) : null
+  };
+}
+
+function mapStackItem(row: Record<string, unknown>): ChatStackItem {
+  return {
+    id: String(row.id || ""),
+    kind: row.kind as ChatStackItem["kind"],
+    title: String(row.title || ""),
+    payload: row.payload && typeof row.payload === "object" ? (row.payload as Record<string, unknown>) : {},
+    position: Number(row.position || 0)
+  };
+}
+
+export async function fetchChatThreads(spaceId: string): Promise<ChatThreadSummary[]> {
+  const data = await getJson<{ threads?: Array<Record<string, unknown>> }>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/chat/threads`,
+    "Failed to load chats"
+  );
+  return (data.threads || []).map(mapThreadSummary);
+}
+
+export async function fetchChatThread(spaceId: string, threadId: string): Promise<ChatThread> {
+  const data = await getJson<Record<string, unknown>>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/chat/threads/${encodeURIComponent(threadId)}`,
+    "Failed to load chat"
+  );
+  const summary = mapThreadSummary(data);
+  return {
+    ...summary,
+    active_stack_item_id: (data.active_stack_item_id as string | null) ?? null,
+    messages: Array.isArray(data.messages) ? data.messages.map((row) => mapMessage(row as Record<string, unknown>)) : [],
+    stack: Array.isArray(data.stack) ? data.stack.map((row) => mapStackItem(row as Record<string, unknown>)) : []
+  };
+}
+
+export async function setActiveChatStackItem(
+  spaceId: string,
+  threadId: string,
+  stackItemId: string | null
+): Promise<void> {
+  await postJson(
+    `/api/spaces/${encodeURIComponent(spaceId)}/chat/threads/${encodeURIComponent(threadId)}/active`,
+    { stack_item_id: stackItemId },
+    "Failed to save the open canvas tab"
+  );
+}
+
+export async function addChatStackItem(
+  spaceId: string,
+  threadId: string,
+  item: { kind: ChatStackItem["kind"]; title: string; payload: Record<string, unknown> }
+): Promise<ChatStackItem> {
+  const data = await postJson<{ item: Record<string, unknown> }>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/chat/threads/${encodeURIComponent(threadId)}/stack`,
+    item,
+    "Failed to update the canvas"
+  );
+  return mapStackItem(data.item);
+}
+
+export async function updateChatStackItem(
+  spaceId: string,
+  threadId: string,
+  itemId: string,
+  payload: Record<string, unknown>
+): Promise<ChatStackItem> {
+  const data = await postJson<{ item: Record<string, unknown> }>(
+    `/api/spaces/${encodeURIComponent(spaceId)}/chat/threads/${encodeURIComponent(threadId)}/stack/${encodeURIComponent(itemId)}`,
+    { payload },
+    "Failed to update the canvas"
+  );
+  return mapStackItem(data.item);
+}
+
+export async function acceptChatBatch(spaceId: string, threadId: string): Promise<ChatBatchResult> {
+  return postJson(
+    `/api/spaces/${encodeURIComponent(spaceId)}/chat/threads/${encodeURIComponent(threadId)}/batch/accept`,
+    {},
+    "Failed to apply the change"
+  );
+}
+
+export async function rejectChatBatch(spaceId: string, threadId: string): Promise<void> {
+  await postJson(
+    `/api/spaces/${encodeURIComponent(spaceId)}/chat/threads/${encodeURIComponent(threadId)}/batch/reject`,
+    {},
+    "Failed to reject the change"
+  );
+}
+
+export async function fetchChatModel(spaceId: string): Promise<ChatModelSettings> {
+  return getJson(`/api/spaces/${encodeURIComponent(spaceId)}/chat-model`, "Failed to load chat model");
+}
+
+export async function saveChatModel(
+  spaceId: string,
+  settings: Partial<ChatModelSettings> & { api_key?: string }
+): Promise<ChatModelSettings> {
+  return postJson(
+    `/api/spaces/${encodeURIComponent(spaceId)}/chat-model`,
+    settings,
+    "Failed to save chat model"
+  );
+}
+
+/** Stream one agent turn. Throws ChatRequestError before any tokens when the server refuses. */
+export async function streamChatTurn(
+  spaceId: string,
+  body: { threadId: string | null; content: string },
+  onEvent: (event: ChatStreamEvent) => void
+): Promise<void> {
+  const response = await fetch(`/api/spaces/${encodeURIComponent(spaceId)}/chat/turns`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ thread_id: body.threadId, content: body.content })
+  });
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new ChatRequestError(data.error || "Chat request failed", response.status);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Chat stream was empty");
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() || "";
+    for (const frame of frames) {
+      const eventLine = frame.split("\n").find((line) => line.startsWith("event:"));
+      const dataLine = frame.split("\n").find((line) => line.startsWith("data:"));
+      if (!eventLine || !dataLine) continue;
+      const event = eventLine.slice(6).trim();
+      try {
+        const data = JSON.parse(dataLine.slice(5).trim()) as ChatStreamEvent["data"];
+        onEvent({ event, data } as ChatStreamEvent);
+      } catch {
+        // Ignore a truncated frame; the next chunk completes it.
+      }
+    }
+  }
 }

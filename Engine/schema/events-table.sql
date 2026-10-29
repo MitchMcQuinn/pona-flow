@@ -14,7 +14,8 @@
 --                         (external-trigger config: the inbound ingest token, an optional
 --                          HMAC shared secret, payload match filters, payload->param
 --                          mappings, and fixed fallback parameters)
---   simulation_package -> { token, tic_unit, tic_duration, sequence_id, probabilities: [...] }
+--   simulation_package -> { token, tic_unit, tic_duration, sequence_id, console_id?,
+--                          probabilities: [...] }
 --                         (simulated-event config: public session-control token, tic clock,
 --                          the sequence run for a chosen outcome, and nested probabilities)
 --   sequences          -> ["ID_...", ...]  sequence query ids to run on activation
@@ -34,7 +35,9 @@ CREATE TABLE IF NOT EXISTS events (
     timers TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(timers)),
     recovery_sequences TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(recovery_sequences)),
     creation_date TEXT NOT NULL DEFAULT (datetime('now')),
-    modified_date TEXT NOT NULL DEFAULT (datetime('now'))
+    modified_date TEXT NOT NULL DEFAULT (datetime('now')),
+    group_title TEXT,
+    sort_order INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_space ON events (space_id);

@@ -28,7 +28,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from . import catalog, config, embeddings, execution, spaces, triggers
+from . import catalog, config, console_hub, embeddings, execution, spaces, triggers
 
 # Upper bound on how long the loop sleeps between checks. Bounds responsiveness to
 # clock changes and acts as a safety net even though create/edit/delete signal a wake.
@@ -89,6 +89,10 @@ def _fire_event(event: dict[str, Any], trigger: str) -> None:
             sys.stderr.write(
                 f"scheduler: event {event_id!r} sequence {seq!r} failed: {e}\n"
             )
+    try:
+        console_hub.notify_for_event(event_id)
+    except Exception as e:  # a console refresh must not stop the scheduler
+        sys.stderr.write(f"scheduler: console refresh for {event_id!r} failed: {e}\n")
 
 
 def _event_params(event: dict[str, Any]) -> dict[str, Any]:

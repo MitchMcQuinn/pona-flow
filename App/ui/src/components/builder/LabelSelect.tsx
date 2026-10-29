@@ -7,7 +7,7 @@ export function LabelSelect() {
   const { state, dispatch, createSequenceMode, flows } = useBuilder();
   if (createSequenceMode) return null;
 
-  const current = state.query.match[0]?.label;
+  const current = state.query.match?.[0]?.label;
   if (!current) return null;
 
   const operation = state.query.operation;

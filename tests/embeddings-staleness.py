@@ -154,7 +154,7 @@ check(
 
 # --- incremental reindex -----------------------------------------------------
 emb.probe_dimensions = lambda cfg=None: 3  # type: ignore[assignment]
-emb.embed_text = lambda text, cfg=None: [0.1, 0.2, 0.3]  # type: ignore[assignment]
+emb.embed_text = lambda text, cfg=None, **_kwargs: [0.1, 0.2, 0.3]  # type: ignore[assignment]
 emb.resolve_embedded_keys = lambda space_id, label: ["NAME"]  # type: ignore[assignment]
 
 calls.clear()

@@ -44,4 +44,4 @@ This is the wrong tool for a warehouse, a Zapier-scale connector catalog, or an 
 
 ## Stack
 
-Python / FastAPI · Neo4j · per-space SQLite · React builder · Clerk for humans · hashed agent keys for machines · local Ollama embeddings (optional).
+Python / FastAPI · Neo4j · per-space SQLite · React builder · Clerk for humans · hashed agent keys for machines · Ollama or Gemini embeddings (optional).

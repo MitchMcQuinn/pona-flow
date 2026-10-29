@@ -63,6 +63,10 @@ interface TopBarProps {
   inFlightStatus?: "active" | "pending" | "waiting" | null;
   awaitingParams?: boolean;
   onStop?: () => void;
+  /** Classic mode: return to the chat home screen. */
+  onOpenChat?: () => void;
+  /** Chat mode hides space settings; they live in classic mode. */
+  showSpaceSettings?: boolean;
 }
 
 export function TopBar({
@@ -84,7 +88,9 @@ export function TopBar({
   onRun,
   inFlightStatus = null,
   awaitingParams = false,
-  onStop
+  onStop,
+  onOpenChat,
+  showSpaceSettings = true
 }: TopBarProps) {
   const parked = inFlightStatus === "waiting" || inFlightStatus === "active";
   const showStop = Boolean(onStop) && (parked || awaitingParams || inFlightStatus === "pending");
@@ -124,6 +130,11 @@ export function TopBar({
         />
       </div>
       <div className="topbarActions" data-tour="topbar-actions">
+        {onOpenChat ? (
+          <button type="button" className="topbarBackBtn" data-testid="topbar-chat-btn" onClick={onOpenChat}>
+            Chat
+          </button>
+        ) : null}
         {showBackToBuilder ? (
           <button
             type="button"
@@ -172,18 +183,20 @@ export function TopBar({
               +
             </button>
           ) : null}
-          <button
-            type="button"
-            className={`tinyBtn tinyBtnIcon navSpaceConfigBtn${spaceConfigActive ? " active" : ""}`}
-            aria-label="Open space settings"
-            title="Space settings"
-            data-testid="nav-space-settings"
-            data-tour="space-settings"
-            disabled={!selectedSpaceId}
-            onClick={onOpenSpaceConfig}
-          >
-            <GearIcon />
-          </button>
+          {showSpaceSettings ? (
+            <button
+              type="button"
+              className={`tinyBtn tinyBtnIcon navSpaceConfigBtn${spaceConfigActive ? " active" : ""}`}
+              aria-label="Open space settings"
+              title="Space settings"
+              data-testid="nav-space-settings"
+              data-tour="space-settings"
+              disabled={!selectedSpaceId}
+              onClick={onOpenSpaceConfig}
+            >
+              <GearIcon />
+            </button>
+          ) : null}
         </span>
       </div>
     </header>

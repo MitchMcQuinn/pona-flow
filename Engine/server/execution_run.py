@@ -30,8 +30,9 @@ See ``execution_loop`` for the rules and the "looping sequences" section below f
 the routing.
 
 Resume progress (remaining queue + resolved values + visited steps, plus loop
-iteration state) is stored on the state row so a pending run continues from where
-it paused.
+iteration state and the audit row id) is stored on the state row so a pending run
+continues from where it paused. The audit row's parameter map is updated as the
+run publishes values, and again when the run finishes.
 """
 
 from __future__ import annotations
@@ -200,6 +201,14 @@ def _coerce_declared_boolean_params(
         elif text in ("false", "0"):
             out[name] = False
     return out
+
+
+def run_catalog_read(space_id: str, query_id: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Run one stored read and return the same final-result shape a sequence uses."""
+    response = _execute_query_step(space_id, query_id, dict(params or {}))
+    if not response:
+        raise PermissionError(f"Referenced query {query_id!r} could not be run.")
+    return _classify_final_response({"query_id": query_id}, response)
 
 
 def _execute_query_step(
@@ -1075,6 +1084,20 @@ def _collect_loop_values(
         resolved[published] = current
 
 
+def _sync_audit_parameter_map(audit_id: str | None, resolved: dict[str, Any] | None) -> None:
+    """Write the current parameter map onto the run's audit row.
+
+    Failures are logged and swallowed: a sequence run must not fail because the
+    audit log could not be updated.
+    """
+    if not audit_id or not isinstance(resolved, dict):
+        return
+    try:
+        catalog.update_audit_parameter_map(audit_id, resolved)
+    except Exception as audit_err:
+        sys.stderr.write(f"audit-log parameter map error: {audit_err}\n")
+
+
 def _progress_snapshot(
     queue: list[str],
     resolved: dict[str, Any],
@@ -1083,13 +1106,15 @@ def _progress_snapshot(
     wait_state: dict[str, Any] | None = None,
     join_arrivals: dict[str, list[str]] | None = None,
     cancel_requested: bool = False,
+    audit_id: str | None = None,
 ) -> dict[str, Any]:
     """The resume payload stored on the state row.
 
     ``loop`` is omitted for a non-looping run, so those progress rows keep exactly
     the shape they have always had. ``wait`` is the parked timer/event; it is
     omitted when the run is not waiting. ``joins`` is arrival bookkeeping for
-    join STEPs; omitted when no join has been offered an arm yet.
+    join STEPs; omitted when no join has been offered an arm yet. ``audit_id``
+    points at the row opened for this run so a resume can refresh its parameter map.
     """
     snapshot: dict[str, Any] = {
         "queue": queue,
@@ -1104,11 +1129,18 @@ def _progress_snapshot(
         snapshot["joins"] = join_arrivals
     if cancel_requested:
         snapshot["cancel_requested"] = True
+    if audit_id:
+        snapshot["audit_id"] = audit_id
     return snapshot
 
 
-def _finish_run(state_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+def _finish_run(
+    state_id: str, payload: dict[str, Any], audit_id: str | None = None
+) -> dict[str, Any]:
     """Persist a terminal payload (inactive / cancelled / error) for later polling."""
+    resolved = payload.get("resolved")
+    if isinstance(resolved, dict):
+        _sync_audit_parameter_map(audit_id, resolved)
     status = str(payload.get("status") or "inactive")
     try:
         catalog.update_state_result(state_id, payload)
@@ -1132,13 +1164,21 @@ def _park_waiting(
     wait_state: dict[str, Any],
     step_id: str | None = None,
     join_arrivals: dict[str, list[str]] | None = None,
+    audit_id: str | None = None,
 ) -> dict[str, Any]:
     catalog.update_state_progress(
         state_id,
         _progress_snapshot(
-            queue, resolved, visited, loop_progress, wait_state, join_arrivals
+            queue,
+            resolved,
+            visited,
+            loop_progress,
+            wait_state,
+            join_arrivals,
+            audit_id=audit_id,
         ),
     )
+    _sync_audit_parameter_map(audit_id, resolved)
     catalog.update_state_status(state_id, "waiting")
     try:
         from . import scheduler
@@ -1237,6 +1277,7 @@ def run_execution(
             if isinstance(value, list):
                 join_arrivals[str(key)] = [str(item) for item in value]
     stored_queue = progress.get("queue")
+    audit_id = str(progress.get("audit_id") or "").strip() or None
 
     if stored_queue is not None and wait_state and not execution_wait.wait_due(wait_state):
         return execution_wait.waiting_payload(
@@ -1252,13 +1293,14 @@ def run_execution(
         # re-enter with a stored queue and must not double-log.
         sequence_query_id = str(package.get("sequence_query_id") or "").strip()
         try:
-            catalog.record_audit(
+            audit_id = catalog.record_audit(
                 space_id,
                 [sequence_query_id] if sequence_query_id else [],
                 event_id=event_id,
                 trigger=trigger,
                 principal_id=principal_id,
                 detail=audit_detail,
+                parameter_map=resolved,
             )
         except Exception as audit_err:  # never let audit failures break a run
             sys.stderr.write(f"audit-log error: {audit_err}\n")
@@ -1284,6 +1326,7 @@ def run_execution(
                     "resolved": resolved,
                     "executed": executed,
                 },
+                audit_id=audit_id,
             )
 
         complete_pending_wait = False
@@ -1299,6 +1342,7 @@ def run_execution(
                     wait_state,
                     step_id=queue[0] if queue else None,
                     join_arrivals=join_arrivals,
+                    audit_id=audit_id,
                 )
             if str(wait_state.get("kind") or "") == "retry_backoff":
                 try:
@@ -1349,9 +1393,16 @@ def run_execution(
             catalog.update_state_progress(
                 state_id,
                 _progress_snapshot(
-                    queue, resolved, visited, loop_progress, wait_state, join_arrivals
+                    queue,
+                    resolved,
+                    visited,
+                    loop_progress,
+                    wait_state,
+                    join_arrivals,
+                    audit_id=audit_id,
                 ),
             )
+            _sync_audit_parameter_map(audit_id, resolved)
             catalog.update_state_status(state_id, "pending")
             return {
                 "status": "pending",
@@ -1379,6 +1430,7 @@ def run_execution(
                         "resolved": resolved,
                         "executed": executed,
                     },
+                    audit_id=audit_id,
                 )
             if spec is not None:
                 return _park_waiting(
@@ -1390,6 +1442,7 @@ def run_execution(
                     spec,
                     step_id=step_id,
                     join_arrivals=join_arrivals,
+                    audit_id=audit_id,
                 )
 
         minted = _mint_auto_ids(step, resolved)
@@ -1397,9 +1450,16 @@ def run_execution(
             catalog.update_state_progress(
                 state_id,
                 _progress_snapshot(
-                    queue, resolved, visited, loop_progress, wait_state, join_arrivals
+                    queue,
+                    resolved,
+                    visited,
+                    loop_progress,
+                    wait_state,
+                    join_arrivals,
+                    audit_id=audit_id,
                 ),
             )
+            _sync_audit_parameter_map(audit_id, resolved)
 
         retryable = execution_call.is_retryable_step(step)
         attempt = 1
@@ -1425,13 +1485,30 @@ def run_execution(
                         "resolved": resolved,
                         "executed": executed,
                     },
+                    audit_id=audit_id,
                 )
 
         if not retryable:
             queue.pop(0)
             visited.add(step_id)
 
-        response = _execute_step(space_id, step, resolved)
+        try:
+            response = _execute_step(space_id, step, resolved)
+        except Exception as err:
+            # A step that raises (for example a delete blocked by relationships)
+            # must end the run. Leaving status active makes Stop look broken:
+            # nothing is left in the loop to notice the cancel flag.
+            return _finish_run(
+                state_id,
+                {
+                    "status": "error",
+                    "state_id": state_id,
+                    "message": str(err),
+                    "resolved": resolved,
+                    "executed": executed,
+                },
+                audit_id=audit_id,
+            )
         final_step = step
         final_response = response if isinstance(response, dict) else {}
         in_loop_body = bool(loop) and step_id in loop_body
@@ -1457,6 +1534,7 @@ def run_execution(
                         "resolved": resolved,
                         "executed": executed,
                     },
+                    audit_id=audit_id,
                 )
 
         if retryable:
@@ -1479,6 +1557,7 @@ def run_execution(
                             spec,
                             step_id=step_id,
                             join_arrivals=join_arrivals,
+                            audit_id=audit_id,
                         )
                 continue
             retry_attempt_by_step.pop(step_id, None)
@@ -1544,6 +1623,7 @@ def run_execution(
                             "resolved": resolved,
                             "executed": executed,
                         },
+                        audit_id=audit_id,
                     )
                 _clear_iteration_state(loop, loop_state, resolved, visited)
                 loop_state["iteration"] = next_iteration
@@ -1565,6 +1645,7 @@ def run_execution(
                         delay_spec,
                         step_id=loop_entry,
                         join_arrivals=join_arrivals,
+                        audit_id=audit_id,
                     )
             else:
                 execution_join.enqueue_from(
@@ -1594,6 +1675,7 @@ def run_execution(
             "executed": executed,
             "final_result": final_result,
         },
+        audit_id=audit_id,
     )
 
 

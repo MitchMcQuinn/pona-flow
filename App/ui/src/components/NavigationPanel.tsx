@@ -1,19 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import type { EventSummary, SequenceSummary } from "../state/types";
-import {
-  UNGROUPED_LABEL,
-  buildNavGroups,
-  reindexSequences,
-  type NavGroup
-} from "../state/navOrder";
+import type { ConsoleNavItem, EventSummary, SequenceSummary } from "../state/types";
+import { UNGROUPED_LABEL } from "../state/navOrder";
 import {
   browserTimeZone,
   supportedTimeZones,
   timeZoneLabel
 } from "../services/timezone";
 import { InstanceUpdates } from "./settings/InstanceUpdates";
-import { useViewport } from "../hooks/useViewport";
+import { GroupedNav, PlainNavItem, type DragApi, type ReorderApi } from "./GroupedNav";
 
 interface NavigationPanelProps {
   sequences: SequenceSummary[];
@@ -34,12 +29,35 @@ interface NavigationPanelProps {
   onAddGroup: (title: string) => void;
   onDeleteGroup: (title: string) => void;
   events: EventSummary[];
+  eventGroups: string[];
   selectedEventId: string | null;
   eventsLoading: boolean;
   eventsError: string | null;
   onSelectEvent: (eventId: string) => void;
+  onEditEvent: (eventId: string) => void;
   onCreateEvent: () => void;
   onDeleteEvent: (eventId: string) => void;
+  onReorderEvents: (events: EventSummary[]) => void;
+  onReorderEventGroups: (groups: string[]) => void;
+  onAddEventGroup: (title: string) => void;
+  onDeleteEventGroup: (title: string) => void;
+  /** The open event is in its settings editor, so its nav edit icon stays hidden. */
+  eventEditing?: boolean;
+  consoles: ConsoleNavItem[];
+  consoleGroups: string[];
+  selectedConsoleId: string | null;
+  consolesLoading: boolean;
+  consolesError: string | null;
+  onSelectConsole: (consoleId: string) => void;
+  onEditConsole: (consoleId: string) => void;
+  onCreateConsole: () => void;
+  onDeleteConsole: (consoleId: string) => void;
+  onReorderConsoles: (consoles: ConsoleNavItem[]) => void;
+  onReorderConsoleGroups: (groups: string[]) => void;
+  onAddConsoleGroup: (title: string) => void;
+  onDeleteConsoleGroup: (title: string) => void;
+  /** The open console is in edit mode, so its nav edit icon stays hidden. */
+  consoleEditing?: boolean;
   /** Display name for the signed-in user (falls back to email inside the footer). */
   userName: string | null;
   userEmail: string | null;
@@ -61,8 +79,6 @@ function ActivityIcon() {
     </svg>
   );
 }
-
-type DropPosition = "before" | "after";
 
 function DeleteIcon() {
   return (
@@ -106,21 +122,6 @@ function DragHandleIcon() {
   );
 }
 
-function ChevronIcon() {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      aria-hidden="true"
-      className="navGroupChevron"
-    >
-      <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function MultiStepIcon() {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
@@ -129,40 +130,6 @@ function MultiStepIcon() {
       <path d="M5.5 8h5" strokeLinecap="round" />
     </svg>
   );
-}
-
-// Drag handlers shared by every sequence item / group container / group header.
-interface DragApi {
-  draggingId: string | null;
-  draggingGroup: string | null;
-  itemDrop: { id: string; position: DropPosition } | null;
-  groupDrop: { title: string; position: DropPosition } | null;
-  armItemHandle: () => void;
-  armGroupHandle: () => void;
-  onItemDragStart: (id: string, e: React.DragEvent) => void;
-  onItemDragEnd: () => void;
-  onItemDragOver: (id: string, e: React.DragEvent) => void;
-  onItemDrop: (id: string, e: React.DragEvent) => void;
-  onContainerDragOver: (e: React.DragEvent) => void;
-  onContainerDrop: (title: string, e: React.DragEvent) => void;
-  onGroupDragStart: (title: string, e: React.DragEvent) => void;
-  onGroupDragEnd: () => void;
-  onGroupHeaderDragOver: (title: string, expanded: boolean, e: React.DragEvent) => void;
-  onGroupHeaderDrop: (title: string, expanded: boolean, e: React.DragEvent) => void;
-  headerSequenceDrop: string | null;
-}
-
-/** Button-based reordering for touch screens, where HTML5 drag-and-drop doesn't work. */
-interface ReorderApi {
-  /** Coarse pointer: drag handles are hidden and the Reorder toggle is offered. */
-  touch: boolean;
-  active: boolean;
-  groupOptions: string[];
-  canMove: (id: string, dir: -1 | 1) => boolean;
-  moveSequence: (id: string, dir: -1 | 1) => void;
-  moveToGroup: (id: string, title: string) => void;
-  canMoveGroup: (title: string, dir: -1 | 1) => boolean;
-  moveGroup: (title: string, dir: -1 | 1) => void;
 }
 
 function ArrowIcon({ dir }: { dir: "up" | "down" }) {
@@ -179,12 +146,6 @@ function ArrowIcon({ dir }: { dir: "up" | "down" }) {
 
 const LONG_PRESS_MS = 450;
 const LONG_PRESS_TOOLTIP_MS = 2500;
-
-interface AccordionApi {
-  expandedTitle: string | null;
-  toggle: (title: string) => void;
-  expand: (title: string) => void;
-}
 
 const SEQUENCE_TOOLTIP_DELAY_MS = 200;
 const SEQUENCE_TOOLTIP_GAP = 8;
@@ -483,269 +444,6 @@ function SequenceItem({
   );
 }
 
-function SequenceList({
-  groupTitle,
-  sequences,
-  selectedSequenceId,
-  onSelectSequence,
-  onEditSequence,
-  onDeleteSequence,
-  drag,
-  reorder,
-  inFlightSequenceIds
-}: {
-  groupTitle: string;
-  sequences: SequenceSummary[];
-  selectedSequenceId: string | null;
-  onSelectSequence: (sequenceId: string) => void;
-  onEditSequence: (sequenceId: string) => void;
-  onDeleteSequence: (sequenceId: string) => void;
-  drag: DragApi;
-  reorder: ReorderApi;
-  inFlightSequenceIds: string[];
-}) {
-  return (
-    <ul
-      className="sequenceList"
-      onDragOver={(e) => drag.onContainerDragOver(e)}
-      onDrop={(e) => drag.onContainerDrop(groupTitle, e)}
-    >
-      {sequences.map((sequence) => (
-        <SequenceItem
-          key={sequence.id}
-          sequence={sequence}
-          selected={sequence.id === selectedSequenceId}
-          onSelectSequence={onSelectSequence}
-          onEditSequence={onEditSequence}
-          onDeleteSequence={onDeleteSequence}
-          drag={drag}
-          reorder={reorder}
-          inFlight={inFlightSequenceIds.includes(sequence.id)}
-        />
-      ))}
-    </ul>
-  );
-}
-
-function GroupBlock({
-  group,
-  selectedSequenceId,
-  onSelectSequence,
-  onEditSequence,
-  onDeleteSequence,
-  onDeleteGroup,
-  drag,
-  reorder,
-  accordion,
-  inFlightSequenceIds
-}: {
-  group: NavGroup;
-  selectedSequenceId: string | null;
-  onSelectSequence: (sequenceId: string) => void;
-  onEditSequence: (sequenceId: string) => void;
-  onDeleteSequence: (sequenceId: string) => void;
-  onDeleteGroup: (title: string) => void;
-  drag: DragApi;
-  reorder: ReorderApi;
-  accordion: AccordionApi;
-  inFlightSequenceIds: string[];
-}) {
-  const expanded = accordion.expandedTitle === group.title;
-  const sequenceList = expanded ? (
-    <SequenceList
-      groupTitle={group.title}
-      sequences={group.sequences}
-      selectedSequenceId={selectedSequenceId}
-      onSelectSequence={onSelectSequence}
-      onEditSequence={onEditSequence}
-      onDeleteSequence={onDeleteSequence}
-      drag={drag}
-      reorder={reorder}
-      inFlightSequenceIds={inFlightSequenceIds}
-    />
-  ) : null;
-
-  if (group.ungrouped) {
-    const headerClasses = ["navGroupHeader", "navGroupHeaderUngrouped"];
-    if (drag.headerSequenceDrop === group.title) headerClasses.push("sequenceDropTarget");
-
-    return (
-      <div
-        className="navGroup navGroupUngrouped"
-        onDragOver={(e) => drag.onContainerDragOver(e)}
-        onDrop={(e) => drag.onContainerDrop(group.title, e)}
-      >
-        <div
-          className={headerClasses.join(" ")}
-          onDragOver={(e) => drag.onGroupHeaderDragOver(group.title, expanded, e)}
-          onDrop={(e) => drag.onGroupHeaderDrop(group.title, expanded, e)}
-        >
-          <button
-            type="button"
-            className="navGroupToggle"
-            aria-expanded={expanded}
-            onClick={() => accordion.toggle(group.title)}
-          >
-            <span className="navGroupToggleLabel">
-              <span className="navGroupTitle">{group.title}</span>
-              <ChevronIcon />
-            </span>
-          </button>
-        </div>
-        {sequenceList}
-      </div>
-    );
-  }
-
-  const indicator =
-    drag.groupDrop && drag.groupDrop.title === group.title ? drag.groupDrop.position : null;
-  const headerClasses = ["navGroupHeader"];
-  if (group.title === drag.draggingGroup) headerClasses.push("dragging");
-  if (indicator === "before") headerClasses.push("dropBefore");
-  if (indicator === "after") headerClasses.push("dropAfter");
-  if (drag.headerSequenceDrop === group.title) headerClasses.push("sequenceDropTarget");
-
-  return (
-    <div
-      className="navGroup"
-      onDragOver={(e) => drag.onContainerDragOver(e)}
-      onDrop={(e) => drag.onContainerDrop(group.title, e)}
-    >
-      <div
-        className={headerClasses.join(" ")}
-        draggable={!reorder.touch}
-        onDragStart={(e) => drag.onGroupDragStart(group.title, e)}
-        onDragEnd={drag.onGroupDragEnd}
-        onDragOver={(e) => drag.onGroupHeaderDragOver(group.title, expanded, e)}
-        onDrop={(e) => drag.onGroupHeaderDrop(group.title, expanded, e)}
-      >
-        {!reorder.touch ? (
-          <span
-            className="navGroupDragHandle"
-            aria-label="Drag to reorder group"
-            title="Drag to reorder group"
-            onPointerDown={drag.armGroupHandle}
-          >
-            <DragHandleIcon />
-          </span>
-        ) : null}
-        <button
-          type="button"
-          className="navGroupToggle"
-          aria-expanded={expanded}
-          onClick={() => accordion.toggle(group.title)}
-        >
-          <span className="navGroupToggleLabel">
-            <span className="navGroupTitle">{group.title}</span>
-            <ChevronIcon />
-          </span>
-        </button>
-        {reorder.active ? (
-          <span className="inlineActions navGroupReorderActions">
-            <button
-              type="button"
-              className="tinyBtn tinyBtnIcon"
-              aria-label={`Move group ${group.title} up`}
-              disabled={!reorder.canMoveGroup(group.title, -1)}
-              onClick={() => reorder.moveGroup(group.title, -1)}
-            >
-              <ArrowIcon dir="up" />
-            </button>
-            <button
-              type="button"
-              className="tinyBtn tinyBtnIcon"
-              aria-label={`Move group ${group.title} down`}
-              disabled={!reorder.canMoveGroup(group.title, 1)}
-              onClick={() => reorder.moveGroup(group.title, 1)}
-            >
-              <ArrowIcon dir="down" />
-            </button>
-          </span>
-        ) : (
-          <button
-            type="button"
-            className="tinyBtn tinyBtnIcon danger navGroupDeleteBtn"
-            aria-label={`Delete group ${group.title}`}
-            title="Delete group"
-            onClick={() => onDeleteGroup(group.title)}
-          >
-            <DeleteIcon />
-          </button>
-        )}
-      </div>
-      {sequenceList}
-    </div>
-  );
-}
-
-function AddGroupControl({
-  existingGroups,
-  onAddGroup
-}: {
-  existingGroups: string[];
-  onAddGroup: (title: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
-
-  const trimmed = title.trim();
-  const duplicate = existingGroups.some((g) => g.toLowerCase() === trimmed.toLowerCase());
-  const canSave = trimmed.length > 0 && !duplicate;
-
-  function close() {
-    setOpen(false);
-    setTitle("");
-  }
-
-  function save() {
-    if (!canSave) return;
-    onAddGroup(trimmed);
-    close();
-  }
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        className="navAddGroupBtn"
-        data-testid="nav-add-group"
-        onClick={() => setOpen(true)}
-      >
-        + New group
-      </button>
-    );
-  }
-
-  return (
-    <div className="navAddGroupForm">
-      <input
-        ref={inputRef}
-        value={title}
-        placeholder="Group title"
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") save();
-          if (e.key === "Escape") close();
-        }}
-      />
-      <div className="navAddGroupActions">
-        <button type="button" className="tinyBtn" onClick={close}>
-          Cancel
-        </button>
-        <button type="button" className="tinyBtn" disabled={!canSave} onClick={save}>
-          Add
-        </button>
-      </div>
-      {duplicate ? <span className="errorText">Group already exists.</span> : null}
-    </div>
-  );
-}
-
 function UserSettingsFooter({
   userName,
   userEmail,
@@ -848,12 +546,33 @@ export function NavigationPanel({
   onAddGroup,
   onDeleteGroup,
   events,
+  eventGroups,
   selectedEventId,
   eventsLoading,
   eventsError,
   onSelectEvent,
+  onEditEvent,
   onCreateEvent,
   onDeleteEvent,
+  onReorderEvents,
+  onReorderEventGroups,
+  onAddEventGroup,
+  onDeleteEventGroup,
+  eventEditing = false,
+  consoles,
+  consoleGroups,
+  selectedConsoleId,
+  consolesLoading,
+  consolesError,
+  onSelectConsole,
+  onEditConsole,
+  onCreateConsole,
+  onDeleteConsole,
+  onReorderConsoles,
+  onReorderConsoleGroups,
+  onAddConsoleGroup,
+  onDeleteConsoleGroup,
+  consoleEditing = false,
   userName,
   userEmail,
   userTimezone,
@@ -866,419 +585,119 @@ export function NavigationPanel({
     () => sequences.filter((sequence) => sequence.kind === "sequence"),
     [sequences]
   );
-  const sequenceGroups = useMemo(
-    () => buildNavGroups(navSequences, groups),
-    [navSequences, groups]
-  );
-
-  const [expandedGroupTitle, setExpandedGroupTitle] = useState<string | null>(null);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [itemDrop, setItemDrop] = useState<{ id: string; position: DropPosition } | null>(null);
-  const [draggingGroup, setDraggingGroup] = useState<string | null>(null);
-  const [groupDrop, setGroupDrop] = useState<{ title: string; position: DropPosition } | null>(null);
-  const [headerSequenceDrop, setHeaderSequenceDrop] = useState<string | null>(null);
-  const { coarsePointer } = useViewport();
-  const [reordering, setReordering] = useState(false);
-  // Restrict drag initiation to the six-dot handles.
-  const itemArmed = useRef(false);
-  const groupArmed = useRef(false);
-
-  const allAccordionKeys = useMemo(
-    () => sequenceGroups.map((group) => group.title),
-    [sequenceGroups]
-  );
-
-  useEffect(() => {
-    if (!selectedSequenceId) return;
-    const seq = navSequences.find((s) => s.id === selectedSequenceId);
-    if (!seq) return;
-    setExpandedGroupTitle(seq.groupTitle?.trim() || UNGROUPED_LABEL);
-  }, [selectedSequenceId, navSequences]);
-
-  useEffect(() => {
-    if (expandedGroupTitle !== null || allAccordionKeys.length === 0 || selectedSequenceId) return;
-    setExpandedGroupTitle(allAccordionKeys[0]);
-  }, [allAccordionKeys, selectedSequenceId, expandedGroupTitle]);
-
-  useEffect(() => {
-    if (expandedGroupTitle === null) return;
-    if (allAccordionKeys.includes(expandedGroupTitle)) return;
-    setExpandedGroupTitle(allAccordionKeys[0] ?? null);
-  }, [allAccordionKeys, expandedGroupTitle]);
-
-  // A handle press that never becomes a drag (a plain click) is disarmed on release.
-  useEffect(() => {
-    function disarm() {
-      itemArmed.current = false;
-      groupArmed.current = false;
-    }
-    window.addEventListener("pointerup", disarm);
-    return () => window.removeEventListener("pointerup", disarm);
-  }, []);
-
-  function resetItemDrag() {
-    itemArmed.current = false;
-    setDraggingId(null);
-    setItemDrop(null);
-    setHeaderSequenceDrop(null);
-  }
-
-  function resetGroupDrag() {
-    groupArmed.current = false;
-    setDraggingGroup(null);
-    setGroupDrop(null);
-  }
-
-  function commitOrder(next: SequenceSummary[]) {
-    onReorderSequences(reindexSequences(next));
-  }
-
-  function dropOnItem(targetId: string, position: DropPosition) {
-    if (!draggingId || draggingId === targetId) return;
-    const dragging = navSequences.find((s) => s.id === draggingId);
-    if (!dragging) return;
-    const rest = navSequences.filter((s) => s.id !== draggingId);
-    const targetIdx = rest.findIndex((s) => s.id === targetId);
-    if (targetIdx === -1) return;
-    const newGroup = rest[targetIdx].groupTitle ?? null;
-    const insertIdx = position === "after" ? targetIdx + 1 : targetIdx;
-    const moved: SequenceSummary = { ...dragging, groupTitle: newGroup };
-    commitOrder([...rest.slice(0, insertIdx), moved, ...rest.slice(insertIdx)]);
-  }
-
-  function findGroupInsertIndex(
-    rest: SequenceSummary[],
-    groupTitle: string,
-    atTop: boolean
-  ): number {
-    const newGroup = groupTitle === UNGROUPED_LABEL ? null : groupTitle;
-    const firstInGroup = rest.findIndex((s) => (s.groupTitle ?? null) === newGroup);
-    if (atTop) {
-      if (firstInGroup !== -1) return firstInGroup;
-      const groupIdx = sequenceGroups.findIndex((g) => g.title === groupTitle);
-      if (groupIdx === -1) return rest.length;
-      for (let i = groupIdx + 1; i < sequenceGroups.length; i++) {
-        const ng = sequenceGroups[i].title === UNGROUPED_LABEL ? null : sequenceGroups[i].title;
-        const nextIdx = rest.findIndex((s) => (s.groupTitle ?? null) === ng);
-        if (nextIdx !== -1) return nextIdx;
-      }
-      return rest.length;
-    }
-    let insertIdx = rest.length;
-    rest.forEach((s, i) => {
-      if ((s.groupTitle ?? null) === newGroup) insertIdx = i + 1;
-    });
-    return insertIdx;
-  }
-
-  function dropOnGroupContainer(groupTitle: string, atTop = false) {
-    if (!draggingId) return;
-    const dragging = navSequences.find((s) => s.id === draggingId);
-    if (!dragging) return;
-    const newGroup = groupTitle === UNGROUPED_LABEL ? null : groupTitle;
-    const rest = navSequences.filter((s) => s.id !== draggingId);
-    const insertIdx = findGroupInsertIndex(rest, groupTitle, atTop);
-    const moved: SequenceSummary = { ...dragging, groupTitle: newGroup };
-    commitOrder([...rest.slice(0, insertIdx), moved, ...rest.slice(insertIdx)]);
-  }
-
-  function reorderGroupTo(targetTitle: string, position: DropPosition) {
-    if (!draggingGroup || draggingGroup === targetTitle) return;
-    const base = groups.map((g) => g.trim()).filter((g) => g && g !== draggingGroup);
-    const targetIdx = base.indexOf(targetTitle);
-    if (targetIdx === -1) return;
-    const insertIdx = position === "after" ? targetIdx + 1 : targetIdx;
-    const next = [...base.slice(0, insertIdx), draggingGroup, ...base.slice(insertIdx)];
-    onReorderGroups(next);
-  }
-
-  function verticalPosition(e: React.DragEvent): DropPosition {
-    const rect = e.currentTarget.getBoundingClientRect();
-    return e.clientY > rect.top + rect.height / 2 ? "after" : "before";
-  }
-
-  function dropSequenceOnCollapsedGroup(groupTitle: string) {
-    dropOnGroupContainer(groupTitle, true);
-    setExpandedGroupTitle(groupTitle);
-    resetItemDrag();
-  }
-
-  const accordion: AccordionApi = {
-    expandedTitle: expandedGroupTitle,
-    toggle: (title) => {
-      setExpandedGroupTitle((current) => (current === title ? null : title));
-    },
-    expand: (title) => setExpandedGroupTitle(title)
-  };
-
-  const drag: DragApi = {
-    draggingId,
-    draggingGroup,
-    itemDrop,
-    groupDrop,
-    headerSequenceDrop,
-    armItemHandle: () => {
-      itemArmed.current = true;
-    },
-    armGroupHandle: () => {
-      groupArmed.current = true;
-    },
-    onItemDragStart: (id, e) => {
-      if (!itemArmed.current) {
-        e.preventDefault();
-        return;
-      }
-      setDraggingId(id);
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", id);
-    },
-    onItemDragEnd: resetItemDrag,
-    onItemDragOver: (id, e) => {
-      if (!draggingId || draggingId === id) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      setItemDrop({ id, position: verticalPosition(e) });
-    },
-    onItemDrop: (id, e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      dropOnItem(id, verticalPosition(e));
-      resetItemDrag();
-    },
-    onContainerDragOver: (e) => {
-      if (!draggingId) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-    },
-    onContainerDrop: (title, e) => {
-      if (!draggingId) return;
-      e.preventDefault();
-      const collapsed = expandedGroupTitle !== title;
-      dropOnGroupContainer(title, collapsed);
-      if (collapsed) setExpandedGroupTitle(title);
-      resetItemDrag();
-    },
-    onGroupDragStart: (title, e) => {
-      if (!groupArmed.current) {
-        e.preventDefault();
-        return;
-      }
-      setDraggingGroup(title);
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", title);
-    },
-    onGroupDragEnd: resetGroupDrag,
-    onGroupHeaderDragOver: (title, expanded, e) => {
-      if (draggingGroup && draggingGroup !== title) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.dataTransfer.dropEffect = "move";
-        setGroupDrop({ title, position: verticalPosition(e) });
-        return;
-      }
-      if (draggingId && !expanded) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.dataTransfer.dropEffect = "move";
-        setHeaderSequenceDrop(title);
-      }
-    },
-    onGroupHeaderDrop: (title, expanded, e) => {
-      if (draggingGroup) {
-        e.preventDefault();
-        e.stopPropagation();
-        reorderGroupTo(title, verticalPosition(e));
-        resetGroupDrag();
-        return;
-      }
-      if (draggingId && !expanded) {
-        e.preventDefault();
-        e.stopPropagation();
-        dropSequenceOnCollapsedGroup(title);
-      }
-    }
-  };
-
-  const displayedSequences = sequenceGroups.flatMap((group) => group.sequences);
-  const namedGroupTitles = sequenceGroups.filter((g) => !g.ungrouped).map((g) => g.title);
-
-  function groupOf(id: string): NavGroup | undefined {
-    return sequenceGroups.find((group) => group.sequences.some((s) => s.id === id));
-  }
-
-  const reorder: ReorderApi = {
-    touch: coarsePointer,
-    active: coarsePointer && reordering,
-    groupOptions: [...namedGroupTitles, UNGROUPED_LABEL],
-    canMove: (id, dir) => {
-      const group = groupOf(id);
-      if (!group) return false;
-      const next = group.sequences.findIndex((s) => s.id === id) + dir;
-      return next >= 0 && next < group.sequences.length;
-    },
-    moveSequence: (id, dir) => {
-      const group = groupOf(id);
-      if (!group) return;
-      const idx = group.sequences.findIndex((s) => s.id === id);
-      const other = group.sequences[idx + dir];
-      if (!other) return;
-      const next = displayedSequences.slice();
-      const a = next.findIndex((s) => s.id === id);
-      const b = next.findIndex((s) => s.id === other.id);
-      [next[a], next[b]] = [next[b], next[a]];
-      commitOrder(next);
-    },
-    moveToGroup: (id, title) => {
-      const moving = displayedSequences.find((s) => s.id === id);
-      if (!moving) return;
-      const rest = displayedSequences.filter((s) => s.id !== id);
-      const insertIdx = findGroupInsertIndex(rest, title, false);
-      const moved: SequenceSummary = {
-        ...moving,
-        groupTitle: title === UNGROUPED_LABEL ? null : title
-      };
-      commitOrder([...rest.slice(0, insertIdx), moved, ...rest.slice(insertIdx)]);
-      setExpandedGroupTitle(title);
-    },
-    canMoveGroup: (title, dir) => {
-      const next = namedGroupTitles.indexOf(title) + dir;
-      return next >= 0 && next < namedGroupTitles.length;
-    },
-    moveGroup: (title, dir) => {
-      const idx = namedGroupTitles.indexOf(title);
-      const target = idx + dir;
-      if (idx === -1 || target < 0 || target >= namedGroupTitles.length) return;
-      const next = namedGroupTitles.slice();
-      [next[idx], next[target]] = [next[target], next[idx]];
-      onReorderGroups(next);
-    }
-  };
-
-  const onlyUngrouped = sequenceGroups.length === 1 && sequenceGroups[0].ungrouped;
 
   return (
     <div className="panel navPanel">
       <div className="panel__body">
-        <div className="navSectionHeader" data-tour="events">
-          <h2 className="navSectionTitle">events</h2>
-          <button
-            type="button"
-            className="navAddBtn"
-            aria-label="Add event"
-            data-testid="nav-add-event"
-            onClick={onCreateEvent}
-          >
-            +
-          </button>
-        </div>
+        <GroupedNav
+          title="events"
+          tour="events"
+          addLabel="Add event"
+          addTestId="nav-add-event"
+          groupTestId="nav-add-event-group"
+          items={events}
+          groupOrder={eventGroups}
+          loading={eventsLoading}
+          error={eventsError}
+          emptyText="No events yet."
+          loadingText="Loading events..."
+          selectedId={selectedEventId}
+          labelOf={(event) => event.name}
+          onAdd={onCreateEvent}
+          onAddGroup={onAddEventGroup}
+          onDeleteGroup={onDeleteEventGroup}
+          onReorderItems={onReorderEvents}
+          onReorderGroups={onReorderEventGroups}
+          renderItem={(event, ctx) => (
+            <PlainNavItem
+              id={event.id}
+              label={event.name}
+              groupTitle={event.groupTitle}
+              selected={ctx.selected}
+              testId="nav-event-item"
+              drag={ctx.drag}
+              reorder={ctx.reorder}
+              onSelect={() => onSelectEvent(event.id)}
+              onEdit={() => onEditEvent(event.id)}
+              onDelete={() => onDeleteEvent(event.id)}
+              editLabel={`Edit event ${event.name}`}
+              deleteLabel={`Delete event ${event.name}`}
+              showEdit={!(event.id === selectedEventId && eventEditing)}
+            />
+          )}
+        />
 
-        {eventsLoading ? <p className="muted">Loading events...</p> : null}
-        {eventsError ? <p className="errorText">{eventsError}</p> : null}
+        <GroupedNav
+          title="consoles"
+          tour="consoles"
+          addLabel="Add console"
+          addTestId="nav-add-console"
+          groupTestId="nav-add-console-group"
+          items={consoles}
+          groupOrder={consoleGroups}
+          loading={consolesLoading}
+          error={consolesError}
+          emptyText="No consoles yet."
+          loadingText="Loading consoles..."
+          selectedId={selectedConsoleId}
+          labelOf={(console) => console.name}
+          onAdd={onCreateConsole}
+          onAddGroup={onAddConsoleGroup}
+          onDeleteGroup={onDeleteConsoleGroup}
+          onReorderItems={onReorderConsoles}
+          onReorderGroups={onReorderConsoleGroups}
+          renderItem={(console, ctx) => (
+            <PlainNavItem
+              id={console.id}
+              label={console.name}
+              groupTitle={console.groupTitle}
+              selected={ctx.selected}
+              testId="nav-console-item"
+              drag={ctx.drag}
+              reorder={ctx.reorder}
+              onSelect={() => onSelectConsole(console.id)}
+              onEdit={() => onEditConsole(console.id)}
+              onDelete={() => onDeleteConsole(console.id)}
+              editLabel={`Edit console ${console.name}`}
+              deleteLabel={`Delete console ${console.name}`}
+              showEdit={!(console.id === selectedConsoleId && consoleEditing)}
+            />
+          )}
+        />
 
-        {!eventsLoading && !eventsError ? (
-          events.length === 0 ? (
-            <p className="muted">No events yet.</p>
-          ) : (
-            <ul className="sequenceList">
-              {events.map((trigger) => {
-                const classNames = ["sequenceItem"];
-                if (trigger.id === selectedEventId) classNames.push("active");
-                return (
-                  <li key={trigger.id} className={classNames.join(" ")} data-testid="nav-event-item">
-                    <button
-                      className="sequenceBtn"
-                      type="button"
-                      onClick={() => onSelectEvent(trigger.id)}
-                    >
-                      <span className="sequenceBtnLabel">{trigger.name}</span>
-                    </button>
-                    <span className="inlineActions">
-                      <button
-                        className="tinyBtn tinyBtnIcon danger"
-                        type="button"
-                        aria-label={`Delete event ${trigger.name}`}
-                        title="Delete event"
-                        onClick={() => onDeleteEvent(trigger.id)}
-                      >
-                        <DeleteIcon />
-                      </button>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )
-        ) : null}
-
-        <div className="navSectionHeader" data-tour="sequences">
-          <h2 className="navSectionTitle">sequences</h2>
-          <span className="navSectionActions">
-            {coarsePointer && displayedSequences.length + namedGroupTitles.length > 1 ? (
-              <button
-                type="button"
-                className={`navReorderToggle${reordering ? " active" : ""}`}
-                aria-pressed={reordering}
-                data-testid="nav-reorder-toggle"
-                onClick={() => setReordering((on) => !on)}
-              >
-                {reordering ? "Done" : "Reorder"}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="navAddBtn"
-              aria-label="Add sequence"
-              data-testid="nav-add-sequence"
-              onClick={onCreateSequence}
-            >
-              +
-            </button>
-          </span>
-        </div>
-
-        {loading ? <p className="muted">Loading sequences...</p> : null}
-        {error ? <p className="errorText">{error}</p> : null}
-
-        {!loading && !error ? (
-          <>
-            {sequenceGroups.length === 0 ? (
-              <p className="muted">No sequences yet.</p>
-            ) : onlyUngrouped ? (
-              <SequenceList
-                groupTitle={UNGROUPED_LABEL}
-                sequences={sequenceGroups[0].sequences}
-                selectedSequenceId={selectedSequenceId}
-                onSelectSequence={onSelectSequence}
-                onEditSequence={onEditSequence}
-                onDeleteSequence={onDeleteSequence}
-                drag={drag}
-                reorder={reorder}
-                inFlightSequenceIds={inFlightSequenceIds}
-              />
-            ) : (
-              <div className="navGroupList">
-                {sequenceGroups.map((group) => (
-                  <GroupBlock
-                    key={group.title}
-                    group={group}
-                    selectedSequenceId={selectedSequenceId}
-                    onSelectSequence={onSelectSequence}
-                    onEditSequence={onEditSequence}
-                    onDeleteSequence={onDeleteSequence}
-                    onDeleteGroup={onDeleteGroup}
-                    drag={drag}
-                    reorder={reorder}
-                    accordion={accordion}
-                    inFlightSequenceIds={inFlightSequenceIds}
-                  />
-                ))}
-              </div>
-            )}
-
-            <AddGroupControl existingGroups={groups} onAddGroup={onAddGroup} />
-          </>
-        ) : null}
-
+        <GroupedNav
+          title="sequences"
+          tour="sequences"
+          addLabel="Add sequence"
+          addTestId="nav-add-sequence"
+          groupTestId="nav-add-group"
+          reorderTestId="nav-reorder-toggle"
+          items={navSequences}
+          groupOrder={groups}
+          loading={loading}
+          error={error}
+          emptyText="No sequences yet."
+          loadingText="Loading sequences..."
+          selectedId={selectedSequenceId}
+          labelOf={(sequence) => sequence.label}
+          onAdd={onCreateSequence}
+          onAddGroup={onAddGroup}
+          onDeleteGroup={onDeleteGroup}
+          onReorderItems={onReorderSequences}
+          onReorderGroups={onReorderGroups}
+          renderItem={(sequence, ctx) => (
+            <SequenceItem
+              sequence={sequence}
+              selected={ctx.selected}
+              onSelectSequence={onSelectSequence}
+              onEditSequence={onEditSequence}
+              onDeleteSequence={onDeleteSequence}
+              drag={ctx.drag}
+              reorder={ctx.reorder}
+              inFlight={inFlightSequenceIds.includes(sequence.id)}
+            />
+          )}
+        />
       </div>
       <UserSettingsFooter
         userName={userName}

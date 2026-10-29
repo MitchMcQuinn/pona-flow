@@ -101,6 +101,7 @@ export function StepAttributiveLabelField({
     <div
       className={missing ? "builderField builderFieldMissing" : "builderField"}
       data-issue="attributive_label"
+      data-pin-target={attributiveLabel}
       data-check={check?.status ?? "idle"}
     >
       {showCheck ? (

@@ -26,10 +26,52 @@
 }
 
 .authLogo {
-  height: 28px;
-  width: auto;
-  align-self: flex-start;
-  margin-bottom: 4px;
+  width: 100%;
+  height: auto;
+  align-self: stretch;
+  margin-bottom: 8px;
+}
+
+.authFields {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.authInlineField {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.authInlineTip {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+}
+
+.authInlineLabel {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.authInlineControl {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.authInlineControl > input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 
 .authCard .field {

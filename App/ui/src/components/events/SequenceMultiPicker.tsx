@@ -47,7 +47,7 @@ export function SequenceMultiPicker({
           {selected.map((id) => {
             const name = labels.get(id) || id;
             return (
-              <li key={id} className="eventSeqChip">
+              <li key={id} className="eventSeqChip" data-pin-target={id}>
                 <span>{name}</span>
                 <button
                   type="button"

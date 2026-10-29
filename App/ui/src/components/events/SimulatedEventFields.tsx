@@ -68,6 +68,7 @@ export function emptySimulationPackage(): SimulationPackage {
     tic_unit: "minutes",
     tic_duration: 15,
     sequence_id: "",
+    console_id: "",
     probabilities: []
   };
 }
@@ -127,6 +128,7 @@ export function simulationPackageFromApi(raw: Partial<SimulationPackage> | undef
     tic_unit: ticUnit,
     tic_duration: Number.isFinite(duration) && duration > 0 ? duration : 15,
     sequence_id: raw?.sequence_id || "",
+    console_id: raw?.console_id || "",
     probabilities
   };
 }
@@ -190,11 +192,12 @@ export interface SimulatedEventFieldsHandle {
 interface SimulatedEventFieldsProps {
   initial: SimulationPackage;
   sequences: SequenceSummary[];
+  consoles: { id: string; name: string }[];
   onChange: (next: SimulationPackage) => void;
 }
 
 export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, SimulatedEventFieldsProps>(
-  function SimulatedEventFields({ initial, sequences, onChange }, ref) {
+  function SimulatedEventFields({ initial, sequences, consoles, onChange }, ref) {
     const [pkg, setPkg] = useState<SimulationPackage>(initial);
     const [pairs, setPairs] = useState<Record<string, PayloadPair[]>>(() => {
       const seeded: Record<string, PayloadPair[]> = {};
@@ -297,7 +300,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
         <EventInlineField
           label="sequence"
           htmlFor="sim-sequence"
-          tip="When an outcome is chosen, this sequence runs with the outcome payload. Leave empty to record the emission only."
+          tip="When an outcome is chosen, this sequence runs with the outcome payload and the emissions recorded on this tic. Leave empty to record the emission only."
         >
           <Picker
             id="sim-sequence"
@@ -311,6 +314,25 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
               ...sequences.map((sequence) => ({ value: sequence.id, label: sequence.label }))
             ]}
             onSelect={(value) => commit({ ...pkg, sequence_id: value })}
+          />
+        </EventInlineField>
+        <EventInlineField
+          label="console"
+          htmlFor="sim-console"
+          tip="Each tic refreshes this console in place of its listen URL or trigger event."
+        >
+          <Picker
+            id="sim-console"
+            ariaLabel="console"
+            toggleTestId="sim-console-toggle"
+            menuTestId="sim-console-menu"
+            value={pkg.console_id || ""}
+            placeholder="No console"
+            options={[
+              { value: "", label: "No console" },
+              ...consoles.map((console) => ({ value: console.id, label: console.name }))
+            ]}
+            onSelect={(value) => commit({ ...pkg, console_id: value })}
           />
         </EventInlineField>
 

@@ -234,6 +234,10 @@ def _ensure_users_columns(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE users ADD COLUMN onboarding_tour_seen INTEGER NOT NULL DEFAULT 0"
         )
+    if "workbench_mode" not in cols:
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN workbench_mode TEXT NOT NULL DEFAULT 'chat'"
+        )
 
 
 def _ensure_space_members_table(conn: sqlite3.Connection) -> None:
@@ -831,3 +835,35 @@ def set_user_timezone(principal_id: str, timezone: str | None) -> dict[str, Any]
         )
         conn.commit()
         return {"id": pid, "timezone": tz}
+
+
+def get_workbench_mode(principal_id: str) -> str:
+    """``chat`` (home) or ``classic`` (nav workbench). Missing values are chat."""
+    pid = (principal_id or "").strip()
+    if not pid:
+        return "chat"
+    with _connection() as conn:
+        _ensure_users_columns(conn)
+        row = conn.execute(
+            "SELECT workbench_mode FROM users WHERE id = ?", (pid,)
+        ).fetchone()
+    if row is None or row[0] is None:
+        return "chat"
+    mode = str(row[0] or "").strip()
+    return mode if mode in ("chat", "classic") else "chat"
+
+
+def set_workbench_mode(principal_id: str, mode: str) -> dict[str, Any]:
+    """Persist which workbench the principal lands in."""
+    pid = (principal_id or "").strip()
+    if not pid:
+        raise ValueError("principal_id is required")
+    chosen = mode if mode in ("chat", "classic") else "chat"
+    with _connection() as conn:
+        _ensure_users_columns(conn)
+        conn.execute(
+            "UPDATE users SET workbench_mode = ?, modified_date = datetime('now') WHERE id = ?",
+            (chosen, pid),
+        )
+        conn.commit()
+    return {"id": pid, "workbench_mode": chosen}

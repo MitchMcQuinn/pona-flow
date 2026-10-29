@@ -328,6 +328,32 @@ check("emission ran the event sequence", len(runs) == 2 and all(row["sequence_id
 check("outcome payload is a sequence param", runs[0]["params"].get("kind") == "a")
 check("payload did not drop the outcome label context", runs[0]["params"].get("outcome_label") == "A")
 check("emission context marks cancelled false", runs[0]["params"].get("cancelled") is False)
+first_emissions = runs[0]["params"].get("emissions")
+later_emissions = runs[1]["params"].get("emissions")
+check(
+    "the first run's parameter map holds the emission created so far this tic",
+    isinstance(first_emissions, list)
+    and len(first_emissions) == 1
+    and first_emissions[0]["probability_name"] == "First"
+    and first_emissions[0]["outcome"]["kind"] == "a"
+    and first_emissions[0]["cancelled"] is False
+    and first_emissions[0]["run_status"] is None
+    and first_emissions[0]["tic"] == 1,
+)
+check(
+    "a later run's parameter map includes every emission recorded on this tic",
+    isinstance(later_emissions, list)
+    and [row["probability_name"] for row in later_emissions] == ["First", "Later"]
+    and later_emissions[0]["run_status"] == "inactive"
+    and later_emissions[1]["outcome"]["kind"] == "b"
+    and later_emissions[1]["run_status"] is None,
+)
+check(
+    "waiters receive the same tic emissions",
+    len(waiters) == 2
+    and waiters[0]["params"].get("emissions") == first_emissions
+    and waiters[1]["params"].get("emissions") == later_emissions,
+)
 check("authenticated advance records the principal", runs[0]["principal_id"] == "user_1")
 check("waiters resume for a chosen outcome", len(waiters) == 2 and waiters[0]["trigger"] == "simulated")
 check("emission audit role is emission", runs[0]["detail"]["role"] == "emission")
@@ -387,6 +413,20 @@ except simulation.SimulationRejected as err:
     check("error blocks the next tic", err.status_code == 409)
 cleared = simulation.clear_session_error(broken_event, session["id"])
 check("clear-error returns the session to running", cleared["status"] == "running" and not cleared["error_message"])
+
+# A sequence that pauses for input does not stop the session. The tic still advances.
+script.clear()
+stopped.clear()
+script.append({"status": "pending", "state_id": "ST_pause", "parameters": [{"name": "owner"}]})
+continued = simulation.advance_session(broken_event, session["id"])
+paused = [row for row in continued["emissions"] if row.get("tic") == 3 and row.get("run_status") == "pending"]
+check(
+    "pending emission does not stop the session",
+    continued["status"] == "running" and not continued.get("error_message"),
+)
+check("pending emission still advances the tic", continued["current_tic"] == 3)
+check("pending emission is recorded", len(paused) == 1)
+check("pending emission run is cancelled", "ST_pause" in stopped)
 
 # Disabled event refuses create / advance / delete.
 catalog.upsert_event(

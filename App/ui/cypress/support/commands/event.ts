@@ -86,10 +86,14 @@ Cypress.Commands.add("saveEvent", (name: string) => {
   cy.get('[data-testid="nav-event-item"]').contains(".sequenceBtnLabel", name).should("be.visible");
 });
 
-/** Delete an event from the nav (handles the window.confirm prompt). */
+/** Delete an event from the nav (confirms the delete card). */
 Cypress.Commands.add("deleteEventInNav", (name: string) => {
-  cy.on("window:confirm", () => true);
+  cy.get('[data-testid="nav-event-item"]')
+    .contains(".sequenceBtnLabel", name)
+    .closest('[data-testid="nav-event-item"]')
+    .trigger("mouseover");
   cy.get(`[aria-label="Delete event ${name}"]`).click();
+  cy.get('[data-testid="confirm-ok"]').click();
   cy.get('[data-testid="nav-event-item"]')
     .contains(".sequenceBtnLabel", name)
     .should("not.exist");

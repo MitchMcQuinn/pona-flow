@@ -1,4 +1,4 @@
-"""Vector search routes (local Ollama embeddings over INSTANCE records).
+"""Vector search routes (Ollama or Gemini embeddings over INSTANCE records).
 
 Two operations, deliberately not QUERY-builder operations: **reindex** (maintenance, so
 space-manage) and **search** (a read, so the ordinary ``read:INSTANCE`` flow). A sequence
@@ -7,7 +7,8 @@ that wants "find similar, then traverse" calls search, takes the ids, and does i
 
 See README.md § Vector search. Embedding work is an engine primitive rather than an
 authorable sequence: it reads SCHEMA payloads from SQLite, writes reserved graph
-properties, and talks to a localhost service that endpoint STEPs are barred from (D7).
+properties, and talks to the embedder itself. Endpoint STEPs stay behind the D7 SSRF
+guard and never see the API key.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ from ..http_utils import (
 
 router = APIRouter()
 
-# Ollama being down is a dependency failure, not a bug in the request.
+# The embedder being down is a dependency failure, not a bug in the request.
 _UNAVAILABLE_STATUS = 503
 
 
@@ -58,25 +59,33 @@ async def embeddings_config_set(
     request: Request,
     principal: Principal = Depends(auth.current_principal),
 ):
-    """Save vector-search settings and reconcile the index: ``{enabled, ollama_url?, embed_model?}``.
+    """Save vector-search settings and reconcile the index.
 
-    Enabling probes the model, so a wrong model name or a down Ollama is rejected here
-    rather than discovered on the first reindex.
+    Body: ``{enabled, provider?, ollama_url?, base_url?, embed_model?, credential?}``.
+    ``credential`` is a credential name, never the secret. Enabling probes the model, so
+    a wrong model name or an unreachable embedder is rejected here rather than discovered
+    on the first reindex.
     """
     sid = require_path_space_id(space_id)
     auth.require_space_manage(principal, sid)
     body = await json_body(request)
     if "enabled" not in body:
         raise bad_request("enabled is required")
+    provider = body.get("provider")
     ollama_url = body.get("ollama_url")
+    base_url = body.get("base_url")
     embed_model = body.get("embed_model")
+    credential = body.get("credential")
     try:
         return await asyncio.to_thread(
             embeddings.apply_space_config,
             sid,
             enabled=bool(body.get("enabled")),
+            provider=str(provider).strip() if provider is not None else None,
             ollama_url=str(ollama_url).strip() if ollama_url is not None else None,
+            base_url=str(base_url).strip() if base_url is not None else None,
             embed_model=str(embed_model).strip() if embed_model is not None else None,
+            credential=str(credential).strip() if credential is not None else None,
         )
     except embeddings.EmbeddingsUnavailable as e:
         raise HTTPException(_UNAVAILABLE_STATUS, str(e))
@@ -93,10 +102,11 @@ async def embeddings_health(
     space_id: str,
     principal: Principal = Depends(auth.current_principal),
 ):
-    """Report whether Ollama answers, and the configured model's vector width.
+    """Report whether the embedder answers, and the configured model's vector width.
 
-    Never raises for a down/misconfigured Ollama — the failure is the payload, so the UI
-    can show it as status rather than an error toast.
+    Never raises for a down or misconfigured embedder — the failure is the payload, so
+    the UI can show it as status rather than an error toast. The API key is not included;
+    ``credential_configured`` says whether a cloud credential resolved.
     """
     sid = require_path_space_id(space_id)
     auth.require_space_access(principal, sid)
@@ -112,8 +122,8 @@ async def embeddings_reindex(
     """Embed INSTANCE records and return counts.
 
     With ``attributive_label`` this indexes one type; without it, every vectorized SCHEMA in
-    the space. Dimensions are probed before any graph write, so a down Ollama or a
-    non-embedding model fails here instead of half-filling the index.
+    the space. Dimensions are probed before any graph write, so an unreachable embedder
+    or a non-embedding model fails here instead of half-filling the index.
     """
     sid = require_path_space_id(space_id)
     auth.require_space_manage(principal, sid)

@@ -18,6 +18,8 @@ const KEYS = {
   operation: "pona-flow.ui.operation",
   label: "pona-flow.ui.label",
   navWidth: "pona-flow.ui.navWidth",
+  chatWidth: "pona-flow.ui.chatWidth",
+  workbenchMode: "pona-flow.ui.workbenchMode",
   configWidth: "pona-flow.ui.configWidth",
   matchConfigWidth: "pona-flow.ui.matchConfigWidth"
 } as const;
@@ -120,6 +122,21 @@ export const uiPersistence = {
   },
   setLabel(label: GraphNodeLabel): void {
     writeRaw(KEYS.label, label);
+  },
+
+  getWorkbenchMode(): "chat" | "classic" | null {
+    const raw = readRaw(KEYS.workbenchMode);
+    return raw === "chat" || raw === "classic" ? raw : null;
+  },
+  setWorkbenchMode(mode: "chat" | "classic"): void {
+    writeRaw(KEYS.workbenchMode, mode);
+  },
+
+  getChatWidth(): number | null {
+    return readNumber(KEYS.chatWidth);
+  },
+  setChatWidth(width: number): void {
+    if (Number.isFinite(width)) writeRaw(KEYS.chatWidth, String(Math.round(width)));
   },
 
   getNavWidth(): number | null {

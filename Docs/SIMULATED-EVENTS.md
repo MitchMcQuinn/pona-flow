@@ -32,14 +32,20 @@ On the new tic, each **probability** that is due runs:
 4. **Sequence.** The chosen outcome runs the event's sequence. The outcome payload is the
    parameter map. These keys are added when the payload did not set them: `tic`,
    `world_time`, `session_id`, `simulated_event_id`, `probability_id`, `probability_name`,
-   `outcome_label`, `cancelled` (`false`).
+   `outcome_label`, `cancelled` (`false`), and `emissions`. `emissions` is every emission
+   recorded on this tic so far, including this one, in run order. Each item has `id`,
+   `session_id`, `event_id`, `space_id`, `probability_id`, `probability_name`, `tic`,
+   `world_time`, `outcome`, `cancelled`, `sequence_id`, and `run_status` (`null` until
+   that emission's sequence has finished).
 
 Leave **Sequence to run** empty to record the emission without running a sequence.
 
 A weight sequence or the event sequence that returns `error` stops the session. The tic still
 commits. Further tics return `409` until `clear-error`. A weight sequence that pauses
 (`pending` or `waiting`) does not stop the session: that run is cancelled and the weight
-falls through to the default, then `0`. An event sequence that pauses does stop the session.
+falls through to the default, then `0`. An event sequence that pauses for input (`pending`)
+does not stop the session either: that run is cancelled and the emission is recorded as
+`pending`. An event sequence that waits (`waiting`) does stop the session.
 
 Random schedules are not seeded, so replaying a session is not guaranteed to pick the same
 outcomes.

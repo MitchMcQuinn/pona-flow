@@ -177,7 +177,7 @@ export const builderSelectors = {
     // INSTANCE schema guards: explain why Run/save is blocked (the block itself is
     // enforced through checksAllClear). uguardInfo is a non-blocking blast-radius note.
     const isUpdateInstance =
-      state.query.operation === "update" && state.query.match[0]?.label === "INSTANCE";
+      state.query.operation === "update" && state.query.match?.[0]?.label === "INSTANCE";
     if (isUpdateInstance) {
       const guard = state.checks["uguard"];
       if (guard && guard.status === "error" && guard.message) {
@@ -189,7 +189,7 @@ export const builderSelectors = {
       }
     }
     const isCreateInstance =
-      state.query.operation === "create" && state.query.match[0]?.label === "INSTANCE";
+      state.query.operation === "create" && state.query.match?.[0]?.label === "INSTANCE";
     if (isCreateInstance) {
       const guard = state.checks[CREATE_GUARD_CHECK_KEY];
       if (guard && guard.status === "error" && guard.message) {

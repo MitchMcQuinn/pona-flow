@@ -107,6 +107,7 @@ export function MatchAttributiveLabelField({
     <div
       className={missing ? "builderField builderFieldMissing" : "builderField"}
       data-issue="attributive_label"
+      data-pin-target={attributiveLabel}
     >
       {creatingParameter ? (
         <InlineCreateNameField

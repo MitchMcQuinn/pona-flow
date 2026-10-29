@@ -29,6 +29,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ["PONA_FLOW_OLLAMA_URL"] = "http://127.0.0.1:11434"
 os.environ["PONA_FLOW_OLLAMA_EMBED_MODEL"] = "env-model"
 os.environ.pop("PONA_FLOW_OLLAMA_ALLOWED_HOSTS", None)
+for _cloud_key in (
+    "PONA_FLOW_EMBED_PROVIDER",
+    "PONA_FLOW_EMBED_MODEL",
+    "PONA_FLOW_EMBED_BASE_URL",
+    "PONA_FLOW_EMBED_API_KEY",
+    "PONA_FLOW_EMBED_ALLOWED_HOSTS",
+):
+    os.environ.pop(_cloud_key, None)
 
 from Engine.server import embeddings as emb  # noqa: E402
 from Engine.server import spaces  # noqa: E402
@@ -70,10 +78,20 @@ check(
     stored
     == {
         "enabled": True,
+        "provider": "ollama",
         "ollama_url": "http://127.0.0.1:11434",
+        "base_url": "",
         "embed_model": "nomic-embed-text",
+        "credential": "",
         "dimensions": 768,
     },
+)
+check(
+    "a saved blob with no provider is local Ollama",
+    spaces.parse_space_embeddings_config(
+        '{"enabled":true,"embed_model":"nomic-embed-text","dimensions":768}'
+    )["provider"]
+    == "ollama",
 )
 check(
     "a non-numeric dimension is discarded, not stored",

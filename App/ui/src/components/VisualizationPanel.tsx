@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import type { AppState, SequenceDefinition } from "../state/types";
 import type { GraphPayload, RunResult } from "../state/builder/types";
+import { AuditParameterMap } from "./space/AuditParameterMap";
 import { GraphView } from "./results/GraphView";
 import { ResultView } from "./results/ResultView";
 
@@ -198,19 +199,28 @@ export function VisualizationPanel({
               </thead>
               <tbody>
                 {entries.map((entry) => (
-                  <tr key={entry.id}>
-                    <td>{entry.runAt}</td>
-                    <td>{entry.trigger}</td>
-                    <td>
-                      {entry.sequenceIds.length === 0
-                        ? "—"
-                        : entry.sequenceIds
-                            .map((id) => sequenceLabels.get(id) ?? id)
-                            .join(", ")}
-                    </td>
-                    <td>{entry.eventId ? eventLabels.get(entry.eventId) ?? entry.eventId : "—"}</td>
-                    <td>{entry.principalEmail ?? entry.principalId ?? "—"}</td>
-                  </tr>
+                  <Fragment key={entry.id}>
+                    <tr>
+                      <td>{entry.runAt}</td>
+                      <td>{entry.trigger}</td>
+                      <td>
+                        {entry.sequenceIds.length === 0
+                          ? "—"
+                          : entry.sequenceIds
+                              .map((id) => sequenceLabels.get(id) ?? id)
+                              .join(", ")}
+                      </td>
+                      <td>
+                        {entry.eventId ? eventLabels.get(entry.eventId) ?? entry.eventId : "—"}
+                      </td>
+                      <td>{entry.principalEmail ?? entry.principalId ?? "—"}</td>
+                    </tr>
+                    <tr className="auditParamRow">
+                      <td colSpan={5}>
+                        <AuditParameterMap map={entry.parameterMap} />
+                      </td>
+                    </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

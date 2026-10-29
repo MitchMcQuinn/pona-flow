@@ -5,6 +5,9 @@ import type { ViewportMode } from "../../hooks/useViewport";
 const NAV_DEFAULT = 260;
 const NAV_MIN = 200;
 const NAV_MAX = 420;
+const CHAT_DEFAULT = 320;
+const CHAT_MIN = 260;
+const CHAT_MAX = 840;
 const CONFIG_DEFAULT = 440;
 const CONFIG_MIN = 300;
 // Wide enough for the graph match builder's side-by-side canvas + element-config layout
@@ -108,13 +111,14 @@ function maxNavWidthForLayout(
   main: HTMLElement,
   configWidth: number,
   showConfig: boolean,
-  showVisualization: boolean
+  showVisualization: boolean,
+  navCap = NAV_MAX
 ): number {
   const handles = resizeHandleCount(showConfig, showVisualization) * RESIZE_HANDLE_WIDTH;
   const configPart = showConfig ? configWidth : 0;
   const vizPart = showVisualization ? VIZ_MIN_WIDTH : 0;
   const available = innerContentWidth(main) - configPart - handles - vizPart;
-  return Math.min(NAV_MAX, Math.max(available, 0));
+  return Math.min(navCap, Math.max(available, 0));
 }
 
 export type MobilePane = "menu" | "workbench" | "map";
@@ -130,6 +134,8 @@ interface ResizableDashboardLayoutProps {
   mobilePane?: MobilePane;
   navDrawerOpen?: boolean;
   onCloseNavDrawer?: () => void;
+  /** Chat replaces the nav and the canvas takes the rest of the row. */
+  chatMode?: boolean;
 }
 
 function EmptyPane({ testId, children }: { testId: string; children: ReactNode }) {
@@ -151,19 +157,26 @@ export function ResizableDashboardLayout({
   mode = "desktop",
   mobilePane = "menu",
   navDrawerOpen = false,
-  onCloseNavDrawer
+  onCloseNavDrawer,
+  chatMode = false
 }: ResizableDashboardLayoutProps) {
   const isPhone = mode === "phone";
   const isTablet = mode === "tablet";
-  const navInFlow = mode === "desktop";
+  // Chat stays in the row on tablet; classic nav is still a drawer there.
+  const navInFlow = mode === "desktop" || (chatMode && !isPhone);
   // Phones keep every pane mounted (switching tabs must not discard builder state) and
   // show a hint where a pane has nothing yet; tablets need something beside the drawer.
-  const renderConfig = showConfig || isPhone || (isTablet && !showVisualization);
+  const renderConfig = chatMode
+    ? false
+    : showConfig || isPhone || (isTablet && !showVisualization);
   const renderViz = showVisualization || isPhone;
   // Restore persisted panel sizes across refreshes, clamped to absolute bounds; the
   // layout-aware clamp in enforceLayoutLimits runs on mount to fit the current viewport.
   const [navWidth, setNavWidth] = useState(() =>
     clamp(uiPersistence.getNavWidth() ?? NAV_DEFAULT, NAV_MIN, NAV_MAX)
+  );
+  const [chatWidth, setChatWidth] = useState(() =>
+    clamp(uiPersistence.getChatWidth() ?? CHAT_DEFAULT, CHAT_MIN, CHAT_MAX)
   );
   const [configWidth, setConfigWidth] = useState(() =>
     clamp(uiPersistence.getConfigWidth() ?? CONFIG_DEFAULT, CONFIG_MIN, CONFIG_MAX)
@@ -179,9 +192,14 @@ export function ResizableDashboardLayout({
   usePanelScrollPersistence(vizSlotRef, "viz", showVisualization);
 
   const navWidthRef = useRef(navWidth);
+  const chatWidthRef = useRef(chatWidth);
   const configWidthRef = useRef(configWidth);
   navWidthRef.current = navWidth;
+  chatWidthRef.current = chatWidth;
   configWidthRef.current = configWidth;
+  const columnWidth = chatMode ? chatWidth : navWidth;
+  const columnMin = chatMode ? CHAT_MIN : NAV_MIN;
+  const columnCap = chatMode ? CHAT_MAX : NAV_MAX;
 
   const resizeRef = useRef<{
     edge: "nav" | "config";
@@ -197,7 +215,7 @@ export function ResizableDashboardLayout({
     // Phone panes are full width; the persisted desktop sizes must not be clobbered.
     if (isPhone) return;
 
-    let nav = navWidthRef.current;
+    let nav = chatMode ? chatWidthRef.current : navWidthRef.current;
     let config = configWidthRef.current;
 
     if (!navInFlow) {
@@ -208,7 +226,7 @@ export function ResizableDashboardLayout({
           maxConfigWidthForLayout(main, 0, showConfig, showVisualization, false)
         );
       }
-    } else if (showVisualization && showConfig) {
+    } else if (showVisualization && showConfig && !chatMode) {
       config = clamp(
         config,
         CONFIG_MIN,
@@ -221,12 +239,20 @@ export function ResizableDashboardLayout({
         maxConfigWidthForLayout(main, nav, showConfig, showVisualization)
       );
     } else if (showVisualization) {
-      nav = clamp(nav, NAV_MIN, maxNavWidthForLayout(main, 0, showConfig, showVisualization));
+      nav = clamp(
+        nav,
+        columnMin,
+        maxNavWidthForLayout(main, 0, false, showVisualization, columnCap)
+      );
     }
 
-    if (nav !== navWidthRef.current) setNavWidth(nav);
+    if (chatMode) {
+      if (nav !== chatWidthRef.current) setChatWidth(nav);
+    } else if (nav !== navWidthRef.current) {
+      setNavWidth(nav);
+    }
     if (config !== configWidthRef.current) setConfigWidth(config);
-  }, [showConfig, showVisualization, isPhone, navInFlow]);
+  }, [showConfig, showVisualization, isPhone, navInFlow, chatMode, columnMin, columnCap]);
 
   const onPointerMove = useCallback(
     (event: PointerEvent) => {
@@ -235,8 +261,16 @@ export function ResizableDashboardLayout({
       if (!r || !main) return;
       const dx = event.clientX - r.startX;
       if (r.edge === "nav") {
-        const maxNav = maxNavWidthForLayout(main, r.startConfig, showConfig, showVisualization);
-        setNavWidth(clamp(r.startNav + dx, NAV_MIN, maxNav));
+        const maxNav = maxNavWidthForLayout(
+          main,
+          chatMode ? 0 : r.startConfig,
+          chatMode ? false : showConfig,
+          showVisualization,
+          columnCap
+        );
+        const next = clamp(r.startNav + dx, columnMin, maxNav);
+        if (chatMode) setChatWidth(next);
+        else setNavWidth(next);
       } else {
         // Handle sits on the config panel's right edge: drag right → wider config.
         const maxConfig = maxConfigWidthForLayout(
@@ -249,7 +283,7 @@ export function ResizableDashboardLayout({
         setConfigWidth(clamp(r.startConfig + dx, CONFIG_MIN, maxConfig));
       }
     },
-    [showConfig, showVisualization, navInFlow]
+    [showConfig, showVisualization, navInFlow, chatMode, columnMin, columnCap]
   );
 
   const endResize = useCallback(() => {
@@ -258,9 +292,10 @@ export function ResizableDashboardLayout({
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", endResize);
     enforceLayoutLimits();
-    uiPersistence.setNavWidth(navWidthRef.current);
+    if (chatMode) uiPersistence.setChatWidth(chatWidthRef.current);
+    else uiPersistence.setNavWidth(navWidthRef.current);
     uiPersistence.setConfigWidth(configWidthRef.current);
-  }, [onPointerMove, enforceLayoutLimits]);
+  }, [onPointerMove, enforceLayoutLimits, chatMode]);
 
   const startResize = useCallback(
     (edge: "nav" | "config") => (event: React.PointerEvent) => {
@@ -268,14 +303,14 @@ export function ResizableDashboardLayout({
       resizeRef.current = {
         edge,
         startX: event.clientX,
-        startNav: navWidth,
+        startNav: columnWidth,
         startConfig: configWidth
       };
       document.body.classList.add("layoutResizing");
       window.addEventListener("pointermove", onPointerMove);
       window.addEventListener("pointerup", endResize);
     },
-    [navWidth, configWidth, onPointerMove, endResize]
+    [columnWidth, configWidth, onPointerMove, endResize]
   );
 
   useEffect(() => () => endResize(), [endResize]);
@@ -300,6 +335,7 @@ export function ResizableDashboardLayout({
 
   const layoutClass = [
     "layoutResizable",
+    chatMode && "layoutChat",
     `layoutMode-${mode}`,
     isPhone && `layoutPane-${mobilePane}`,
     isTablet && navDrawerOpen && "layoutNavDrawerOpen",
@@ -317,7 +353,8 @@ export function ResizableDashboardLayout({
       className={layoutClass}
       style={
         {
-          "--nav-width": `${navWidth}px`,
+          "--nav-width": `${columnWidth}px`,
+          "--chat-width": `${chatWidth}px`,
           "--config-width": `${configWidth}px`
         } as React.CSSProperties
       }
@@ -325,13 +362,13 @@ export function ResizableDashboardLayout({
       <aside
         ref={navSlotRef}
         className="layoutNavSlot"
-        style={navInFlow ? { width: navWidth } : undefined}
-        aria-hidden={isTablet && !navDrawerOpen ? true : undefined}
+        style={navInFlow ? { width: columnWidth } : undefined}
+        aria-hidden={isTablet && !chatMode && !navDrawerOpen ? true : undefined}
       >
         {navigation}
       </aside>
 
-      {isTablet && navDrawerOpen ? (
+      {isTablet && navDrawerOpen && !chatMode ? (
         <button
           type="button"
           className="layoutNavDrawerScrim"
@@ -346,7 +383,7 @@ export function ResizableDashboardLayout({
           className="layoutResizeHandle"
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize navigation panel"
+          aria-label={chatMode ? "Resize chat" : "Resize navigation panel"}
           onPointerDown={startResize("nav")}
         />
       ) : null}

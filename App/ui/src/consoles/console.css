@@ -1,0 +1,425 @@
+
+.consolePanel {
+  min-height: 0;
+}
+
+/* Shown inside a session instead of the emissions list. Size to that section. */
+.consolePanel.consoleEmbedded {
+  flex: none;
+  height: auto;
+  min-height: 280px;
+  overflow: visible;
+  align-self: stretch;
+}
+
+.consolePanel.consoleEmbedded .consoleHost {
+  height: auto;
+  min-height: 280px;
+  flex: none;
+  align-items: stretch;
+  overflow: visible;
+}
+
+.consoleHost {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  background: #000;
+  color: #fff;
+  --hairline: rgba(255, 255, 255, 0.28);
+  --mesh-glow: 0 0 18px rgba(139, 92, 246, 0.28), 0 0 36px rgba(6, 182, 212, 0.14);
+  --ok: #34d399;
+  --bad: #fb7185;
+}
+
+.consoleHost .mantine-Title-root,
+.consoleHost .mantine-Modal-title,
+.consoleHost .mantine-Drawer-title {
+  text-transform: lowercase;
+}
+
+.mantine-Button-root {
+  font-weight: 600;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.mesh-button {
+  background-color: transparent;
+  background-image: var(--mesh-fill);
+  box-shadow: var(--mesh-glow);
+}
+
+.mesh-button:hover:not(:disabled):not([data-disabled]) {
+  filter: brightness(1.12);
+}
+
+.mantine-Button-root:focus-visible,
+.catalog-card:focus-visible {
+  outline: 1px solid #fff;
+  outline-offset: 2px;
+}
+
+[data-mantine-color-scheme='dark'] .mantine-Input-wrapper[data-variant='default'],
+[data-mantine-color-scheme='dark'] .mantine-Input-wrapper[data-variant='filled'] {
+  --input-bg: transparent;
+  --input-bd: transparent;
+  --input-bd-focus: #fff;
+  --input-color: #fff;
+}
+
+.mantine-Input-input:focus,
+.mantine-Input-input:focus-within {
+  border-color: #fff;
+}
+
+.surface-card,
+.module-frame,
+.catalog-card {
+  position: relative;
+  background: #000;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.surface-card::before,
+.module-frame::before,
+.catalog-card::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 2px;
+  border-radius: 0;
+  background: var(--mesh);
+  box-shadow: var(--mesh-glow);
+  pointer-events: none;
+}
+
+.mantine-Notification-root::before {
+  content: "";
+  width: 2px;
+  top: 12px;
+  bottom: 12px;
+  inset-inline-start: 0;
+  border-radius: 0;
+  background: var(--mesh);
+  box-shadow: var(--mesh-glow);
+}
+
+.catalog-card {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--hairline);
+  padding: var(--mantine-spacing-sm);
+  color: #fff;
+  text-align: left;
+  background: #000;
+}
+
+.catalog-card:hover .catalog-title {
+  background-image: var(--mesh);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.module-frame[data-selected='true'] {
+  outline: 1px solid #fff;
+  outline-offset: -1px;
+}
+
+.module-frame-header {
+  border-bottom: 1px solid var(--hairline);
+}
+
+.empty-canvas {
+  border: 1px dashed var(--hairline);
+  border-radius: 0;
+  padding: 2rem;
+  background: #000;
+}
+
+/* Drawers and modals are position:fixed with width:100% and no horizontal inset.
+   Inside the console their static left is the pane, so the panel runs off the right
+   edge. Stretch the overlay to the shell instead. */
+.consoleHost .mantine-Drawer-inner,
+.consoleHost .mantine-Modal-inner {
+  inset-inline: 0;
+  width: auto;
+}
+
+.mantine-Modal-content,
+.mantine-Drawer-content,
+.mantine-Popover-dropdown,
+.mantine-Notification-root {
+  background:
+    linear-gradient(#000, #000) padding-box,
+    var(--mesh) border-box;
+  border: 1px solid transparent;
+  border-radius: 0;
+  box-shadow: var(--mesh-glow);
+}
+
+.mantine-Modal-header,
+.mantine-Drawer-header {
+  background: transparent;
+}
+
+.mantine-Modal-overlay,
+.mantine-Drawer-overlay {
+  --overlay-bg: rgba(0, 0, 0, 0.72);
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.mantine-Combobox-option[data-combobox-selected] {
+  background: #fff;
+  color: #000;
+  -webkit-text-fill-color: #000;
+}
+
+[data-mantine-color-scheme='dark'] .mantine-Combobox-option:hover:not([data-combobox-selected], [data-combobox-disabled]) {
+  background-color: transparent;
+  background-image: var(--mesh);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.mantine-Switch-track {
+  border: 1px solid var(--hairline);
+  background: #000;
+}
+
+.mantine-Switch-input:checked + .mantine-Switch-track {
+  background: var(--mesh);
+  border-color: transparent;
+  box-shadow: var(--mesh-glow);
+}
+
+.mantine-Switch-thumb::before {
+  display: none;
+}
+
+.mantine-Checkbox-input:checked,
+.mantine-Radio-radio:checked {
+  background: var(--mesh);
+  border-color: transparent;
+}
+
+.mantine-SegmentedControl-root {
+  background: #000;
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+}
+
+.mantine-SegmentedControl-indicator,
+.mantine-SegmentedControl-label[data-active]::before {
+  background: var(--mesh);
+  border-radius: 0;
+  box-shadow: var(--mesh-glow);
+}
+
+.mantine-SegmentedControl-label[data-active] {
+  color: #fff;
+}
+
+.mantine-Badge-root {
+  --badge-radius: 0;
+  border-radius: 0;
+  text-transform: lowercase;
+  font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  background: transparent;
+  border: 1px solid currentColor;
+}
+
+.mantine-Alert-root {
+  background: #000;
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+}
+
+.mantine-Code-root {
+  background: #000;
+  color: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+}
+
+.mantine-Table-table {
+  --table-border-color: var(--hairline);
+  --table-striped-color: rgba(255, 255, 255, 0.04);
+  --table-highlight-on-hover-color: rgba(255, 255, 255, 0.08);
+}
+
+.mantine-Table-th {
+  font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  text-transform: lowercase;
+}
+
+[data-mantine-color-scheme='dark'] .mantine-LineChart-root,
+[data-mantine-color-scheme='dark'] .mantine-BarChart-root,
+[data-mantine-color-scheme='dark'] .mantine-AreaChart-root,
+[data-mantine-color-scheme='dark'] .mantine-DonutChart-root {
+  --chart-grid-color: rgba(255, 255, 255, 0.22);
+  --chart-cursor-fill: rgba(129, 140, 248, 0.16);
+  --chart-text-color: #c7c7c7;
+}
+
+.module-drag-handle {
+  user-select: none;
+  touch-action: none;
+}
+
+.react-grid-item > div {
+  height: 100%;
+}
+
+.dashboard-grid .react-grid-placeholder {
+  background: var(--mesh);
+  opacity: 0.35;
+  border-radius: 0;
+}
+
+.mantine-Tabs-list {
+  border-color: var(--hairline);
+}
+
+.mantine-Tabs-tab {
+  border-radius: 0;
+  font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  text-transform: lowercase;
+}
+
+.mantine-Tabs-tab[data-active] {
+  color: #fff;
+  border-color: #fff;
+}
+
+.view-kind {
+  margin-left: 8px;
+  font-size: 11px;
+}
+
+.view-tab-actions {
+  align-self: stretch;
+}
+
+.view-tab-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 100%;
+  color: #fff;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+}
+
+.view-tab-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.view-tab-action[data-active='true'] {
+  border-bottom-color: #fff;
+}
+
+.view-tab-action:focus-visible {
+  outline: 1px solid #fff;
+  outline-offset: -2px;
+}
+
+.field-editor {
+  border: 1px solid var(--hairline);
+  padding: var(--mantine-spacing-sm);
+}
+
+.consoleEditSettings {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 520px;
+}
+
+.consoleEditSettings > * {
+  width: 100%;
+}
+
+.bar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: #fff;
+  background: transparent;
+}
+
+.bar-icon:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.bar-icon[data-active='true'] {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.bar-icon:focus-visible {
+  outline: 1px solid #fff;
+  outline-offset: 2px;
+}
+
+.react-resizable-handle {
+  background-image: none;
+}
+
+.module-frame-body[data-fill='true'] {
+  display: flex;
+  flex-direction: column;
+}
+
+.module-frame-body[data-fill='true'] > :last-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+/* Same canvas as the builder match graph, fitted to the module card. */
+.console-graph {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.consoleHost .console-graph .graphViewContainer {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.consoleHost .console-graph .graphViewContainer > svg {
+  position: absolute;
+  inset: 0;
+}
+
+.react-resizable-handle-se::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  background: var(--mesh);
+  box-shadow: var(--mesh-glow);
+}

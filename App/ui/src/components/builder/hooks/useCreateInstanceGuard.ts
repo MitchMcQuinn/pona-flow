@@ -29,7 +29,7 @@ export function useCreateInstanceGuard(): void {
   const { query, spaceId } = state;
 
   const enabled =
-    query.operation === "create" && query.match[0]?.label === "INSTANCE" && Boolean(spaceId);
+    query.operation === "create" && query.match?.[0]?.label === "INSTANCE" && Boolean(spaceId);
 
   const signature = useMemo(
     () => JSON.stringify({ match: query.match, parameters: query.parameters }),

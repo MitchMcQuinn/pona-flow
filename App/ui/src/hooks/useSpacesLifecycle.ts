@@ -51,6 +51,9 @@ export function useSpacesLifecycle(options: {
   // whose attributive_label is in this set. Bumping spaceLabelsVersion refetches after
   // a create/edit that keeps the same space id selected.
   const [activeSpaceLabels, setActiveSpaceLabels] = useState<string[]>([]);
+  // Set after the space record (and any chat-filed sequences) has loaded, so the
+  // nav list is fetched only once those labels exist.
+  const [navStamp, setNavStamp] = useState<{ spaceId: string; n: number } | null>(null);
   const [spaceLabelsVersion, setSpaceLabelsVersion] = useState(0);
 
   const bumpSpaceLabelsVersion = useCallback(() => {
@@ -137,10 +140,12 @@ export function useSpacesLifecycle(options: {
   useEffect(() => {
     if (!state.spaceId) {
       setActiveSpaceLabels([]);
+      setNavStamp(null);
       return;
     }
+    const spaceId = state.spaceId;
     let cancelled = false;
-    fetchSpaceRecord(state.spaceId)
+    fetchSpaceRecord(spaceId)
       .then((record) => {
         if (cancelled) return;
         setActiveSpaceLabels(record.labels ?? []);
@@ -148,6 +153,11 @@ export function useSpacesLifecycle(options: {
       .catch(() => {
         if (!cancelled) {
           setActiveSpaceLabels([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setNavStamp((current) => ({ spaceId, n: (current?.n ?? 0) + 1 }));
         }
       });
     return () => {
@@ -263,8 +273,10 @@ export function useSpacesLifecycle(options: {
 
   return {
     spaces,
+    reloadSpaces,
     spacesError,
     activeSpaceLabels,
+    navStamp,
     bumpSpaceLabelsVersion,
     noAccess,
     showCreateSpaceModal,

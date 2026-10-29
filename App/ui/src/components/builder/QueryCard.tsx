@@ -17,7 +17,7 @@ export function QueryCard() {
   const { state, patchQuery, createSequenceMode } = useBuilder();
   const { query } = state;
   const op = query.operation;
-  const clauseLabel = query.match[0]?.label;
+  const clauseLabel = query.match?.[0]?.label;
   // Sequence bindings live on a dedicated card; the MATCH query does not define params.
   const showParameters = !createSequenceMode;
   // Update SCHEMA/STEP only edits entity config payloads (SQLite); the graph-clause

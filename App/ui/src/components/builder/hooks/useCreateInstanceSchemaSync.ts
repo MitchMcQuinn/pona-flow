@@ -24,7 +24,7 @@ export function useCreateInstanceSchemaSync(): void {
   const { query, spaceId } = state;
 
   const enabled =
-    query.operation === "create" && query.match[0]?.label === "INSTANCE" && Boolean(spaceId);
+    query.operation === "create" && query.match?.[0]?.label === "INSTANCE" && Boolean(spaceId);
 
   const signature = useMemo(() => JSON.stringify(query.match), [query.match]);
 

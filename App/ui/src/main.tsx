@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useState } from "react"
 import ReactDOM from "react-dom/client";
 import { ClerkProvider, RedirectToSignIn, Show, useAuth } from "@clerk/react";
 import App from "./App";
+import { ConfirmDialogHost } from "./components/modals/confirmDialog";
 import { MeshBackground } from "./components/MeshBackground";
 import { ToastProvider } from "./components/Toast";
 import { ApiUnreachable, AuthPages } from "./components/auth/AuthPages";
@@ -31,6 +32,7 @@ function AppShell() {
       <div className="appShell">
         <ToastProvider>
           <App />
+          <ConfirmDialogHost />
         </ToastProvider>
       </div>
     </>

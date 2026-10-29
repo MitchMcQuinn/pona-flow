@@ -16,7 +16,7 @@ export function MatchSection() {
   // Lazy safety net: re-validate an open create-INSTANCE operation against the live schema.
   useCreateInstanceGuard();
 
-  const clause = query.match[0];
+  const clause = query.match?.[0];
   const clauseIndex = 0;
   if (!clause) return null;
 

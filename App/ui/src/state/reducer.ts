@@ -41,10 +41,44 @@ const emptyResults = (): AppState["results"] => ({
 
 const emptyEvents = (): AppState["events"] => ({
   items: [],
+  groups: [],
   selectedEventId: null,
   loading: false,
-  error: null
+  error: null,
+  editNonce: 0
 });
+
+const emptyConsoles = (): AppState["consoles"] => ({
+  items: [],
+  groups: [],
+  selectedConsoleId: null,
+  loading: false,
+  error: null,
+  editNonce: 0
+});
+
+function deselectConsole(state: AppState): AppState["consoles"] {
+  if (!state.consoles.selectedConsoleId && state.consoles.editNonce === 0) return state.consoles;
+  return { ...state.consoles, selectedConsoleId: null, editNonce: 0 };
+}
+
+function deselectEvent(state: AppState): AppState["events"] {
+  if (!state.events.selectedEventId && state.events.editNonce === 0) return state.events;
+  return { ...state.events, selectedEventId: null, editNonce: 0 };
+}
+
+/** A fresh visit opens closed. Re-selecting the item already on screen keeps its edit session.
+    The nav edit icon bumps the nonce so that visit opens in edit mode. */
+function editNonceForSelection(
+  currentId: string | null,
+  nextId: string,
+  nonce: number,
+  edit: boolean | undefined
+): number {
+  if (edit) return nonce + 1;
+  if (currentId === nextId) return nonce;
+  return 0;
+}
 
 const emptyAuditLog = (): AppState["auditLog"] => ({
   entries: [],
@@ -76,6 +110,7 @@ export const initialState: AppState = {
   createSequence: false,
   events: emptyEvents(),
   createEvent: false,
+  consoles: emptyConsoles(),
   auditLog: emptyAuditLog(),
   results: emptyResults()
 };
@@ -120,6 +155,7 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         createSequence: false,
         events: emptyEvents(),
         createEvent: false,
+        consoles: emptyConsoles(),
         auditLog: emptyAuditLog(),
         results: emptyResults()
       };
@@ -169,6 +205,14 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         nav: {
           ...state.nav,
           groups: event.groups
+        },
+        events: {
+          ...state.events,
+          groups: event.eventGroups
+        },
+        consoles: {
+          ...state.consoles,
+          groups: event.consoleGroups
         }
       };
 
@@ -236,11 +280,9 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         results: emptyResults(),
         createSequence: false,
         spacePanelOpen: false,
-        events: {
-          ...state.events,
-          selectedEventId: null
-        },
-        createEvent: false
+        events: deselectEvent(state),
+        createEvent: false,
+        consoles: deselectConsole(state)
       };
     }
 
@@ -413,11 +455,9 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         results: emptyResults(),
         createSequence: false,
         spacePanelOpen: false,
-        events: {
-          ...state.events,
-          selectedEventId: null
-        },
-        createEvent: false
+        events: deselectEvent(state),
+        createEvent: false,
+        consoles: deselectConsole(state)
       };
 
     case "CREATE_SEQUENCE_OPENED":
@@ -441,11 +481,9 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         results: emptyResults(),
         createSequence: true,
         spacePanelOpen: false,
-        events: {
-          ...state.events,
-          selectedEventId: null
-        },
-        createEvent: false
+        events: deselectEvent(state),
+        createEvent: false,
+        consoles: deselectConsole(state)
       };
 
     case "EVENTS_LOAD_STARTED":
@@ -465,6 +503,25 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
           ...state.events,
           loading: false,
           items: event.events
+        }
+      };
+
+    case "EVENTS_REORDERED":
+      return {
+        ...state,
+        events: {
+          ...state.events,
+          items: event.events
+        }
+      };
+
+    case "EVENT_GROUPS_CHANGED":
+      return {
+        ...state,
+        events: {
+          ...state.events,
+          groups: event.groups,
+          items: event.events ?? state.events.items
         }
       };
 
@@ -497,11 +554,9 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         },
         createSequence: false,
         spacePanelOpen: false,
-        events: {
-          ...state.events,
-          selectedEventId: null
-        },
+        events: deselectEvent(state),
         createEvent: true,
+        consoles: deselectConsole(state),
         results: emptyResults()
       };
 
@@ -526,9 +581,16 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         spacePanelOpen: false,
         events: {
           ...state.events,
-          selectedEventId: event.eventId
+          selectedEventId: event.eventId,
+          editNonce: editNonceForSelection(
+            state.events.selectedEventId,
+            event.eventId,
+            state.events.editNonce,
+            event.edit
+          )
         },
         createEvent: false,
+        consoles: deselectConsole(state),
         results: emptyResults()
       };
 
@@ -541,10 +603,92 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
           visualMode: "empty"
         },
         createEvent: false,
-        events: {
-          ...state.events,
-          selectedEventId: null
+        events: deselectEvent(state)
+      };
+
+    case "CONSOLES_LOAD_STARTED":
+      return {
+        ...state,
+        consoles: { ...state.consoles, loading: true, error: null }
+      };
+
+    case "CONSOLES_LOAD_SUCCEEDED":
+      return {
+        ...state,
+        consoles: {
+          ...state.consoles,
+          loading: false,
+          items: event.consoles
         }
+      };
+
+    case "CONSOLES_REORDERED":
+      return {
+        ...state,
+        consoles: {
+          ...state.consoles,
+          items: event.consoles
+        }
+      };
+
+    case "CONSOLE_GROUPS_CHANGED":
+      return {
+        ...state,
+        consoles: {
+          ...state.consoles,
+          groups: event.groups,
+          items: event.consoles ?? state.consoles.items
+        }
+      };
+
+    case "CONSOLES_LOAD_FAILED":
+      return {
+        ...state,
+        consoles: { ...state.consoles, loading: false, error: event.error }
+      };
+
+    case "CONSOLE_SELECTED":
+      return {
+        ...state,
+        nav: { ...state.nav, selectedSequenceId: null },
+        sequence: emptySequence(),
+        editor: { ...state.editor, selectedElement: null },
+        view: { ...state.view, rightPanelMode: "builder", visualMode: "empty" },
+        createSequence: false,
+        spacePanelOpen: false,
+        createEvent: false,
+        events: deselectEvent(state),
+        consoles: {
+          ...state.consoles,
+          selectedConsoleId: event.consoleId,
+          editNonce: editNonceForSelection(
+            state.consoles.selectedConsoleId,
+            event.consoleId,
+            state.consoles.editNonce,
+            event.edit
+          )
+        },
+        results: emptyResults()
+      };
+
+    case "CONSOLE_RENAMED": {
+      const current = state.consoles.items.find((item) => item.id === event.consoleId);
+      if (!current || current.name === event.name) return state;
+      return {
+        ...state,
+        consoles: {
+          ...state.consoles,
+          items: state.consoles.items.map((item) =>
+            item.id === event.consoleId ? { ...item, name: event.name } : item
+          )
+        }
+      };
+    }
+
+    case "CONSOLE_DESELECTED":
+      return {
+        ...state,
+        consoles: deselectConsole(state)
       };
 
     case "ME_LOADED":
@@ -553,6 +697,11 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
     case "ME_TIMEZONE_UPDATED":
       return state.me
         ? { ...state, me: { ...state.me, timezone: event.timezone } }
+        : state;
+
+    case "ME_WORKBENCH_UPDATED":
+      return state.me
+        ? { ...state, me: { ...state.me, workbenchMode: event.mode } }
         : state;
 
     case "ME_ONBOARDING_TOUR_SEEN":
@@ -577,10 +726,8 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         },
         createSequence: false,
         createEvent: false,
-        events: {
-          ...state.events,
-          selectedEventId: null
-        },
+        events: deselectEvent(state),
+        consoles: deselectConsole(state),
         spacePanelOpen: true,
         view: {
           ...state.view,
@@ -616,10 +763,8 @@ export function appReducer(state: AppState, event: AppEvent): AppState {
         createSequence: false,
         createEvent: false,
         spacePanelOpen: false,
-        events: {
-          ...state.events,
-          selectedEventId: null
-        },
+        events: deselectEvent(state),
+        consoles: deselectConsole(state),
         view: {
           rightPanelMode: "builder",
           visualMode: "audit_log"

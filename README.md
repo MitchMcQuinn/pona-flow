@@ -117,7 +117,7 @@ The engine is a FastAPI app served by uvicorn. It serves the built React UI and 
 | [`Engine/server/agent_keys.py`](Engine/server/agent_keys.py) | Agent API keys: mint/verify/revoke (`stg_` tokens, stored as SHA-256 hashes) for non-human principals. |
 | [`Engine/server/mcp_gateway.py`](Engine/server/mcp_gateway.py) | Per-space Model Context Protocol server (Streamable HTTP); exposes sequences as agent-callable tools. |
 | [`Engine/server/execution_run.py`](Engine/server/execution_run.py) | Sequence executor: walk STEPs, pause for required parameters, run a query / HTTP call / local LLM, bind response parameters. |
-| [`Engine/server/embeddings.py`](Engine/server/embeddings.py) | Local vector search: Ollama embeddings, Neo4j vector indexes, reindex, and `resolve_search_params` before a vector-search Cypher statement runs. |
+| [`Engine/server/embeddings.py`](Engine/server/embeddings.py) | Vector search: Ollama (default) or a Gemini-compatible host, Neo4j vector indexes, reindex, and `resolve_search_params` before a vector-search Cypher statement runs. |
 | [`Engine/server/app.py`](Engine/server/app.py) | FastAPI routing, authenticated JSON API, static files under `/App/`. |
 
 Each module file includes a longer module docstring describing logic and how it fits the project.
@@ -144,6 +144,9 @@ governs which sequences it may run, reusing the existing RBAC allowlist. The MCP
 requires the optional `mcp` dependency (in `requirements.txt`); without it the gateway is
 inert and the rest of the API is unaffected. See [Docs/MCP-GATEWAY.md](Docs/MCP-GATEWAY.md)
 and [Docs/SEQUENCE-WEBHOOKS.md](Docs/SEQUENCE-WEBHOOKS.md).
+
+Public integration guide (authentication, sequence runs, the runtime MCP gateway, and the
+HTTP endpoints the authoring MCP calls): [public-docs/api.md](public-docs/api.md).
 
 ## Design Philosophy
 
@@ -202,25 +205,29 @@ Sequences are run from the dashboard, from `POST /api/spaces/{space_id}/sequence
 
 ### Vector search
 
-Local nearest-neighbour search over opted-in INSTANCE records. There is no sidecar vector database: Ollama embeds the text, Neo4j stores the vector on the node (and on INSTANCE-to-INSTANCE `POINTS_TO` edges), and a hit *is* the record. A sequence that wants "find similar, then traverse" does two steps — search, then `MATCH` — because the search itself never walks `POINTS_TO`.
+Local nearest-neighbour search over opted-in INSTANCE records. There is no sidecar vector database: the engine embeds the text, Neo4j stores the vector on the node (and on INSTANCE-to-INSTANCE `POINTS_TO` edges), and a hit *is* the record. A sequence that wants "find similar, then traverse" does two steps — search, then `MATCH` — because the search itself never walks `POINTS_TO`.
 
-This is not a document-chunk RAG engine, not a per-SCHEMA embedding model, and not vectorization of STEP or SCHEMA nodes. v1 is local Ollama only; HTTP STEPs cannot call it (D7). Do not allowlist Ollama (`:11434`).
+The default embedder is a local Ollama. A space can instead use a Gemini-compatible `embedContent` host (Google's API, or another https server that speaks the same call). This is not a document-chunk RAG engine, not a per-SCHEMA embedding model, and not vectorization of STEP or SCHEMA nodes. HTTP STEPs cannot call the embedder (D7). Do not allowlist Ollama (`:11434`).
 
 **How a record becomes a vector.** A SCHEMA opts in with `is_vectorized`. Each property opts into the embedded text with `is_embedded`; with nothing marked, the display-label property is used. Embedding every field of every type is the fastest way to make similarity results look random, so ids, emails, and tax IDs usually stay off. The engine serializes the included keys as `KEY: value` lines in schema order, truncates over-long text (one vector per record — no summarization, no chunk nodes), and writes the result onto reserved graph properties `embedding` and `embedding_stale`. Authors cannot declare those keys on a SCHEMA; `embedding` is stripped from default viz / `RETURN *`.
 
 Because every data node is `:INSTANCE` and every data edge is `:POINTS_TO`, a space gets **one** node vector index and **one** relationship vector index. That forces a single embedding model (and therefore a single dimension) per space. Relationship statements match `(:INSTANCE)-[:POINTS_TO]->(:INSTANCE)` only, so STEP and SCHEMA pattern edges are never indexed.
 
-**Turn it on.** Need Neo4j 2025.01+ (or 5.18+ on leftover 5.x) for vector indexes, and a dedicated embedding model in a local Ollama — a chat model fails the health check:
+**Turn it on.** Need Neo4j 2025.01+ (or 5.18+ on leftover 5.x) for vector indexes, and a dedicated embedding model — a chat model fails the health check.
+
+Local Ollama:
 
 ```bash
 ollama pull nomic-embed-text
 ```
 
-Then either set instance-wide defaults in `.env` (`PONA_FLOW_OLLAMA_URL`, `PONA_FLOW_OLLAMA_EMBED_MODEL`) and restart, or open **Space → Embeddings**, enable the feature, set the URL (`http://127.0.0.1:11434`) and the exact model name from `ollama list`, and Save. Saving probes the model and stores its vector width. A space that has never saved Embeddings settings inherits the env, so naming a model there enables vector search instance-wide. The URL is loopback-only unless `PONA_FLOW_OLLAMA_ALLOWED_HOSTS` lists another host.
+Then either set instance-wide defaults in `.env` (`PONA_FLOW_OLLAMA_URL`, `PONA_FLOW_OLLAMA_EMBED_MODEL`) and restart, or open **Space → Embeddings**, choose **Local (Ollama)**, enable the feature, set the URL (`http://127.0.0.1:11434`) and the exact model name from `ollama list`, and Save. Saving probes the model and stores its vector width. A space that has never saved Embeddings settings inherits the env, so naming a model there enables vector search instance-wide. The URL is loopback-only unless `PONA_FLOW_OLLAMA_ALLOWED_HOSTS` lists another host.
 
-Changing the model later drops the indexes and clears stored vectors (they are not comparable across models) — reindex after. Turning the space toggle **off** is destructive to stored vectors, not to SCHEMA opt-in flags.
+Cloud (Gemini-compatible): choose **Cloud (Gemini-compatible)** in **Space → Embeddings**, name a model such as `gemini-embedding-2`, and pick a space credential that holds the API key. The key is not saved in the embedding settings. Leave the API root blank to use `https://generativelanguage.googleapis.com/v1beta`. Another host must be https and public, unless `PONA_FLOW_EMBED_ALLOWED_HOSTS` names it (an allowlisted host may be private). Record text and search queries are sent to that host. `gemini-embedding-2` gets the retrieval task written into the text; older models such as `gemini-embedding-001` get `taskType` `RETRIEVAL_DOCUMENT` on reindex and `RETRIEVAL_QUERY` on search. Instance-wide cloud, used only until a space saves its own settings, is `PONA_FLOW_EMBED_PROVIDER=gemini`, `PONA_FLOW_EMBED_MODEL`, and `PONA_FLOW_EMBED_API_KEY`.
 
-**Writes vs reindex.** Create/update does not embed inline. A new record has no vector yet; an update of an already-indexed type sets `embedding_stale`. Graph writes never fail because Ollama is down: the write succeeds and the record waits. **Space → Embeddings → Reindex space** (or the periodic sweep, `PONA_FLOW_EMBEDDING_REINDEX_SECONDS`, default 300; `0` is button-only) walks `is_vectorized` types, calls Ollama, and `SET`s the vector. Changing a SCHEMA’s `is_embedded` include list or `is_vectorized` itself marks matching records stale so the next reindex refills them.
+Changing the model, the provider, or the cloud API root later drops the indexes and clears stored vectors (they are not comparable across models) — reindex after. Changing only the Ollama URL, or only which credential holds the key, does not. Turning the space toggle **off** is destructive to stored vectors, not to SCHEMA opt-in flags.
+
+**Writes vs reindex.** Create/update does not embed inline. A new record has no vector yet; an update of an already-indexed type sets `embedding_stale`. Graph writes never fail because the embedder is down: the write succeeds and the record waits. **Space → Embeddings → Reindex space** (or the periodic sweep, `PONA_FLOW_EMBEDDING_REINDEX_SECONDS`, default 300; `0` is button-only) walks `is_vectorized` types, calls the embedder, and `SET`s the vector. Changing a SCHEMA’s `is_embedded` include list or `is_vectorized` itself marks matching records stale so the next reindex refills them.
 
 **Search from a read.** In the QUERY builder, a **read INSTANCE** can flip `vector_search` on. That replaces the MATCH with `CALL db.index.vector.queryNodes(...)`, filters on the selected `attributive_label` (unless **Search all types** is on), and returns the node plus a `score`. Scope is a single INSTANCE node with no hops, and (unless searching all types) a literal `attributive_label` whose SCHEMA is `is_vectorized`. Per-node WHERE still applies *after* the index returns candidates, so a tight filter can return fewer than `k` rows. The builder hides RETURN projections, DISTINCT, ORDER BY, and SKIP/LIMIT while the toggle is on — `k` is the limit and score is the order.
 
@@ -233,7 +240,7 @@ Two author-facing inputs:
 
 Author-named parameters are what let two vector searches coexist in one sequence — under the reserved names they would both read the same `vector_query_text`. Once either field is parameterized the builder **Run** button hides (there is no value until a sequence supplies one); save the operation and drive it from a sequence.
 
-The engine fills `$vector_query` (the embedding), `$vector_index`, and `$vector_overfetch` immediately before Cypher runs. Those names are reserved; they are never sent by the client. Ollama is reached only from `Engine/server/embeddings.py`. If Ollama is down at query time, search fails (503) — writes can degrade to stale; a similarity query cannot.
+The engine fills `$vector_query` (the embedding), `$vector_index`, and `$vector_overfetch` immediately before Cypher runs. Those names are reserved; they are never sent by the client. The embedder is reached only from `Engine/server/embeddings.py`. If it is down at query time, search fails (503) — writes can degrade to stale; a similarity query cannot.
 
 **Search all types** drops the label filter and can return a mix of vectorized types. A broad search names no SCHEMA in its Cypher, so SCHEMA-delete blast radius and template export will not treat it as bound to one type. Prefer a concrete `attributive_label`; mixed-type cosine across `CUSTOMER` and `NOTE` in the shared index is usually noise.
 

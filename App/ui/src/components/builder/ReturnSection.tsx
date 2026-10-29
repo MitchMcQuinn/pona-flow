@@ -54,7 +54,7 @@ export function ReturnSection() {
   const { state, patchQuery } = useBuilder();
   const ret = state.query.return ?? { distinct: false, items: [] };
   const op = state.query.operation;
-  const label = state.query.match[0]?.label;
+  const label = state.query.match?.[0]?.label;
   const distinctInAdvanced = op === "read";
 
   // INSTANCE read/update use the schema-bound projection card; other flows keep

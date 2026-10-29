@@ -1684,17 +1684,11 @@
   top: 8px;
   bottom: 8px;
   left: 50%;
-  width: 3px;
+  width: var(--handle-width);
   transform: translateX(-50%);
-  border-radius: 2px;
+  border-radius: 0;
   background: var(--mesh);
   box-shadow: var(--mesh-glow);
-  transition: width 0.15s;
-}
-
-.matchSplitHandle:hover::after,
-body.matchResizing .matchSplitHandle::after {
-  width: 4px;
 }
 
 body.matchResizing {

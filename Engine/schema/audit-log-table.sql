@@ -6,15 +6,20 @@
 --   sequence_ids -> ["ID_...", ...]  sequence query ids included in this run
 --   event_id     -> the firing event's id, or NULL for a manual run
 --   trigger      -> 'manual' | 'event' | 'recovery' | 'webhook' | 'mcp' | 'code' | 'external' | 'simulated'
---   principal_id -> the principal that executed the run (user or agent), or NULL
---                   for event/recovery runs fired by the scheduler (no principal)
---   detail       -> optional JSON context (never parameters, outputs, or secrets).
---                   Historical rows may still use trigger 'code' from archived
---                   code-execution STEPs (see Docs/code-execution/).
+--   principal_id  -> the principal that executed the run (user or agent), or NULL
+--                    for event/recovery runs fired by the scheduler (no principal)
+--   parameter_map -> JSON object of the run's resolved parameter map (caller
+--                    inputs, sequence bindings, and values steps published).
+--                    Credential-store secrets are not included: they are resolved
+--                    only for the outbound call and never merged into this map.
+--                    NULL on rows written before this column existed.
+--   detail        -> optional JSON context (never parameters, outputs, or secrets).
+--                    Historical rows may still use trigger 'code' from archived
+--                    code-execution STEPs (see Docs/code-execution/).
 --
 -- NOTE: existing databases created with the old CHECK lists are rebuilt at
 -- startup by Engine/server/migrations.py (_ensure_audit_log_trigger_check);
--- the detail column is added there too (_ensure_audit_log_detail_column).
+-- the detail and parameter_map columns are added there too.
 
 CREATE TABLE IF NOT EXISTS audit_log (
     id TEXT PRIMARY KEY NOT NULL,
@@ -24,7 +29,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
     event_id TEXT,
     trigger TEXT NOT NULL DEFAULT 'manual' CHECK (trigger IN ('manual', 'event', 'recovery', 'webhook', 'mcp', 'code', 'external', 'simulated')),
     principal_id TEXT,
-    detail TEXT
+    detail TEXT,
+    parameter_map TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_run_at ON audit_log (run_at);

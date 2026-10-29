@@ -9,6 +9,7 @@ import type {
   SequenceSummary,
   SimulationPackage
 } from "../../state/types";
+import { confirmDialog } from "../modals/confirmDialog";
 import { deleteEvent, fetchEvent, generateId, saveEvent } from "../../services/api";
 import { EventTestListener } from "./EventTestListener";
 import { SimulationSessions } from "./SimulationSessions";
@@ -34,6 +35,18 @@ const EVENT_TYPE_TIPS: Record<EventType, string> = {
   simulated: "Advances one tic at a time. Each due probability picks a weighted outcome and can run a sequence."
 };
 
+export interface EventPreviewDocument {
+  name?: string;
+  enabled?: boolean;
+  event_type?: EventType;
+  type?: EventType;
+  combinator?: Combinator;
+  timezone?: string;
+  groups?: EventRuleGroup[];
+  sequences?: string[];
+  recovery_sequences?: string[];
+}
+
 interface EventBuilderProps {
   spaceId: string | null;
   /** All nav sequences; only kind === "sequence" rows are selectable targets. */
@@ -44,6 +57,13 @@ interface EventBuilderProps {
   defaultTimezone: string | null;
   onSaved: (eventId: string) => void;
   onDeleted: () => void;
+  /** True while a saved simulation's settings are open. */
+  onEditingChange?: (editing: boolean) => void;
+  consoles: { id: string; name: string }[];
+  /** Bumps when the nav edit icon should open this event's settings. */
+  editNonce?: number;
+  /** Hydrate a proposed event and hide save and delete. */
+  preview?: EventPreviewDocument | null;
 }
 
 function emptyGroup(): EventRuleGroup {
@@ -107,7 +127,11 @@ export function EventBuilder({
   eventId,
   defaultTimezone,
   onSaved,
-  onDeleted
+  onDeleted,
+  onEditingChange,
+  consoles,
+  editNonce = 0,
+  preview = null
 }: EventBuilderProps) {
   const newEventTimezone = defaultTimezone || browserTimeZone();
 
@@ -133,7 +157,9 @@ export function EventBuilder({
   const [loading, setLoading] = useState(Boolean(eventId));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(() => editNonce > 0);
+  const appliedEdit = useRef<number | null>(null);
+  const seenEventId = useRef<string | null>(null);
   const [simView, setSimView] = useState<"endpoints" | "sessions">("sessions");
 
   // Rule values are authored directly in this zone, so no conversion is needed here.
@@ -150,8 +176,26 @@ export function EventBuilder({
   }, [timezone]);
 
   useEffect(() => {
-    setSettingsOpen(false);
+    if (!preview) return;
+    setLoading(false);
+    setError(null);
+    if (preview.name != null) setName(preview.name);
+    if (typeof preview.enabled === "boolean") setEnabled(preview.enabled);
+    const kind = preview.event_type ?? preview.type;
+    if (kind === "time" || kind === "external" || kind === "simulated") setEventType(kind);
+    if (preview.combinator === "AND" || preview.combinator === "OR") setCombinator(preview.combinator);
+    if (preview.timezone) setTimezone(preview.timezone);
+    if (Array.isArray(preview.groups) && preview.groups.length) {
+      setGroups(preview.groups);
+      setScheduleEpoch((epoch) => epoch + 1);
+    }
+    if (Array.isArray(preview.sequences)) setSelectedSequences(preview.sequences);
+    if (Array.isArray(preview.recovery_sequences)) setSelectedRecovery(preview.recovery_sequences);
+  }, [preview]);
+
+  useEffect(() => {
     setSimView("sessions");
+    if (preview) return;
     if (!eventId) {
       setName("");
       setEnabled(true);
@@ -213,7 +257,29 @@ export function EventBuilder({
     return () => {
       cancelled = true;
     };
-  }, [eventId]);
+  }, [eventId, preview]);
+
+  // Open settings when the nav edit icon requests it, including when this
+  // event is already on screen. A plain selection of a different event closes them.
+  useEffect(() => {
+    if (appliedEdit.current !== editNonce) {
+      appliedEdit.current = editNonce;
+      seenEventId.current = eventId;
+      setSettingsOpen(editNonce > 0);
+      return;
+    }
+    if (seenEventId.current !== eventId) {
+      seenEventId.current = eventId;
+      setSettingsOpen(false);
+    }
+  }, [eventId, editNonce]);
+
+  const editingSettings =
+    eventType === "simulated" && Boolean(eventId) && !loading && settingsOpen;
+  useEffect(() => {
+    onEditingChange?.(editingSettings);
+    return () => onEditingChange?.(false);
+  }, [editingSettings, onEditingChange]);
 
   function updateFilter(index: number, patch: Partial<ExternalFilter>) {
     setFilters((current) =>
@@ -284,7 +350,7 @@ export function EventBuilder({
 
   async function handleDelete() {
     if (!eventId) return;
-    if (!window.confirm(`Delete event "${name || eventId}"?`)) return;
+    if (!(await confirmDialog(`Delete event "${name || eventId}"?`))) return;
     setBusy(true);
     setError(null);
     try {
@@ -300,7 +366,7 @@ export function EventBuilder({
   const savedSimulation = eventType === "simulated" && Boolean(eventId) && !loading;
 
   const typePicker = (
-    <div className="eventTypeRow">
+    <div className="eventTypeRow" data-pin-target="event_type">
       <SegmentToggle
         ariaLabel="trigger type"
         testId="event-type-toggle"
@@ -351,6 +417,7 @@ export function EventBuilder({
         ref={simFieldsRef}
         initial={simulation}
         sequences={sequenceOptions}
+        consoles={consoles}
         onChange={(next) =>
           setSimulation((current) => ({ ...next, token: next.token || current.token }))
         }
@@ -358,7 +425,7 @@ export function EventBuilder({
     ) : null;
 
   return (
-    <div className="panel configPanel eventBuilder">
+    <div className={preview ? "panel configPanel eventBuilder previewLocked" : "panel configPanel eventBuilder"}>
       <div className="panel__body">
         <div className="eventHeader">
           {eventId && !loading ? (
@@ -373,6 +440,7 @@ export function EventBuilder({
                 id="event-name"
                 className="builderPropertyNameInput"
                 aria-label="event name"
+                data-pin-target="name"
                 value={name}
                 placeholder="Enter an event name"
                 onChange={(e) => setName(e.target.value)}
@@ -381,17 +449,26 @@ export function EventBuilder({
           ) : eventId ? null : (
             <h1>create an event</h1>
           )}
-          {savedSimulation ? (
+          {savedSimulation && settingsOpen ? (
             <button
               type="button"
-              className={`eventSettingsGear${settingsOpen ? " is-open" : ""}`}
-              aria-pressed={settingsOpen}
+              className="eventDoneEditing panelTextButton"
+              data-testid="event-done-editing"
+              onClick={() => setSettingsOpen(false)}
+            >
+              done editing
+            </button>
+          ) : savedSimulation ? (
+            <button
+              type="button"
+              className="eventSettingsGear"
+              aria-pressed={false}
               aria-label="event settings"
               data-testid="event-settings-toggle"
-              onClick={() => setSettingsOpen((open) => !open)}
+              onClick={() => setSettingsOpen(true)}
             >
-              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z" />
+              <svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
+                <path d="M21.731 2.269a2.625 2.625 0 0 0-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 0 0 0-3.712ZM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 0 0-1.32 2.214l-.8 2.685a.75.75 0 0 0 .933.933l2.685-.8a5.25 5.25 0 0 0 2.214-1.32L19.513 8.2Z" />
               </svg>
             </button>
           ) : null}
@@ -425,6 +502,7 @@ export function EventBuilder({
               id="event-name"
               className="builderPropertyNameInput"
               aria-label="event name"
+              data-pin-target="name"
               value={name}
               placeholder="Enter an event name"
               onChange={(e) => setName(e.target.value)}
@@ -647,12 +725,18 @@ export function EventBuilder({
         {savedSimulation ? (
           <div className="eventExternal eventSection eventSettingsFields" hidden={!settingsOpen}>
             {simulationEditor}
-            <div className="buttonRow eventSettingsActions">{saveAndDelete}</div>
+            {preview ? null : <div className="buttonRow eventSettingsActions">{saveAndDelete}</div>}
           </div>
         ) : eventType === "simulated" && !loading ? (
           <div className="eventExternal eventSection">
             {simulationEditor}
-            <SimulationSessions eventId={eventId} token={simulation.token || ""} />
+            <SimulationSessions
+              eventId={eventId}
+              token={simulation.token || ""}
+              spaceId={spaceId}
+              consoleId={simulation.console_id || ""}
+              sequences={sequences}
+            />
           </div>
         ) : null}
 
@@ -673,6 +757,9 @@ export function EventBuilder({
                 view={simView}
                 eventId={eventId}
                 token={simulation.token || ""}
+                spaceId={spaceId}
+                consoleId={simulation.console_id || ""}
+                sequences={sequences}
               />
             </div>
           </div>
@@ -740,7 +827,7 @@ export function EventBuilder({
 
         {error ? <p className="errorText">{error}</p> : null}
 
-        {savedSimulation ? null : <div className="buttonRow">{saveAndDelete}</div>}
+        {preview || savedSimulation ? null : <div className="buttonRow">{saveAndDelete}</div>}
       </div>
     </div>
   );

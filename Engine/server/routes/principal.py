@@ -36,6 +36,7 @@ def whoami(principal: Principal = Depends(auth.current_principal)):
         "onboarding_tour_seen": rbac.onboarding_tour_seen_for(
             principal.principal_type, principal.user_id
         ),
+        "workbench_mode": rbac.get_workbench_mode(principal.user_id),
     }
 
 
@@ -56,19 +57,33 @@ async def update_my_onboarding(
 async def update_my_settings(
     request: Request, principal: Principal = Depends(auth.current_principal)
 ):
-    """Update the signed-in principal's own settings (currently: preferred timezone)."""
+    """Update the signed-in principal's own settings (timezone and workbench mode)."""
     body = await json_body(request)
-    tz_raw = body.get("timezone")
-    if tz_raw is not None and not isinstance(tz_raw, str):
-        raise bad_request("timezone must be a string or null")
-    tz = (tz_raw or "").strip() or None
-    if tz is not None and not is_valid_timezone(tz):
-        raise bad_request("Unknown timezone")
+    result: dict = {"id": principal.user_id}
     try:
-        return rbac.set_user_timezone(principal.user_id, tz)
+        if "timezone" in body:
+            tz_raw = body.get("timezone")
+            if tz_raw is not None and not isinstance(tz_raw, str):
+                raise bad_request("timezone must be a string or null")
+            tz = (tz_raw or "").strip() or None
+            if tz is not None and not is_valid_timezone(tz):
+                raise bad_request("Unknown timezone")
+            result.update(rbac.set_user_timezone(principal.user_id, tz))
+        if "workbench_mode" in body:
+            mode = body.get("workbench_mode")
+            if mode not in ("chat", "classic"):
+                raise bad_request("workbench_mode must be chat or classic")
+            result.update(rbac.set_workbench_mode(principal.user_id, mode))
+    except HTTPException:
+        raise
     except Exception as e:
         sys.stderr.write(f"me-settings error: {e}\n")
         raise HTTPException(500, str(e))
+    if "timezone" not in result:
+        result["timezone"] = principal.timezone
+    if "workbench_mode" not in result:
+        result["workbench_mode"] = rbac.get_workbench_mode(principal.user_id)
+    return result
 
 
 @router.get("/api/principals")

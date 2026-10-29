@@ -394,6 +394,7 @@ function CreateSequenceFields({
   description,
   onDescription,
   onGroupTitle,
+  onGroupValid,
   existingGroups,
   disabled,
   nameValid,
@@ -409,6 +410,7 @@ function CreateSequenceFields({
   description: string;
   onDescription: (value: string) => void;
   onGroupTitle: (value: string) => void;
+  onGroupValid: (valid: boolean) => void;
   existingGroups: string[];
   disabled: boolean;
   nameValid: boolean;
@@ -425,10 +427,16 @@ function CreateSequenceFields({
   const [newGroupTitle, setNewGroupTitle] = useState("");
   const isNewGroup = groupChoice === CREATE_NEW_GROUP;
 
-  // Mirror the resolved group title up to the builder body for validation/save.
+  // An empty choice is a real ungrouped sequence. A blank "new group" title is not.
   useEffect(() => {
-    onGroupTitle(isNewGroup ? newGroupTitle : groupChoice);
-  }, [isNewGroup, newGroupTitle, groupChoice, onGroupTitle]);
+    if (isNewGroup) {
+      onGroupTitle(newGroupTitle);
+      onGroupValid(newGroupTitle.trim().length > 0);
+      return;
+    }
+    onGroupTitle(groupChoice);
+    onGroupValid(true);
+  }, [isNewGroup, newGroupTitle, groupChoice, onGroupTitle, onGroupValid]);
 
   return (
     <section className="builderBlock createSequenceFields">
@@ -497,9 +505,12 @@ function CreateSequenceFields({
           ) : (
             <Picker
               value={groupChoice}
-              placeholder="Please select"
+              placeholder="No group"
               disabled={disabled}
-              options={existingGroups.map((group) => ({ value: group, label: group }))}
+              options={[
+                { value: "", label: "No group" },
+                ...existingGroups.map((group) => ({ value: group, label: group }))
+              ]}
               createLabel="+ New group title"
               onCreate={() => setGroupChoice(CREATE_NEW_GROUP)}
               onSelect={(value) => setGroupChoice(value)}
@@ -643,7 +654,8 @@ function BuilderBody({
   seed,
   onSeedConsumed,
   onEditOperationActiveChange,
-  exitEditOperationRequest
+  exitEditOperationRequest,
+  preview
 }: {
   onResult?: (result: RunResult) => void;
   onSequenceCreated?: (sequenceId: string) => void;
@@ -652,6 +664,7 @@ function BuilderBody({
   onSeedConsumed?: () => void;
   onEditOperationActiveChange?: (active: boolean) => void;
   exitEditOperationRequest?: number;
+  preview?: { query: QueryObject; name?: string; description?: string } | null;
 }) {
   const { state, dispatch, createSequenceMode, patchQuery } = useBuilder();
   const { showToast } = useToast();
@@ -748,7 +761,7 @@ function BuilderBody({
   // wrap is still allowed — the title saves and the wrap stays put.
   const sequenceNameTaken =
     sequenceNameValid && takenSequenceNames.has(sequenceName.trim().toLowerCase());
-  const sequenceGroupValid = sequenceGroupTitle.trim().length > 0;
+  const [sequenceGroupValid, setSequenceGroupValid] = useState(true);
 
   const takenCatalogNames = useMemo(
     () =>
@@ -1121,8 +1134,30 @@ function BuilderBody({
     };
   }, [state.spaceId, dispatch]);
 
+  useEffect(() => {
+    if (!preview) return;
+    if (preview.name) setSequenceName(preview.name);
+    if (preview.description) setSequenceDescription(preview.description);
+    if (createSequenceMode) {
+      dispatch({
+        type: "ENTER_EDIT_SEQUENCE",
+        queryId: "preview",
+        query: preview.query,
+        runtimeEnabled: true
+      });
+      return;
+    }
+    dispatch({
+      type: "ENTER_EDIT_OPERATION",
+      queryId: "preview",
+      query: preview.query,
+      runtimeEnabled: true,
+      originalName: preview.name
+    });
+  }, [preview, createSequenceMode, dispatch]);
+
   return (
-    <div className={["builderRoot", ...issueClasses].join(" ")}>
+    <div className={["builderRoot", preview ? "previewLocked" : "", ...issueClasses].filter(Boolean).join(" ")}>
       <fieldset className="builderFormFieldset">
         <div className="builderHeadRow">
           <h1 className="builderPanelTitle">
@@ -1152,6 +1187,7 @@ function BuilderBody({
             description={sequenceDescription}
             onDescription={setSequenceDescription}
             onGroupTitle={setSequenceGroupTitle}
+            onGroupValid={setSequenceGroupValid}
             existingGroups={state.spaceGroups}
             disabled={false}
             nameValid={sequenceNameValid}
@@ -1178,6 +1214,7 @@ function BuilderBody({
               value={state.query.name}
               placeholder="Step name"
               data-testid="builder-operation-name"
+              data-pin-target={state.query.name}
               onChange={(e) =>
                 dispatch({ type: "SET_NAME", name: sanitizeAttributiveLabelInput(e.target.value) })
               }
@@ -1241,7 +1278,7 @@ function BuilderBody({
         ) : null}
       </fieldset>
 
-      {createSequenceMode ? (
+      {preview ? null : createSequenceMode ? (
         <CreateSequenceActions
           name={sequenceName}
           groupTitle={sequenceGroupTitle}
@@ -1283,7 +1320,8 @@ export function BuilderPanel({
   onSeedConsumed,
   onEditOperationActiveChange,
   exitEditOperationRequest,
-  flows = null
+  flows = null,
+  preview = null
 }: {
   spaceId: string | null;
   onResult?: (result: RunResult) => void;
@@ -1295,6 +1333,7 @@ export function BuilderPanel({
   onEditOperationActiveChange?: (active: boolean) => void;
   exitEditOperationRequest?: number;
   flows?: string[] | null;
+  preview?: { query: QueryObject; name?: string; description?: string } | null;
 }) {
   return (
     <BuilderProvider
@@ -1311,6 +1350,7 @@ export function BuilderPanel({
         onSeedConsumed={onSeedConsumed}
         onEditOperationActiveChange={onEditOperationActiveChange}
         exitEditOperationRequest={exitEditOperationRequest}
+        preview={preview}
       />
     </BuilderProvider>
   );

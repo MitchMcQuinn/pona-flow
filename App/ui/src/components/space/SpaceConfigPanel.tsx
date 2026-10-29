@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   fetchSpaceRecord,
   type CreateSpaceInput
@@ -9,16 +9,19 @@ import {
   normalizeSpaceName,
   sanitizeSpaceNameInput
 } from "../../utils/spaceName";
+import { ChatModelSettings } from "./ChatModelSettings";
 import { AgentsPanel } from "../agents/AgentsPanel";
 import { Toggle } from "../builder/Toggle";
 import { CredentialsPanel } from "../credentials/CredentialsPanel";
 import { EmbeddingsPanel } from "../embeddings/EmbeddingsPanel";
 import { TemplatesPanel } from "../templates/TemplatesPanel";
 import { UsersPanel } from "../users/UsersPanel";
+import { AuditParameterMap } from "./AuditParameterMap";
 import "../builder/builder.css";
 
 type SpaceConfigTab =
   | "settings"
+  | "chat"
   | "users"
   | "agents"
   | "credentials"
@@ -78,7 +81,10 @@ function AuditLogSection({
           {loading ? "Loading..." : "Refresh"}
         </button>
       </div>
-      <p className="muted">Read-only record of every sequence run in this space.</p>
+      <p className="muted">
+        Read-only record of every sequence run in this space, including the parameter map
+        collected during the run.
+      </p>
       {error ? <p className="errorText">{error}</p> : null}
       {!loading && !error && entries.length === 0 ? (
         <p className="muted">No sequence runs recorded yet.</p>
@@ -96,17 +102,24 @@ function AuditLogSection({
           </thead>
           <tbody>
             {entries.map((entry) => (
-              <tr key={entry.id}>
-                <td>{entry.runAt}</td>
-                <td>{entry.trigger}</td>
-                <td>
-                  {entry.sequenceIds.length === 0
-                    ? "-"
-                    : entry.sequenceIds.map((id) => sequenceLabels.get(id) ?? id).join(", ")}
-                </td>
-                <td>{entry.eventId ? eventLabels.get(entry.eventId) ?? entry.eventId : "-"}</td>
-                <td>{entry.principalEmail ?? entry.principalId ?? "-"}</td>
-              </tr>
+              <Fragment key={entry.id}>
+                <tr>
+                  <td>{entry.runAt}</td>
+                  <td>{entry.trigger}</td>
+                  <td>
+                    {entry.sequenceIds.length === 0
+                      ? "-"
+                      : entry.sequenceIds.map((id) => sequenceLabels.get(id) ?? id).join(", ")}
+                  </td>
+                  <td>{entry.eventId ? eventLabels.get(entry.eventId) ?? entry.eventId : "-"}</td>
+                  <td>{entry.principalEmail ?? entry.principalId ?? "-"}</td>
+                </tr>
+                <tr className="auditParamRow">
+                  <td colSpan={5}>
+                    <AuditParameterMap map={entry.parameterMap} />
+                  </td>
+                </tr>
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -244,6 +257,16 @@ export function SpaceConfigPanel({
           >
             Settings
           </button>
+          {canManageSpace ? (
+            <button
+              type="button"
+              className={tab === "chat" ? "active" : undefined}
+              data-testid="space-tab-chat"
+              onClick={() => setTab("chat")}
+            >
+              Chat
+            </button>
+          ) : null}
           {canManageSpace ? (
             <button
               type="button"
@@ -394,6 +417,8 @@ export function SpaceConfigPanel({
             </div>
           </div>
         ) : null}
+
+        {tab === "chat" && canManageSpace && spaceId ? <ChatModelSettings spaceId={spaceId} /> : null}
 
         {tab === "users" && canManageSpace ? (
           <UsersPanel

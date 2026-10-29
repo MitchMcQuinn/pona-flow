@@ -119,6 +119,8 @@ def fake_execute_step(space_id: str, step_row: dict, resolved: dict) -> dict:
     kind = str(step_row.get("kind") or "").strip()
     if kind == "wait":
         return _original_execute(space_id, step_row, resolved)
+    if step_id == "BOOM":
+        raise RuntimeError("Cannot delete node, because it still has relationships.")
     observed.append(step_id)
     if cancel_after and step_id == cancel_after and current_state_id:
         catalog.request_state_cancel(current_state_id)
@@ -315,6 +317,24 @@ try:
     cancel_after = None
     check("cooperative cancel ends between steps", result.get("status") == "cancelled")
     check("the later step did not run", observed == ["A"])
+
+    boom, boom_sid = run(pkg([query_step("BOOM")]))
+    check(
+        "a step that raises ends the run as an error",
+        boom.get("status") == "error" and "relationships" in str(boom.get("message") or ""),
+    )
+    check(
+        "a raised step is not left active",
+        (catalog.fetch_state_package(boom_sid) or {}).get("status") == "inactive",
+    )
+
+    orphan = catalog.insert_state_package(pkg([query_step("Z")]), status="active", run_start_date=None)
+    orphan_stop = execution.stop_execution("SP_TEST", orphan)
+    check("stop on a dead active run is cancelled", orphan_stop.get("status") == "cancelled")
+    check(
+        "dead active row is cancelled",
+        (catalog.fetch_state_package(orphan) or {}).get("status") == "cancelled",
+    )
 
     seq_stop = execution.stop_execution("SP_TEST", sequence_id="SEQ_WAIT")
     check("stop by sequence_id returns a status", seq_stop.get("status") in ("cancelled", "cancelling", "inactive"))

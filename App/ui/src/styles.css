@@ -21,8 +21,11 @@
   --shadow-in-sm: none;
   --edge-hi: none;
 
-  /* Colorful mesh-gradient accents — reserved for active/interactive emphasis. */
+  /* Colorful mesh-gradient accents — reserved for active/interactive emphasis.
+     Borders and rails use the diagonal. Solid buttons use a mesh of the same
+     stops, and a 45° linear gradient where mesh gradients are not supported. */
   --mesh: linear-gradient(135deg, #6366f1 0%, #8b5cf6 28%, #d946ef 55%, #06b6d4 100%);
+  --mesh-fill: linear-gradient(45deg, #6366f1 0%, #8b5cf6 28%, #d946ef 55%, #06b6d4 100%);
   --mesh-soft:
     radial-gradient(120% 160% at 0% 0%, rgba(99, 102, 241, 0.5), transparent 55%),
     radial-gradient(140% 160% at 100% 0%, rgba(217, 70, 239, 0.38), transparent 55%),
@@ -33,6 +36,8 @@
   /* Rainbow rails. Nested lines step in by the same distance as the column
      divider to the first in-pane rail, so every level has the same gap. */
   --rail-width: 2px;
+  /* Visible bar on the draggable column handles (nav, workbench, match builder). */
+  --handle-width: 6px;
   --column-divider-track: 10px;
   --column-divider-gutter: 2px;
   --rail-step: calc(
@@ -51,6 +56,14 @@
   --mesh-bg-y2: -12%;
   --mesh-bg-x3: 55%;
   --mesh-bg-y3: 118%;
+}
+
+/* One patch: indigo, violet, magenta, and cyan at the corners.
+   The test and the value match so a partial implementation keeps the linear fill. */
+@supports (background-image: mesh-gradient(#6366f1 0% 0%, #8b5cf6 100% 0%; #d946ef 0% 100%, #06b6d4 100% 100%)) {
+  :root {
+    --mesh-fill: mesh-gradient(#6366f1 0% 0%, #8b5cf6 100% 0%; #d946ef 0% 100%, #06b6d4 100% 100%);
+  }
 }
 
 /* Graph canvases stay on the previous surface. Node drawing is in graphTheme.ts. */
@@ -397,7 +410,8 @@ body.layoutResizing {
 .layoutConfigSlot > .panel.builderPanel .panel__body,
 .configPanel.builderPanel .panel__body,
 .layoutConfigSlot > .panel.eventBuilder .panel__body,
-.configPanel.eventBuilder .panel__body {
+.configPanel.eventBuilder .panel__body,
+.layoutConfigSlot > .panel.configPanel .panel__body {
   display: flex;
   flex-direction: column;
   padding-top: 48px;
@@ -426,7 +440,7 @@ body.layoutResizing {
   top: 12px;
   bottom: 12px;
   left: 50%;
-  width: var(--rail-width);
+  width: var(--handle-width);
   transform: translateX(-50%);
   border-radius: 0;
   background: var(--mesh);
@@ -477,6 +491,12 @@ body.layoutResizing {
 .layoutNavSlot > .navPanel > * {
   position: relative;
   z-index: 1;
+}
+
+/* Menus, drawers, and notifications portal into the console scroller. Keep that
+   scroller out of its own stacking context so they paint above the edge fade. */
+.layoutVizSlot > .panel.consolePanel > .consoleHost {
+  z-index: auto;
 }
 
 /* Padded scroll region — kept separate from .panel shell so flex + overflow:hidden
@@ -612,7 +632,8 @@ button:focus-visible {
 
 .btnPrimary {
   border-color: transparent;
-  background: var(--mesh);
+  background-color: transparent;
+  background-image: var(--mesh-fill);
   color: #fff;
   font-weight: 600;
   box-shadow: var(--shadow-out-sm), var(--mesh-glow);
@@ -624,7 +645,8 @@ button:focus-visible {
 }
 
 .btnPrimary:active {
-  background: var(--mesh);
+  background-color: transparent;
+  background-image: var(--mesh-fill);
   filter: brightness(0.92);
   box-shadow: var(--shadow-in-sm);
 }
@@ -647,6 +669,34 @@ button:focus-visible {
   border-color: rgba(251, 113, 133, 0.4);
   background: linear-gradient(145deg, rgba(251, 113, 133, 0.16), rgba(251, 113, 133, 0.05)), linear-gradient(145deg, var(--raise), var(--panel2));
   color: #fecdd3;
+}
+
+.panelTextButton {
+  padding: 8px 12px;
+  border-color: #fff;
+  background: transparent;
+  box-shadow: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.panelTextButton:hover {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+.panelTextButton:active {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: none;
+}
+
+.panelTextButton:focus-visible {
+  outline: none;
+  border-color: #fff;
+  box-shadow: none;
 }
 
 .buttonRow {
@@ -682,8 +732,19 @@ button:focus-visible {
   line-height: 1;
 }
 
-.navPanel [data-tour="sequences"].navSectionHeader {
-  margin-top: 54px;
+.navSection {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.navSection > p,
+.navSection > .navAddGroupForm {
+  margin: 0;
+}
+
+.navSection > .navAddGroupForm {
+  margin-bottom: 8px;
 }
 
 .navAddBtn {
@@ -771,14 +832,20 @@ button:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin: 0;
+}
+
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .navGroupTitle {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: lowercase;
-  color: var(--muted);
+  flex: 1;
+  min-width: 0;
+  margin: 0;
 }
 
 .navGroupHeader {
@@ -786,8 +853,7 @@ button:focus-visible {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 8px;
-  margin-bottom: 4px;
+  margin: 0;
   padding: 2px 2px;
   border-radius: 0;
 }
@@ -796,7 +862,7 @@ button:focus-visible {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  flex: 1;
+  width: 100%;
   min-width: 0;
   padding: 0;
   border: none;
@@ -804,6 +870,7 @@ button:focus-visible {
   box-shadow: none;
   color: inherit;
   font: inherit;
+  letter-spacing: inherit;
   text-align: left;
   cursor: pointer;
 }
@@ -816,7 +883,7 @@ button:focus-visible {
   min-width: 0;
 }
 
-.navGroupToggle .navGroupTitle {
+.navGroupTitleText {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -841,8 +908,7 @@ button:focus-visible {
 }
 
 .navGroupHeaderUngrouped {
-  margin-top: 8px;
-  margin-bottom: 4px;
+  margin: 0;
 }
 
 .navGroupHeader.dragging {
@@ -879,6 +945,14 @@ button:focus-visible {
   color: var(--muted);
   cursor: grab;
   touch-action: none;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+.navGroupHeader:hover .navGroupDragHandle,
+.navGroupHeader:focus-within .navGroupDragHandle,
+.navGroupHeader.dragging .navGroupDragHandle {
+  opacity: 1;
 }
 
 .navGroupDragHandle:hover {
@@ -905,25 +979,40 @@ button:focus-visible {
 }
 
 
-.navAddGroupBtn {
-  margin-top: 10px;
-  width: 100%;
-  padding: 6px 8px;
+.navAddGroupIcon,
+.navAddGroupIcon:hover,
+.navAddGroupIcon:active,
+.navAddGroupIcon:focus-visible {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   border: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  color: var(--muted);
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 
-.navAddGroupBtn:hover {
-  color: var(--text);
+.navAddGroupIcon {
+  color: #8a8d96;
+}
+
+.navAddGroupIcon:hover,
+.navAddGroupIcon:focus-visible {
+  color: #fff;
+}
+
+.navAddGroupIcon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .navAddGroupForm {
-  margin-top: 10px;
+  margin: 0 0 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -941,8 +1030,12 @@ button:focus-visible {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   min-width: 0;
+}
+
+.sequenceListDropSlot {
+  min-height: 28px;
 }
 
 .sequenceItem {
@@ -1027,6 +1120,14 @@ button:focus-visible {
   color: var(--muted);
   cursor: grab;
   touch-action: none;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+.sequenceItem:hover .sequenceDragHandle,
+.sequenceItem:focus-within .sequenceDragHandle,
+.sequenceItem.dragging .sequenceDragHandle {
+  opacity: 1;
 }
 
 .sequenceDragHandle:hover {
@@ -1399,6 +1500,53 @@ table {
   color: var(--text);
 }
 
+.auditLogTable tr.auditParamRow td {
+  padding-top: 0;
+}
+
+.auditParamMap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  max-height: 180px;
+  overflow: auto;
+}
+
+.auditParamMapLabel {
+  font-size: 11px;
+  text-transform: lowercase;
+  color: var(--muted);
+}
+
+.auditParamMap dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.auditParamMap dl > div {
+  display: grid;
+  grid-template-columns: minmax(80px, 30%) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.auditParamMap dt,
+.auditParamMap dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.auditParamMap dt {
+  color: var(--muted);
+}
+
 th,
 td {
   border-bottom: none;
@@ -1471,11 +1619,15 @@ td {
 }
 
 /* Soft edge so scrolling titles fade out instead of clipping hard.
-   The workbench and create-sequence form share builderPanel. Event forms use
-   the same overlay. The nav fade sits in the list's grid cell, above the
-   scroller and short of the pinned account footer. */
+   The workbench, event and sequence forms, parameters, space settings, the
+   map, and the console share this overlay. The nav fade sits in the list's
+   grid cell, above the scroller and short of the pinned account footer.
+   A console embedded in an event session is not a column, so it is left out. */
 .configPanel.builderPanel::after,
-.configPanel.eventBuilder::after {
+.configPanel.eventBuilder::after,
+.layoutConfigSlot > .panel.configPanel::after,
+.layoutVizSlot > .panel.vizPanel::after,
+.layoutVizSlot > .panel.consolePanel::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1534,6 +1686,11 @@ td {
 .layoutVizSlot .vizPanel .panel__body {
   display: flex;
   flex-direction: column;
+  padding-top: 48px;
+  padding-bottom: 48px;
+}
+
+.layoutVizSlot > .panel.consolePanel > .consoleHost {
   padding-top: 48px;
   padding-bottom: 48px;
 }
@@ -1998,6 +2155,11 @@ td {
   gap: 8px;
 }
 
+/* Keep the Save / Check / Reindex row clear of the last form field. */
+.embeddingsPanel .embeddingsPanelFields {
+  padding-bottom: 16px;
+}
+
 .spaceConfigPanel .auditLogTable {
   font-size: 12px;
 }
@@ -2377,10 +2539,21 @@ td {
     height: 18px;
   }
 
-  .navAddBtn {
+  .navAddBtn,
+  .navAddGroupIcon,
+  .navAddGroupIcon:hover,
+  .navAddGroupIcon:active {
     width: 40px;
     height: 40px;
+  }
+
+  .navAddBtn {
     font-size: 22px;
+  }
+
+  .navAddGroupIcon svg {
+    width: 18px;
+    height: 18px;
   }
 
   .navReorderToggle {
@@ -2402,9 +2575,8 @@ td {
     min-height: 44px;
   }
 
-  .navAddGroupBtn {
-    min-height: 44px;
-    font-size: 14px;
+  .navAddGroupIcon {
+    min-height: 40px;
   }
 
   .navUserButton {
@@ -2563,4 +2735,412 @@ td {
 }
 .spaceTourCard p {
   margin: 4px 0 0;
+}
+
+.confirmCardBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.confirmCard {
+  width: min(360px, 100%);
+  background: #000;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  padding: 20px;
+}
+
+.confirmCard p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.confirmCardActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.confirmCardActions button {
+  min-width: 72px;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: none;
+}
+
+.confirmCardActions button:hover,
+.confirmCardActions button:focus-visible {
+  border-color: #fff;
+  background: #000;
+  box-shadow: none;
+}
+
+/* Chat mode: the nav column is the conversation, and the canvas fills the rest. */
+
+.layoutResizable.layoutChat.layoutMode-tablet .layoutNavSlot {
+  position: relative;
+  top: auto;
+  bottom: auto;
+  left: auto;
+  visibility: visible;
+  z-index: auto;
+  width: var(--chat-width);
+  transition: none;
+}
+
+.layoutMode-phone.layoutChat .layoutConfigSlot {
+  display: none !important;
+}
+
+.layoutMode-phone.layoutChat.layoutPane-workbench .layoutNavSlot {
+  display: flex;
+}
+
+.layoutNavSlot > .chatColumn,
+.layoutVizSlot > .canvasStack {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chatColumn {
+  position: relative;
+  min-width: 0;
+}
+
+.chatHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  flex-shrink: 0;
+}
+
+.chatTitle {
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.chatTranscript {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.chatMessage {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.chatMessage p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.chatMessage .markdown p,
+.canvasReasoning .markdown p,
+.agentNote .markdown p {
+  margin: 0 0 0.6em;
+  white-space: normal;
+}
+
+.markdown p:last-child,
+.markdown ul:last-child,
+.markdown ol:last-child,
+.markdown pre:last-child,
+.markdown blockquote:last-child {
+  margin-bottom: 0;
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 0 0 0.6em;
+  padding-left: 1.2em;
+}
+
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 0.2em 0 0.35em;
+  font-size: 1em;
+}
+
+.markdown pre {
+  margin: 0 0 0.6em;
+  padding: 8px;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+}
+
+.markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+}
+
+.markdown a {
+  color: #d6ccff;
+}
+
+.markdown blockquote {
+  margin: 0 0 0.6em;
+  padding-left: 8px;
+  border-left: 2px solid rgba(214, 204, 255, 0.6);
+}
+
+.chatMessage-user {
+  align-self: flex-end;
+  max-width: 90%;
+}
+
+.chatToolButton {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.chatTools,
+.chatThreadList {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+.chatBatch,
+.chatQueue {
+  margin-top: 8px;
+}
+
+.chatComposer {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  align-items: flex-end;
+}
+
+.chatComposer textarea {
+  flex: 1;
+  resize: vertical;
+  min-height: 64px;
+}
+
+.chatDrawer {
+  position: absolute;
+  z-index: 6;
+  top: 48px;
+  left: 8px;
+  right: 8px;
+  max-height: 50%;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--bg, #111);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.chatThreadList button.active {
+  font-weight: 650;
+}
+
+.canvasTabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+
+.canvasTabs button.active {
+  font-weight: 650;
+}
+
+.canvasBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.canvasProposal,
+.canvasBuilder,
+.canvasHitl {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.canvasReasoning,
+.canvasReads {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.canvasReads pre,
+.canvasLog,
+.canvasProposal pre,
+.canvasBuilder pre {
+  white-space: pre-wrap;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.canvasField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.walkthrough {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  height: 100%;
+}
+
+.walkthroughScrubber {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.walkthroughScrubber input {
+  flex: 1;
+}
+
+.walkthroughMain {
+  display: flex;
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+}
+
+.walkthroughScreen {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
+
+.walkthroughNote {
+  width: 300px;
+  flex-shrink: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agentNote {
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background:
+    linear-gradient(var(--bg), var(--bg)) padding-box,
+    var(--mesh) border-box;
+  box-shadow: var(--mesh-glow);
+  padding: 12px 14px;
+}
+
+.agentNote::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 8px;
+  background: var(--mesh);
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.agentNote > * {
+  position: relative;
+  z-index: 1;
+}
+
+.agentNoteLabel {
+  margin: 0 0 8px;
+  width: fit-content;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: transparent;
+  background-image: linear-gradient(90deg, #6366f1, #8b5cf6, #d946ef, #06b6d4);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.walkthroughPins {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.walkthroughPins li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.walkthroughPins button.active,
+.pinHighlight {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow:
+    0 0 0 2px #6366f1,
+    0 0 0 4px rgba(217, 70, 239, 0.9),
+    0 0 16px rgba(6, 182, 212, 0.45);
+}
+
+.previewLocked button,
+.previewLocked input,
+.previewLocked select,
+.previewLocked textarea {
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  .walkthroughMain {
+    flex-direction: column;
+  }
+
+  .walkthroughNote {
+    width: auto;
+  }
+}
+
+.chatModelForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
 }

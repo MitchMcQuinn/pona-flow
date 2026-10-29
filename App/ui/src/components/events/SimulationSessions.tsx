@@ -10,6 +10,8 @@ import {
   type SimulationSession
 } from "../../services/api";
 import { EventInlineField } from "./EventInlineField";
+import { ConsoleHost } from "../../consoles/ConsoleHost";
+import type { SequenceSummary } from "../../state/types";
 
 function apiOrigin(): string {
   if (typeof window !== "undefined" && window.location) return window.location.origin;
@@ -59,10 +61,24 @@ interface SimulationSessionsProps {
   token: string;
   /** Saved events show one pane at a time. Omit to show the pre-save endpoint note. */
   view?: "endpoints" | "sessions";
+  /**
+   * When set, this console replaces the session emissions list.
+   * Each tic refreshes it instead of its listen URL or trigger event.
+   */
+  consoleId?: string;
+  spaceId?: string | null;
+  sequences?: SequenceSummary[];
 }
 
 /** In-panel session runner plus the public URLs a test harness can call. */
-export function SimulationSessions({ eventId, token, view }: SimulationSessionsProps) {
+export function SimulationSessions({
+  eventId,
+  token,
+  view,
+  consoleId = "",
+  spaceId = null,
+  sequences = []
+}: SimulationSessionsProps) {
   const [startAt, setStartAt] = useState(nowLocalInput);
   const [sessions, setSessions] = useState<SimulationSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -77,6 +93,7 @@ export function SimulationSessions({ eventId, token, view }: SimulationSessionsP
   detailRef.current = detail;
   eventIdRef.current = eventId;
   const [error, setError] = useState<string | null>(null);
+  const [consoleTick, setConsoleTick] = useState(0);
   const [trackedView, setTrackedView] = useState(view);
   if (view !== trackedView) {
     setTrackedView(view);
@@ -206,6 +223,9 @@ export function SimulationSessions({ eventId, token, view }: SimulationSessionsP
     await run(async () => {
       const next = await advanceSimulationSession(eventId, selectedId);
       setDetail(next);
+      // The tic is the console's refresh. Apply it with the session update,
+      // before the session list reload, and do not wait on a listen URL or event.
+      if (consoleId || next.consoleId) setConsoleTick((tick) => tick + 1);
       await reload();
     });
   }
@@ -395,27 +415,42 @@ export function SimulationSessions({ eventId, token, view }: SimulationSessionsP
                 </button>
               </div>
               {detail.errorMessage ? <p className="errorText">{detail.errorMessage}</p> : null}
-              <div className="simEmissionsBlock">
-                <h2 className="simEmissionsHeading">emissions</h2>
-                {(detail.emissions || []).length === 0 ? (
-                  <p className="muted">No emissions yet.</p>
-                ) : (
-                  <div className="eventInlineNest">
-                    <ul className="simEmissions">
-                      {(detail.emissions || []).map((emission) => (
-                        <li key={emission.id} data-testid="sim-emission">
-                          <strong>
-                            tic {emission.tic} · {emission.probabilityName || emission.probabilityId}
-                          </strong>
-                          {emission.cancelled ? " · cancelled" : ""}
-                          {emission.runStatus ? ` · ${emission.runStatus}` : ""}
-                          {emission.outcome ? <pre>{JSON.stringify(emission.outcome)}</pre> : null}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
+              {consoleId && spaceId ? (
+                <div className="simEmissionsBlock">
+                  <ConsoleHost
+                    spaceId={spaceId}
+                    consoleId={consoleId}
+                    mode="live"
+                    driven
+                    sequences={sequences}
+                    events={[]}
+                    externalRefreshToken={consoleTick + detail.currentTic}
+                    fluid
+                  />
+                </div>
+              ) : (
+                <div className="simEmissionsBlock">
+                  <h2 className="simEmissionsHeading">emissions</h2>
+                  {(detail.emissions || []).length === 0 ? (
+                    <p className="muted">No emissions yet.</p>
+                  ) : (
+                    <div className="eventInlineNest">
+                      <ul className="simEmissions">
+                        {(detail.emissions || []).map((emission) => (
+                          <li key={emission.id} data-testid="sim-emission">
+                            <strong>
+                              tic {emission.tic} · {emission.probabilityName || emission.probabilityId}
+                            </strong>
+                            {emission.cancelled ? " · cancelled" : ""}
+                            {emission.runStatus ? ` · ${emission.runStatus}` : ""}
+                            {emission.outcome ? <pre>{JSON.stringify(emission.outcome)}</pre> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 className="btnPrimary simSessionAdvance"

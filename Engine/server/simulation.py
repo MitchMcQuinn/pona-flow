@@ -3,8 +3,10 @@ On-demand simulated events.
 
 A catalog event with ``type = 'simulated'`` is a tic timeline (the old "world").
 Each tic is requested over HTTP. Due probabilities pick a weighted outcome and
-run the event's sequence in-process. Session history lives in the catalog
-SQLite database (``simulation_sessions`` / ``simulation_emissions``).
+run the event's sequence in-process. The emissions recorded on that tic, through
+the one being run, are added to that sequence's parameter map. Session history
+lives in the catalog SQLite database (``simulation_sessions`` /
+``simulation_emissions``).
 
 Weights are a static number, or a ``$parameter`` read from a per-outcome weight
 sequence's resolved parameter map. An unresolved weight becomes that parameter's
@@ -442,6 +444,37 @@ def _outcome_body(outcome: dict[str, Any]) -> dict[str, Any]:
     return body
 
 
+def _emission_record(
+    emission_id: str,
+    session_id: str,
+    event_id: str,
+    space_id: str,
+    probability_id: str,
+    probability_name: str,
+    tic: int,
+    world_time: str,
+    outcome: dict[str, Any] | None,
+    cancelled: bool,
+    sequence_id: str | None,
+    run_status: str | None,
+) -> dict[str, Any]:
+    """One tic emission, in the shape placed on the sequence parameter map."""
+    return {
+        "id": emission_id,
+        "session_id": session_id,
+        "event_id": event_id,
+        "space_id": space_id,
+        "probability_id": probability_id,
+        "probability_name": probability_name,
+        "tic": tic,
+        "world_time": world_time,
+        "outcome": outcome,
+        "cancelled": cancelled,
+        "sequence_id": sequence_id,
+        "run_status": run_status,
+    }
+
+
 def _emission_params(outcome: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     """Outcome payload wins on key collision so it lines up with sequence inputs."""
     payload = outcome.get("payload") if isinstance(outcome.get("payload"), dict) else {}
@@ -462,9 +495,16 @@ def _run_emission(
     world_time: str,
     emission_id: str,
     principal_id: str | None,
+    emission: dict[str, Any],
+    emissions: list[dict[str, Any]],
 ) -> None:
     space_id = str(event.get("space_id") or "")
     event_id = str(event.get("id") or "")
+
+    def note(status: str | None) -> None:
+        catalog.update_simulation_emission_status(emission_id, status)
+        emission["run_status"] = status
+
     context = {
         "tic": tic,
         "world_time": world_time,
@@ -474,6 +514,8 @@ def _run_emission(
         "probability_name": probability.get("name"),
         "outcome_label": outcome.get("label"),
         "cancelled": False,
+        # Snapshot so a later tic emission does not mutate this run's map.
+        "emissions": [dict(item) for item in emissions],
     }
     params = _emission_params(outcome, context)
     scheduler._resume_event_waiters(event_id, params, trigger="simulated")
@@ -488,19 +530,25 @@ def _run_emission(
             audit_detail={"session_id": session["id"], "tic": tic, "role": "emission"},
         )
     except Exception as err:
-        catalog.update_simulation_emission_status(emission_id, "error")
+        note("error")
         raise SimulationHalt(str(err)) from err
     status = str(result.get("status") or "")
     if status == "inactive":
-        catalog.update_simulation_emission_status(emission_id, "inactive")
+        note("inactive")
         return
     state_id = str(result.get("state_id") or "").strip()
     if status in ("pending", "waiting") and state_id:
+        # A tic has no operator. Drop the parked run so it does not stay in flight.
         try:
             execution.stop_execution(space_id, state_id)
         except Exception:
             pass
-    catalog.update_simulation_emission_status(emission_id, status or "error")
+    if status == "pending":
+        # Human-in-the-loop input cannot be collected while a tic advances.
+        # Record the pause and let the session continue.
+        note("pending")
+        return
+    note(status or "error")
     message = str(result.get("message") or f"Sequence returned {status or 'an unexpected status'}")
     raise SimulationHalt(message)
 
@@ -522,6 +570,7 @@ def _advance_unlocked(
     tic_unit = str(package.get("tic_unit") or "minutes")
     tic_duration = package.get("tic_duration")
     sequence_id = str(package.get("sequence_id") or "").strip()
+    tic_emissions: list[dict[str, Any]] = []
     next_tic = int(session.get("current_tic") or 0) + 1
     next_time = str(session.get("current_world_time") or session.get("world_start_at") or "")
     space_id = str(event.get("space_id") or "")
@@ -560,22 +609,8 @@ def _advance_unlocked(
             prob_id = str(probability.get("id") or "")
             prob_name = str(probability.get("name") or "")
             emission_id = config.generate_entity_id()
-            if cancelled:
-                catalog.insert_simulation_emission(
-                    emission_id,
-                    session["id"],
-                    event_id,
-                    space_id,
-                    prob_id,
-                    prob_name,
-                    next_tic,
-                    next_time,
-                    None,
-                    True,
-                    sequence_id or None,
-                    "cancelled",
-                )
-                continue
+            outcome_body = None if cancelled or selected is None else _outcome_body(selected)
+            run_status = "cancelled" if cancelled else None
             catalog.insert_simulation_emission(
                 emission_id,
                 session["id"],
@@ -585,13 +620,31 @@ def _advance_unlocked(
                 prob_name,
                 next_tic,
                 next_time,
-                _outcome_body(selected),
-                False,
+                outcome_body,
+                cancelled,
                 sequence_id or None,
-                None,
+                run_status,
             )
+            record = _emission_record(
+                emission_id,
+                session["id"],
+                event_id,
+                space_id,
+                prob_id,
+                prob_name,
+                next_tic,
+                next_time,
+                outcome_body,
+                cancelled,
+                sequence_id or None,
+                run_status,
+            )
+            tic_emissions.append(record)
+            if cancelled:
+                continue
             if not sequence_id:
                 catalog.update_simulation_emission_status(emission_id, "recorded")
+                record["run_status"] = "recorded"
                 continue
             _run_emission(
                 event,
@@ -603,6 +656,8 @@ def _advance_unlocked(
                 next_time,
                 emission_id,
                 principal_id,
+                record,
+                tic_emissions,
             )
         catalog.update_simulation_session(
             session["id"],
@@ -622,7 +677,8 @@ def _advance_unlocked(
     detail = catalog.get_simulation_session_detail(session["id"], event_id)
     if detail is None:
         raise LookupError("Session not found")
-    return detail
+    package = event.get("simulation_package") if isinstance(event.get("simulation_package"), dict) else {}
+    return {**detail, "console_id": str(package.get("console_id") or "").strip()}
 
 
 def advance_session(

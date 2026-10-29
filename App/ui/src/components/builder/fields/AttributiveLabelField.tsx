@@ -74,7 +74,7 @@ export function AttributiveLabelField({
   const check = state.checks[checkKey];
 
   return (
-    <div className="builderField" data-issue="attributive_label">
+    <div className="builderField" data-issue="attributive_label" data-pin-target={attributiveLabel}>
       <input
         aria-label="attributive_label"
         value={attributiveLabel}

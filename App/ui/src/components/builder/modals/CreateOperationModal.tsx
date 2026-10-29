@@ -57,7 +57,7 @@ export function CreateOperationModal({
       setError("Query name is required.");
       return;
     }
-    if (!groupTitle) {
+    if (isNewGroup && !groupTitle) {
       setError("Group title is required.");
       return;
     }
@@ -136,9 +136,12 @@ export function CreateOperationModal({
               ) : (
                 <Picker
                   value={groupChoice}
-                  placeholder="Please select"
+                  placeholder="No group"
                   disabled={saving}
-                  options={existingGroups.map((group) => ({ value: group, label: group }))}
+                  options={[
+                    { value: "", label: "No group" },
+                    ...existingGroups.map((group) => ({ value: group, label: group }))
+                  ]}
                   createLabel="+ New group title"
                   onCreate={() => setGroupChoice(CREATE_NEW_GROUP)}
                   onSelect={(value) => {

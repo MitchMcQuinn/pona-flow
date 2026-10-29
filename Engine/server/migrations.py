@@ -35,6 +35,7 @@ _CATALOG_DDL_FILES = (
     "users-table.sql",
     "space-roles-table.sql",
     "events-table.sql",
+    "consoles-table.sql",
     "event-test-captures-table.sql",
     "simulation-tables.sql",
     "audit-log-table.sql",
@@ -43,6 +44,7 @@ _CATALOG_DDL_FILES = (
     "template-imports-table.sql",
     "local-credentials-table.sql",
     "sessions-table.sql",
+    "chat-tables.sql",
 )
 
 
@@ -56,6 +58,11 @@ def _apply_sql_file(conn: sqlite3.Connection, filename: str) -> None:
 def _ensure_audit_log_detail_column(conn: sqlite3.Connection) -> None:
     """Additive migration: optional JSON ``detail`` column on audit_log."""
     sqlite_util.ensure_column(conn, "audit_log", "detail", "TEXT")
+
+
+def _ensure_audit_log_parameter_map_column(conn: sqlite3.Connection) -> None:
+    """Additive migration: JSON ``parameter_map`` column on audit_log."""
+    sqlite_util.ensure_column(conn, "audit_log", "parameter_map", "TEXT")
 
 
 def _ensure_events_external_column(conn: sqlite3.Connection) -> None:
@@ -124,12 +131,16 @@ def run_startup_migrations() -> None:
         _ensure_events_external_column(conn)
         _ensure_events_simulation_column(conn)
         _ensure_simulation_session_name(conn)
+        # Nav grouping columns, before the events rebuild so they are copied across.
+        catalog._ensure_events_nav_columns(conn)
+        catalog._ensure_consoles_nav_columns(conn)
         # Rebuild events when its type CHECK predates 'simulated'.
         catalog._rebuild_events_type_check(conn)
         # Rebuild audit_log when its trigger CHECK is missing 'simulated',
-        # then add the detail column on databases that predate it.
+        # then add detail / parameter_map on databases that predate them.
         _ensure_audit_log_trigger_check(conn)
         _ensure_audit_log_detail_column(conn)
+        _ensure_audit_log_parameter_map_column(conn)
         # Rebuild state.status CHECK for waiting/cancelled; add result column.
         catalog._rebuild_state_status_check(conn)
         sqlite_util.ensure_column(conn, "state", "result", "TEXT")

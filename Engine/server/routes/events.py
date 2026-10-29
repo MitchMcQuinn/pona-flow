@@ -128,6 +128,11 @@ async def events_upsert(
             sim.get("token") or ""
         ).strip()
         sim["token"] = token or simulation.generate_simulation_token()
+        console_id = str(sim.get("console_id") or "").strip()
+        if console_id:
+            linked = catalog.get_console(console_id)
+            if linked is None or str(linked.get("space_id") or "") != space_id:
+                raise bad_request("simulation console was not found in this space")
         simulation_package = sim
     with value_400_domain_500():
         result = catalog.upsert_event(
@@ -173,6 +178,25 @@ async def events_delete(
         result = catalog.delete_event(event_id)
     scheduler.request_reload()
     return result
+
+
+@router.post("/api/events/reorder")
+async def events_reorder(
+    request: Request, principal: Principal = Depends(auth.current_principal)
+):
+    """Persist nav grouping: each item is ``{"id", "group_title", "sort_order"}``."""
+    body = await json_body(request)
+    items = body.get("items")
+    if not isinstance(items, list):
+        raise bad_request("items must be an array")
+    normalized = [item for item in items if isinstance(item, dict)]
+    ids = [str(item.get("id") or "").strip() for item in normalized]
+    with value_400_domain_500():
+        space_id = catalog.rows_space_id("events", ids)
+    if space_id:
+        auth.require_space_manage(principal, space_id)
+    with value_400_domain_500():
+        return catalog.reorder_nav_rows("events", normalized)
 
 
 @router.get("/api/audit-log")

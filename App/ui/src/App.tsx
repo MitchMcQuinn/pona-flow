@@ -11,6 +11,9 @@ import {
 import { MobileTabBar } from "./components/layout/MobileTabBar";
 import { useMobilePaneFollow } from "./hooks/useMobilePaneFollow";
 import { useViewport } from "./hooks/useViewport";
+import { CanvasStack } from "./chat/CanvasStack";
+import { ChatColumn } from "./chat/ChatColumn";
+import { useChatSession } from "./chat/useChatSession";
 import { NavigationPanel } from "./components/NavigationPanel";
 import { TopBar } from "./components/TopBar";
 import { VisualizationPanel } from "./components/VisualizationPanel";
@@ -27,8 +30,17 @@ import {
 } from "./services/api";
 import { SequenceDeleteConfirmModal } from "./components/modals/SequenceDeleteConfirmModal";
 import { OperationDeleteSuspendModal } from "./components/modals/OperationDeleteSuspendModal";
+import { useConsolesNav } from "./hooks/useConsolesNav";
 import { useEventsNav } from "./hooks/useEventsNav";
+import { ConsoleHost } from "./consoles/ConsoleHost";
+import "@mantine/core/styles.css";
+import "@mantine/charts/styles.css";
+import "@mantine/notifications/styles.css";
+import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
+import "./consoles/console.css";
 import { usePersistedViewRestore } from "./hooks/usePersistedViewRestore";
+import uiPersistence from "./services/uiPersistence";
 import { useSequenceNav } from "./hooks/useSequenceNav";
 import { useSpacesLifecycle } from "./hooks/useSpacesLifecycle";
 import { navActivitySequenceIds } from "./state/inFlight";
@@ -37,6 +49,7 @@ import { selectors } from "./state/selectors";
 import type { BuilderSeed, RunResult } from "./state/builder/types";
 import type { ParameterSchema } from "./state/types";
 import "./styles.css";
+import "./consoles/restore-app.css";
 
 function paramSchemaType(valueType: string): ParameterSchema["type"] {
   switch ((valueType || "").trim().toLowerCase()) {
@@ -64,6 +77,14 @@ export default function App() {
   const [builderSeed, setBuilderSeed] = useState<BuilderSeed | null>(null);
   const [builderEditOperationActive, setBuilderEditOperationActive] = useState(false);
   const [exitEditOperationRequest, setExitEditOperationRequest] = useState(0);
+  const [eventEditing, setEventEditing] = useState(false);
+  const [consoleEditing, setConsoleEditing] = useState(false);
+  const handleEventEditingChange = useCallback((editing: boolean) => {
+    setEventEditing(editing);
+  }, []);
+  const handleConsoleEditingChange = useCallback((editing: boolean) => {
+    setConsoleEditing(editing);
+  }, []);
 
   function dismissVisualization() {
     setBuilderResult(null);
@@ -83,6 +104,7 @@ export default function App() {
     spaces,
     spacesError,
     activeSpaceLabels,
+    navStamp,
     bumpSpaceLabelsVersion,
     noAccess,
     showCreateSpaceModal,
@@ -95,7 +117,8 @@ export default function App() {
     showToast,
     setBuilderResult,
     maybeRestoreSequence,
-    bumpSpaceLabelsVersion
+    bumpSpaceLabelsVersion,
+    navStamp
   });
   const {
     composedSequence,
@@ -107,6 +130,37 @@ export default function App() {
   } = sequenceNav;
 
   const eventsNav = useEventsNav({ state, dispatch, maybeRestoreEvent });
+  const consolesNav = useConsolesNav({ state, dispatch });
+  const [workbenchMode, setWorkbenchMode] = useState<"chat" | "classic">(
+    () => state.me?.workbenchMode ?? uiPersistence.getWorkbenchMode() ?? "chat"
+  );
+  const [tourOpen, setTourOpen] = useState(false);
+  const chatMode = workbenchMode === "chat" && !tourOpen;
+
+  useEffect(() => {
+    if (!state.me?.workbenchMode) return;
+    setWorkbenchMode(state.me.workbenchMode);
+    uiPersistence.setWorkbenchMode(state.me.workbenchMode);
+  }, [state.me?.workbenchMode]);
+
+  const setWorkbench = useCallback((mode: "chat" | "classic") => {
+    setWorkbenchMode(mode);
+    uiPersistence.setWorkbenchMode(mode);
+    dispatch({ type: "ME_WORKBENCH_UPDATED", mode });
+    updateMySettings({ workbenchMode: mode }).catch(() => undefined);
+  }, []);
+
+  const chat = useChatSession({
+    spaceId: state.spaceId,
+    onApplied: () => {
+      void sequenceNav.handleNavRefresh();
+      eventsNav.reloadEvents();
+      consolesNav.reloadConsoles();
+    },
+    onSpaceCreated: (spaceId) => {
+      void spacesLifecycle.reloadSpaces(spaceId);
+    }
+  });
 
   const handleSaveTimezone = useCallback((timezone: string) => {
     // Optimistic: reflect the choice immediately, then persist.
@@ -122,7 +176,6 @@ export default function App() {
 
   // First visit: start the tour once there's a space to show (a brand-new instance asks for
   // one first). Cypress specs drive fresh accounts and would be blocked by the overlay.
-  const [tourOpen, setTourOpen] = useState(false);
   const tourAutoStartedRef = useRef(false);
   useEffect(() => {
     if (tourAutoStartedRef.current) return;
@@ -148,15 +201,25 @@ export default function App() {
 
   const showRunButton = useMemo(() => selectors.showRunButton(state), [state]);
   const canRun = useMemo(() => selectors.canRun(state), [state]);
+  const consoleEditorId = state.consoles.selectedConsoleId;
   const showVisualization = useMemo(
-    () => selectors.hasVisualizationContent(state, builderResult),
-    [state, builderResult]
+    () => Boolean(consoleEditorId) || selectors.hasVisualizationContent(state, builderResult),
+    [state, builderResult, consoleEditorId]
   );
-  const showConfig = useMemo(() => selectors.hasConfigContent(state), [state]);
+  const showConfig = useMemo(
+    () => (consoleEditorId ? false : selectors.hasConfigContent(state)),
+    [state, consoleEditorId]
+  );
 
   const viewport = useViewport();
   const compactShell = viewport.mode !== "desktop";
-  const panes = useMobilePaneFollow({ mode: viewport.mode, state, builderResult, builderSeed });
+  const panes = useMobilePaneFollow({
+    mode: viewport.mode,
+    state,
+    builderResult,
+    builderSeed,
+    chatMode
+  });
   const { setMobilePane, setNavDrawerOpen } = panes;
   const handleTourShowPane = useCallback(
     (pane: MobilePane | null) => {
@@ -637,15 +700,19 @@ export default function App() {
           dispatch({ type: "SPACE_PANEL_OPENED" });
         }}
         onToggleNav={
-          viewport.mode === "tablet" ? () => panes.setNavDrawerOpen((open) => !open) : undefined
+          !chatMode && viewport.mode === "tablet"
+            ? () => panes.setNavDrawerOpen((open) => !open)
+            : undefined
         }
         navOpen={panes.navDrawerOpen}
         showBackToBuilder={
-          state.createSequence ||
-          state.view.rightPanelMode === "params" ||
-          state.view.rightPanelMode === "event" ||
-          state.view.rightPanelMode === "space" ||
-          builderEditOperationActive
+          !chatMode &&
+          (state.createSequence ||
+            state.view.rightPanelMode === "params" ||
+            state.view.rightPanelMode === "event" ||
+            state.view.rightPanelMode === "space" ||
+            Boolean(state.consoles.selectedConsoleId) ||
+            builderEditOperationActive)
         }
         onBackToBuilder={() => {
           setBuilderResult(null);
@@ -655,7 +722,9 @@ export default function App() {
             dispatch({ type: "OPEN_BUILDER" });
           }
         }}
-        showRunButton={showRunButton}
+        showRunButton={chatMode ? false : showRunButton}
+        onOpenChat={chatMode ? undefined : () => setWorkbench("chat")}
+        showSpaceSettings={!chatMode}
         canRun={canRun}
         running={state.run.status === "running"}
         onRun={handleRun}
@@ -667,13 +736,36 @@ export default function App() {
       {spacesError ? <div className="appError">Space load error: {spacesError}</div> : null}
 
       <ResizableDashboardLayout
-        showVisualization={showVisualization}
-        showConfig={showConfig}
+        showVisualization={chatMode ? true : showVisualization}
+        showConfig={chatMode ? false : showConfig}
         mode={viewport.mode}
+        chatMode={chatMode}
         mobilePane={panes.mobilePane}
         navDrawerOpen={panes.navDrawerOpen}
         onCloseNavDrawer={() => panes.setNavDrawerOpen(false)}
         navigation={
+          chatMode ? (
+            <ChatColumn
+              threads={chat.threads}
+              threadId={chat.threadId}
+              messages={chat.messages}
+              draft={chat.draft}
+              queued={chat.queued}
+              streaming={chat.streaming}
+              batchBusy={chat.batchBusy}
+              error={chat.error}
+              round={chat.round}
+              onSelectRead={chat.selectRead}
+              onDraft={chat.setDraft}
+              onSend={() => void chat.send(chat.draft)}
+              onOpenThread={(id) => void chat.openThread(id)}
+              onNewThread={chat.newThread}
+              onClassic={() => setWorkbench("classic")}
+              onAccept={() => void chat.accept()}
+              onReject={() => void chat.reject()}
+              onClearQueue={() => chat.setQueued(null)}
+            />
+          ) : (
           <NavigationPanel
             sequences={navSequences}
             groups={state.nav.groups}
@@ -702,11 +794,38 @@ export default function App() {
             eventsLoading={state.events.loading}
             eventsError={state.events.error}
             onSelectEvent={(eventId) => dispatch({ type: "EVENT_SELECTED", eventId })}
+            onEditEvent={(eventId) => dispatch({ type: "EVENT_SELECTED", eventId, edit: true })}
             onCreateEvent={() => {
               dismissVisualization();
               dispatch({ type: "CREATE_EVENT_OPENED" });
             }}
             onDeleteEvent={eventsNav.handleDeleteEvent}
+            eventGroups={state.events.groups}
+            onReorderEvents={eventsNav.handleReorderEvents}
+            onReorderEventGroups={eventsNav.handleReorderEventGroups}
+            onAddEventGroup={eventsNav.handleAddEventGroup}
+            onDeleteEventGroup={eventsNav.handleDeleteEventGroup}
+            eventEditing={eventEditing}
+            consoleEditing={consoleEditing}
+            consoles={state.consoles.items}
+            consoleGroups={state.consoles.groups}
+            selectedConsoleId={state.consoles.selectedConsoleId}
+            consolesLoading={state.consoles.loading}
+            consolesError={state.consoles.error}
+            onSelectConsole={(consoleId) => dispatch({ type: "CONSOLE_SELECTED", consoleId })}
+            onEditConsole={(consoleId) =>
+              dispatch({ type: "CONSOLE_SELECTED", consoleId, edit: true })
+            }
+            onCreateConsole={() => {
+              void consolesNav.handleCreateConsole();
+            }}
+            onDeleteConsole={(consoleId) => {
+              void consolesNav.handleDeleteConsole(consoleId);
+            }}
+            onReorderConsoles={consolesNav.handleReorderConsoles}
+            onReorderConsoleGroups={consolesNav.handleReorderConsoleGroups}
+            onAddConsoleGroup={consolesNav.handleAddConsoleGroup}
+            onDeleteConsoleGroup={consolesNav.handleDeleteConsoleGroup}
             userName={user?.fullName ?? user?.firstName ?? null}
             userEmail={state.me?.email ?? user?.primaryEmailAddress?.emailAddress ?? null}
             userTimezone={state.me?.timezone ?? null}
@@ -715,17 +834,49 @@ export default function App() {
             isSuperadmin={Boolean(state.me?.isSuperadmin)}
             inFlightSequenceIds={navActivitySequenceIds(state.inFlight)}
           />
+          )
         }
         visualization={
-          <VisualizationPanel
-            state={state}
-            builderResult={builderResult}
-            previewLoading={sequencePreviewLoading}
-            onClickNode={handleVisualNodeClick}
-            onClickRelationship={handleVisualRelationshipClick}
-            onResultNodeClick={handleSequenceResultNodeClick}
-            onResultRelationshipClick={handleSequenceResultRelationshipClick}
-          />
+          chatMode && state.spaceId ? (
+            <CanvasStack
+              spaceId={state.spaceId}
+              items={chat.stack}
+              activeId={chat.activeStackId}
+              sequences={navSequences}
+              events={state.events.items}
+              batchBusy={chat.batchBusy}
+              focusedRead={chat.focusedRead}
+              onSelect={chat.selectStack}
+              onAccept={() => void chat.accept()}
+              onReject={() => void chat.reject()}
+              onRecord={chat.recordStackItem}
+              onPatch={chat.patchStackItem}
+            />
+          ) : consoleEditorId && state.spaceId ? (
+            <ConsoleHost
+              spaceId={state.spaceId}
+              consoleId={consoleEditorId}
+              mode="edit"
+              editNonce={state.consoles.editNonce}
+              onEditingChange={handleConsoleEditingChange}
+              onRenamed={(name) =>
+                dispatch({ type: "CONSOLE_RENAMED", consoleId: consoleEditorId, name })
+              }
+              sequences={navSequences}
+              events={state.events.items}
+              externalRefreshToken={0}
+            />
+          ) : (
+            <VisualizationPanel
+              state={state}
+              builderResult={builderResult}
+              previewLoading={sequencePreviewLoading}
+              onClickNode={handleVisualNodeClick}
+              onClickRelationship={handleVisualRelationshipClick}
+              onResultNodeClick={handleSequenceResultNodeClick}
+              onResultRelationshipClick={handleSequenceResultRelationshipClick}
+            />
+          )
         }
         config={
           <ConfigPanel
@@ -745,6 +896,7 @@ export default function App() {
             builderKey={sequenceBuilderKey}
             onEventSaved={eventsNav.handleEventSaved}
             onEventDeleted={eventsNav.handleEventDeleted}
+            onEventEditingChange={handleEventEditingChange}
             spaces={spaces}
             onSpaceSaved={spacesLifecycle.handleUpdateSpace}
             savingSpace={spacesLifecycle.savingSpaceEdit}
@@ -763,6 +915,7 @@ export default function App() {
           active={panes.mobilePane}
           onChange={panes.setMobilePane}
           unseen={panes.unseen}
+          chatMode={chatMode}
         />
       ) : null}
       <ProductTour

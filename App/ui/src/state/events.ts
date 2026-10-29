@@ -1,6 +1,7 @@
 import type {
   AppState,
   AuditEntry,
+  ConsoleNavItem,
   EventSummary,
   GraphPayload,
   Me,
@@ -18,8 +19,17 @@ export type AppEvent =
   | { type: "SEQUENCES_LOAD_SUCCEEDED"; sequences: SequenceSummary[] }
   | { type: "SEQUENCES_LOAD_FAILED"; error: string }
   | { type: "SEQUENCES_REORDERED"; sequences: SequenceSummary[] }
-  | { type: "GROUPS_LOADED"; groups: string[] }
+  | {
+      type: "GROUPS_LOADED";
+      groups: string[];
+      eventGroups: string[];
+      consoleGroups: string[];
+    }
   | { type: "GROUPS_CHANGED"; groups: string[]; sequences?: SequenceSummary[] }
+  | { type: "EVENTS_REORDERED"; events: EventSummary[] }
+  | { type: "EVENT_GROUPS_CHANGED"; groups: string[]; events?: EventSummary[] }
+  | { type: "CONSOLES_REORDERED"; consoles: ConsoleNavItem[] }
+  | { type: "CONSOLE_GROUPS_CHANGED"; groups: string[]; consoles?: ConsoleNavItem[] }
   | { type: "SEQUENCE_SELECTED"; sequenceId: string }
   | { type: "SEQUENCE_DESELECTED" }
   | { type: "SEQUENCE_LOAD_STARTED" }
@@ -44,10 +54,17 @@ export type AppEvent =
   | { type: "EVENTS_LOAD_SUCCEEDED"; events: EventSummary[] }
   | { type: "EVENTS_LOAD_FAILED"; error: string }
   | { type: "CREATE_EVENT_OPENED" }
-  | { type: "EVENT_SELECTED"; eventId: string }
+  | { type: "EVENT_SELECTED"; eventId: string; edit?: boolean }
   | { type: "EVENT_DESELECTED" }
+  | { type: "CONSOLES_LOAD_STARTED" }
+  | { type: "CONSOLES_LOAD_SUCCEEDED"; consoles: ConsoleNavItem[] }
+  | { type: "CONSOLES_LOAD_FAILED"; error: string }
+  | { type: "CONSOLE_SELECTED"; consoleId: string; edit?: boolean }
+  | { type: "CONSOLE_RENAMED"; consoleId: string; name: string }
+  | { type: "CONSOLE_DESELECTED" }
   | { type: "ME_LOADED"; me: Me }
   | { type: "ME_TIMEZONE_UPDATED"; timezone: string | null }
+  | { type: "ME_WORKBENCH_UPDATED"; mode: "chat" | "classic" }
   | { type: "ME_ONBOARDING_TOUR_SEEN"; seen: boolean }
   | { type: "PERMISSIONS_LOADED"; permissions: SpacePermissions | null }
   | { type: "SPACE_PANEL_OPENED" }

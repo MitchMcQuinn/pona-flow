@@ -45,12 +45,20 @@ interface MobileTabBarProps {
   onChange: (pane: MobilePane) => void;
   /** Panes with something new the person hasn't looked at yet (e.g. a finished run). */
   unseen?: Partial<Record<MobilePane, boolean>>;
+  /** Chat mode uses Chat and Canvas instead of Menu, Workbench, and Map. */
+  chatMode?: boolean;
 }
 
-export function MobileTabBar({ active, onChange, unseen = {} }: MobileTabBarProps) {
+export function MobileTabBar({ active, onChange, unseen = {}, chatMode = false }: MobileTabBarProps) {
+  const tabs = chatMode
+    ? [
+        { pane: "menu" as const, label: "Chat", icon: <MenuIcon /> },
+        { pane: "map" as const, label: "Canvas", icon: <MapIcon /> }
+      ]
+    : TABS;
   return (
     <nav className="mobileTabBar" aria-label="Screens" data-tour="mobile-tabs">
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const isActive = tab.pane === active;
         return (
           <button

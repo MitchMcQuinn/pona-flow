@@ -229,4 +229,10 @@ def dispatch_external_event(
             )
         except Exception:  # auditing must never break the receiver
             pass
+    try:
+        from . import console_hub
+
+        console_hub.notify_for_event(event_id)
+    except Exception as e:  # a console refresh must not fail the inbound receiver
+        sys.stderr.write(f"external trigger: console refresh for {event_id!r} failed: {e}\n")
     return {"ran": ran, "failed": failed}

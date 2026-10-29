@@ -6,14 +6,15 @@
  */
 
 import { useEffect, useState, type Dispatch } from "react";
+import { confirmDialog } from "../components/modals/confirmDialog";
 import {
   composeSequence,
   deleteSequenceDefinition,
   executeOperationDeletion,
   executeStepDeletion,
+  fetchNavGroups,
   fetchNavSequences,
   fetchSequenceDefinition,
-  fetchSpaceGroups,
   previewOperationDeletion,
   previewStepDeletion,
   reorderSequences,
@@ -24,7 +25,7 @@ import {
   type StepDeletePreview
 } from "../services/api";
 import type { SequenceDeleteMode } from "../components/modals/SequenceDeleteConfirmModal";
-import { buildNavGroups, flattenNavGroups, reindexSequences } from "../state/navOrder";
+import { moveGroupToUngrouped } from "../state/navOrder";
 import type { AppEvent } from "../state/events";
 import type { RunResult } from "../state/builder/types";
 import type { AppState, SequenceSummary } from "../state/types";
@@ -45,9 +46,18 @@ export function useSequenceNav(options: {
   maybeRestoreSequence: (sequences: SequenceSummary[]) => void;
   /** Refetches the per-space label filter after creates/deletes register new labels. */
   bumpSpaceLabelsVersion: () => void;
+  /** Changes after the space record has loaded, which is when chat sequences are filed. */
+  navStamp: { spaceId: string; n: number } | null;
 }) {
-  const { state, dispatch, showToast, setBuilderResult, maybeRestoreSequence, bumpSpaceLabelsVersion } =
-    options;
+  const {
+    state,
+    dispatch,
+    showToast,
+    setBuilderResult,
+    maybeRestoreSequence,
+    bumpSpaceLabelsVersion,
+    navStamp
+  } = options;
 
   // Sequence deletion offers two paths in SequenceDeleteConfirmModal: a "nav-only" removal of the
   // definition, or the full STEP delete cascade. We preview the cascade blast radius up front so
@@ -74,27 +84,43 @@ export function useSequenceNav(options: {
 
   useEffect(() => {
     if (!state.spaceId) return;
-    dispatch({ type: "SEQUENCES_LOAD_STARTED" });
+    if (!navStamp || navStamp.spaceId !== state.spaceId) {
+      dispatch({ type: "SEQUENCES_LOAD_STARTED" });
+      return;
+    }
+    let cancelled = false;
     fetchNavSequences(state.spaceId)
       .then((sequences) => {
+        if (cancelled) return;
         dispatch({ type: "SEQUENCES_LOAD_SUCCEEDED", sequences });
         maybeRestoreSequence(sequences);
       })
       .catch((error: unknown) => {
+        if (cancelled) return;
         dispatch({
           type: "SEQUENCES_LOAD_FAILED",
           error: error instanceof Error ? error.message : "Unable to load sequences"
         });
       });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.spaceId]);
+  }, [state.spaceId, navStamp]);
 
   useEffect(() => {
     if (!state.spaceId) return;
     let cancelled = false;
-    fetchSpaceGroups(state.spaceId)
-      .then((groups) => {
-        if (!cancelled) dispatch({ type: "GROUPS_LOADED", groups });
+    fetchNavGroups(state.spaceId)
+      .then((loaded) => {
+        if (!cancelled) {
+          dispatch({
+            type: "GROUPS_LOADED",
+            groups: loaded.groups,
+            eventGroups: loaded.eventGroups,
+            consoleGroups: loaded.consoleGroups
+          });
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -202,8 +228,15 @@ export function useSequenceNav(options: {
 
   function reloadGroups() {
     if (!state.spaceId) return;
-    fetchSpaceGroups(state.spaceId)
-      .then((groups) => dispatch({ type: "GROUPS_LOADED", groups }))
+    fetchNavGroups(state.spaceId)
+      .then((loaded) =>
+        dispatch({
+          type: "GROUPS_LOADED",
+          groups: loaded.groups,
+          eventGroups: loaded.eventGroups,
+          consoleGroups: loaded.consoleGroups
+        })
+      )
       .catch(() => undefined);
   }
 
@@ -229,15 +262,10 @@ export function useSequenceNav(options: {
   // Refresh the nav in place after a cascade delete (STEP/SCHEMA) that may have removed
   // dependent sequences, so they disappear from the nav without a full-page reload.
   async function handleNavRefresh() {
+    // The space record files any chat operations as sequences and then the nav
+    // list reloads. Fetching the list here would race that filing.
     bumpSpaceLabelsVersion();
-    if (!state.spaceId) return;
-    try {
-      const sequences = await fetchNavSequences(state.spaceId);
-      dispatch({ type: "SEQUENCES_LOAD_SUCCEEDED", sequences });
-      reloadGroups();
-    } catch {
-      // Non-fatal: the labels-version bump already triggers a refetch path.
-    }
+    reloadGroups();
   }
 
   function handleReorderSequences(reordered: SequenceSummary[]) {
@@ -268,12 +296,12 @@ export function useSequenceNav(options: {
     persistGroups(groups);
   }
 
-  function handleDeleteGroup(title: string) {
+  async function handleDeleteGroup(title: string) {
     const navSequences = state.nav.sequences.filter((sequence) => sequence.kind === "sequence");
     const affected = navSequences.filter((sequence) => (sequence.groupTitle ?? null) === title);
     if (
       affected.length > 0 &&
-      !window.confirm(`Delete group "${title}"? Its sequences will move to Ungrouped.`)
+      !(await confirmDialog(`Delete group "${title}"? Its sequences will become ungrouped.`))
     ) {
       return;
     }
@@ -286,13 +314,13 @@ export function useSequenceNav(options: {
       return;
     }
 
-    // Move the deleted group's sequences to Ungrouped, placed at the very bottom.
-    const display = flattenNavGroups(buildNavGroups(navSequences, state.nav.groups));
-    const kept = display.filter((sequence) => (sequence.groupTitle ?? null) !== title);
-    const moved = display
-      .filter((sequence) => (sequence.groupTitle ?? null) === title)
-      .map((sequence) => ({ ...sequence, groupTitle: null }));
-    const reordered = reindexSequences([...kept, ...moved]);
+    // Move the deleted group's sequences onto the ungrouped tail.
+    const reordered = moveGroupToUngrouped(
+      navSequences,
+      state.nav.groups,
+      title,
+      (sequence) => sequence.label
+    );
     const others = state.nav.sequences.filter((sequence) => sequence.kind !== "sequence");
 
     dispatch({ type: "GROUPS_CHANGED", groups, sequences: [...others, ...reordered] });

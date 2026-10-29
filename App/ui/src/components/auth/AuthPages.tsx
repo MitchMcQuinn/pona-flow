@@ -105,32 +105,45 @@ export function AuthPages({ initialMode, openSignup, onSignedIn }: AuthPagesProp
           </label>
         ) : null}
 
-        <label className="field">
-          <span>Email</span>
-          <input
-            type="email"
-            autoComplete="username"
-            required
-            autoFocus
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={busy}
-          />
-        </label>
-
-        <label className="field">
-          <span>Password</span>
-          <input
-            type="password"
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
-            required
-            minLength={mode === "login" ? undefined : 10}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={busy}
-          />
-          {mode !== "login" ? <small className="muted">At least 10 characters.</small> : null}
-        </label>
+        <div className="authFields">
+          <div className="authInlineField">
+            <span className="authInlineTip" />
+            <label className="authInlineLabel" htmlFor="auth-email">
+              email:
+            </label>
+            <div className="authInlineControl">
+              <input
+                id="auth-email"
+                type="email"
+                autoComplete="username"
+                required
+                autoFocus
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={busy}
+              />
+            </div>
+          </div>
+          <div className="authInlineField">
+            <span className="authInlineTip" />
+            <label className="authInlineLabel" htmlFor="auth-password">
+              password:
+            </label>
+            <div className="authInlineControl">
+              <input
+                id="auth-password"
+                type="password"
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                required
+                minLength={mode === "login" ? undefined : 10}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={busy}
+              />
+            </div>
+          </div>
+        </div>
+        {mode !== "login" ? <small className="muted">At least 10 characters.</small> : null}
 
         {error ? (
           <p className="authError" role="alert">

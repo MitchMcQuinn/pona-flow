@@ -320,9 +320,9 @@ function ParameterRow({
 
 export function ParametersSection() {
   const { state, patchQuery } = useBuilder();
-  const params = state.query.parameters;
+  const params = state.query.parameters ?? [];
   const op = state.query.operation;
-  const clauseLabel = state.query.match[0]?.label;
+  const clauseLabel = state.query.match?.[0]?.label;
   const schemaCreate = op === "create" && clauseLabel === "SCHEMA";
   const enforceAttributiveUniqueness =
     op === "create" && (clauseLabel === "SCHEMA" || clauseLabel === "STEP");
