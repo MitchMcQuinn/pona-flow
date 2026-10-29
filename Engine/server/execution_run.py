@@ -1494,12 +1494,23 @@ def run_execution(
 
         try:
             response = _execute_step(space_id, step, resolved)
-        except Exception:
-            # The id mint was written before this step ran. Keep that progress so
-            # a retry reuses it instead of creating a second entity, and clear the
-            # active flag so a dead run is not stuck looking in-flight.
+        except Exception as err:
+            # Report the failure and leave the run inactive, but keep the progress
+            # written before this step. Wiping it would mint a second id on retry.
             catalog.update_state_status(state_id, "inactive")
-            raise
+            _sync_audit_parameter_map(audit_id, resolved)
+            payload = {
+                "status": "error",
+                "state_id": state_id,
+                "message": str(err),
+                "resolved": resolved,
+                "executed": executed,
+            }
+            try:
+                catalog.update_state_result(state_id, payload)
+            except Exception as persist_err:
+                sys.stderr.write(f"state-finish error: {persist_err}\n")
+            return payload
         final_step = step
         final_response = response if isinstance(response, dict) else {}
         in_loop_body = bool(loop) and step_id in loop_body

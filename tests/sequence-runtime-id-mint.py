@@ -122,12 +122,11 @@ try:
 
     execution_run._execute_step = _explode_once  # type: ignore[assignment]
     try:
-        crashed = False
-        try:
-            execution.run_execution("SP_TEST", state_id3, params=None)
-        except RuntimeError:
-            crashed = True
-        check("simulated crash propagated", crashed)
+        crashed = execution.run_execution("SP_TEST", state_id3, params=None)
+        check(
+            "simulated crash is reported without dropping the run",
+            crashed.get("status") == "error" and "simulated crash" in str(crashed.get("message") or ""),
+        )
 
         row = catalog.fetch_state_package(state_id3)
         progress = (row or {}).get("progress") or {}
