@@ -1174,26 +1174,22 @@ function BuilderBody({
   return (
     <div className={["builderRoot", preview ? "previewLocked" : "", ...issueClasses].filter(Boolean).join(" ")}>
       <fieldset className="builderFormFieldset">
-        <div className="builderHeadRow">
-          <h1 className="builderPanelTitle">
-            {createSequenceMode
-              ? editingSequence
-                ? "edit sequence"
-                : "create a sequence"
-              : editingOperation
-                ? "edit step"
-                : "workbench"}
-          </h1>
-          {editingSequence && editingSequenceId ? (
-            <button
-              type="button"
-              className="builderTinyBtn"
-              onClick={() => void copySequenceId()}
-            >
-              {sequenceIdCopied ? "Copied" : "Copy sequence ID"}
-            </button>
-          ) : null}
-        </div>
+        {createSequenceMode || editingOperation ? (
+          <div className="builderHeadRow">
+            <h1 className="builderPanelTitle">
+              {createSequenceMode ? (editingSequence ? "edit sequence" : "create a sequence") : "edit step"}
+            </h1>
+            {editingSequence && editingSequenceId ? (
+              <button
+                type="button"
+                className="builderTinyBtn"
+                onClick={() => void copySequenceId()}
+              >
+                {sequenceIdCopied ? "Copied" : "Copy sequence ID"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         {createSequenceMode ? (
           <CreateSequenceFields

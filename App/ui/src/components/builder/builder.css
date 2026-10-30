@@ -1689,6 +1689,8 @@
   border-radius: 0;
   background: var(--mesh);
   box-shadow: var(--mesh-glow);
+  -webkit-mask-image: var(--handle-fade);
+  mask-image: var(--handle-fade);
 }
 
 body.matchResizing {

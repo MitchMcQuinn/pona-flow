@@ -22,6 +22,13 @@ export function followUpPrompt(result: ChatBatchResult): string {
   }
   const skipped = result.not_applied.map((item) => item.summary || item.kind).filter(Boolean);
   if (skipped.length) lines.push(`Not applied: ${skipped.join("; ")}.`);
+  const inputs = result.inputs ?? [];
+  if (inputs.length) {
+    lines.push(
+      `Inputs: ${inputs.map((item) => `${item.name} (${item.source} → ${item.lands_as})`).join("; ")}.`,
+      "Say which inputs are simulated or set from the console, and which one to switch to a live event when the real source exists."
+    );
+  }
   const consoles = result.applied.filter((item) => item.kind === "upsert_console" && item.id);
   if (consoles.length) {
     const named = consoles.map((item) => `${item.summary || "Console"} (${item.id})`).join("; ");

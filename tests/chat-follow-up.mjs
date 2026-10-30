@@ -29,4 +29,13 @@ assert.match(saved, /check_console_modules/);
 assert.match(saved, /CON_floor/);
 assert.match(saved, /open_console/);
 
+const modeled = followUpPrompt({
+  ...base,
+  applied: [{ kind: "upsert_event", summary: "Badge-in" }],
+  inputs: [{ name: "badge-in", source: "simulated", lands_as: "simulated_event" }]
+});
+assert.match(modeled, /badge-in \(simulated → simulated_event\)/);
+assert.match(modeled, /simulated or set from the console/);
+assert.match(modeled, /Do not call a tool/);
+
 console.log("ok");

@@ -49,6 +49,7 @@ export function ChatColumn({
   return (
     <section className="chatColumn" aria-label="Chat">
       <header className="chatHeader">
+        <h1 className="chatTitle">chat</h1>
         <button
           type="button"
           className="tinyBtn"
@@ -57,7 +58,6 @@ export function ChatColumn({
         >
           Threads
         </button>
-        <h1 className="chatTitle">Chat</h1>
       </header>
       {drawerOpen ? (
         <div className="chatDrawer" role="dialog" aria-label="Threads">

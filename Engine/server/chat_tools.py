@@ -272,6 +272,39 @@ TOOLS: list[dict[str, Any]] = [
                     },
                 },
                 "payload": {"type": "object"},
+                "inputs": {
+                    "type": "array",
+                    "description": (
+                        "Each way data enters this process. Required on one call when the batch "
+                        "creates an event, seeds rows, or a console someone fills in. "
+                        "source person lands_as console. source clock lands_as time_event. "
+                        "source external lands_as external_event. "
+                        "source simulated lands_as simulated_event or console. "
+                        "source seed lands_as execute_package. "
+                        "If the user did not name a live source, use simulated or a console."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "source": {
+                                "type": "string",
+                                "enum": ["person", "clock", "external", "simulated", "seed"],
+                            },
+                            "lands_as": {
+                                "type": "string",
+                                "enum": [
+                                    "console",
+                                    "time_event",
+                                    "external_event",
+                                    "simulated_event",
+                                    "execute_package",
+                                ],
+                            },
+                        },
+                        "required": ["name", "source", "lands_as"],
+                    },
+                },
             },
             ["kind", "summary", "payload"],
         ),

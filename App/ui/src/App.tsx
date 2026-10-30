@@ -246,6 +246,15 @@ export default function App() {
     () => (consoleEditorId ? false : selectors.hasConfigContent(state)),
     [state, consoleEditorId]
   );
+  const workbenchActive =
+    state.view.rightPanelMode === "builder" &&
+    !state.nav.selectedSequenceId &&
+    !state.events.selectedEventId &&
+    !state.consoles.selectedConsoleId &&
+    !state.createEvent &&
+    !state.createSequence &&
+    !state.spacePanelOpen &&
+    !state.editor.selectedElement;
 
   const viewport = useViewport();
   const compactShell = viewport.mode !== "desktop";
@@ -866,6 +875,15 @@ export default function App() {
             onLogout={handleLogout}
             isSuperadmin={Boolean(state.me?.isSuperadmin)}
             inFlightSequenceIds={navActivitySequenceIds(state.inFlight)}
+            workbenchActive={workbenchActive}
+            onOpenWorkbench={() => {
+              if (viewport.mode === "phone") panes.setMobilePane("workbench");
+              if (viewport.mode === "tablet") panes.setNavDrawerOpen(false);
+              if (workbenchActive) return;
+              setBuilderResult(null);
+              setBuilderSeed(null);
+              dispatch({ type: "OPEN_BUILDER" });
+            }}
           />
           )
         }

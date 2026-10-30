@@ -36,8 +36,16 @@
   /* Rainbow rails. Nested lines step in by the same distance as the column
      divider to the first in-pane rail, so every level has the same gap. */
   --rail-width: 2px;
-  /* Visible bar on the draggable column handles (nav, workbench, match builder). */
+  /* Visible bar on the draggable column handles (nav, workbench, match builder).
+     The ends dissolve into the black canvas, like a scrollbar thumb. */
   --handle-width: 6px;
+  --handle-fade: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 14%,
+    #000 86%,
+    transparent 100%
+  );
   --column-divider-track: 10px;
   --column-divider-gutter: 2px;
   --rail-step: calc(
@@ -106,6 +114,24 @@ body {
 ::selection {
   background: rgba(99, 102, 241, 0.55);
   color: #fff;
+}
+
+/* Rainbow handle on every scrollbar. scrollbar-color is a solid color and
+   turns this gradient off in Chrome, so only the WebKit thumb is set. */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--mesh);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 input::placeholder,
@@ -536,6 +562,8 @@ body.layoutResizing .layoutMode-desktop.layoutColumnSlide .layoutNavSlot {
   border-radius: 0;
   background: var(--mesh);
   box-shadow: var(--mesh-glow);
+  -webkit-mask-image: var(--handle-fade);
+  mask-image: var(--handle-fade);
 }
 
 .panel {
@@ -802,6 +830,43 @@ button:focus-visible {
   margin-bottom: 8px;
   font-size: 13px;
   color: var(--muted);
+}
+
+.navWorkbenchTitle {
+  margin: 0 0 8px;
+}
+
+.navWorkbenchLink {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  text-align: left;
+  text-transform: inherit;
+  color: inherit;
+}
+
+.navWorkbenchLink:hover,
+.navWorkbenchLink:active,
+.navWorkbenchLink:focus-visible {
+  box-shadow: none;
+  border-color: transparent;
+}
+
+.navWorkbenchLink[aria-current="page"],
+.navWorkbenchLink:hover,
+.navWorkbenchLink:active {
+  background-color: transparent;
+  background-image: var(--mesh);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .navSectionTitle {
@@ -3008,17 +3073,22 @@ td {
 
 .chatHeader {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 12px var(--glow-bleed) 8px;
   flex-shrink: 0;
+  container-type: inline-size;
 }
 
 .chatTitle {
   flex: 1;
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  background-color: transparent;
+  background-image: var(--mesh);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .chatTranscript {

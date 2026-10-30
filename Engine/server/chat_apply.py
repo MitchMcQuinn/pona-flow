@@ -61,6 +61,7 @@ Kinds and payloads:
 - delete_operation: {id} deletes the operation, its wrap step, and one-step sequences; suspends multi-step sequences
 - delete_step: {attributive_label}
 - delete_schema: {attributive_label}
+When the batch creates an event, seeds rows, or a console someone fills in, one propose_change call includes inputs: [{name, source: person|clock|external|simulated|seed, lands_as: console|time_event|external_event|simulated_event|execute_package}]. A person or a simulated control lands on a console. A clock lands on a time event. An outside system they have lands on an external event. An outside system they are only describing lands on a simulated event or a console. Invented starting rows land on execute_package. If they did not name a live source, use simulated or a console, not a time or external event.
 """.strip()
 
 
@@ -179,6 +180,9 @@ def normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
     pins = _pins(raw.get("pins"))
     if pins:
         item["pins"] = pins
+    inputs = normalize_inputs(raw.get("inputs"))
+    if inputs:
+        item["inputs"] = inputs
     return item
 
 
@@ -195,6 +199,178 @@ def _console_document_has_modules(document: dict[str, Any]) -> bool:
         if isinstance(modules, list) and modules:
             return True
     return False
+
+
+_INPUT_SOURCES = {"person", "clock", "external", "simulated", "seed"}
+_INPUT_LANDINGS = {
+    "person": {"console"},
+    "clock": {"time_event"},
+    "external": {"external_event"},
+    "simulated": {"simulated_event", "console"},
+    "seed": {"execute_package"},
+}
+_CONSOLE_INPUT_TYPES = {"button", "switch", "checkbox", "segmented", "select", "number", "form"}
+
+
+def normalize_inputs(raw: Any) -> list[dict[str, str]]:
+    """The input list a propose_change call attached, including entries the checker will refuse."""
+    if not isinstance(raw, list):
+        return []
+    inputs: list[dict[str, str]] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        inputs.append(
+            {
+                "name": str(entry.get("name") or "").strip()[:120],
+                "source": str(entry.get("source") or "").strip().lower(),
+                "lands_as": str(entry.get("lands_as") or "").strip().lower(),
+            }
+        )
+    return inputs
+
+
+def collect_inputs(items: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """One entry per name. A later propose_change call replaces an earlier one with the same name."""
+    merged: dict[str, dict[str, str]] = {}
+    order: list[str] = []
+    for item in items:
+        for entry in item.get("inputs") or []:
+            if not isinstance(entry, dict):
+                continue
+            key = str(entry.get("name") or "").strip().lower() or f"{entry.get('source')}:{entry.get('lands_as')}"
+            if key not in merged:
+                order.append(key)
+            merged[key] = {
+                "name": str(entry.get("name") or "").strip()[:120],
+                "source": str(entry.get("source") or "").strip().lower(),
+                "lands_as": str(entry.get("lands_as") or "").strip().lower(),
+            }
+    return [merged[key] for key in order]
+
+
+def _console_takes_input(document: dict[str, Any]) -> bool:
+    views = document.get("views")
+    if not isinstance(views, list):
+        return False
+    for view in views:
+        if not isinstance(view, dict):
+            continue
+        if view.get("kind") == "form":
+            return True
+        modules = view.get("modules")
+        if not isinstance(modules, list):
+            continue
+        for module in modules:
+            if isinstance(module, dict) and str(module.get("type") or "") in _CONSOLE_INPUT_TYPES:
+                return True
+    return False
+
+
+def _batch_feeds(items: list[dict[str, Any]]) -> dict[str, bool]:
+    feeds = {
+        "time_event": False,
+        "external_event": False,
+        "simulated_event": False,
+        "execute_package": False,
+        "console": False,
+    }
+    for item in items:
+        kind = item.get("kind")
+        payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+        if kind == "upsert_event":
+            event_type = str(payload.get("type") or "time").strip().lower()
+            if event_type == "external":
+                feeds["external_event"] = True
+            elif event_type == "simulated":
+                feeds["simulated_event"] = True
+            else:
+                feeds["time_event"] = True
+        elif kind == "execute_package":
+            operation = str(payload.get("operation") or "create").strip().lower()
+            if operation != "read":
+                feeds["execute_package"] = True
+        elif kind == "upsert_console":
+            document = payload.get("document") if isinstance(payload.get("document"), dict) else {}
+            if _console_takes_input(document):
+                feeds["console"] = True
+    return feeds
+
+
+def input_inventory_problems(items: list[dict[str, Any]]) -> list[str]:
+    """Refuse a batch that feeds the space without an input list that matches those feeds.
+
+    The model names each input. This checks that a person has a console, a clock has a
+    time event, an outside system they have has an external event, a described system
+    has a simulated event or a console, and invented rows have a seed package.
+    """
+    feeds = _batch_feeds(items)
+    if not any(feeds.values()):
+        return []
+    inputs = collect_inputs(items)
+    if not inputs:
+        return [
+            "This batch feeds the space but does not name its inputs. "
+            "Pass inputs on propose_change: name, source (person, clock, external, simulated, or seed), "
+            "and lands_as (console, time_event, external_event, simulated_event, or execute_package)."
+        ]
+    problems: list[str] = []
+    valid: list[dict[str, str]] = []
+    for entry in inputs:
+        name = entry["name"] or "(unnamed)"
+        source = entry["source"]
+        lands = entry["lands_as"]
+        if not entry["name"]:
+            problems.append("Each input needs a name.")
+            continue
+        if source not in _INPUT_SOURCES:
+            problems.append(
+                f"Input {name} source must be person, clock, external, simulated, or seed."
+            )
+            continue
+        allowed = _INPUT_LANDINGS[source]
+        if lands not in allowed:
+            choices = " or ".join(sorted(allowed))
+            problems.append(f"Input {name} ({source}) must land as {choices}.")
+            continue
+        valid.append(entry)
+
+    def lands(kind: str, sources: set[str] | None = None) -> bool:
+        return any(
+            entry["lands_as"] == kind and (sources is None or entry["source"] in sources)
+            for entry in valid
+        )
+
+    if feeds["time_event"] and not lands("time_event", {"clock"}):
+        problems.append("A time event needs an input with source clock and lands_as time_event.")
+    if feeds["external_event"] and not lands("external_event", {"external"}):
+        problems.append(
+            "An external event needs an input with source external and lands_as external_event. "
+            "A source they are only describing is simulated, not external."
+        )
+    if feeds["simulated_event"] and not lands("simulated_event", {"simulated"}):
+        problems.append(
+            "A simulated event needs an input with source simulated and lands_as simulated_event."
+        )
+    if feeds["execute_package"] and not lands("execute_package", {"seed"}):
+        problems.append("Seeded rows need an input with source seed and lands_as execute_package.")
+    if feeds["console"] and not lands("console", {"person", "simulated"}):
+        problems.append(
+            "A console someone uses to enter or refresh data needs an input that lands on a console."
+        )
+    if lands("time_event") and not feeds["time_event"]:
+        problems.append("An input lands on a time event, but this batch has no time event.")
+    if lands("external_event") and not feeds["external_event"]:
+        problems.append("An input lands on an external event, but this batch has no external event.")
+    if lands("simulated_event") and not feeds["simulated_event"]:
+        problems.append("An input lands on a simulated event, but this batch has no simulated event.")
+    if lands("execute_package") and not feeds["execute_package"]:
+        problems.append("An input lands on execute_package, but this batch does not seed rows.")
+    if lands("console") and not feeds["console"]:
+        problems.append(
+            "An input lands on a console, but this batch has no console someone can enter or refresh."
+        )
+    return problems
 
 
 def _error_text(exc: Exception) -> str:
@@ -397,6 +573,7 @@ def validate_batch(
             if normalized in seen_spaces:
                 errors.append(f"Item {index + 1}: duplicate space name {normalized!r} in this batch")
             seen_spaces.add(normalized)
+    errors.extend(input_inventory_problems(items))
     return errors
 
 
@@ -643,4 +820,5 @@ def apply_batch(
         "failed": failed,
         "not_applied": not_applied,
         "created_space_id": created_space_id,
+        "inputs": collect_inputs(items),
     }

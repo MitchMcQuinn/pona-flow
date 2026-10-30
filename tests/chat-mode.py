@@ -453,6 +453,128 @@ class ChatModeTest(unittest.TestCase):
             "badge-in",
         )
 
+    def test_a_feed_names_where_each_input_lands(self) -> None:
+        event = chat_apply.normalize_item(
+            {
+                "kind": "upsert_event",
+                "summary": "Badge-in",
+                "payload": {"name": "Badge-in", "type": "external"},
+            }
+        )
+        missing = chat_apply.input_inventory_problems([event])
+        self.assertTrue(missing)
+        self.assertIn("does not name its inputs", missing[0])
+
+        described = chat_apply.normalize_item(
+            {
+                "kind": "upsert_event",
+                "summary": "Badge-in",
+                "payload": {"name": "Badge-in", "type": "external"},
+                "inputs": [{"name": "badge-in", "source": "simulated", "lands_as": "simulated_event"}],
+            }
+        )
+        mismatched = chat_apply.input_inventory_problems([described])
+        self.assertTrue(any("external" in problem for problem in mismatched))
+
+        live = chat_apply.normalize_item(
+            {
+                "kind": "upsert_event",
+                "summary": "Badge-in",
+                "payload": {"name": "Badge-in", "type": "external"},
+                "inputs": [{"name": "badge-in", "source": "external", "lands_as": "external_event"}],
+            }
+        )
+        self.assertEqual(chat_apply.input_inventory_problems([live]), [])
+
+        clock = chat_apply.normalize_item(
+            {
+                "kind": "upsert_event",
+                "summary": "6pm",
+                "payload": {"name": "Overdue", "type": "time"},
+                "inputs": [{"name": "6pm", "source": "clock", "lands_as": "time_event"}],
+            }
+        )
+        self.assertEqual(chat_apply.input_inventory_problems([clock]), [])
+
+        form = {
+            "views": [
+                {
+                    "id": "live",
+                    "kind": "live",
+                    "modules": [{"id": "m", "type": "form", "title": "File"}],
+                }
+            ]
+        }
+        console = chat_apply.normalize_item(
+            {
+                "kind": "upsert_console",
+                "summary": "Desk",
+                "payload": {"name": "Desk", "document": form},
+            }
+        )
+        self.assertTrue(chat_apply.input_inventory_problems([console]))
+        console["inputs"] = [{"name": "phone call", "source": "person", "lands_as": "console"}]
+        self.assertEqual(chat_apply.input_inventory_problems([console]), [])
+
+        display = chat_apply.normalize_item(
+            {
+                "kind": "upsert_console",
+                "summary": "Board",
+                "payload": {
+                    "name": "Board",
+                    "document": {
+                        "views": [
+                            {
+                                "id": "live",
+                                "kind": "live",
+                                "modules": [{"id": "m", "type": "table", "title": "Open"}],
+                            }
+                        ]
+                    },
+                },
+            }
+        )
+        self.assertEqual(chat_apply.input_inventory_problems([display]), [])
+
+    def test_a_feed_without_inputs_is_not_proposed(self) -> None:
+        def complete(_cfg, _key, messages, _tools):
+            last = messages[-1] if messages else {}
+            if "was not shown" in str(last.get("content") or ""):
+                yield {"type": "text", "delta": "Still missing inputs."}
+                return
+            if not any(message.get("role") == "tool" for message in messages):
+                yield {
+                    "type": "tool_call",
+                    "id": "call_event",
+                    "name": "propose_change",
+                    "arguments": {
+                        "kind": "upsert_event",
+                        "summary": "Badge-in",
+                        "payload": {"name": "Badge-in", "type": "external"},
+                    },
+                }
+                return
+            yield {"type": "text", "delta": "Proposed."}
+
+        events = list(
+            chat_agent.run_turn(
+                space_id=self.space_id,
+                principal=self.principal,
+                content="wire badge-in",
+                thread_id=None,
+                model=({"provider": "openai", "model": "test", "base_url": ""}, "test-key"),
+                complete=complete,
+            )
+        )
+        kinds = [
+            event["data"]["item"]["kind"]
+            for event in events
+            if event["event"] in ("canvas", "canvas_update")
+        ]
+        self.assertNotIn("proposal", kinds)
+        text = "".join(event["data"].get("delta", "") for event in events if event["event"] == "text")
+        self.assertIn("does not name its inputs", text)
+
     def test_proposal_turn_does_not_open_a_console(self) -> None:
         def complete(_cfg, _key, messages, _tools):
             if not any(message.get("role") == "tool" for message in messages):
@@ -492,6 +614,13 @@ class ChatModeTest(unittest.TestCase):
                         "note": "The unit posts badge-in here.",
                         "pins": [{"target": "name", "note": "Name the event for the unit."}],
                         "payload": {"name": "Nurse call badge-in", "type": "external"},
+                        "inputs": [
+                            {
+                                "name": "badge-in",
+                                "source": "external",
+                                "lands_as": "external_event",
+                            }
+                        ],
                     },
                 }
                 return

@@ -58,6 +58,10 @@ interface NavigationPanelProps {
   onDeleteConsoleGroup: (title: string) => void;
   /** The open console is in edit mode, so its nav edit icon stays hidden. */
   consoleEditing?: boolean;
+  /** Open the builder and leave the selected event, console, or sequence. */
+  onOpenWorkbench: () => void;
+  /** The builder is the open view, so the heading is the current page. */
+  workbenchActive: boolean;
   /** Display name for the signed-in user (falls back to email inside the footer). */
   userName: string | null;
   userEmail: string | null;
@@ -573,6 +577,8 @@ export function NavigationPanel({
   onAddConsoleGroup,
   onDeleteConsoleGroup,
   consoleEditing = false,
+  onOpenWorkbench,
+  workbenchActive,
   userName,
   userEmail,
   userTimezone,
@@ -589,6 +595,17 @@ export function NavigationPanel({
   return (
     <div className="panel navPanel">
       <div className="panel__body">
+        <h1 className="navWorkbenchTitle">
+          <button
+            type="button"
+            className="navWorkbenchLink"
+            data-testid="nav-workbench"
+            aria-current={workbenchActive ? "page" : undefined}
+            onClick={onOpenWorkbench}
+          >
+            workbench
+          </button>
+        </h1>
         <GroupedNav
           title="events"
           tour="events"

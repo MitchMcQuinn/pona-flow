@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterator
 
-from . import chat_models, chat_store, chat_tools
+from . import chat_apply, chat_models, chat_store, chat_tools
 from .auth import Principal
 
 _SYSTEM = """You are pona, the pona flow workbench agent currently logged in for space {space_id}.
@@ -22,9 +22,11 @@ Do not tell the user a write has landed until they accept it.
 After you have looked, either propose the changes or answer the user. Do not stop after tools with nothing to say.
 An upsert_query with kind operation is filed in the sequences list as a one-step sequence. Do not also create a separate sequence for that operation. Use kind sequence only for a chain whose cypher matches a STEP by attributive_label. That cypher must be one statement the visual builder can open: MATCH (var:INSTANCE|SCHEMA|STEP {{ attributive_label: 'name' }}), optional WHERE, then RETURN, SET, or DELETE (CREATE or MERGE to make a node). Hops are directed. Do not use WITH, UNION, CALL, or a custom label such as :Person — a name belongs in attributive_label.
 Every console module must set dataSequenceId to a sequence or read operation, by catalog id or name. A form must also set actionSequenceId to the sequence that runs on submit, and dataSequenceId to the read that fills its inputs. Never leave dataSequenceId blank. A console document stores views as an array of {{id, name, kind, modules}}. A form module's fields go in config.fields. A text or stat module shows the scalar columns of a one-row result. A graph module shows the nodes and relationships that query returns. A table shows the rows. The example JSON for a module type is the shape, not data to put on the screen.
+When a proposal creates an event, seeds rows, or a console someone uses to enter or refresh data, name each input on one propose_change call. inputs is an array of {{name, source, lands_as}}. source is person, clock, external, simulated, or seed. lands_as is console, time_event, external_event, simulated_event, or execute_package. A person uses a console. A real clock is a time event. An outside system they have is an external event. An outside system they are only describing is a simulated event or a console control. Rows you invent so a view is not empty are seed. If they did not name a live source, model it. Do not enable a time or external event for a source they do not have. A proposal whose inputs do not match its events, seed package, or console is not shown.
 check_console_modules runs a module's data sequence and says what that module would show. For a button, switch, or form it names the sequence that runs on submit, and it does not execute that sequence. A module is correct only when the check says ok. ok is false when the module would show the expected-shape placeholder, when an action module would not run a sequence, or when the console has no modules. Call it before open_ephemeral_console when those sequences already exist. open_ephemeral_console refuses to open a console whose modules are not ok. If the sequences are created in the same proposal, the check waits until the user accepts. When a check is ok, tell the user only what that check reports for each module. If the check says the console has no modules, say that. Do not invent counts, rows, or names.
 When a message says the user accepted a change batch and names a console to check, call check_console_modules for that console, then open_console. Say only what the check reports. If a module is not ok, or the console has no modules, say what is wrong and propose a fix. Do not call any other tool.
 When a message says the user accepted a change batch and does not name a console to check, say what landed and ask one question or offer one next step. Do not call a tool in that reply.
+When that message lists inputs, say which are simulated or set from the console, and which one to switch to a live event when the real source exists.
 Write replies, item notes, and pin notes in markdown. A pin note is inserted on the field it names.
 Keep replies short. Put the useful view on the canvas instead of pasting large dumps into the chat.
 """
@@ -93,6 +95,9 @@ def _public_item(item: dict[str, Any]) -> dict[str, Any]:
     pins = item.get("pins") if isinstance(item.get("pins"), list) else []
     if pins:
         public["pins"] = pins
+    inputs = item.get("inputs") if isinstance(item.get("inputs"), list) else []
+    if inputs:
+        public["inputs"] = inputs
     return public
 
 
@@ -342,14 +347,52 @@ def run_turn(
         flush_deferred_canvases()
         yield from tool_events
         tool_events.clear()
+        problems = chat_apply.input_inventory_problems(proposals)
+        if problems:
+            held = list(problems)
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "The queued proposal was not shown to the user. "
+                        + " ".join(problems)
+                        + " Call propose_change again for each item. On one of those calls pass inputs, "
+                        "an array of {name, source, lands_as}. "
+                        "source is person, clock, external, simulated, or seed. "
+                        "lands_as is console, time_event, external_event, simulated_event, or execute_package."
+                    ),
+                }
+            )
+            proposals.clear()
+            round_text, round_thought, calls = one_round()
+            yield from take_text()
+            note_round(len(reasoning_rounds) + 1, round_text, round_thought, calls)
+            yield from tool_events
+            tool_events.clear()
+            if calls:
+                run_calls(calls, round_text)
+                yield from tool_events
+                tool_events.clear()
+            problems = chat_apply.input_inventory_problems(proposals)
+            if problems or not proposals:
+                proposals.clear()
+                note = " I did not show the proposal. " + " ".join(problems or held)
+                reply = f"{reply}{note}".strip()
+                yield {"event": "text", "data": {"delta": note}}
         batch = None
         if proposals:
             batch = {"status": "pending", "items": [_public_item(item) for item in proposals]}
+            named_inputs = chat_apply.collect_inputs(proposals)
+            if named_inputs:
+                batch["inputs"] = named_inputs
+            proposal_payload = {"status": "pending", "items": batch["items"]}
+            if named_inputs:
+                proposal_payload["inputs"] = named_inputs
             proposal = chat_store.add_stack_item(
                 tid,
                 "proposal",
                 "Proposed changes",
-                {"status": "pending", "items": batch["items"]},
+                proposal_payload,
             )
             yield {"event": "canvas", "data": {"item": proposal}}
         message = chat_store.append_message(tid, "assistant", reply, tool_summaries, batch)

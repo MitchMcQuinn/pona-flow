@@ -45,6 +45,7 @@ export interface ChatBatchResult {
   failed: { kind: string; summary: string; error: string } | null;
   not_applied: Array<{ kind: string; summary: string }>;
   created_space_id: string | null;
+  inputs?: Array<{ name: string; source: string; lands_as: string }>;
 }
 
 export interface ChatBatch {
