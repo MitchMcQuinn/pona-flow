@@ -21,9 +21,11 @@ Create a SCHEMA with kind upsert_schema and payload attributive_label plus prope
 Do not tell the user a write has landed until they accept it.
 After you have looked, either propose the changes or answer the user. Do not stop after tools with nothing to say.
 An upsert_query with kind operation is filed in the sequences list as a one-step sequence. Do not also create a separate sequence for that operation. Use kind sequence only for a chain whose cypher matches a STEP by attributive_label. That cypher must be one statement the visual builder can open: MATCH (var:INSTANCE|SCHEMA|STEP {{ attributive_label: 'name' }}), optional WHERE, then RETURN, SET, or DELETE (CREATE or MERGE to make a node). Hops are directed. Do not use WITH, UNION, CALL, or a custom label such as :Person — a name belongs in attributive_label.
-Every console module must set dataSequenceId to a sequence or read operation, by catalog id or name. A form must also set actionSequenceId to the sequence that runs on submit, and dataSequenceId to the read that fills its inputs. Never leave dataSequenceId blank. A text or stat module shows the scalar columns of a one-row result. A graph module shows the nodes and relationships that query returns. A table shows the rows. The example JSON for a module type is the shape, not data to put on the screen.
+Every console module must set dataSequenceId to a sequence or read operation, by catalog id or name. A form must also set actionSequenceId to the sequence that runs on submit, and dataSequenceId to the read that fills its inputs. Never leave dataSequenceId blank. A console document stores views as an array of {{id, name, kind, modules}}. A form module's fields go in config.fields. A text or stat module shows the scalar columns of a one-row result. A graph module shows the nodes and relationships that query returns. A table shows the rows. The example JSON for a module type is the shape, not data to put on the screen.
+check_console_modules runs a module's data sequence and says what that module would show. For a button, switch, or form it names the sequence that runs on submit, and it does not execute that sequence. A module is correct only when the check says ok. ok is false when the module would show the expected-shape placeholder, when an action module would not run a sequence, or when the console has no modules. Call it before open_ephemeral_console when those sequences already exist. open_ephemeral_console refuses to open a console whose modules are not ok. If the sequences are created in the same proposal, the check waits until the user accepts. When a check is ok, tell the user only what that check reports for each module. If the check says the console has no modules, say that. Do not invent counts, rows, or names.
+When a message says the user accepted a change batch and names a console to check, call check_console_modules for that console, then open_console. Say only what the check reports. If a module is not ok, or the console has no modules, say what is wrong and propose a fix. Do not call any other tool.
+When a message says the user accepted a change batch and does not name a console to check, say what landed and ask one question or offer one next step. Do not call a tool in that reply.
 Write replies, item notes, and pin notes in markdown. A pin note is inserted on the field it names.
-When a message says the user accepted a change batch, say what landed and ask one question or offer one next step. Do not call a tool in that reply.
 Keep replies short. Put the useful view on the canvas instead of pasting large dumps into the chat.
 """
 
@@ -307,12 +309,19 @@ def run_turn(
         if not reply.strip():
             # A tool-only finish looks like a freeze: the tools are listed and then nothing.
             follow_up = text.startswith(_FOLLOW_UP_MARK)
-            nudge = (
-                "The changes are already applied. Reply to the user now. "
-                "Say what landed, then ask one question or offer one next step. Do not call a tool."
-                if follow_up
-                else _NUDGE
-            )
+            if follow_up and "check_console_modules" in text:
+                nudge = (
+                    "Call check_console_modules for the console in the message, then open_console. "
+                    "Reply with only what the check reports. "
+                    "If a module is not ok, or the console has no modules, say what is wrong."
+                )
+            elif follow_up:
+                nudge = (
+                    "The changes are already applied. Reply to the user now. "
+                    "Say what landed, then ask one question or offer one next step. Do not call a tool."
+                )
+            else:
+                nudge = _NUDGE
             messages.append({"role": "user", "content": nudge})
             round_text, round_thought, calls = one_round()
             yield from take_text()

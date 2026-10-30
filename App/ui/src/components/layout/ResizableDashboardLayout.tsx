@@ -136,6 +136,10 @@ interface ResizableDashboardLayoutProps {
   onCloseNavDrawer?: () => void;
   /** Chat replaces the nav and the canvas takes the rest of the row. Space settings can still open beside it. */
   chatMode?: boolean;
+  /** Fade the column contents while chat and workbench trade places. */
+  contentHidden?: boolean;
+  /** Glide the shared resize handle between the chat and workbench column widths. */
+  columnSliding?: boolean;
 }
 
 function EmptyPane({ testId, children }: { testId: string; children: ReactNode }) {
@@ -158,7 +162,9 @@ export function ResizableDashboardLayout({
   mobilePane = "menu",
   navDrawerOpen = false,
   onCloseNavDrawer,
-  chatMode = false
+  chatMode = false,
+  contentHidden = false,
+  columnSliding = false
 }: ResizableDashboardLayoutProps) {
   const isPhone = mode === "phone";
   const isTablet = mode === "tablet";
@@ -340,6 +346,8 @@ export function ResizableDashboardLayout({
   const layoutClass = [
     "layoutResizable",
     chatMode && "layoutChat",
+    contentHidden && "layoutViewHidden",
+    columnSliding && "layoutColumnSlide",
     `layoutMode-${mode}`,
     isPhone && `layoutPane-${mobilePane}`,
     isTablet && navDrawerOpen && "layoutNavDrawerOpen",

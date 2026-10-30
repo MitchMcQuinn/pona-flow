@@ -34,7 +34,6 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
   const [batchBusy, setBatchBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [turnStatus, setTurnStatus] = useState<"idle" | "running">("idle");
-  const [round, setRound] = useState<{ index: number; max: number } | null>(null);
   const [insight, setInsight] = useState<InsightRequest | null>(null);
   const threadIdRef = useRef<string | null>(null);
   const openerRef = useRef<{ spaceId: string; prompt: string } | null>(null);
@@ -107,7 +106,6 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
         setDraft("");
       }
       setStreaming(true);
-      setRound(null);
       const localUser: ChatMessage | null = options?.hidden
         ? null
         : {
@@ -138,8 +136,6 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
                 message.id === localAssistantId ? { ...message, content: next } : message
               )
             );
-          } else if (event.event === "round") {
-            setRound({ index: event.data.index, max: event.data.max });
           } else if (event.event === "tool" && event.data.status === "done") {
             tools.push({
               name: event.data.name,
@@ -186,7 +182,6 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
         }
       } finally {
         setStreaming(false);
-        setRound(null);
       }
     },
     [applyThread, pending, reloadThreads, spaceId, streaming]
@@ -353,7 +348,6 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     queued,
     setQueued,
     streaming,
-    round,
     insight,
     insightView,
     closeInsight,

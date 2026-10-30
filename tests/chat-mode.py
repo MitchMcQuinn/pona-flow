@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT / "Engine"))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from server import catalog, chat_agent, chat_apply, chat_models, chat_store, chat_tools, config, local_auth, migrations, operation_nav, packages, spaces  # noqa: E402
+from server import catalog, chat_agent, chat_apply, chat_models, chat_store, chat_tools, config, console_service, local_auth, migrations, operation_nav, packages, spaces  # noqa: E402
 
 _NUDGE_MARK = "Do not call another read tool."
 from server.app import app  # noqa: E402
@@ -545,6 +545,134 @@ class ChatModeTest(unittest.TestCase):
         kinds = [event["data"]["item"]["kind"] for event in events if event["event"] == "canvas"]
         self.assertIn("ephemeral_console", kinds)
         self.assertNotIn("proposal", kinds)
+
+    def test_ephemeral_console_stays_closed_when_a_module_would_show_the_shape_note(self) -> None:
+        def resolve(ref: str):
+            if ref in ("READ_OPEN", "OP_open"):
+                return {"id": "OP_open", "name": "READ_OPEN", "kind": "operation", "operation": "read"}
+            raise console_service.ConsoleRunError("sequence was not found")
+
+        def run(*_args, **_kwargs):
+            return {
+                "status": "inactive",
+                "final_result": {"kind": "table", "columns": ["a", "b"], "rows": [{"a": 1, "b": 2}]},
+            }
+
+        with (
+            patch.object(console_service, "resolve_console_target", resolve),
+            patch.object(console_service, "execute_console_sequence", run),
+        ):
+            refused = chat_tools.execute(
+                "open_ephemeral_console",
+                {
+                    "title": "Floor",
+                    "modules": [{"type": "stat", "title": "Open", "data_sequence_id": "READ_OPEN"}],
+                },
+                self.principal,
+                self.space_id,
+                [],
+            )
+            opened = chat_tools.execute(
+                "open_ephemeral_console",
+                {
+                    "title": "Floor",
+                    "modules": [{"type": "table", "title": "Open", "data_sequence_id": "READ_OPEN"}],
+                },
+                self.principal,
+                self.space_id,
+                [],
+            )
+        self.assertFalse(refused.result["ok"])
+        self.assertEqual(refused.canvases, [])
+        self.assertIn("not ok", refused.result["error"])
+        self.assertTrue(opened.result["ok"])
+        self.assertEqual(opened.canvases[0]["kind"], "ephemeral_console")
+        self.assertIn("a=1", opened.result["check"]["modules"][0]["shows"])
+        self.assertIn("check_console_modules", chat_agent._SYSTEM)
+
+    def test_proposal_rejects_a_module_that_would_show_the_shape_note(self) -> None:
+        def resolve(ref: str):
+            if ref in ("READ_OPEN", "OP_open"):
+                return {"id": "OP_open", "name": "READ_OPEN", "kind": "operation", "operation": "read"}
+            raise console_service.ConsoleRunError("sequence was not found")
+
+        def run(*_args, **_kwargs):
+            return {
+                "status": "inactive",
+                "final_result": {"kind": "table", "rows": [{"open": 4, "closed": 9}]},
+            }
+
+        proposals: list = []
+        document = {
+            "views": [
+                {
+                    "id": "live",
+                    "kind": "live",
+                    "modules": [
+                        {
+                            "id": "m1",
+                            "type": "stat",
+                            "title": "Open",
+                            "dataSequenceId": "READ_OPEN",
+                            "dataSource": "sequence",
+                            "config": {},
+                        }
+                    ],
+                }
+            ]
+        }
+        with (
+            patch.object(console_service, "resolve_console_target", resolve),
+            patch.object(console_service, "execute_console_sequence", run),
+        ):
+            refused = chat_tools.execute(
+                "propose_change",
+                {
+                    "kind": "upsert_console",
+                    "summary": "Floor",
+                    "payload": {"name": "Floor", "document": document},
+                },
+                self.principal,
+                self.space_id,
+                proposals,
+            )
+        self.assertFalse(refused.result["ok"])
+        self.assertEqual(proposals, [])
+        self.assertIn("not ok", refused.result["errors"][0])
+
+        waiting: list = []
+        later = {
+            "views": [
+                {
+                    "id": "live",
+                    "kind": "live",
+                    "modules": [
+                        {
+                            "id": "m1",
+                            "type": "table",
+                            "title": "Later",
+                            "dataSequenceId": "NOT_YET",
+                            "dataSource": "sequence",
+                            "config": {},
+                        }
+                    ],
+                }
+            ]
+        }
+        queued = chat_tools.execute(
+            "propose_change",
+            {
+                "kind": "upsert_console",
+                "summary": "Floor",
+                "payload": {"name": "Floor", "document": later},
+            },
+            self.principal,
+            self.space_id,
+            waiting,
+        )
+        self.assertTrue(queued.result["ok"], queued.result)
+        self.assertTrue(queued.result["module_check"]["modules"][0]["deferred"])
+        self.assertEqual(len(waiting), 1)
 
     def test_walkthrough_does_not_queue_a_change(self) -> None:
         proposals: list = []

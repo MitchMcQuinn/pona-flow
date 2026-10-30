@@ -188,6 +188,25 @@ export async function deleteSpace(spaceId: string): Promise<{ id: string; delete
   return { id: data.id ?? spaceId, deleted: Boolean(data.deleted) };
 }
 
+/** Clear one space's graph and authored records. The space, accounts, and settings stay. */
+export async function resetSpaceData(spaceId: string, confirmName: string): Promise<void> {
+  await postJson<unknown>(
+    "/api/spaces/reset",
+    { space_id: spaceId, confirm: confirmName },
+    "Failed to reset space"
+  );
+}
+
+/** Erase the instance. The server clears the session when first-run setup is required again. */
+export async function factoryResetInstance(): Promise<{ setupRequired: boolean }> {
+  const data = await postJson<{ setup_required?: boolean }>(
+    "/api/instance/factory-reset",
+    { confirm: "RESET INSTANCE" },
+    "Failed to factory reset"
+  );
+  return { setupRequired: Boolean(data.setup_required) };
+}
+
 export interface SchemaDeleteRef {
   id: string;
   name: string;

@@ -22,8 +22,17 @@ export function followUpPrompt(result: ChatBatchResult): string {
   }
   const skipped = result.not_applied.map((item) => item.summary || item.kind).filter(Boolean);
   if (skipped.length) lines.push(`Not applied: ${skipped.join("; ")}.`);
-  lines.push(
-    "Continue the conversation. Say what landed, then ask one question or offer one concrete next step. Reply in text only. Do not call a tool."
-  );
+  const consoles = result.applied.filter((item) => item.kind === "upsert_console" && item.id);
+  if (consoles.length) {
+    const named = consoles.map((item) => `${item.summary || "Console"} (${item.id})`).join("; ");
+    lines.push(
+      `Check these consoles with check_console_modules, then open_console for each: ${named}.`,
+      "Say what each module shows, or which sequence it runs. If a module is not ok, say what is wrong and propose a fix. Do not call any other tool."
+    );
+  } else {
+    lines.push(
+      "Continue the conversation. Say what landed, then ask one question or offer one concrete next step. Reply in text only. Do not call a tool."
+    );
+  }
   return lines.join("\n");
 }

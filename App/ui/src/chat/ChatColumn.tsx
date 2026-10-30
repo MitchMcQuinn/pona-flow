@@ -12,7 +12,6 @@ interface ChatColumnProps {
   streaming: boolean;
   batchBusy: boolean;
   error: string | null;
-  round: { index: number; max: number } | null;
   selectedMessageId?: string | null;
   onSelectMessage?: (messageId: string) => void;
   onSelectRead?: (messageId: string, index: number) => void;
@@ -34,7 +33,6 @@ export function ChatColumn({
   streaming,
   batchBusy,
   error,
-  round,
   selectedMessageId,
   onSelectMessage,
   onSelectRead,
@@ -174,7 +172,14 @@ export function ChatColumn({
           );
         })}
         {streaming ? (
-          <p className="muted">{round ? `Round ${round.index} of ${round.max}` : "Working…"}</p>
+          <p className="chatThinking" role="status">
+            thinking
+            <span className="chatThinkingDots" aria-hidden="true">
+              <span>.</span>
+              <span>.</span>
+              <span>.</span>
+            </span>
+          </p>
         ) : null}
         {error ? <p className="errorText">{error}</p> : null}
       </div>

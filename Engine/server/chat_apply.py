@@ -15,6 +15,7 @@ from fastapi.exceptions import HTTPException
 from . import (
     auth,
     catalog,
+    console_check,
     console_service,
     cypher_utils,
     graph,
@@ -54,7 +55,7 @@ Kinds and payloads:
 - execute_package: {operation: create|read|update|delete, cypher: [string], sqlite?: [string], cypher_params?: {}, parameters?: [], node_label?}
 - upsert_event: {id?, name, type: time|external|simulated, event_package?: {timezone, combinator?, groups: [{is_time: "18:00", is_weekday?: [1-7], is_month?, is_date?}]}, sequences?: [id], recovery_sequences?: [id], enabled?: 1, external_package?: {filters, param_mappings, combinator}}. Weekday 1 is Monday. Put the schedule in groups. A note that says 6pm does not set the time field.
 - delete_event: {id}
-- upsert_console: {id?, name, trigger_kind?: ""|url|event, listen_url?, trigger_event_id?, document?: {views, activeViewId}}
+- upsert_console: {id?, name, trigger_kind?: ""|url|event, listen_url?, trigger_event_id?, document?: {views, activeViewId}}. views is an array of {id, name, kind: live|form, modules}. A form module puts its fields in config.fields.
 - delete_console: {id}
 - delete_sequence: {id} removes the catalog sequence only
 - delete_operation: {id} deletes the operation, its wrap step, and one-step sequences; suspends multi-step sequences
@@ -179,6 +180,21 @@ def normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
     if pins:
         item["pins"] = pins
     return item
+
+
+def _console_document_has_modules(document: dict[str, Any]) -> bool:
+    views = document.get("views")
+    if not isinstance(views, list):
+        return False
+    for view in views:
+        if not isinstance(view, dict):
+            continue
+        if view.get("kind") == "form":
+            return True
+        modules = view.get("modules")
+        if isinstance(modules, list) and modules:
+            return True
+    return False
 
 
 def _error_text(exc: Exception) -> str:
@@ -319,6 +335,20 @@ def validate_item(
             document = payload.get("document")
             if document is not None and not isinstance(document, dict):
                 raise ValueError("document must be an object")
+            if isinstance(document, dict):
+                document = catalog._normalize_console_document(document)
+                payload["document"] = document
+            if isinstance(document, dict) and _console_document_has_modules(document):
+                report = console_check.check_document(
+                    space_id,
+                    document,
+                    principal=principal,
+                    console_id=existing_id or "check",
+                    defer_missing=True,
+                )
+                item["module_check"] = report
+                if not report["ok"]:
+                    raise ValueError(str(report.get("summary") or "console modules would not show the expected data"))
         elif kind == "delete_console":
             console = catalog.get_console(str(payload.get("id") or ""))
             if console is None or str(console.get("space_id") or "") != space_id:
@@ -518,6 +548,7 @@ def _apply_one(
         return catalog.delete_event(str(payload.get("id") or ""))
     if kind == "upsert_console":
         document = payload.get("document") if isinstance(payload.get("document"), dict) else {}
+        document = catalog._normalize_console_document(document)
         document = console_service.link_console_document(document)
         saved = catalog.upsert_console(
             str(payload.get("id") or ""),

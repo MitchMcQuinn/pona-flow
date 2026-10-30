@@ -15,6 +15,7 @@ from . import (
     auth,
     catalog,
     chat_apply,
+    console_check,
     graph,
     id_generator,
     sequence_service,
@@ -45,6 +46,25 @@ _MODULE_TYPES = {
 }
 
 _OBJECT = {"type": "object", "properties": {}, "additionalProperties": False}
+
+_MODULE_ITEM = {
+    "type": "object",
+    "properties": {
+        "type": {"type": "string"},
+        "title": {"type": "string"},
+        "data_sequence_id": {
+            "type": "string",
+            "description": "Sequence or read operation id or name. Its result is what the module draws.",
+        },
+        "data_url": {"type": "string"},
+        "action_sequence_id": {"type": "string"},
+        "fields": {
+            "type": "string",
+            "description": "JSON array of form fields, each with name, label, and type.",
+        },
+        "config": {"type": "object"},
+    },
+}
 
 
 def _params(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -111,39 +131,40 @@ TOOLS: list[dict[str, Any]] = [
     ),
     _tool(
         "open_console",
-        "Open a saved console on the canvas. The user can use it, including its run buttons.",
+        "Open a saved console on the canvas. The user can use it, including its run buttons. "
+        "The result includes a check of what each module shows, or which sequence it runs.",
         _params({"console_id": {"type": "string"}}, ["console_id"]),
+    ),
+    _tool(
+        "check_console_modules",
+        "Run each module's data sequence the way the console does, and report what that module would show. "
+        "For a button, switch, or form, report the sequence it runs on submit. This does not execute action sequences. "
+        "Pass a saved console_id, or the modules you are about to open. "
+        "ok is false when a module would show the expected-shape placeholder, or when an action module has no sequence to run. "
+        "A sequence that is not in the catalog yet cannot be checked.",
+        _params(
+            {
+                "console_id": {"type": "string"},
+                "modules": {"type": "array", "items": _MODULE_ITEM},
+                "document": {
+                    "type": "object",
+                    "description": "A console document with views. Use this or modules or console_id.",
+                },
+            }
+        ),
     ),
     _tool(
         "open_ephemeral_console",
         "Open a working console on the canvas now. It runs existing sequences. "
         "Do not call this for a console whose sequences, events, or schemas are still a proposal: "
         "that console cannot run until the user accepts. Propose upsert_console instead, and open the console only after acceptance. "
-        "Bind data_sequence_id to a sequence or read operation (id or name) so the module shows that result, not an example.",
+        "Bind data_sequence_id to a sequence or read operation (id or name) so the module shows that result, not an example. "
+        "This refuses to open when a module would show the expected-shape placeholder or would not run its sequence. "
+        "The result says what each module shows, or which sequence it runs.",
         _params(
             {
                 "title": {"type": "string"},
-                "modules": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "type": {"type": "string"},
-                            "title": {"type": "string"},
-                            "data_sequence_id": {
-                                "type": "string",
-                                "description": "Sequence or read operation id or name. Its result is what the module draws.",
-                            },
-                            "data_url": {"type": "string"},
-                            "action_sequence_id": {"type": "string"},
-                            "fields": {
-                                "type": "string",
-                                "description": "JSON array of form fields, each with name, label, and type.",
-                            },
-                            "config": {"type": "object"},
-                        },
-                    },
-                },
+                "modules": {"type": "array", "items": _MODULE_ITEM},
             },
             ["title"],
         ),
@@ -356,8 +377,8 @@ def _ephemeral_document(modules: list[Any]) -> dict[str, Any]:
         module_type = str(raw.get("type") or "table").strip()
         if module_type not in _MODULE_TYPES:
             module_type = "table"
-        sequence_id = str(raw.get("data_sequence_id") or "").strip()
-        action_id = str(raw.get("action_sequence_id") or "").strip()
+        sequence_id = str(raw.get("data_sequence_id") or raw.get("dataSequenceId") or "").strip()
+        action_id = str(raw.get("action_sequence_id") or raw.get("actionSequenceId") or "").strip()
         config = dict(raw["config"]) if isinstance(raw.get("config"), dict) else {}
         fields = raw.get("fields")
         if fields is not None and "fields" not in config:
@@ -387,6 +408,35 @@ def _ephemeral_document(modules: list[Any]) -> dict[str, Any]:
         "views": [{"id": view_id, "name": "Live", "kind": "live", "modules": built}],
         "activeViewId": view_id,
     }
+
+
+def _check_console_modules(
+    arguments: dict[str, Any], principal: Principal, space_id: str
+) -> ToolResult:
+    console_id = str(arguments.get("console_id") or "").strip()
+    if console_id:
+        console = catalog.get_console(console_id)
+        if console is None or str(console.get("space_id") or "") != space_id:
+            return ToolResult({"ok": False, "error": "console was not found in this space"})
+        document = console.get("document") if isinstance(console.get("document"), dict) else {}
+        report = console_check.check_document(
+            space_id, document, principal=principal, console_id=console_id
+        )
+        return ToolResult({"ok": True, "check": report})
+    document = arguments.get("document")
+    if isinstance(document, dict):
+        report = console_check.check_document(
+            space_id, document, principal=principal, console_id="check"
+        )
+        return ToolResult({"ok": True, "check": report})
+    modules = arguments.get("modules")
+    if not isinstance(modules, list):
+        return ToolResult({"ok": False, "error": "Pass a console_id, a document, or modules."})
+    built = _ephemeral_document(modules)
+    report = console_check.check_document(
+        space_id, built, principal=principal, console_id="check"
+    )
+    return ToolResult({"ok": True, "check": report})
 
 
 def execute(
@@ -528,12 +578,26 @@ def execute(
                     }
                 )
             return ToolResult(_clip({"ok": True, "run": outcome}), canvases=canvases)
+        if name == "check_console_modules":
+            return _check_console_modules(arguments, principal, space_id)
         if name == "open_console":
             console = catalog.get_console(str(arguments.get("console_id") or ""))
             if console is None or str(console.get("space_id") or "") != space_id:
                 return ToolResult({"ok": False, "error": "console was not found in this space"})
+            try:
+                report = console_check.check_document(
+                    space_id,
+                    console.get("document") if isinstance(console.get("document"), dict) else {},
+                    principal=principal,
+                    console_id=str(console["id"]),
+                )
+            except Exception as exc:
+                report = {"ok": False, "summary": str(exc), "modules": []}
+            opened: dict[str, Any] = {"ok": True, "opened": console["id"]}
+            if report.get("modules"):
+                opened["check"] = report
             return ToolResult(
-                {"ok": True, "opened": console["id"]},
+                opened,
                 canvases=[
                     {
                         "kind": "saved_console",
@@ -546,8 +610,25 @@ def execute(
             title = str(arguments.get("title") or "Console").strip() or "Console"
             modules = arguments.get("modules") if isinstance(arguments.get("modules"), list) else []
             document = _ephemeral_document(modules)
+            report = console_check.check_document(
+                space_id,
+                document,
+                principal=principal,
+                console_id="check",
+            )
+            if document["views"][0]["modules"] and not report["ok"]:
+                return ToolResult(
+                    {
+                        "ok": False,
+                        "error": report["summary"],
+                        "check": report,
+                    }
+                )
+            opened: dict[str, Any] = {"ok": True, "opened": title}
+            if document["views"][0]["modules"]:
+                opened["check"] = report
             return ToolResult(
-                {"ok": True, "opened": title},
+                opened,
                 canvases=[
                     {
                         "kind": "ephemeral_console",
@@ -603,15 +684,15 @@ def execute(
             if problems:
                 return ToolResult({"ok": False, "errors": problems})
             proposals.append(item)
-            return ToolResult(
-                {
-                    "ok": True,
-                    "queued": True,
-                    "summary": item["summary"],
-                    "preview": item.get("preview"),
-                },
-                proposal=item,
-            )
+            queued: dict[str, Any] = {
+                "ok": True,
+                "queued": True,
+                "summary": item["summary"],
+                "preview": item.get("preview"),
+            }
+            if item.get("module_check"):
+                queued["module_check"] = item["module_check"]
+            return ToolResult(queued, proposal=item)
     except HTTPException as exc:
         return _denied(exc)
     except Exception as exc:

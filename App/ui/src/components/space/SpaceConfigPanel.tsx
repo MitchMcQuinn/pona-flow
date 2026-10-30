@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
+  factoryResetInstance,
   fetchSpaceRecord,
+  resetSpaceData,
   type CreateSpaceInput
 } from "../../services/api";
 import type { AppState, AuditEntry, Me, SequenceSummary } from "../../state/types";
@@ -17,6 +19,7 @@ import { EmbeddingsPanel } from "../embeddings/EmbeddingsPanel";
 import { TemplatesPanel } from "../templates/TemplatesPanel";
 import { UsersPanel } from "../users/UsersPanel";
 import { AuditParameterMap } from "./AuditParameterMap";
+import { ResetConfirmModal } from "./ResetConfirmModal";
 import "../builder/builder.css";
 
 type SpaceConfigTab =
@@ -149,9 +152,13 @@ export function SpaceConfigPanel({
   const [endpoint, setEndpoint] = useState("");
   const [description, setDescription] = useState("");
   const [devMode, setDevMode] = useState(false);
+  const [storedName, setStoredName] = useState("");
   const [recordLoading, setRecordLoading] = useState(false);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [resetKind, setResetKind] = useState<null | "space" | "instance">(null);
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const canManageSpace = Boolean(permissions?.manageSpace || me?.isSuperadmin);
 
@@ -164,6 +171,7 @@ export function SpaceConfigPanel({
       .then((record) => {
         if (cancelled) return;
         setName(record.name);
+        setStoredName(record.name);
         setEndpoint(record.endpoint ?? "");
         setDescription(record.description ?? "");
         setDevMode(Boolean(record.dev_mode));
@@ -171,7 +179,9 @@ export function SpaceConfigPanel({
       .catch((error: unknown) => {
         if (cancelled) return;
         setRecordError(error instanceof Error ? error.message : "Failed to load space");
-        setName(spaces.find((space) => space.id === spaceId)?.label ?? spaceId);
+        const fallback = spaces.find((space) => space.id === spaceId)?.label ?? spaceId;
+        setName(fallback);
+        setStoredName(fallback);
         setEndpoint("");
         setDescription("");
         setDevMode(false);
@@ -235,6 +245,24 @@ export function SpaceConfigPanel({
       description: description.trim(),
       dev_mode: devMode
     });
+    setStoredName(trimmedName);
+  }
+
+  async function confirmReset() {
+    if (!spaceId || !resetKind) return;
+    setResetSaving(true);
+    setResetError(null);
+    try {
+      if (resetKind === "space") {
+        await resetSpaceData(spaceId, storedName);
+      } else {
+        await factoryResetInstance();
+      }
+      window.location.reload();
+    } catch (error: unknown) {
+      setResetError(error instanceof Error ? error.message : "Reset failed");
+      setResetSaving(false);
+    }
   }
 
   return (
@@ -404,6 +432,50 @@ export function SpaceConfigPanel({
                 </button>
               ) : null}
             </div>
+            {canManageSpace && spaceId ? (
+              <div className="spaceResetCard">
+                <h3>Reset</h3>
+                <p className="muted">
+                  Reset space clears this space's graph, records, sequences, events, consoles,
+                  and chat. The space stays, along with its members, roles, credentials, and
+                  settings.
+                </p>
+                {me?.isSuperadmin ? (
+                  <p className="muted">
+                    Factory reset erases every space, account, and saved secret on this instance,
+                    then opens first-run setup. A sign-in that lives outside this instance, such
+                    as Clerk, stays.
+                  </p>
+                ) : null}
+                <div className="spaceResetActions">
+                  <button
+                    type="button"
+                    className="btnDanger"
+                    data-testid="space-reset-btn"
+                    disabled={!storedName || recordLoading}
+                    onClick={() => {
+                      setResetError(null);
+                      setResetKind("space");
+                    }}
+                  >
+                    Reset space
+                  </button>
+                  {me?.isSuperadmin ? (
+                    <button
+                      type="button"
+                      className="btnDanger"
+                      data-testid="instance-reset-btn"
+                      onClick={() => {
+                        setResetError(null);
+                        setResetKind("instance");
+                      }}
+                    >
+                      Factory reset
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             <div className="spaceTourCard">
               <div>
                 <strong>Product tour</strong>
@@ -454,6 +526,36 @@ export function SpaceConfigPanel({
           />
         ) : null}
       </div>
+      {resetKind === "space" ? (
+        <ResetConfirmModal
+          title="Reset space"
+          description="This clears the graph and the records, sequences, events, consoles, and chat that belong to this space. Members, roles, credentials, and settings stay."
+          phrase={storedName}
+          saving={resetSaving}
+          error={resetError}
+          confirmLabel="Reset space"
+          testId="modal-reset-space"
+          onCancel={() => {
+            if (!resetSaving) setResetKind(null);
+          }}
+          onConfirm={confirmReset}
+        />
+      ) : null}
+      {resetKind === "instance" ? (
+        <ResetConfirmModal
+          title="Factory reset"
+          description="This erases every space and account stored here, then opens first-run setup. A sign-in that lives outside this instance, such as Clerk, stays."
+          phrase="RESET INSTANCE"
+          saving={resetSaving}
+          error={resetError}
+          confirmLabel="Factory reset"
+          testId="modal-reset-instance"
+          onCancel={() => {
+            if (!resetSaving) setResetKind(null);
+          }}
+          onConfirm={confirmReset}
+        />
+      ) : null}
     </div>
   );
 }

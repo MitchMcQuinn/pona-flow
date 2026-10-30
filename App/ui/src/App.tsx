@@ -136,6 +136,42 @@ export default function App() {
   );
   const [tourOpen, setTourOpen] = useState(false);
   const chatMode = workbenchMode === "chat" && !tourOpen;
+  // Contents fade out, then the next view fades in. The shared handle waits one frame
+  // so its width transition is already armed, then glides between the two column widths.
+  const [presentedChat, setPresentedChat] = useState(chatMode);
+  const [widthMode, setWidthMode] = useState(chatMode);
+  const [viewPhase, setViewPhase] = useState<"idle" | "out">("idle");
+  const [columnSliding, setColumnSliding] = useState(false);
+
+  useEffect(() => {
+    if (presentedChat === chatMode && widthMode === chatMode) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setPresentedChat(chatMode);
+      setWidthMode(chatMode);
+      setColumnSliding(false);
+      return;
+    }
+    setColumnSliding(true);
+    if (presentedChat !== chatMode) setViewPhase("out");
+    const frame = window.requestAnimationFrame(() => setWidthMode(chatMode));
+    const swap = window.setTimeout(() => setPresentedChat(chatMode), 200);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(swap);
+    };
+  }, [chatMode, presentedChat, widthMode]);
+
+  useEffect(() => {
+    if (viewPhase !== "out" || presentedChat !== chatMode) return;
+    const frame = window.requestAnimationFrame(() => setViewPhase("idle"));
+    return () => window.cancelAnimationFrame(frame);
+  }, [viewPhase, presentedChat, chatMode]);
+
+  useEffect(() => {
+    if (!columnSliding || widthMode !== chatMode) return;
+    const done = window.setTimeout(() => setColumnSliding(false), 450);
+    return () => window.clearTimeout(done);
+  }, [columnSliding, widthMode, chatMode]);
 
   useEffect(() => {
     if (!state.me?.workbenchMode) return;
@@ -213,6 +249,7 @@ export default function App() {
 
   const viewport = useViewport();
   const compactShell = viewport.mode !== "desktop";
+  const layoutChatMode = viewport.mode === "desktop" ? widthMode : presentedChat;
   const panes = useMobilePaneFollow({
     mode: viewport.mode,
     state,
@@ -726,17 +763,21 @@ export default function App() {
       {spacesError ? <div className="appError">Space load error: {spacesError}</div> : null}
 
       <ResizableDashboardLayout
-        showVisualization={chatMode ? true : showVisualization}
+        showVisualization={presentedChat ? true : showVisualization}
         showConfig={
-          chatMode ? viewport.mode !== "phone" && state.view.rightPanelMode === "space" : showConfig
+          presentedChat
+            ? viewport.mode !== "phone" && state.view.rightPanelMode === "space"
+            : showConfig
         }
         mode={viewport.mode}
-        chatMode={chatMode}
+        chatMode={layoutChatMode}
+        contentHidden={viewPhase === "out"}
+        columnSliding={columnSliding}
         mobilePane={panes.mobilePane}
         navDrawerOpen={panes.navDrawerOpen}
         onCloseNavDrawer={() => panes.setNavDrawerOpen(false)}
         navigation={
-          chatMode ? (
+          presentedChat ? (
             <ChatColumn
               threads={chat.threads}
               threadId={chat.threadId}
@@ -746,7 +787,6 @@ export default function App() {
               streaming={chat.streaming}
               batchBusy={chat.batchBusy}
               error={chat.error}
-              round={chat.round}
               selectedMessageId={chat.insight?.kind === "reasoning" ? chat.insight.messageId : null}
               onSelectMessage={chat.selectMessage}
               onSelectRead={chat.selectRead}
@@ -830,7 +870,7 @@ export default function App() {
           )
         }
         visualization={
-          chatMode && state.spaceId ? (
+          presentedChat && state.spaceId ? (
             <CanvasStack
               spaceId={state.spaceId}
               items={chat.stack}

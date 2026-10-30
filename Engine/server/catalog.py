@@ -1414,16 +1414,66 @@ def update_simulation_emission_status(emission_id: str, run_status: str | None) 
         conn.commit()
 
 
+def _console_views_list(raw: Any) -> list[Any]:
+    """A view list, or the values of a view map keyed by view id."""
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, dict):
+        views: list[Any] = []
+        for key, view in raw.items():
+            if not isinstance(view, dict):
+                continue
+            if not str(view.get("id") or "").strip():
+                view = {**view, "id": str(key)}
+            views.append(view)
+        return views
+    return []
+
+
+def _normalize_console_module(module: dict[str, Any], index: int) -> dict[str, Any]:
+    linked = dict(module)
+    config = dict(linked["config"]) if isinstance(linked.get("config"), dict) else {}
+    fields = linked.get("fields")
+    if fields is not None and not config.get("fields"):
+        config["fields"] = fields if isinstance(fields, str) else json.dumps(fields)
+    linked["config"] = config
+    if not isinstance(linked.get("layout"), dict):
+        linked["layout"] = {
+            "x": (index % 2) * 6,
+            "y": (index // 2) * 8,
+            "w": 6,
+            "h": 8,
+        }
+    return linked
+
+
+def _normalize_console_view(view: dict[str, Any]) -> dict[str, Any]:
+    kind = view.get("kind")
+    modules_raw = view.get("modules")
+    if isinstance(modules_raw, dict):
+        modules_raw = list(modules_raw.values())
+    modules: list[dict[str, Any]] = []
+    if isinstance(modules_raw, list):
+        for index, module in enumerate(modules_raw):
+            if isinstance(module, dict):
+                modules.append(_normalize_console_module(module, index))
+    if kind not in ("live", "form"):
+        kind = "form" if isinstance(view.get("fields"), list) and not modules else "live"
+    return {**view, "kind": kind, "modules": modules}
+
+
 def _normalize_console_document(raw: Any) -> dict[str, Any]:
     source = raw if isinstance(raw, dict) else {}
-    views = source.get("views")
-    if not isinstance(views, list):
-        views = []
+    views = [
+        _normalize_console_view(view)
+        for view in _console_views_list(source.get("views"))
+        if isinstance(view, dict)
+    ]
+    ids = [str(view.get("id") or "") for view in views]
     active = source.get("activeViewId")
-    return {
-        "views": views,
-        "activeViewId": active if isinstance(active, str) else "",
-    }
+    if not isinstance(active, str) or active not in ids:
+        active = ids[0] if ids else ""
+    return {"views": views, "activeViewId": active}
 
 
 def _console_row_to_dict(row: sqlite3.Row | tuple) -> dict[str, Any]:
