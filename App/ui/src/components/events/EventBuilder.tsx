@@ -45,6 +45,18 @@ export interface EventPreviewDocument {
   groups?: EventRuleGroup[];
   sequences?: string[];
   recovery_sequences?: string[];
+  event_package?: {
+    combinator?: Combinator;
+    timezone?: string;
+    groups?: EventRuleGroup[];
+  };
+  external_package?: {
+    secret?: string;
+    combinator?: Combinator;
+    filters?: ExternalFilter[];
+    param_mappings?: ExternalParamMapping[];
+  };
+  simulation_package?: Partial<SimulationPackage>;
 }
 
 interface EventBuilderProps {
@@ -183,14 +195,25 @@ export function EventBuilder({
     if (typeof preview.enabled === "boolean") setEnabled(preview.enabled);
     const kind = preview.event_type ?? preview.type;
     if (kind === "time" || kind === "external" || kind === "simulated") setEventType(kind);
-    if (preview.combinator === "AND" || preview.combinator === "OR") setCombinator(preview.combinator);
-    if (preview.timezone) setTimezone(preview.timezone);
-    if (Array.isArray(preview.groups) && preview.groups.length) {
-      setGroups(preview.groups);
+    const schedule = preview.event_package ?? preview;
+    if (schedule.combinator === "AND" || schedule.combinator === "OR") setCombinator(schedule.combinator);
+    if (schedule.timezone) setTimezone(schedule.timezone);
+    if (Array.isArray(schedule.groups) && schedule.groups.length) {
+      setGroups(schedule.groups);
       setScheduleEpoch((epoch) => epoch + 1);
     }
     if (Array.isArray(preview.sequences)) setSelectedSequences(preview.sequences);
     if (Array.isArray(preview.recovery_sequences)) setSelectedRecovery(preview.recovery_sequences);
+    const external = preview.external_package;
+    if (external) {
+      setSecret(external.secret || "");
+      if (external.combinator === "AND" || external.combinator === "OR") {
+        setExternalCombinator(external.combinator);
+      }
+      setFilters(Array.isArray(external.filters) ? external.filters : []);
+      setMappings(Array.isArray(external.param_mappings) ? external.param_mappings : []);
+    }
+    if (preview.simulation_package) setSimulation(simulationPackageFromApi(preview.simulation_package));
   }, [preview]);
 
   useEffect(() => {
@@ -435,12 +458,12 @@ export function EventBuilder({
                   ? "builderField builderPropertyName eventTitleField"
                   : "builderField builderFieldMissing builderPropertyName eventTitleField"
               }
+              data-pin-target="name"
             >
               <input
                 id="event-name"
                 className="builderPropertyNameInput"
                 aria-label="event name"
-                data-pin-target="name"
                 value={name}
                 placeholder="Enter an event name"
                 onChange={(e) => setName(e.target.value)}
@@ -497,12 +520,12 @@ export function EventBuilder({
                 ? "builderField builderPropertyName"
                 : "builderField builderFieldMissing builderPropertyName"
             }
+            data-pin-target="name"
           >
             <input
               id="event-name"
               className="builderPropertyNameInput"
               aria-label="event name"
-              data-pin-target="name"
               value={name}
               placeholder="Enter an event name"
               onChange={(e) => setName(e.target.value)}
@@ -538,6 +561,7 @@ export function EventBuilder({
               signed={secret.trim().length > 0}
             />
 
+            <div data-pin-target="secret">
             <EventInlineField
               label="signing secret"
               htmlFor="event-secret"
@@ -550,7 +574,9 @@ export function EventBuilder({
                 onChange={(e) => setSecret(e.target.value)}
               />
             </EventInlineField>
+            </div>
 
+            <div data-pin-target="filters">
             <EventInlineField
               label="filters"
               heading={filters.length > 0 ? "h2" : undefined}
@@ -652,7 +678,9 @@ export function EventBuilder({
               </div>
               </div>
             ) : null}
+            </div>
 
+            <div data-pin-target="mappings">
             <EventInlineField
               label="mappings"
               heading={mappings.length > 0 ? "h2" : undefined}
@@ -719,6 +747,7 @@ export function EventBuilder({
               </div>
               </div>
             ) : null}
+            </div>
           </div>
         ) : null}
 
@@ -767,7 +796,7 @@ export function EventBuilder({
 
         {eventType === "time" ? (
         <div className="eventSection">
-          <div className="field">
+          <div className="field" data-pin-target="timezone">
             <FieldLabel tip="Dates and times below are read in this zone. DST is handled automatically.">
               timezone
             </FieldLabel>
@@ -806,6 +835,7 @@ export function EventBuilder({
             onChange={setSelectedSequences}
             pickerTestId="event-sequence-picker"
             menuTestId="event-sequence-menu"
+            pinTarget="sequences"
           />
         </div>
         ) : null}
@@ -821,6 +851,7 @@ export function EventBuilder({
             pickerTestId="event-recovery-picker"
             menuTestId="event-recovery-menu"
             placeholder="Add a recovery sequence"
+            pinTarget="recovery_sequences"
           />
         </div>
         ) : null}

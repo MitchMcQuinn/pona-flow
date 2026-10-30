@@ -34,6 +34,7 @@ export * from "./uniqueAttributiveLabel.js";
 export * from "./sequenceCypher.js";
 export * from "./validation.js";
 export * from "./builderConfig.js";
+export * from "./synthesizeBuilderConfig.js";
 export * from "./normalize.js";
 export * from "./stepWrapLabel.js";
 export * from "./packages.js";

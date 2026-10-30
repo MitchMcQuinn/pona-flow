@@ -12,15 +12,17 @@ _SYSTEM = """You are pona, the pona flow workbench agent currently logged in for
 You start with no catalog in context. Call read tools before you answer questions about what exists.
 Do not call a read tool again once its result is in this conversation.
 Reads and run_sequence execute immediately and use the signed-in user's permissions.
-open_console, open_ephemeral_console, and open_builder put something on the user's canvas.
+open_console, open_ephemeral_console, and open_builder put something on the user's canvas immediately.
 propose_change does not write. Every propose_change in this turn becomes one batch the user accepts or rejects as a whole.
+The proposal is a list. Each item expands into a read-only copy of that config (the create-an-event view, the step or sequence builder, the schema properties, or the console configuration). Put the real fields in the payload. A time event's schedule goes in event_package.groups as is_time "18:00" and is_weekday [1,2,3,4,5] (1 is Monday), plus timezone. The preview shows those fields. Saying "6pm weekdays" in a note does not fill the form. Put a one-sentence note on the item, and put field notes in pins, so those annotations sit inside the config.
+Do not call open_console or open_ephemeral_console in a turn that proposes changes. A console that depends on those changes cannot run until the user accepts, so opening it first shows a console that does not work. Propose it with upsert_console. Open it only after the user has accepted, or when it already exists and does not depend on this batch.
+show_walkthrough is for screens that already exist. Do not put an unsaved console in a walkthrough.
 Create a SCHEMA with kind upsert_schema and payload attributive_label plus properties (each with key and value_type). Use only the kinds listed on propose_change.
 Do not tell the user a write has landed until they accept it.
 After you have looked, either propose the changes or answer the user. Do not stop after tools with nothing to say.
-When you propose a design, call show_walkthrough so the user can scrub the real screens. Annotations go in each frame's note and pins. Writes still go through propose_change.
-An upsert_query with kind operation is filed in the sequences list as a one-step sequence. Do not also create a separate sequence for that operation. Use kind sequence only for a chain whose cypher matches a STEP by attributive_label.
+An upsert_query with kind operation is filed in the sequences list as a one-step sequence. Do not also create a separate sequence for that operation. Use kind sequence only for a chain whose cypher matches a STEP by attributive_label. That cypher must be one statement the visual builder can open: MATCH (var:INSTANCE|SCHEMA|STEP {{ attributive_label: 'name' }}), optional WHERE, then RETURN, SET, or DELETE (CREATE or MERGE to make a node). Hops are directed. Do not use WITH, UNION, CALL, or a custom label such as :Person — a name belongs in attributive_label.
 Every console module must set dataSequenceId to a sequence or read operation, by catalog id or name. A form must also set actionSequenceId to the sequence that runs on submit, and dataSequenceId to the read that fills its inputs. Never leave dataSequenceId blank. A text or stat module shows the scalar columns of a one-row result. A graph module shows the nodes and relationships that query returns. A table shows the rows. The example JSON for a module type is the shape, not data to put on the screen.
-Write replies, frame notes, and pin notes in markdown. Frame notes and pin notes are your annotations beside the screen.
+Write replies, item notes, and pin notes in markdown. A pin note is inserted on the field it names.
 When a message says the user accepted a change batch, say what landed and ask one question or offer one next step. Do not call a tool in that reply.
 Keep replies short. Put the useful view on the canvas instead of pasting large dumps into the chat.
 """
@@ -34,6 +36,17 @@ def _model_text(content: str) -> str:
     if text.startswith(_FOLLOW_UP_MARK):
         return text[len(_FOLLOW_UP_MARK) :].lstrip("\n")
     return text
+
+def _stamp_insight(
+    thread_id: str, item_id: str | None, payload: dict[str, Any], message_id: str
+) -> None:
+    """Tie a reasoning or read panel to the assistant message that produced it."""
+    if not item_id:
+        return
+    stamped = dict(payload)
+    stamped["message_id"] = message_id
+    chat_store.update_stack_item(thread_id, item_id, payload=stamped)
+
 
 def _is_read_tool(name: str) -> bool:
     return name.startswith(("list_", "get_", "describe_"))
@@ -66,12 +79,19 @@ def _history(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _public_item(item: dict[str, Any]) -> dict[str, Any]:
-    return {
+    public: dict[str, Any] = {
         "kind": item.get("kind"),
         "summary": item.get("summary"),
         "payload": item.get("payload"),
         "preview": item.get("preview"),
     }
+    note = str(item.get("note") or "").strip()
+    if note:
+        public["note"] = note
+    pins = item.get("pins") if isinstance(item.get("pins"), list) else []
+    if pins:
+        public["pins"] = pins
+    return public
 
 
 def run_turn(
@@ -107,6 +127,9 @@ def run_turn(
     proposals: list[dict[str, Any]] = []
     tool_summaries: list[dict[str, Any]] = []
     reply = ""
+    insight_ids: dict[str, str | None] = {"reasoning": None, "reads": None}
+    reasoning_rounds: list[dict[str, Any]] = []
+    reads: list[dict[str, Any]] = []
     try:
         prior = chat_store.get_thread(tid, space_id, principal.user_id) or thread
         messages: list[dict[str, Any]] = [
@@ -166,15 +189,12 @@ def run_turn(
                 yield_tool(name, arguments, call)
 
         tool_events: list[dict[str, Any]] = []
-        reads: list[dict[str, Any]] = []
-        reasoning_rounds: list[dict[str, Any]] = []
-        insight_ids: dict[str, str | None] = {"reasoning": None, "reads": None}
         max_rounds = chat_store.clamp_max_rounds(model_cfg.get("max_rounds"))
 
         def publish_insight(kind: str, title: str, payload: dict[str, Any]) -> None:
             current_id = insight_ids[kind]
             if current_id is None:
-                item = chat_store.add_stack_item(tid, kind, title, payload, activate=kind != "reads")
+                item = chat_store.add_stack_item(tid, kind, title, payload, activate=False)
                 insight_ids[kind] = item["id"]
                 tool_events.append({"event": "canvas", "data": {"item": item}})
                 return
@@ -187,6 +207,39 @@ def run_turn(
 
         def publish_reasoning() -> None:
             publish_insight("reasoning", "Reasoning", {"rounds": reasoning_rounds})
+
+        deferred_canvases: list[dict[str, Any]] = []
+
+        def publish_canvas(canvas: dict[str, Any]) -> None:
+            item = chat_store.add_stack_item(
+                tid,
+                canvas["kind"],
+                str(canvas.get("title") or canvas["kind"]),
+                canvas.get("payload") if isinstance(canvas.get("payload"), dict) else {},
+            )
+            tool_events.append({"event": "canvas", "data": {"item": item}})
+
+        def hold_until_proposal_settles(canvas: dict[str, Any]) -> None:
+            """A console opened beside a pending proposal cannot run the changes it depends on."""
+            deferred_canvases.append(canvas)
+
+        def flush_deferred_canvases() -> None:
+            for canvas in deferred_canvases:
+                kind = canvas.get("kind")
+                if proposals and kind in ("saved_console", "ephemeral_console"):
+                    continue
+                if proposals and kind == "walkthrough":
+                    payload = canvas.get("payload") if isinstance(canvas.get("payload"), dict) else {}
+                    frames = [
+                        frame
+                        for frame in payload.get("frames") or []
+                        if isinstance(frame, dict) and frame.get("view") != "console"
+                    ]
+                    if not frames:
+                        continue
+                    canvas = {**canvas, "payload": {**payload, "frames": frames}}
+                publish_canvas(canvas)
+            deferred_canvases.clear()
 
         def yield_tool(name: str, arguments: dict[str, Any], call: dict[str, Any]) -> None:
             outcome = chat_tools.execute(name, arguments, principal, space_id, proposals)
@@ -214,13 +267,10 @@ def run_turn(
             tool_summaries.append(recorded)
             tool_events.append(tool_event)
             for canvas in outcome.canvases:
-                item = chat_store.add_stack_item(
-                    tid,
-                    canvas["kind"],
-                    str(canvas.get("title") or canvas["kind"]),
-                    canvas.get("payload") if isinstance(canvas.get("payload"), dict) else {},
-                )
-                tool_events.append({"event": "canvas", "data": {"item": item}})
+                if canvas.get("kind") in ("saved_console", "ephemeral_console", "walkthrough"):
+                    hold_until_proposal_settles(canvas)
+                    continue
+                publish_canvas(canvas)
             messages.append(
                 {
                     "role": "tool",
@@ -272,6 +322,7 @@ def run_turn(
             if calls:
                 run_calls(calls, round_text)
                 yield from tool_events
+                tool_events.clear()
         if not reply.strip():
             reply = (
                 "Those changes are in. What should we do next?"
@@ -279,6 +330,9 @@ def run_turn(
                 else "I stopped after those tool calls without a reply. Send another message and I will continue."
             )
             yield {"event": "text", "data": {"delta": reply}}
+        flush_deferred_canvases()
+        yield from tool_events
+        tool_events.clear()
         batch = None
         if proposals:
             batch = {"status": "pending", "items": [_public_item(item) for item in proposals]}
@@ -290,6 +344,8 @@ def run_turn(
             )
             yield {"event": "canvas", "data": {"item": proposal}}
         message = chat_store.append_message(tid, "assistant", reply, tool_summaries, batch)
+        _stamp_insight(tid, insight_ids.get("reasoning"), {"rounds": reasoning_rounds}, message["id"])
+        _stamp_insight(tid, insight_ids.get("reads"), {"entries": reads}, message["id"])
         if batch is not None:
             yield {
                 "event": "batch",
@@ -298,13 +354,15 @@ def run_turn(
         yield {"event": "done", "data": {"message_id": message["id"], "thread_id": tid}}
     except Exception as exc:
         error = str(exc)[:500]
-        chat_store.append_message(
+        failed = chat_store.append_message(
             tid,
             "assistant",
             reply or error,
             tool_summaries,
             None,
         )
+        _stamp_insight(tid, insight_ids.get("reasoning"), {"rounds": reasoning_rounds}, failed["id"])
+        _stamp_insight(tid, insight_ids.get("reads"), {"entries": reads}, failed["id"])
         yield {"event": "error", "data": {"message": error}}
     finally:
         chat_store.set_turn_status(tid, "idle")

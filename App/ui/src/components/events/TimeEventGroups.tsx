@@ -302,7 +302,7 @@ export function TimeEventGroups({
                     </div>
                   ) : null}
 
-                  <div className="builderField eventTimeField">
+                  <div className="builderField eventTimeField" data-pin-target="is_time">
                     <FieldLabel tip={`Empty is midnight. Times are in ${timeZoneNote}.`}>time</FieldLabel>
                     <input
                       id={`group-${groupIndex}-time`}
@@ -411,7 +411,7 @@ function RuleValue({
     const options = kind === "weekday" ? WEEKDAYS : MONTHS;
     const selected = kind === "weekday" ? group.is_weekday : group.is_month;
     return (
-      <div className="eventChips">
+      <div className="eventChips" data-pin-target={kind === "weekday" ? "is_weekday" : "is_month"}>
         {options.map((option) => (
           <button
             type="button"

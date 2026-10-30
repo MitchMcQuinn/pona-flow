@@ -186,7 +186,7 @@ textarea::placeholder {
 
 .topbar {
   flex-shrink: 0;
-  height: 56px;
+  height: 64px;
   background: var(--bg);
   border-bottom: none;
   box-shadow: none;
@@ -207,6 +207,56 @@ textarea::placeholder {
   gap: 8px;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.topbarModeSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.topbarModeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  color: #fff;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.topbarModeBtn svg {
+  width: 40px;
+  height: 40px;
+  display: block;
+}
+
+.topbarCompact .topbarModeBtn {
+  width: 44px;
+  height: 44px;
+}
+
+.topbarCompact .topbarModeBtn svg {
+  width: 34px;
+  height: 34px;
+}
+
+.topbarModeBtn:hover,
+.topbarModeBtn:focus-visible,
+.topbarModeBtn:active {
+  color: #fff;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.topbarModeBtn:focus-visible {
+  outline: 1px solid #fff;
+  outline-offset: 2px;
 }
 
 .topbarSpacePicker {
@@ -2221,6 +2271,14 @@ td {
   flex: 0 0 50%;
 }
 
+.templateEverythingRow {
+  margin: 0 0 12px;
+}
+
+.templateExportActions {
+  flex-wrap: wrap;
+}
+
 .templateSelectionGroups {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -2909,6 +2967,15 @@ td {
   border-left: 2px solid rgba(214, 204, 255, 0.6);
 }
 
+.chatMessage-assistant .chatMessageBody {
+  cursor: pointer;
+  min-height: 1.2em;
+}
+
+.chatMessage-assistant.selected {
+  outline: 1px solid rgba(255, 255, 255, 0.28);
+}
+
 .chatMessage-user {
   align-self: flex-end;
   max-width: 90%;
@@ -2986,12 +3053,102 @@ td {
   padding: 12px;
 }
 
+.canvasInsightBar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 8px;
+  background: var(--bg, #111);
+}
+
+.canvasInsightClose {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
 .canvasProposal,
 .canvasBuilder,
 .canvasHitl {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.proposalList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.proposalItem {
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.proposalToggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: none;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.proposalKind {
+  flex-shrink: 0;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.proposalConfig {
+  margin-top: 8px;
+  min-width: 0;
+}
+
+.proposalConfig .configPanel,
+.proposalConfig .builderRoot,
+.proposalConfig .eventBuilder {
+  max-height: none;
+}
+
+.proposalAnnotation {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--bg, #111), var(--bg, #111)) padding-box,
+    var(--mesh, linear-gradient(90deg, #6366f1, #d946ef)) border-box;
+  font-size: 13px;
+}
+
+.proposalAnnotation p {
+  margin: 0;
+}
+
+.proposalAnnotationTarget {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
 }
 
 .canvasReasoning,
@@ -3019,41 +3176,56 @@ td {
 .walkthrough {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  height: auto;
   min-height: 0;
-  height: 100%;
 }
 
 .walkthroughScrubber {
   display: flex;
-  gap: 10px;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: -12px -12px 0;
+  padding-bottom: 8px;
+  background: var(--bg);
 }
 
-.walkthroughScrubber input {
-  flex: 1;
+.walkthroughScrubber input[type="range"] {
+  display: block;
+  width: 100%;
+  margin: 0;
+  min-width: 0;
 }
 
-.walkthroughMain {
-  display: flex;
-  gap: 12px;
-  min-height: 0;
-  flex: 1;
+.walkthroughScrubber span {
+  padding: 0 12px;
 }
 
 .walkthroughScreen {
-  flex: 1;
   min-width: 0;
-  overflow: auto;
+  overflow: visible;
 }
 
-.walkthroughNote {
-  width: 300px;
-  flex-shrink: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.walkthrough .panel,
+.proposalConfig .panel {
+  overflow: visible;
+  height: auto;
+  max-height: none;
+}
+
+.walkthrough .panel__body,
+.proposalConfig .panel__body,
+.walkthrough .builderRoot,
+.proposalConfig .builderRoot {
+  overflow: visible;
+  overscroll-behavior: auto;
+  flex: 0 0 auto;
+  min-height: auto;
+  max-height: none;
 }
 
 .agentNote {
@@ -3128,15 +3300,6 @@ td {
   pointer-events: none;
 }
 
-@media (max-width: 720px) {
-  .walkthroughMain {
-    flex-direction: column;
-  }
-
-  .walkthroughNote {
-    width: auto;
-  }
-}
 
 .chatModelForm {
   display: flex;

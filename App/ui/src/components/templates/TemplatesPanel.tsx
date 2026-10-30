@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   applyTemplateImport,
   exportTemplate,
@@ -32,6 +32,39 @@ function toggleInSet(set: Set<string>, id: string): Set<string> {
   return next;
 }
 
+function fullSelection(
+  sequences: SequenceSummary[],
+  operations: SequenceSummary[],
+  schemas: TemplateSchemaOption[],
+  events: EventSummary[]
+): TemplateSelection {
+  const schemaLabels = schemas.map((schema) => schema.attributive_label);
+  return {
+    sequences: sequences.map((seq) => seq.id),
+    operations: operations.map((op) => op.id),
+    schemas: schemaLabels,
+    instances: schemaLabels,
+    events: events.map((event) => event.id)
+  };
+}
+
+function downloadTemplate(filename: string, doc: TemplateDocument) {
+  const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function backupFilename(spaceId: string): string {
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return `${spaceId}-backup-${stamp}.json`;
+}
+
 const SUMMARY_ROWS: Array<{ key: keyof TemplateSummary; label: string }> = [
   { key: "sequences", label: "Sequences" },
   { key: "operations", label: "Queries" },
@@ -50,6 +83,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
   const [operations, setOperations] = useState<SequenceSummary[]>([]);
   const [schemas, setSchemas] = useState<TemplateSchemaOption[]>([]);
   const [events, setEvents] = useState<EventSummary[]>([]);
+  const [sourcesLoaded, setSourcesLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Selected ids/labels.
@@ -61,6 +95,8 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
 
   // Resolve / export state.
   const [resolving, setResolving] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
+  const [backupNote, setBackupNote] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [resolved, setResolved] = useState<TemplateDocument | null>(null);
 
@@ -75,10 +111,13 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
   const [importError, setImportError] = useState<string | null>(null);
   const [result, setResult] = useState<TemplateImportResult | null>(null);
   const [priorRun, setPriorRun] = useState<TemplateImportResult | null>(null);
+  const activeSpaceId = useRef(spaceId);
+  activeSpaceId.current = spaceId;
 
   const loadSelectionSources = useCallback(async () => {
     if (!spaceId) return;
     setLoadError(null);
+    setSourcesLoaded(false);
     try {
       const [allQueries, schemaList, eventList] = await Promise.all([
         fetchSequences(),
@@ -89,6 +128,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
       setOperations(allQueries.filter((q) => q.kind === "operation"));
       setSchemas(schemaList);
       setEvents(eventList);
+      setSourcesLoaded(true);
     } catch (e: unknown) {
       setLoadError(e instanceof Error ? e.message : "Failed to load selection lists");
     }
@@ -102,6 +142,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
     setSelInstances(new Set());
     setSelEvents(new Set());
     setResolved(null);
+    setBackupNote(null);
     setExportError(null);
     setTemplate(null);
     setFileName("");
@@ -131,15 +172,47 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
     selection.schemas.length > 0 ||
     selection.events.length > 0;
 
+  const hasExportableItems =
+    sequences.length > 0 || operations.length > 0 || schemas.length > 0 || events.length > 0;
+
+  const everythingSelected =
+    hasExportableItems &&
+    sequences.every((seq) => selSequences.has(seq.id)) &&
+    operations.every((op) => selOperations.has(op.id)) &&
+    schemas.every(
+      (schema) =>
+        selSchemas.has(schema.attributive_label) && selInstances.has(schema.attributive_label)
+    ) &&
+    events.every((event) => selEvents.has(event.id));
+
+  function applySelection(next: TemplateSelection) {
+    setSelSequences(new Set(next.sequences));
+    setSelOperations(new Set(next.operations));
+    setSelSchemas(new Set(next.schemas));
+    setSelInstances(new Set(next.instances));
+    setSelEvents(new Set(next.events));
+  }
+
   // A selection change invalidates a previously resolved document.
   function invalidateResolved() {
     setResolved(null);
+    setBackupNote(null);
+  }
+
+  function toggleEverything() {
+    applySelection(
+      everythingSelected
+        ? { sequences: [], operations: [], schemas: [], instances: [], events: [] }
+        : fullSelection(sequences, operations, schemas, events)
+    );
+    invalidateResolved();
   }
 
   async function handleResolve() {
     if (!spaceId || !hasSelection) return;
     setResolving(true);
     setExportError(null);
+    setBackupNote(null);
     try {
       const doc = await exportTemplate(spaceId, selection);
       setResolved(doc);
@@ -151,16 +224,31 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
   }
 
   function handleDownload() {
-    if (!resolved) return;
-    const blob = new Blob([JSON.stringify(resolved, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${spaceId}-template.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
+    if (!resolved || !spaceId) return;
+    downloadTemplate(`${spaceId}-template.json`, resolved);
+  }
+
+  async function handleBackupEverything() {
+    if (!spaceId || !sourcesLoaded) return;
+    const requestedSpace = spaceId;
+    const next = fullSelection(sequences, operations, schemas, events);
+    applySelection(next);
+    setBackingUp(true);
+    setExportError(null);
+    setBackupNote(null);
+    setResolved(null);
+    try {
+      const doc = await exportTemplate(requestedSpace, next);
+      downloadTemplate(backupFilename(requestedSpace), doc);
+      if (activeSpaceId.current !== requestedSpace) return;
+      setResolved(doc);
+      setBackupNote("Backup downloaded. Credential values and signing secrets are not included.");
+    } catch (e: unknown) {
+      if (activeSpaceId.current !== requestedSpace) return;
+      setExportError(e instanceof Error ? e.message : "Failed to back up this space");
+    } finally {
+      setBackingUp(false);
+    }
   }
 
   async function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -240,12 +328,25 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         <h2>export</h2>
       </div>
       <p className="muted rbacSectionHint">
-        Pick the sequences, operations, schemas, and events you want to share. Everything they
-        depend on (nested queries, STEP graph, connected schemas, regex formats,
-        and credential slots) is pulled in automatically when you resolve the selection.
+        Backup everything downloads this space&apos;s sequences, queries, schemas, instances, and
+        events in one step. Nested queries, the STEP graph, connected schemas, regex formats, and
+        credential slots come along automatically. Credential values and event signing secrets stay
+        on this instance. Or pick a subset and resolve it before downloading.
       </p>
       {loadError ? <p className="errorText">{loadError}</p> : null}
       {exportError ? <p className="errorText">{exportError}</p> : null}
+      {backupNote ? <p className="builderCheckMsg">{backupNote}</p> : null}
+
+      <label className="templateOption templateEverythingRow">
+        <input
+          type="checkbox"
+          data-testid="template-select-everything"
+          checked={everythingSelected}
+          disabled={!sourcesLoaded || !hasExportableItems || backingUp}
+          onChange={toggleEverything}
+        />
+        <span>everything, including instances</span>
+      </label>
 
       <div className="templateSelectionGroups">
         <section className="templateSelectionGroup" data-testid="template-select-sequences">
@@ -387,12 +488,21 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         </div>
       ) : null}
 
-      <div className="buttonRow">
+      <div className="buttonRow templateExportActions">
+        <button
+          type="button"
+          className="btnPrimary"
+          data-testid="template-backup-everything-btn"
+          disabled={!sourcesLoaded || backingUp || resolving}
+          onClick={handleBackupEverything}
+        >
+          {backingUp ? "Backing up..." : "Backup everything"}
+        </button>
         <button
           type="button"
           className="btnSecondary"
           data-testid="template-resolve-btn"
-          disabled={!hasSelection || resolving}
+          disabled={!hasSelection || resolving || backingUp}
           onClick={handleResolve}
         >
           {resolving ? "Resolving..." : "Resolve selection"}
@@ -401,7 +511,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
           type="button"
           className="btnPrimary"
           data-testid="template-export-btn"
-          disabled={!resolved}
+          disabled={!resolved || backingUp}
           onClick={handleDownload}
         >
           Download template

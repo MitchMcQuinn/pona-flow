@@ -34,6 +34,8 @@ export interface ChatBatchItem {
   summary: string;
   payload: Record<string, unknown>;
   preview?: unknown;
+  note?: string;
+  pins?: WalkthroughPin[];
 }
 
 export interface ChatBatchResult {

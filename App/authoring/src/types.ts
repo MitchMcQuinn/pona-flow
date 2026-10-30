@@ -134,7 +134,8 @@ export type MatchNodePositions = Record<string, { x: number; y: number }>;
 /**
  * Declarative snapshot of the authoring session for a saved operation, stored in the queries
  * catalog's `builder_config` column so an operation-backed STEP can be round-tripped back into
- * the builder for editing (the composer is forward-only and has no decompiler). `query` is the
+ * the builder for editing. A row saved with Cypher and no snapshot is rebuilt by
+ * `synthesizeBuilderConfig`. `query` is the
  * QueryObject source of truth; `runtimeEnabled` and `matchPositions` live outside it.
  */
 export interface BuilderConfig {

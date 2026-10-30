@@ -29,7 +29,7 @@ import {
   LOOP_TYPE_LABELS,
   catalogNamesTakenForOperationRename,
   collectStepCreateAttributiveLabels,
-  isHydratableBuilderConfig,
+  configForVisualEdit,
   isLoopType,
   isSingleNewStepCreate,
   isStepCreateQuery,
@@ -446,6 +446,7 @@ function CreateSequenceFields({
             ? "builderField builderFieldMissing builderPropertyName"
             : "builderField builderPropertyName"
         }
+        data-pin-target="name"
       >
         <div className="createSequenceNameRow">
           <input
@@ -465,7 +466,7 @@ function CreateSequenceFields({
           <span className="builderCheckMsg duplicate">already used by another sequence</span>
         ) : null}
       </div>
-      <div className="builderField">
+      <div className="builderField" data-pin-target="description">
         <FieldLabel tip="What this sequence does. Shown to MCP agents as the tool description.">
           description
         </FieldLabel>
@@ -826,9 +827,9 @@ function BuilderBody({
     setSequenceParameterValues({});
   }, [createSequenceMode, dispatch]);
 
-  // Edit session: hydrate the builder from the saved sequence's builder_config (its QueryObject
-  // snapshot) so the STEP chain can be edited visually and saved back in place. The name/group/
-  // description fields are seeded synchronously from the nav summary (above).
+  // Edit session: hydrate the builder from the saved sequence's builder_config, or rebuild that
+  // snapshot from its Cypher when the row was saved without one. The name/group/description
+  // fields are seeded synchronously from the nav summary (above).
   const editSeedNonce = editSeed?.nonce;
   useEffect(() => {
     if (!editSeed) return;
@@ -844,8 +845,15 @@ function BuilderBody({
           next[binding.name] = bindingToInputString(binding.value);
         }
         setSequenceParameterValues(next);
-        const config = pkg.builder_config;
-        if (isHydratableBuilderConfig(config)) {
+        const config = configForVisualEdit({
+          id: pkg.id,
+          name: pkg.name,
+          operation: pkg.operation,
+          cypher: pkg.cypher,
+          parameters: pkg.parameters,
+          builder_config: pkg.builder_config
+        });
+        if (config) {
           dispatch({
             type: "ENTER_EDIT_SEQUENCE",
             queryId: editSeed.sequenceId,
@@ -855,7 +863,7 @@ function BuilderBody({
           });
         } else {
           showToast(
-            "This sequence has no saved builder config, so it can't be edited visually.",
+            "This sequence's saved Cypher can't be opened in the visual builder.",
             "error"
           );
         }
@@ -946,8 +954,8 @@ function BuilderBody({
   // A STEP node clicked in the sequence visualizer asks the builder to load it. A custom-endpoint
   // STEP opens the update STEP flow with that node as the match clause's initial node; an
   // operation-backed STEP (sequencial_properties carry a query_id) opens the locked edit-operation
-  // view, hydrated from the saved query's builder_config. `nonce` keys the effect so the same
-  // target can be re-applied.
+  // view, hydrated from the saved query's builder_config or, when that snapshot is missing, from
+  // its Cypher. `nonce` keys the effect so the same target can be re-applied.
   const seedNonce = seed?.nonce;
   useEffect(() => {
     if (!seed || seed.kind !== "stepNode") return;
@@ -972,8 +980,15 @@ function BuilderBody({
           // Operation-backed STEP: reload the saved operation into the locked edit view.
           const pkg = await connector.fetchQueryPackage(queryId);
           if (cancelled) return;
-          const config = pkg.builder_config;
-          if (isHydratableBuilderConfig(config)) {
+          const config = configForVisualEdit({
+            id: queryId,
+            name: pkg.name,
+            operation: pkg.operation,
+            cypher: pkg.cypher,
+            parameters: pkg.parameters,
+            builder_config: pkg.builder_config
+          });
+          if (config) {
             dispatch({
               type: "ENTER_EDIT_OPERATION",
               queryId,
@@ -985,7 +1000,7 @@ function BuilderBody({
             });
           } else {
             showToast(
-              "This operation has no saved builder config, so it can't be edited visually.",
+              "This operation's saved Cypher can't be opened in the visual builder.",
               "error"
             );
           }
@@ -1201,7 +1216,7 @@ function BuilderBody({
         ) : null}
 
         {editingOperation ? (
-          <div className="builderField">
+          <div className="builderField" data-pin-target="name">
             <div className="createSequenceLabelRow">
               <label>Step name</label>
               {!operationNameValid ? (

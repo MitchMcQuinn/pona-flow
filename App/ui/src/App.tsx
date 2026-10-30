@@ -697,6 +697,8 @@ export default function App() {
         spaceConfigActive={state.view.rightPanelMode === "space"}
         onOpenSpaceConfig={() => {
           dismissVisualization();
+          // Phone chat has no settings column, so open them on the classic workbench pane.
+          if (chatMode && viewport.mode === "phone") setWorkbench("classic");
           dispatch({ type: "SPACE_PANEL_OPENED" });
         }}
         onToggleNav={
@@ -705,26 +707,14 @@ export default function App() {
             : undefined
         }
         navOpen={panes.navDrawerOpen}
-        showBackToBuilder={
-          !chatMode &&
-          (state.createSequence ||
-            state.view.rightPanelMode === "params" ||
-            state.view.rightPanelMode === "event" ||
-            state.view.rightPanelMode === "space" ||
-            Boolean(state.consoles.selectedConsoleId) ||
-            builderEditOperationActive)
-        }
-        onBackToBuilder={() => {
-          setBuilderResult(null);
-          if (builderEditOperationActive) {
-            setExitEditOperationRequest((request) => request + 1);
-          } else {
-            dispatch({ type: "OPEN_BUILDER" });
-          }
+        mode={chatMode ? "chat" : "classic"}
+        onOpenChat={() => {
+          if (!chatMode) setWorkbench("chat");
+        }}
+        onOpenWorkbench={() => {
+          if (chatMode) setWorkbench("classic");
         }}
         showRunButton={chatMode ? false : showRunButton}
-        onOpenChat={chatMode ? undefined : () => setWorkbench("chat")}
-        showSpaceSettings={!chatMode}
         canRun={canRun}
         running={state.run.status === "running"}
         onRun={handleRun}
@@ -737,7 +727,9 @@ export default function App() {
 
       <ResizableDashboardLayout
         showVisualization={chatMode ? true : showVisualization}
-        showConfig={chatMode ? false : showConfig}
+        showConfig={
+          chatMode ? viewport.mode !== "phone" && state.view.rightPanelMode === "space" : showConfig
+        }
         mode={viewport.mode}
         chatMode={chatMode}
         mobilePane={panes.mobilePane}
@@ -755,12 +747,13 @@ export default function App() {
               batchBusy={chat.batchBusy}
               error={chat.error}
               round={chat.round}
+              selectedMessageId={chat.insight?.kind === "reasoning" ? chat.insight.messageId : null}
+              onSelectMessage={chat.selectMessage}
               onSelectRead={chat.selectRead}
               onDraft={chat.setDraft}
               onSend={() => void chat.send(chat.draft)}
               onOpenThread={(id) => void chat.openThread(id)}
               onNewThread={chat.newThread}
-              onClassic={() => setWorkbench("classic")}
               onAccept={() => void chat.accept()}
               onReject={() => void chat.reject()}
               onClearQueue={() => chat.setQueued(null)}
@@ -845,7 +838,8 @@ export default function App() {
               sequences={navSequences}
               events={state.events.items}
               batchBusy={chat.batchBusy}
-              focusedRead={chat.focusedRead}
+              insight={chat.insightView}
+              onCloseInsight={chat.closeInsight}
               onSelect={chat.selectStack}
               onAccept={() => void chat.accept()}
               onReject={() => void chat.reject()}

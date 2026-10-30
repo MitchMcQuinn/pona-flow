@@ -50,9 +50,9 @@ KIND_HELP = """
 Kinds and payloads:
 - create_space: {name, description?, endpoint?}
 - upsert_schema: {attributive_label, properties?: [{key, value_type, is_required?, is_key?, is_label?, is_indexed?, is_embedded?, format?, options?, default_value?}], is_vectorized?}
-- upsert_query: {id?, name, kind: operation|sequence, operation: create|read|update|delete, cypher: [string], sqlite?: [string], parameters?: [], description?, builder_config?, loop_config?, group_title?}. kind operation is filed in the sequences nav as a one-step sequence. kind sequence must MATCH a STEP by attributive_label.
+- upsert_query: {id?, name, kind: operation|sequence, operation: create|read|update|delete, cypher: [string], sqlite?: [string], parameters?: [], description?, builder_config?, loop_config?, group_title?}. kind operation is filed in the sequences nav as a one-step sequence. kind sequence must MATCH a STEP by attributive_label. cypher is one visual-builder statement: MATCH (var:INSTANCE|SCHEMA|STEP { attributive_label: 'name' }), optional WHERE, then RETURN, SET, or DELETE. CREATE or MERGE for a new node. Hops are directed. No WITH, UNION, CALL, or a custom label such as :Person.
 - execute_package: {operation: create|read|update|delete, cypher: [string], sqlite?: [string], cypher_params?: {}, parameters?: [], node_label?}
-- upsert_event: {id?, name, type: time|external|simulated, event_package?, sequences?: [id], recovery_sequences?: [id], enabled?: 1}
+- upsert_event: {id?, name, type: time|external|simulated, event_package?: {timezone, combinator?, groups: [{is_time: "18:00", is_weekday?: [1-7], is_month?, is_date?}]}, sequences?: [id], recovery_sequences?: [id], enabled?: 1, external_package?: {filters, param_mappings, combinator}}. Weekday 1 is Monday. Put the schedule in groups. A note that says 6pm does not set the time field.
 - delete_event: {id}
 - upsert_console: {id?, name, trigger_kind?: ""|url|event, listen_url?, trigger_event_id?, document?: {views, activeViewId}}
 - delete_console: {id}
@@ -139,6 +139,22 @@ def _summary(kind: str, payload: dict[str, Any], given: str) -> str:
     return f"{kind.replace('_', ' ')} {name}".strip()
 
 
+def _pins(raw: Any) -> list[dict[str, str]]:
+    """Field annotations shown inside the read-only config for this item."""
+    if not isinstance(raw, list):
+        return []
+    pins: list[dict[str, str]] = []
+    for pin in raw:
+        if not isinstance(pin, dict):
+            continue
+        target = str(pin.get("target") or "").strip()
+        note = str(pin.get("note") or "").strip()
+        if not target or not note:
+            continue
+        pins.append({"target": target[:120], "note": note[:500]})
+    return pins
+
+
 def normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
     kind = str(raw.get("kind") or "").strip()
     payload = raw.get("payload") if isinstance(raw.get("payload"), dict) else {}
@@ -151,11 +167,18 @@ def normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
         )
         payload["properties"] = _schema_properties(payload.get("properties") or payload.get("schemata"))
         payload["is_vectorized"] = bool(payload.get("is_vectorized"))
-    return {
+    item: dict[str, Any] = {
         "kind": kind,
         "summary": _summary(kind, payload, str(raw.get("summary") or "")),
         "payload": payload,
     }
+    note = str(raw.get("note") or "").strip()
+    if note:
+        item["note"] = note[:500]
+    pins = _pins(raw.get("pins"))
+    if pins:
+        item["pins"] = pins
+    return item
 
 
 def _error_text(exc: Exception) -> str:
@@ -248,12 +271,15 @@ def validate_item(
         elif kind == "upsert_query":
             if not str(payload.get("name") or "").strip():
                 raise ValueError("name is required")
-            _string_list(payload.get("cypher") or [], "cypher")
+            cypher = _string_list(payload.get("cypher") or [], "cypher")
             if payload.get("sqlite") is not None:
                 _string_list(payload.get("sqlite"), "sqlite")
             query_kind = str(payload.get("kind") or "operation").strip().lower()
             if query_kind not in ("operation", "sequence"):
                 raise ValueError("kind must be operation or sequence")
+            problem = cypher_utils.builder_query_problem(cypher, kind=query_kind)
+            if problem:
+                raise ValueError(problem)
             if query_kind == "sequence":
                 conflict = spaces.sequence_name_conflict(
                     space_id, str(payload.get("name") or ""), exclude_id=str(payload.get("id") or "")

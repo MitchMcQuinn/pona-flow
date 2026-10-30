@@ -18,6 +18,8 @@ export interface SavedQueryRow {
 export interface QueryPackageRow {
   id: string;
   name: string;
+  kind?: string;
+  operation?: string;
   cypher: string[];
   sqlite: string[];
   parameters: unknown[];

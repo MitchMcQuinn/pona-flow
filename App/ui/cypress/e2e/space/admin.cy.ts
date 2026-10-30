@@ -35,7 +35,7 @@ describe("space administration", () => {
       "Save changes"
     );
     cy.get("#space-dev-mode-toggle", { timeout: 20_000 }).should("have.attr", "aria-checked", "true");
-    cy.get('[data-testid="topbar-back-btn"]').click();
+    cy.contains(".spaceConfigPanel .rbacHeaderRow button", "Close").click();
     cy.get('[data-testid="builder-query-preview"]', { timeout: 20_000 }).should("be.visible");
   });
 

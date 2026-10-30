@@ -2,8 +2,10 @@ import { useState, type FormEvent } from "react";
 import { ConsoleHost } from "../consoles/ConsoleHost";
 import { runSequenceExecution } from "../services/api";
 import type { EventSummary, SequenceSummary } from "../state/types";
+import { ConfigPreview } from "./ConfigPreview";
 import { EphemeralConsole } from "./EphemeralConsole";
 import { Markdown } from "./Markdown";
+import { isInsightKind, type InsightView } from "./insight";
 import type { ChatBatchItem, ChatStackItem } from "./types";
 import { Walkthrough } from "./Walkthrough";
 
@@ -14,7 +16,8 @@ interface CanvasStackProps {
   sequences: SequenceSummary[];
   events: EventSummary[];
   batchBusy: boolean;
-  focusedRead: number | null;
+  insight: InsightView | null;
+  onCloseInsight: () => void;
   onSelect: (id: string) => void;
   onAccept: () => void;
   onReject: () => void;
@@ -33,53 +36,74 @@ export function CanvasStack({
   sequences,
   events,
   batchBusy,
-  focusedRead,
+  insight,
+  onCloseInsight,
   onSelect,
   onAccept,
   onReject,
   onRecord,
   onPatch
 }: CanvasStackProps) {
+  const canvasItems = items.filter((item) => !isInsightKind(item.kind));
   const active =
-    items.find((item) => item.id === activeId) ?? items[items.length - 1] ?? null;
+    canvasItems.find((item) => item.id === activeId) ?? canvasItems[canvasItems.length - 1] ?? null;
 
   return (
     <section className="panel canvasStack" aria-label="Canvas">
       <div className="canvasTabs" role="tablist">
-        {items.length === 0 ? <span className="muted">Canvas</span> : null}
-        {items.map((item) => (
+        {canvasItems.length === 0 ? <span className="muted">Canvas</span> : null}
+        {canvasItems.map((item) => (
           <button
             key={item.id}
             type="button"
             role="tab"
             aria-selected={item.id === active?.id}
             className={item.id === active?.id ? "active" : undefined}
-            onClick={() => onSelect(item.id)}
+            onClick={() => {
+              onCloseInsight();
+              onSelect(item.id);
+            }}
           >
             {item.title || item.kind}
           </button>
         ))}
       </div>
       <div className="panel__body canvasBody">
-        {!active ? (
-          <p className="muted">
-            Ask the chat to open a console, or accept a change to review it here.
-          </p>
-        ) : null}
-        {active && spaceId ? (
-          <CanvasItem
-            spaceId={spaceId}
-            item={active}
-            sequences={sequences}
-            events={events}
-            batchBusy={batchBusy}
-            focusedRead={focusedRead}
-            onAccept={onAccept}
-            onReject={onReject}
-            onRecord={onRecord}
-            onPatch={onPatch}
-          />
-        ) : null}
+        {insight ? (
+          <div className="canvasInsight">
+            <div className="canvasInsightBar">
+              <button type="button" className="canvasInsightClose" aria-label="Close" onClick={onCloseInsight}>
+                ×
+              </button>
+            </div>
+            {insight.kind === "reasoning" ? (
+              <ReasoningView rounds={insight.rounds} />
+            ) : (
+              <ReadsView entry={insight.entry} />
+            )}
+          </div>
+        ) : (
+          <>
+            {!active ? (
+              <p className="muted">
+                Ask the chat to open a console, or accept a change to review it here.
+              </p>
+            ) : null}
+            {active && spaceId ? (
+              <CanvasItem
+                spaceId={spaceId}
+                item={active}
+                sequences={sequences}
+                events={events}
+                batchBusy={batchBusy}
+                onAccept={onAccept}
+                onReject={onReject}
+                onRecord={onRecord}
+                onPatch={onPatch}
+              />
+            ) : null}
+          </>
+        )}
       </div>
     </section>
   );
@@ -91,7 +115,6 @@ function CanvasItem({
   sequences,
   events,
   batchBusy,
-  focusedRead,
   onAccept,
   onReject,
   onRecord,
@@ -102,7 +125,6 @@ function CanvasItem({
   sequences: SequenceSummary[];
   events: EventSummary[];
   batchBusy: boolean;
-  focusedRead: number | null;
   onAccept: () => void;
   onReject: () => void;
   onRecord: CanvasStackProps["onRecord"];
@@ -127,34 +149,15 @@ function CanvasItem({
     return <EphemeralConsole spaceId={spaceId} item={item} sequences={sequences} />;
   }
   if (item.kind === "proposal") {
-    const status = String(item.payload.status || "pending");
-    const proposalItems = Array.isArray(item.payload.items) ? (item.payload.items as ChatBatchItem[]) : [];
     return (
-      <div className="canvasProposal">
-        <h2>Proposed changes</h2>
-        <p className="muted">{status}</p>
-        <ul>
-          {proposalItems.map((proposal, index) => (
-            <li key={`${proposal.kind}-${index}`}>
-              <strong>{proposal.summary || proposal.kind}</strong>
-              {proposal.preview ? <pre>{JSON.stringify(proposal.preview, null, 2)}</pre> : null}
-            </li>
-          ))}
-        </ul>
-        {item.payload.result ? (
-          <pre>{JSON.stringify(item.payload.result, null, 2)}</pre>
-        ) : null}
-        {status === "pending" ? (
-          <div className="buttonRow">
-            <button type="button" className="btnPrimary" disabled={batchBusy} onClick={onAccept}>
-              Accept
-            </button>
-            <button type="button" disabled={batchBusy} onClick={onReject}>
-              Reject
-            </button>
-          </div>
-        ) : null}
-      </div>
+      <ProposalList
+        spaceId={spaceId}
+        item={item}
+        sequences={sequences}
+        batchBusy={batchBusy}
+        onAccept={onAccept}
+        onReject={onReject}
+      />
     );
   }
   if (item.kind === "hitl") {
@@ -163,16 +166,87 @@ function CanvasItem({
   if (item.kind === "builder") {
     return <ReadOnlyBuilder item={item} />;
   }
-  if (item.kind === "reasoning") {
-    return <ReasoningView item={item} />;
-  }
-  if (item.kind === "reads") {
-    return <ReadsView item={item} focusedRead={focusedRead} />;
-  }
   if (item.kind === "walkthrough") {
     return <Walkthrough spaceId={spaceId} item={item} sequences={sequences} />;
   }
   return <pre className="canvasLog">{JSON.stringify(item.payload, null, 2)}</pre>;
+}
+
+function ProposalList({
+  spaceId,
+  item,
+  sequences,
+  batchBusy,
+  onAccept,
+  onReject
+}: {
+  spaceId: string;
+  item: ChatStackItem;
+  sequences: SequenceSummary[];
+  batchBusy: boolean;
+  onAccept: () => void;
+  onReject: () => void;
+}) {
+  const status = String(item.payload.status || "pending");
+  const proposalItems = Array.isArray(item.payload.items) ? (item.payload.items as ChatBatchItem[]) : [];
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  return (
+    <div className="canvasProposal">
+      <h2>Proposed changes</h2>
+      <p className="muted">{status}</p>
+      <ul className="proposalList">
+        {proposalItems.map((proposal, index) => {
+          const open = openIndex === index;
+          return (
+            <li key={`${proposal.kind}-${index}`} className="proposalItem">
+              <button
+                type="button"
+                className="proposalToggle"
+                aria-expanded={open}
+                onClick={() => setOpenIndex(open ? null : index)}
+              >
+                <span>{proposal.summary || proposal.kind}</span>
+                <span className="proposalKind">{open ? "Hide" : "Show"} configuration</span>
+              </button>
+              {open ? <ConfigPreview spaceId={spaceId} item={proposal} sequences={sequences} /> : null}
+            </li>
+          );
+        })}
+      </ul>
+      {status !== "pending" && item.payload.result ? (
+        <p className="muted">{resultSentence(item.payload.result)}</p>
+      ) : null}
+      {status === "pending" ? (
+        <div className="buttonRow">
+          <button type="button" className="btnPrimary" disabled={batchBusy} onClick={onAccept}>
+            Accept
+          </button>
+          <button type="button" disabled={batchBusy} onClick={onReject}>
+            Reject
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function resultSentence(result: unknown): string {
+  if (!result || typeof result !== "object") return "";
+  const record = result as {
+    failed?: { summary?: string; kind?: string; error?: string } | null;
+    applied?: unknown[];
+    not_applied?: Array<{ summary?: string; kind?: string }>;
+  };
+  const applied = Array.isArray(record.applied) ? record.applied.length : 0;
+  const failed = record.failed
+    ? `${record.failed.summary || record.failed.kind || "A change"} failed: ${record.failed.error || "unknown error"}`
+    : "";
+  const skipped = Array.isArray(record.not_applied)
+    ? record.not_applied.map((entry) => entry.summary || entry.kind).filter(Boolean)
+    : [];
+  return [`${applied} applied.`, failed, skipped.length ? `Not applied: ${skipped.join(", ")}.` : ""]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function ReadOnlyBuilder({ item }: { item: ChatStackItem }) {
@@ -269,8 +343,7 @@ function HitlForm({
   );
 }
 
-function ReasoningView({ item }: { item: ChatStackItem }) {
-  const rounds = Array.isArray(item.payload.rounds) ? item.payload.rounds : [];
+function ReasoningView({ rounds }: { rounds: unknown[] }) {
   if (rounds.length === 0) return <p className="muted">No reasoning yet.</p>;
   return (
     <div className="canvasReasoning">
@@ -291,11 +364,11 @@ function ReasoningView({ item }: { item: ChatStackItem }) {
   );
 }
 
-function ReadsView({ item, focusedRead }: { item: ChatStackItem; focusedRead: number | null }) {
-  const entries = Array.isArray(item.payload.entries) ? item.payload.entries : [];
-  const index =
-    focusedRead != null && focusedRead >= 0 && focusedRead < entries.length ? focusedRead : entries.length - 1;
-  const entry = entries[index] as { name?: string; arguments?: unknown; result?: unknown } | undefined;
+function ReadsView({
+  entry
+}: {
+  entry: { name?: string; arguments?: unknown; result?: unknown } | null;
+}) {
   if (!entry) return <p className="muted">No reads yet.</p>;
   return (
     <div className="canvasReads">

@@ -13,12 +13,13 @@ interface ChatColumnProps {
   batchBusy: boolean;
   error: string | null;
   round: { index: number; max: number } | null;
-  onSelectRead?: (index: number) => void;
+  selectedMessageId?: string | null;
+  onSelectMessage?: (messageId: string) => void;
+  onSelectRead?: (messageId: string, index: number) => void;
   onDraft: (value: string) => void;
   onSend: () => void;
   onOpenThread: (threadId: string) => void;
   onNewThread: () => void;
-  onClassic: () => void;
   onAccept: () => void;
   onReject: () => void;
   onClearQueue: () => void;
@@ -34,12 +35,13 @@ export function ChatColumn({
   batchBusy,
   error,
   round,
+  selectedMessageId,
+  onSelectMessage,
   onSelectRead,
   onDraft,
   onSend,
   onOpenThread,
   onNewThread,
-  onClassic,
   onAccept,
   onReject,
   onClearQueue
@@ -58,9 +60,6 @@ export function ChatColumn({
           Threads
         </button>
         <h1 className="chatTitle">Chat</h1>
-        <button type="button" className="tinyBtn" data-testid="chat-classic-toggle" onClick={onClassic}>
-          Classic
-        </button>
       </header>
       {drawerOpen ? (
         <div className="chatDrawer" role="dialog" aria-label="Threads">
@@ -100,21 +99,39 @@ export function ChatColumn({
         {messages.map((message) => {
           if (message.role === "user" && isFollowUp(message.content)) return null;
           return (
-          <article key={message.id} className={`chatMessage chatMessage-${message.role}`}>
+          <article
+            key={message.id}
+            className={`chatMessage chatMessage-${message.role}${
+              message.role === "assistant" && message.id === selectedMessageId ? " selected" : ""
+            }`}
+          >
             {message.role === "assistant" ? (
-              message.content ? <Markdown text={message.content} /> : null
+              <div
+                className="chatMessageBody"
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelectMessage?.(message.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelectMessage?.(message.id);
+                  }
+                }}
+              >
+                {message.content ? <Markdown text={message.content} /> : null}
+              </div>
             ) : (
               <p>{message.content}</p>
             )}
             {message.tool_calls.length > 0 ? (
-              <ul className="chatTools">
+              <ul className="chatTools" onClick={(event) => event.stopPropagation()}>
                 {message.tool_calls.map((call, index) =>
                   call.read_index != null ? (
                     <li key={`${call.name}-${index}`}>
                       <button
                         type="button"
                         className="chatToolButton"
-                        onClick={() => onSelectRead?.(call.read_index as number)}
+                        onClick={() => onSelectRead?.(message.id, call.read_index as number)}
                       >
                         {call.summary || call.name}
                       </button>
@@ -126,7 +143,7 @@ export function ChatColumn({
               </ul>
             ) : null}
             {message.batch?.status === "pending" ? (
-              <div className="chatBatch">
+              <div className="chatBatch" onClick={(event) => event.stopPropagation()}>
                 <p>
                   {message.batch.items.length} change{message.batch.items.length === 1 ? "" : "s"} waiting
                 </p>

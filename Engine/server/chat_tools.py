@@ -116,7 +116,9 @@ TOOLS: list[dict[str, Any]] = [
     ),
     _tool(
         "open_ephemeral_console",
-        "Open a temporary console on the canvas. It is not saved until a propose_change upsert_console is accepted. "
+        "Open a working console on the canvas now. It runs existing sequences. "
+        "Do not call this for a console whose sequences, events, or schemas are still a proposal: "
+        "that console cannot run until the user accepts. Propose upsert_console instead, and open the console only after acceptance. "
         "Bind data_sequence_id to a sequence or read operation (id or name) so the module shows that result, not an example.",
         _params(
             {
@@ -159,11 +161,12 @@ TOOLS: list[dict[str, Any]] = [
     ),
     _tool(
         "show_walkthrough",
-        "Show a scrubbable proposal on the canvas. Does not write. "
+        "Show a scrubbable view of screens that already exist. Does not write. "
+        "Do not use a console frame for a console that is not saved yet: the proposal shows that configuration, "
+        "and a live console cannot run until the user accepts. "
         "Each frame has view (workbench, sequence, event, or console), title, note, "
         "pins (target is a property key, step label, event field, or console module id), "
-        "and document as a JSON string of the proposed query, event package, or console document. "
-        "Writes still go through propose_change.",
+        "and document as a JSON string of the query, event package, or console document.",
         _params(
             {
                 "title": {"type": "string"},
@@ -191,7 +194,7 @@ TOOLS: list[dict[str, Any]] = [
                             },
                             "document": {
                                 "type": "string",
-                                "description": "JSON object for this view: a query, an event package, or a console document.",
+                                "description": "JSON object for this view. An event is {name, type, timezone, sequences, recovery_sequences, event_package: {timezone, groups: [{is_time: \"18:00\", is_weekday: [1,2,3,4,5]}]}}. is_time is 24-hour HH:MM. is_weekday is 1-7, Monday through Sunday. A query with no match graph is {name, operation, kind, cypher}. These fields are what the preview shows.",
                             },
                         },
                         "required": ["view", "document"],
@@ -204,7 +207,12 @@ TOOLS: list[dict[str, Any]] = [
     _tool(
         "propose_change",
         "Queue a write for the user to accept or reject with the rest of this turn. "
-        "Does not change the space. "
+        "Does not change the space. The user sees a list and can expand each item into a read-only copy of that config. "
+        "Fill the payload with the real configuration, not only a summary. "
+        "note is one sentence inserted in that config. "
+        "pins annotate fields inside it: target is a property key, an event field "
+        "(name, event_type, secret, filters, mappings, sequences, recovery, timezone), "
+        "a sequence id, or a console module id. "
         + chat_apply.KIND_HELP,
         _params(
             {
@@ -226,6 +234,22 @@ TOOLS: list[dict[str, Any]] = [
                     ],
                 },
                 "summary": {"type": "string"},
+                "note": {
+                    "type": "string",
+                    "description": "One sentence inserted in the read-only config for this item.",
+                },
+                "pins": {
+                    "type": "array",
+                    "description": "Annotations placed on fields inside the read-only config.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "target": {"type": "string"},
+                            "note": {"type": "string"},
+                        },
+                        "required": ["target"],
+                    },
+                },
                 "payload": {"type": "object"},
             },
             ["kind", "summary", "payload"],

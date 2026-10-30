@@ -1,10 +1,28 @@
 import { Picker } from "./builder/Picker";
 import "./builder/builder.css";
 
-function BackIcon() {
+function ChatIcon() {
   return (
-    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-      <path fill="currentColor" d="M9.8 2.8 4.5 8l5.3 5.2V2.8z" />
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M4.848 2.771A49.144 49.144 0 0 1 12 2.25c2.43 0 4.817.178 7.152.52 1.978.292 3.348 2.024 3.348 3.97v6.02c0 1.946-1.37 3.678-3.348 3.97a48.901 48.901 0 0 1-3.476.383.39.39 0 0 0-.297.17l-2.755 4.133a.75.75 0 0 1-1.248 0l-2.755-4.133a.39.39 0 0 0-.297-.17 48.9 48.9 0 0 1-3.476-.384c-1.978-.29-3.348-2.024-3.348-3.97V6.741c0-1.946 1.37-3.68 3.348-3.97Z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function WrenchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M12 6.75a5.25 5.25 0 0 1 6.775-5.025.75.75 0 0 1 .313 1.248l-3.32 3.319c.063.475.276.934.641 1.299.365.365.824.578 1.3.64l3.318-3.319a.75.75 0 0 1 1.248.313 5.25 5.25 0 0 1-5.472 6.756c-1.018-.086-1.87.1-2.309.634L7.344 21.3A3.298 3.298 0 1 1 2.7 16.657l8.684-7.151c.533-.44.72-1.291.634-2.309A5.342 5.342 0 0 1 12 6.75ZM4.117 19.125a.75.75 0 0 1 .75-.75h.008a.75.75 0 0 1 .75.75v.008a.75.75 0 0 1-.75.75h-.008a.75.75 0 0 1-.75-.75v-.008Z"
+        clipRule="evenodd"
+      />
     </svg>
   );
 }
@@ -54,8 +72,10 @@ interface TopBarProps {
   /** Tablet: toggles the navigation drawer. */
   onToggleNav?: () => void;
   navOpen?: boolean;
-  showBackToBuilder: boolean;
-  onBackToBuilder: () => void;
+  /** Which home is showing. Its icon is hidden; only the other one is offered. */
+  mode: "chat" | "classic";
+  onOpenChat: () => void;
+  onOpenWorkbench: () => void;
   showRunButton: boolean;
   canRun: boolean;
   running: boolean;
@@ -63,10 +83,6 @@ interface TopBarProps {
   inFlightStatus?: "active" | "pending" | "waiting" | null;
   awaitingParams?: boolean;
   onStop?: () => void;
-  /** Classic mode: return to the chat home screen. */
-  onOpenChat?: () => void;
-  /** Chat mode hides space settings; they live in classic mode. */
-  showSpaceSettings?: boolean;
 }
 
 export function TopBar({
@@ -80,21 +96,21 @@ export function TopBar({
   onOpenSpaceConfig,
   onToggleNav,
   navOpen = false,
-  showBackToBuilder,
-  onBackToBuilder,
+  mode,
+  onOpenChat,
+  onOpenWorkbench,
   showRunButton,
   canRun,
   running,
   onRun,
   inFlightStatus = null,
   awaitingParams = false,
-  onStop,
-  onOpenChat,
-  showSpaceSettings = true
+  onStop
 }: TopBarProps) {
   const parked = inFlightStatus === "waiting" || inFlightStatus === "active";
   const showStop = Boolean(onStop) && (parked || awaitingParams || inFlightStatus === "pending");
   const showRun = showRunButton && !parked;
+  const chatActive = mode === "chat";
 
   return (
     <header className={`topbar${compact ? " topbarCompact" : ""}`}>
@@ -128,25 +144,34 @@ export function TopBar({
           onSelect={onSelectSpace}
           emptyHint="No spaces yet."
         />
+        <div className="topbarModeSwitch" role="group" aria-label="View">
+          {chatActive ? null : (
+            <button
+              type="button"
+              className="topbarModeBtn"
+              data-testid="topbar-chat-btn"
+              aria-label="Chat"
+              title="Chat"
+              onClick={onOpenChat}
+            >
+              <ChatIcon />
+            </button>
+          )}
+          {chatActive ? (
+            <button
+              type="button"
+              className="topbarModeBtn"
+              data-testid="topbar-back-btn"
+              aria-label="Workbench"
+              title="Workbench"
+              onClick={onOpenWorkbench}
+            >
+              <WrenchIcon />
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="topbarActions" data-tour="topbar-actions">
-        {onOpenChat ? (
-          <button type="button" className="topbarBackBtn" data-testid="topbar-chat-btn" onClick={onOpenChat}>
-            Chat
-          </button>
-        ) : null}
-        {showBackToBuilder ? (
-          <button
-            type="button"
-            className="topbarBackBtn"
-            data-testid="topbar-back-btn"
-            aria-label="Back to workbench"
-            onClick={onBackToBuilder}
-          >
-            <BackIcon />
-            {compact ? "Workbench" : "Back to workbench"}
-          </button>
-        ) : null}
         {showStop ? (
           <button
             type="button"
@@ -183,20 +208,18 @@ export function TopBar({
               +
             </button>
           ) : null}
-          {showSpaceSettings ? (
-            <button
-              type="button"
-              className={`tinyBtn tinyBtnIcon navSpaceConfigBtn${spaceConfigActive ? " active" : ""}`}
-              aria-label="Open space settings"
-              title="Space settings"
-              data-testid="nav-space-settings"
-              data-tour="space-settings"
-              disabled={!selectedSpaceId}
-              onClick={onOpenSpaceConfig}
-            >
-              <GearIcon />
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className={`tinyBtn tinyBtnIcon navSpaceConfigBtn${spaceConfigActive ? " active" : ""}`}
+            aria-label="Open space settings"
+            title="Space settings"
+            data-testid="nav-space-settings"
+            data-tour="space-settings"
+            disabled={!selectedSpaceId}
+            onClick={onOpenSpaceConfig}
+          >
+            <GearIcon />
+          </button>
         </span>
       </div>
     </header>

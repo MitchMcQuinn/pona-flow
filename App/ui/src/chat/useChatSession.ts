@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   acceptChatBatch,
   addChatStackItem,
@@ -11,6 +11,7 @@ import {
   updateChatStackItem
 } from "../services/api";
 import { followUpPrompt } from "./followUp";
+import { isInsightKind, resolveInsight, visibleCanvasId, type InsightRequest } from "./insight";
 import type { ChatMessage, ChatStackItem, ChatThreadSummary } from "./types";
 
 interface Options {
@@ -34,9 +35,8 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
   const [error, setError] = useState<string | null>(null);
   const [turnStatus, setTurnStatus] = useState<"idle" | "running">("idle");
   const [round, setRound] = useState<{ index: number; max: number } | null>(null);
-  const [focusedRead, setFocusedRead] = useState<number | null>(null);
+  const [insight, setInsight] = useState<InsightRequest | null>(null);
   const threadIdRef = useRef<string | null>(null);
-  const readsIdRef = useRef<string | null>(null);
   const openerRef = useRef<{ spaceId: string; prompt: string } | null>(null);
   threadIdRef.current = threadId;
   const onAppliedRef = useRef(onApplied);
@@ -50,10 +50,13 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     setThreadId(thread.id);
     setMessages(thread.messages);
     setStack(thread.stack);
-    setActiveStackId(
-      thread.active_stack_item_id ?? thread.stack[thread.stack.length - 1]?.id ?? null
-    );
-    readsIdRef.current = thread.stack.find((item) => item.kind === "reads")?.id ?? null;
+    setActiveStackId(visibleCanvasId(thread.stack, thread.active_stack_item_id));
+    setInsight((current) => {
+      if (!current) return null;
+      if (thread.messages.some((message) => message.id === current.messageId)) return current;
+      const last = [...thread.messages].reverse().find((message) => message.role === "assistant");
+      return last ? { ...current, messageId: last.id } : null;
+    });
     setTurnStatus(thread.turn_status);
   }, []);
 
@@ -68,6 +71,7 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     setMessages([]);
     setStack([]);
     setActiveStackId(null);
+    setInsight(null);
     setQueued(null);
     setDraft("");
     setError(null);
@@ -104,7 +108,6 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
       }
       setStreaming(true);
       setRound(null);
-      setFocusedRead(null);
       const localUser: ChatMessage | null = options?.hidden
         ? null
         : {
@@ -152,7 +155,6 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
             );
           } else if (event.event === "canvas" || event.event === "canvas_update") {
             const item = event.data.item;
-            if (item.kind === "reads") readsIdRef.current = item.id;
             setStack((current) => {
               const index = current.findIndex((entry) => entry.id === item.id);
               if (index < 0) return [...current, item];
@@ -160,7 +162,7 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
               next[index] = item;
               return next;
             });
-            if (event.event === "canvas" && item.kind !== "reads") setActiveStackId(item.id);
+            if (event.event === "canvas" && !isInsightKind(item.kind)) setActiveStackId(item.id);
           } else if (event.event === "error") {
             setError(event.data.message);
           }
@@ -240,14 +242,22 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     setMessages([]);
     setStack([]);
     setActiveStackId(null);
+    setInsight(null);
     setQueued(null);
     setError(null);
     setTurnStatus("idle");
   }
 
-  function selectRead(index: number) {
-    setFocusedRead(index);
-    if (readsIdRef.current) selectStack(readsIdRef.current);
+  function selectMessage(messageId: string) {
+    setInsight({ kind: "reasoning", messageId });
+  }
+
+  function selectRead(messageId: string, index: number) {
+    setInsight({ kind: "read", messageId, index });
+  }
+
+  function closeInsight() {
+    setInsight(null);
   }
 
   function selectStack(id: string) {
@@ -327,6 +337,11 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     setStack((current) => current.map((item) => (item.id === itemId ? saved : item)));
   }
 
+  const insightView = useMemo(
+    () => resolveInsight(insight, messages, stack),
+    [insight, messages, stack]
+  );
+
   return {
     threads,
     threadId,
@@ -339,7 +354,9 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     setQueued,
     streaming,
     round,
-    focusedRead,
+    insight,
+    insightView,
+    closeInsight,
     batchBusy,
     error,
     pending,
@@ -347,6 +364,7 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     openThread,
     newThread,
     selectStack,
+    selectMessage,
     selectRead,
     accept,
     reject,

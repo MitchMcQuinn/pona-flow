@@ -11,6 +11,7 @@ interface SequenceMultiPickerProps {
   pickerTestId: string;
   menuTestId: string;
   placeholder?: string;
+  pinTarget?: string;
 }
 
 /**
@@ -25,7 +26,8 @@ export function SequenceMultiPicker({
   onChange,
   pickerTestId,
   menuTestId,
-  placeholder = "Add a sequence"
+  placeholder = "Add a sequence",
+  pinTarget
 }: SequenceMultiPickerProps) {
   const labels = new Map(sequences.map((sequence) => [sequence.id, sequence.label]));
   const available = sequences.filter((sequence) => !selected.includes(sequence.id));
@@ -40,7 +42,7 @@ export function SequenceMultiPicker({
   }
 
   return (
-    <div className="field">
+    <div className="field" data-pin-target={pinTarget || label}>
       <FieldLabel tip={tip}>{label}</FieldLabel>
       {selected.length > 0 ? (
         <ul className="eventSeqChips">

@@ -1,10 +1,8 @@
 import { Component, useEffect, useMemo, useState, type ReactNode } from "react";
-import { newQuery, type Operation } from "@pona-flow/authoring";
-import { BuilderPanel } from "../components/builder/BuilderPanel";
-import { EventBuilder, type EventPreviewDocument } from "../components/events/EventBuilder";
-import type { QueryObject } from "../state/builder/types";
+import { EventBuilder } from "../components/events/EventBuilder";
 import type { SequenceSummary } from "../state/types";
-import { EphemeralConsole } from "./EphemeralConsole";
+import { ConsoleConfigPreview, QueryConfig, sequenceStubs } from "./ConfigPreview";
+import { eventPreviewFrom } from "./eventPreviewDocument";
 import { Markdown } from "./Markdown";
 import type { ChatStackItem, WalkthroughFrame, WalkthroughPin } from "./types";
 
@@ -40,10 +38,7 @@ export function Walkthrough({ spaceId, item, sequences }: WalkthroughProps) {
 
   return (
     <div className="walkthrough">
-      <label className="walkthroughScrubber">
-        <span>
-          {frame.title || frame.view} ({index + 1} of {frames.length})
-        </span>
+      <div className="walkthroughScrubber">
         <input
           type="range"
           min={0}
@@ -52,40 +47,59 @@ export function Walkthrough({ spaceId, item, sequences }: WalkthroughProps) {
           aria-label="Walkthrough frame"
           onChange={(event) => setIndex(Number(event.target.value))}
         />
-      </label>
-      <div className="walkthroughMain">
-        <div className="walkthroughScreen">
-          <PreviewBoundary resetKey={`${item.id}:${index}`}>
-            <FrameScreen spaceId={spaceId} frame={frame} sequences={sequences} />
-          </PreviewBoundary>
-        </div>
-        <aside className="walkthroughNote">
-          <h2>{frame.title || frame.view}</h2>
-          <div className="agentNote">
-            <p className="agentNoteLabel">Agent note</p>
-            {frame.note ? <Markdown text={frame.note} /> : <p className="muted">No note on this frame.</p>}
-          </div>
-          {frame.pins.length > 0 ? (
-            <div className="agentNote">
-              <p className="agentNoteLabel">Pinned notes</p>
-              <ul className="walkthroughPins">
-                {frame.pins.map((pin) => (
-                  <li key={pin.target}>
-                    <button
-                      type="button"
-                      className={activePin === pin.target ? "active" : undefined}
-                      onClick={() => choosePin(pin.target)}
-                    >
-                      {pin.target}
-                    </button>
-                    {pin.note ? <Markdown text={pin.note} /> : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </aside>
+        <span>
+          {frame.title || frame.view} ({index + 1} of {frames.length})
+        </span>
       </div>
+      <FrameNotes frame={frame} activePin={activePin} onChoosePin={choosePin} />
+      <div className="walkthroughScreen">
+        <PreviewBoundary resetKey={`${item.id}:${index}`}>
+          <FrameScreen spaceId={spaceId} frame={frame} sequences={sequences} />
+        </PreviewBoundary>
+      </div>
+      <FrameNotes frame={frame} activePin={activePin} onChoosePin={choosePin} pinsOnly />
+    </div>
+  );
+}
+
+function FrameNotes({
+  frame,
+  activePin,
+  onChoosePin,
+  pinsOnly = false
+}: {
+  frame: WalkthroughFrame;
+  activePin: string | null;
+  onChoosePin: (target: string) => void;
+  pinsOnly?: boolean;
+}) {
+  if (pinsOnly) {
+    if (frame.pins.length === 0) return null;
+    return (
+      <div className="agentNote">
+        <p className="agentNoteLabel">Pinned notes</p>
+        <ul className="walkthroughPins">
+          {frame.pins.map((pin) => (
+            <li key={pin.target}>
+              <button
+                type="button"
+                className={activePin === pin.target ? "active" : undefined}
+                onClick={() => onChoosePin(pin.target)}
+              >
+                {pin.target}
+              </button>
+              {pin.note ? <Markdown text={pin.note} /> : null}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  if (!frame.note) return null;
+  return (
+    <div className="agentNote">
+      <p className="agentNoteLabel">Agent note</p>
+      <Markdown text={frame.note} />
     </div>
   );
 }
@@ -101,16 +115,10 @@ function FrameScreen({
 }) {
   if (frame.view === "console") {
     return (
-      <EphemeralConsole
-        spaceId={spaceId}
+      <ConsoleConfigPreview
+        name={frame.title}
+        document={consoleDocument(frame.document)}
         sequences={sequences}
-        item={{
-          id: `walkthrough-${frame.title}`,
-          kind: "ephemeral_console",
-          title: frame.title,
-          payload: { name: frame.title, document: consoleDocument(frame.document) },
-          position: 0
-        }}
       />
     );
   }
@@ -129,11 +137,18 @@ function EventPreview({
   frame: WalkthroughFrame;
   sequences: SequenceSummary[];
 }) {
-  const preview = useMemo(() => eventDocument(frame.document), [frame]);
+  const preview = useMemo(
+    () => eventPreviewFrom(frame.document, { note: frame.note, pins: frame.pins }),
+    [frame]
+  );
+  const listed = useMemo(() => {
+    const ids = [...(preview.sequences ?? []), ...(preview.recovery_sequences ?? [])];
+    return sequenceStubs(ids, sequences);
+  }, [preview, sequences]);
   return (
     <EventBuilder
       spaceId={spaceId}
-      sequences={sequences}
+      sequences={listed}
       eventId={null}
       defaultTimezone={null}
       onSaved={() => undefined}
@@ -145,20 +160,14 @@ function EventPreview({
 }
 
 function QueryPreview({ spaceId, frame }: { spaceId: string; frame: WalkthroughFrame }) {
-  const preview = useMemo(() => {
-    const query = queryDocument(frame.document);
-    const name = typeof frame.document.name === "string" ? frame.document.name : query.name;
-    const description =
-      typeof frame.document.description === "string" ? frame.document.description : undefined;
-    return { query, name, description };
-  }, [frame]);
-  return (
-    <BuilderPanel
-      spaceId={spaceId}
-      createSequenceMode={frame.view === "sequence"}
-      preview={preview}
-    />
+  const payload = useMemo(
+    () => ({
+      ...frame.document,
+      kind: frame.view === "sequence" ? "sequence" : frame.document.kind
+    }),
+    [frame]
   );
+  return <QueryConfig spaceId={spaceId} payload={payload} />;
 }
 
 function framesOf(raw: unknown): WalkthroughFrame[] {
@@ -187,38 +196,6 @@ function framesOf(raw: unknown): WalkthroughFrame[] {
       }
     ];
   });
-}
-
-const queryOperations: readonly Operation[] = ["read", "create", "update", "delete"];
-
-function queryDocument(document: Record<string, unknown>): QueryObject {
-  const nested = document.query;
-  const source =
-    nested && typeof nested === "object" && !Array.isArray(nested)
-      ? (nested as Record<string, unknown>)
-      : document;
-  const operation: Operation = queryOperations.includes(source.operation as Operation)
-    ? (source.operation as Operation)
-    : "read";
-  const query = newQuery(operation);
-  if (typeof source.name === "string") query.name = source.name;
-  if (typeof source.id === "string" && source.id) query.id = source.id;
-  if (Array.isArray(source.parameters)) query.parameters = source.parameters as QueryObject["parameters"];
-  if (Array.isArray(source.match) && source.match.length) query.match = source.match as QueryObject["match"];
-  if (source.return && typeof source.return === "object" && !Array.isArray(source.return)) {
-    query.return = source.return as QueryObject["return"];
-  }
-  if (Array.isArray(source.set)) query.set = source.set as QueryObject["set"];
-  if (source.delete && typeof source.delete === "object" && !Array.isArray(source.delete)) {
-    query.delete = source.delete as QueryObject["delete"];
-  }
-  return query;
-}
-
-function eventDocument(document: Record<string, unknown>): EventPreviewDocument {
-  const nested = document.event;
-  if (nested && typeof nested === "object" && !Array.isArray(nested)) return nested as EventPreviewDocument;
-  return document as EventPreviewDocument;
 }
 
 function consoleDocument(document: Record<string, unknown>): Record<string, unknown> {

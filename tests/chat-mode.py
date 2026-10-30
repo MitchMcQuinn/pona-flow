@@ -141,7 +141,9 @@ class ChatModeTest(unittest.TestCase):
                     "name": "count people",
                     "kind": "operation",
                     "operation": "read",
-                    "cypher": ["MATCH (p:Person) RETURN count(p) AS text"],
+                    "cypher": [
+                        "MATCH (p:INSTANCE { attributive_label: 'person' }) RETURN count(p) AS text"
+                    ],
                 },
             }
         )
@@ -164,6 +166,43 @@ class ChatModeTest(unittest.TestCase):
         self.assertEqual(len(named), 1)
         self.assertEqual(calls[0]["labels"], ["count people"])
         self.assertIn("ID_op_count", calls[0]["sqlite"][0])
+
+    def test_query_cypher_must_open_in_the_builder(self) -> None:
+        def problems(cypher: list[str], kind: str = "operation") -> list[str]:
+            item = chat_apply.normalize_item(
+                {
+                    "kind": "upsert_query",
+                    "summary": "Count",
+                    "payload": {
+                        "id": "ID_shape",
+                        "name": "shape check",
+                        "kind": kind,
+                        "operation": "read",
+                        "cypher": cypher,
+                    },
+                }
+            )
+            return chat_apply.validate_item(self.principal, self.space_id, item)
+
+        piped = problems(
+            ["MATCH (n:INSTANCE { attributive_label: 'person' }) WITH n RETURN n"]
+        )
+        self.assertTrue(any("WITH" in problem for problem in piped), piped)
+        custom = problems(["MATCH (p:Person) RETURN p"])
+        self.assertTrue(any("attributive_label" in problem for problem in custom), custom)
+        stacked = problems(
+            [
+                "MATCH (a:INSTANCE { attributive_label: 'nurse' }) RETURN a.name AS name "
+                "UNION MATCH (b:INSTANCE { attributive_label: 'doctor' }) RETURN b.name AS name"
+            ]
+        )
+        self.assertTrue(any("UNION" in problem for problem in stacked), stacked)
+        self.assertEqual(
+            problems(
+                ["MATCH (p:INSTANCE { attributive_label: 'person' }) WHERE p.at > datetime() RETURN p"]
+            ),
+            [],
+        )
 
     def test_sequence_label_is_registered_on_the_space(self) -> None:
         item = chat_apply.normalize_item(
@@ -368,6 +407,144 @@ class ChatModeTest(unittest.TestCase):
         kinds = [event["data"]["item"]["kind"] for event in events if event["event"] in ("canvas", "canvas_update")]
         self.assertIn("reasoning", kinds)
         self.assertIn("reads", kinds)
+        thread_id = next(event["data"]["thread_id"] for event in events if event["event"] == "start")
+        thread = chat_store.get_thread(thread_id, self.space_id, self.principal.user_id)
+        self.assertIsNotNone(thread)
+        self.assertIsNone(thread["active_stack_item_id"])
+        assistant = next(message for message in reversed(thread["messages"]) if message["role"] == "assistant")
+        reasoning = next(item for item in thread["stack"] if item["kind"] == "reasoning")
+        reads = next(item for item in thread["stack"] if item["kind"] == "reads")
+        self.assertEqual(reasoning["payload"]["message_id"], assistant["id"])
+        self.assertEqual(reads["payload"]["message_id"], assistant["id"])
+
+    def test_propose_change_keeps_field_annotations(self) -> None:
+        proposals: list = []
+        result = chat_tools.execute(
+            "propose_change",
+            {
+                "kind": "upsert_event",
+                "summary": "External webhook event for nurse-call unit badge-in auto-assignment",
+                "note": "Badge-in from the nurse-call unit starts assignment.",
+                "pins": [
+                    {"target": "event_type", "note": "External, because the unit posts a webhook."},
+                    {"target": "filters", "note": ""},
+                ],
+                "payload": {
+                    "name": "Nurse call badge-in",
+                    "type": "external",
+                    "sequences": ["assign-nurse"],
+                    "external_package": {
+                        "filters": [{"path": "event", "operator": "equals", "value": "badge-in"}]
+                    },
+                },
+            },
+            self.principal,
+            self.space_id,
+            proposals,
+        )
+        self.assertTrue(result.result["ok"], result.result)
+        self.assertEqual(proposals[0]["note"], "Badge-in from the nurse-call unit starts assignment.")
+        self.assertEqual(proposals[0]["pins"], [
+            {"target": "event_type", "note": "External, because the unit posts a webhook."}
+        ])
+        self.assertEqual(proposals[0]["payload"]["type"], "external")
+        self.assertEqual(
+            proposals[0]["payload"]["external_package"]["filters"][0]["value"],
+            "badge-in",
+        )
+
+    def test_proposal_turn_does_not_open_a_console(self) -> None:
+        def complete(_cfg, _key, messages, _tools):
+            if not any(message.get("role") == "tool" for message in messages):
+                yield {
+                    "type": "tool_call",
+                    "id": "call_console",
+                    "name": "open_ephemeral_console",
+                    "arguments": {"title": "Floor", "modules": []},
+                }
+                yield {
+                    "type": "tool_call",
+                    "id": "call_walk",
+                    "name": "show_walkthrough",
+                    "arguments": {
+                        "title": "Design",
+                        "frames": [
+                            {
+                                "view": "console",
+                                "title": "Floor",
+                                "document": json.dumps({"views": []}),
+                            },
+                            {
+                                "view": "event",
+                                "title": "Badge-in",
+                                "document": json.dumps({"name": "Badge-in", "event_type": "external"}),
+                            },
+                        ],
+                    },
+                }
+                yield {
+                    "type": "tool_call",
+                    "id": "call_change",
+                    "name": "propose_change",
+                    "arguments": {
+                        "kind": "upsert_event",
+                        "summary": "External webhook event for nurse-call unit badge-in auto-assignment",
+                        "note": "The unit posts badge-in here.",
+                        "pins": [{"target": "name", "note": "Name the event for the unit."}],
+                        "payload": {"name": "Nurse call badge-in", "type": "external"},
+                    },
+                }
+                return
+            yield {"type": "text", "delta": "Review the proposal before anything is saved."}
+
+        events = list(
+            chat_agent.run_turn(
+                space_id=self.space_id,
+                principal=self.principal,
+                content="set up nurse call badge-in",
+                thread_id=None,
+                model=({"provider": "openai", "model": "test", "base_url": ""}, "test-key"),
+                complete=complete,
+            )
+        )
+        canvases = [event["data"]["item"] for event in events if event["event"] == "canvas"]
+        kinds = [item["kind"] for item in canvases]
+        self.assertNotIn("ephemeral_console", kinds)
+        self.assertNotIn("saved_console", kinds)
+        walkthroughs = [item for item in canvases if item["kind"] == "walkthrough"]
+        self.assertEqual(len(walkthroughs), 1)
+        views = [frame["view"] for frame in walkthroughs[0]["payload"]["frames"]]
+        self.assertEqual(views, ["event"])
+        proposal = next(item for item in canvases if item["kind"] == "proposal")
+        self.assertEqual(proposal["payload"]["items"][0]["note"], "The unit posts badge-in here.")
+        self.assertEqual(proposal["payload"]["items"][0]["pins"][0]["target"], "name")
+        self.assertEqual(kinds[-1], "proposal")
+
+    def test_console_still_opens_when_nothing_is_proposed(self) -> None:
+        def complete(_cfg, _key, messages, _tools):
+            if not any(message.get("role") == "tool" for message in messages):
+                yield {
+                    "type": "tool_call",
+                    "id": "call_console",
+                    "name": "open_ephemeral_console",
+                    "arguments": {"title": "Floor", "modules": []},
+                }
+                return
+            yield {"type": "text", "delta": "The floor console is open."}
+
+        events = list(
+            chat_agent.run_turn(
+                space_id=self.space_id,
+                principal=self.principal,
+                content="open a floor console",
+                thread_id=None,
+                model=({"provider": "openai", "model": "test", "base_url": ""}, "test-key"),
+                complete=complete,
+            )
+        )
+        kinds = [event["data"]["item"]["kind"] for event in events if event["event"] == "canvas"]
+        self.assertIn("ephemeral_console", kinds)
+        self.assertNotIn("proposal", kinds)
 
     def test_walkthrough_does_not_queue_a_change(self) -> None:
         proposals: list = []

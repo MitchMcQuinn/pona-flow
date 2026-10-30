@@ -472,8 +472,8 @@ def fetch_query_package(query_id: str) -> dict[str, Any] | None:
     with catalog_connection() as conn:
         _ensure_queries_policy_columns(conn)
         cur = conn.execute(
-            "SELECT id, name, cypher, sqlite, parameters, builder_config, description, "
-            "loop_config, group_title "
+            "SELECT id, name, kind, operation, cypher, sqlite, parameters, builder_config, "
+            "description, loop_config, group_title "
             "FROM queries WHERE id = ?",
             (qid,),
         )
@@ -484,13 +484,15 @@ def fetch_query_package(query_id: str) -> dict[str, Any] | None:
             return {
                 "id": row[0],
                 "name": row[1],
-                "cypher": json.loads(row[2] or "[]"),
-                "sqlite": json.loads(row[3] or "[]"),
-                "parameters": json.loads(row[4] or "[]"),
-                "builder_config": json.loads(row[5] or "{}"),
-                "description": row[6] or "",
-                "loop_config": json.loads(row[7] or "{}"),
-                "group_title": row[8] or "",
+                "kind": row[2] or "operation",
+                "operation": row[3] or "read",
+                "cypher": json.loads(row[4] or "[]"),
+                "sqlite": json.loads(row[5] or "[]"),
+                "parameters": json.loads(row[6] or "[]"),
+                "builder_config": json.loads(row[7] or "{}"),
+                "description": row[8] or "",
+                "loop_config": json.loads(row[9] or "{}"),
+                "group_title": row[10] or "",
             }
         except json.JSONDecodeError:
             return None

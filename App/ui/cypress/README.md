@@ -76,7 +76,7 @@ Builder (`components/builder/`):
   `#vector-search-all-labels-toggle` element ids, as elsewhere for `Toggle`).
   `vector-search-k` is a text input, not a number one, so it can hold `$topK`
 
-Top bar: `topbar-run-btn`, `topbar-back-btn`
+Top bar: `topbar-run-btn`, `topbar-chat-btn` (workbench only), `topbar-back-btn` (chat only)
 
 Navigation:
 
@@ -100,9 +100,9 @@ Space admin:
   `embeddings-credential-select`, `embeddings-model-input`, `embeddings-save-btn`,
   `embeddings-check-btn`, `embeddings-reindex-btn` (the enabled switch is the
   `#embeddings-enabled-toggle` element id, as elsewhere for `Toggle`)
-- `template-select-sequences`, `template-select-operations`,
-  `template-select-schemas`, `template-select-events`, `template-resolve-btn`,
-  `template-export-summary`, `template-export-btn` (download)
+- `template-select-everything`, `template-select-sequences`, `template-select-operations`,
+  `template-select-schemas`, `template-select-events`, `template-backup-everything-btn`,
+  `template-resolve-btn`, `template-export-summary`, `template-export-btn` (download)
 - `template-import-file`, `template-import-btn`, `template-import-result`,
   `template-rename-<conflict-id>`, `template-credentials-needed`
 

@@ -134,7 +134,7 @@ interface ResizableDashboardLayoutProps {
   mobilePane?: MobilePane;
   navDrawerOpen?: boolean;
   onCloseNavDrawer?: () => void;
-  /** Chat replaces the nav and the canvas takes the rest of the row. */
+  /** Chat replaces the nav and the canvas takes the rest of the row. Space settings can still open beside it. */
   chatMode?: boolean;
 }
 
@@ -167,7 +167,7 @@ export function ResizableDashboardLayout({
   // Phones keep every pane mounted (switching tabs must not discard builder state) and
   // show a hint where a pane has nothing yet; tablets need something beside the drawer.
   const renderConfig = chatMode
-    ? false
+    ? showConfig && !isPhone
     : showConfig || isPhone || (isTablet && !showVisualization);
   const renderViz = showVisualization || isPhone;
   // Restore persisted panel sizes across refreshes, clamped to absolute bounds; the
@@ -226,13 +226,17 @@ export function ResizableDashboardLayout({
           maxConfigWidthForLayout(main, 0, showConfig, showVisualization, false)
         );
       }
-    } else if (showVisualization && showConfig && !chatMode) {
+    } else if (showVisualization && showConfig) {
       config = clamp(
         config,
         CONFIG_MIN,
         maxConfigWidthForLayout(main, nav, showConfig, showVisualization)
       );
-      nav = clamp(nav, NAV_MIN, maxNavWidthForLayout(main, config, showConfig, showVisualization));
+      nav = clamp(
+        nav,
+        columnMin,
+        maxNavWidthForLayout(main, config, showConfig, showVisualization, columnCap)
+      );
       config = clamp(
         config,
         CONFIG_MIN,
@@ -263,8 +267,8 @@ export function ResizableDashboardLayout({
       if (r.edge === "nav") {
         const maxNav = maxNavWidthForLayout(
           main,
-          chatMode ? 0 : r.startConfig,
-          chatMode ? false : showConfig,
+          showConfig ? r.startConfig : 0,
+          showConfig,
           showVisualization,
           columnCap
         );
