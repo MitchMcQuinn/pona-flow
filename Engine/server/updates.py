@@ -216,6 +216,46 @@ def fetch_commits_since(
     return latest, commits
 
 
+def fetch_ci_publish(sha: str, http_get: HttpGet = _http_get) -> dict[str, Any]:
+    """Whether the CI workflow has published ``:main`` for ``sha``.
+
+    ``status`` is ``success``, ``failure``, ``in_progress``, or ``unknown``.
+    An unreadable Actions response is ``unknown`` so a GitHub hiccup does not
+    block an update. ``failure`` includes a cancelled run: that also leaves
+    ``:main`` on the previous image.
+    """
+    repo = github_repo()
+    url = (
+        f"{GITHUB_API}/repos/{repo}/actions/workflows/ci.yml/runs"
+        f"?head_sha={urllib.parse.quote(sha)}&per_page=1"
+    )
+    try:
+        body = _github_get(url, http_get)
+    except GitHubUnavailable:
+        return {"status": "unknown", "url": "", "error": None}
+    runs = body.get("workflow_runs") if isinstance(body, dict) else None
+    run = runs[0] if isinstance(runs, list) and runs and isinstance(runs[0], dict) else None
+    if not run:
+        return {"status": "unknown", "url": "", "error": None}
+    html = str(run.get("html_url") or "")
+    if str(run.get("status") or "") != "completed":
+        return {
+            "status": "in_progress",
+            "url": html,
+            "error": "CI is still building the image. Update once that run finishes.",
+        }
+    if str(run.get("conclusion") or "") == "success":
+        return {"status": "success", "url": html, "error": None}
+    return {
+        "status": "failure",
+        "url": html,
+        "error": (
+            "CI did not publish an image for the newest commit, so updating would "
+            "restart onto the version already running."
+        ),
+    }
+
+
 def version_payload() -> dict[str, Any]:
     """Cheap identity of the running process — polled while an update rolls out."""
     return {"build_sha": build_sha(), "started_at": STARTED_AT}
@@ -232,9 +272,17 @@ def status_payload(http_get: HttpGet = _http_get) -> dict[str, Any]:
         github_error = str(e)
         latest, commits = "", []
     up_to_date = bool(current) and _sha_matches(current, latest)
+    publish = (
+        {"status": "unknown", "url": "", "error": None}
+        if up_to_date or not latest
+        else fetch_ci_publish(latest, http_get=http_get)
+    )
     token = fly_api_token()
     app = fly_app_name()
-    can_update = bool(token and app and not up_to_date)
+    # A failed or still-running CI run has not moved :main. Restarting would
+    # come back on the image already running.
+    image_ready = publish["status"] in ("success", "unknown")
+    can_update = bool(token and app and not up_to_date and image_ready)
     return {
         "github_error": github_error,
         "started_at": STARTED_AT,
@@ -250,6 +298,9 @@ def status_payload(http_get: HttpGet = _http_get) -> dict[str, Any]:
         "fly_token_configured": bool(token),
         "fly_app_name": app,
         "image": image_ref(),
+        "publish_status": publish["status"],
+        "publish_url": publish["url"],
+        "publish_error": publish["error"],
         "manual_hint": (
             f"fly deploy --app {app or 'YOUR_APP'} --image {image_ref()}"
             if app or token

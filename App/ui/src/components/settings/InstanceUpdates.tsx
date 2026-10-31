@@ -90,8 +90,8 @@ export function InstanceUpdates() {
     }
     if (before && restarted.build_sha === before.current_sha) {
       setNotice(
-        "Restarted, but the newest version isn't published yet — it's usually ready 5–10 " +
-          "minutes after a change lands on main. Try again shortly."
+        "Restarted onto the image already published. A commit only becomes an image after " +
+          "CI succeeds — if that run failed, waiting longer will not publish it."
       );
     }
     await load();
@@ -119,6 +119,19 @@ export function InstanceUpdates() {
       {error ? <p className="errorText">{error}</p> : null}
       {status?.github_error ? <p className="navUserMenuHint">{status.github_error}</p> : null}
       {notice ? <p className="navUserMenuHint">{notice}</p> : null}
+      {status?.publish_status === "failure" ? (
+        <p className="errorText">
+          {status.publish_error}{" "}
+          {status.publish_url ? (
+            <a href={status.publish_url} target="_blank" rel="noopener noreferrer">
+              View the CI run
+            </a>
+          ) : null}
+        </p>
+      ) : null}
+      {status?.publish_status === "in_progress" ? (
+        <p className="navUserMenuHint">{status.publish_error}</p>
+      ) : null}
       {status && status.commits.length > 0 ? (
         <ul className="instanceUpdateCommits">
           {status.commits.map((commit) => (
@@ -173,7 +186,12 @@ export function InstanceUpdates() {
         </button>
       ) : null}
       {status?.up_to_date ? <p className="navUserMenuHint">No update needed.</p> : null}
-      {status && !status.can_update && status.behind && status.fly_token_configured ? (
+      {status &&
+      !status.can_update &&
+      status.behind &&
+      status.fly_token_configured &&
+      status.publish_status !== "failure" &&
+      status.publish_status !== "in_progress" ? (
         <p className="navUserMenuHint">{status.manual_hint}</p>
       ) : null}
     </div>

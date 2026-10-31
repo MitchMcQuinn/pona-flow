@@ -1563,6 +1563,10 @@ export type InstanceUpdateStatus = {
   fly_token_configured: boolean;
   fly_app_name: string;
   image: string;
+  /** success once CI has published :main; failure and in_progress block the update button. */
+  publish_status?: "success" | "failure" | "in_progress" | "unknown";
+  publish_url?: string;
+  publish_error?: string | null;
   manual_hint: string;
   /** Set when GitHub couldn't be read (e.g. rate limited); updating still works. */
   github_error: string | null;

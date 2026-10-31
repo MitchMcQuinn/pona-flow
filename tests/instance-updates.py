@@ -100,6 +100,16 @@ class InstanceUpdatesTest(unittest.TestCase):
                         }
                     ]
                 }
+            if "/actions/workflows/ci.yml/runs" in url:
+                return 200, {
+                    "workflow_runs": [
+                        {
+                            "status": "completed",
+                            "conclusion": "success",
+                            "html_url": "https://github.com/x/y/actions/runs/1",
+                        }
+                    ]
+                }
             self.fail(f"unexpected url {url}")
 
         payload = updates.status_payload(http_get=http_get)
@@ -111,7 +121,52 @@ class InstanceUpdatesTest(unittest.TestCase):
         self.assertEqual(len(payload["commits"]), 1)
         self.assertEqual(payload["commits"][0]["message"], "Fix missing SQLITE_DATABASE_PATH")
         self.assertTrue(payload["fly_token_configured"])
+        self.assertEqual(payload["publish_status"], "success")
+        self.assertIsNone(payload["publish_error"])
         self.assertNotIn("fly_token_test", str(payload))
+
+    def test_failed_ci_does_not_offer_an_update(self) -> None:
+        latest = "bbb2222newsha00000000000000000000000000"
+
+        def http_get(url: str, _headers: dict[str, str]):
+            if "/actions/workflows/ci.yml/runs" in url:
+                return 200, {
+                    "workflow_runs": [
+                        {
+                            "status": "completed",
+                            "conclusion": "failure",
+                            "html_url": "https://github.com/x/y/actions/runs/9",
+                        }
+                    ]
+                }
+            if "/compare/" in url:
+                return 200, {"commits": []}
+            return 200, {"sha": latest, "commit": {"message": "tip"}, "html_url": ""}
+
+        payload = updates.status_payload(http_get=http_get)
+        self.assertTrue(payload["behind"])
+        self.assertFalse(payload["can_update"])
+        self.assertEqual(payload["publish_status"], "failure")
+        self.assertIn("did not publish", payload["publish_error"])
+        self.assertEqual(payload["publish_url"], "https://github.com/x/y/actions/runs/9")
+
+    def test_running_ci_does_not_offer_an_update(self) -> None:
+        latest = "bbb2222newsha00000000000000000000000000"
+
+        def http_get(url: str, _headers: dict[str, str]):
+            if "/actions/workflows/ci.yml/runs" in url:
+                return 200, {
+                    "workflow_runs": [
+                        {"status": "in_progress", "conclusion": None, "html_url": "https://github.com/x/y/actions/runs/8"}
+                    ]
+                }
+            if "/compare/" in url:
+                return 200, {"commits": []}
+            return 200, {"sha": latest, "commit": {"message": "tip"}, "html_url": ""}
+
+        payload = updates.status_payload(http_get=http_get)
+        self.assertFalse(payload["can_update"])
+        self.assertEqual(payload["publish_status"], "in_progress")
 
     def test_status_up_to_date(self) -> None:
         sha = os.environ["PONA_FLOW_BUILD_SHA"]

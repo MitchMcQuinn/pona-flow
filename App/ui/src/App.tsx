@@ -75,8 +75,8 @@ export default function App() {
   const [sequenceBuilderKey, setSequenceBuilderKey] = useState(0);
   const [builderResult, setBuilderResult] = useState<RunResult | null>(null);
   const [builderSeed, setBuilderSeed] = useState<BuilderSeed | null>(null);
-  const [builderEditOperationActive, setBuilderEditOperationActive] = useState(false);
-  const [exitEditOperationRequest, setExitEditOperationRequest] = useState(0);
+  const [, setBuilderEditOperationActive] = useState(false);
+  const [exitEditOperationRequest] = useState(0);
   const [eventEditing, setEventEditing] = useState(false);
   const [consoleEditing, setConsoleEditing] = useState(false);
   const handleEventEditingChange = useCallback((editing: boolean) => {
