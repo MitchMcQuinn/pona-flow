@@ -9,6 +9,13 @@
 !App/authoring/
 !App/connector/
 !App/regex-validator/
+!control_plane/
+!control_plane/**
+!Docs/
+Docs/**
+!Docs/WHY-PONA-FLOW.md
+!Docs/PITCH.md
+!Docs/GETTING-STARTED.md
 
 # Never ship local state, dependencies, build output, or secrets.
 **/node_modules
