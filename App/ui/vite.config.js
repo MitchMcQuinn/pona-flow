@@ -5,12 +5,21 @@ import react from "@vitejs/plugin-react";
 var __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig(function (_a) {
     var mode = _a.mode;
-    return ({
+    var apiProxy = process.env.VITE_API_PROXY || "http://127.0.0.1:8765";
+    return {
         plugins: [react()],
         define: {
             __UI_BUILD_TIME__: JSON.stringify(new Date().toISOString())
         },
         base: "./",
+        build: {
+            rollupOptions: {
+                input: {
+                    main: path.resolve(__dirname, "index.html"),
+                    guide: path.resolve(__dirname, "guide.html")
+                }
+            }
+        },
         resolve: {
             alias: {
                 "@pona-flow/composer": path.resolve(__dirname, "../composer/src/index.ts"),
@@ -29,11 +38,10 @@ export default defineConfig(function (_a) {
                 allow: ["../.."]
             },
             proxy: {
-                // Keep the browser Host (e.g. 127.0.0.1:5273) visible to the API as
-                // X-Forwarded-Host so the local-auth CSRF Origin check accepts Vite POSTs.
-                // changeOrigin would rewrite Host to :8765 and trip "Cross-site request rejected."
+                // Keep the browser Host visible so the engine's CSRF check accepts Vite.
+                // Set VITE_API_PROXY to point this dev server at the control plane instead.
                 "/api": {
-                    target: "http://127.0.0.1:8765",
+                    target: apiProxy,
                     changeOrigin: false,
                     configure: function (proxy) {
                         proxy.on("proxyReq", function (proxyReq, req) {
@@ -47,5 +55,5 @@ export default defineConfig(function (_a) {
                 },
             },
         }
-    });
+    };
 });

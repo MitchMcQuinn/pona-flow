@@ -142,3 +142,19 @@ jobs:
             PONA_FLOW_GITHUB_REPO=${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Build + push hosted image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.hosted
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}-hosted:main
+            ${{ steps.image.outputs.name }}-hosted:sha-${{ github.sha }}
+          build-args: |
+            PONA_FLOW_BUILD_SHA=${{ github.sha }}
+            PONA_FLOW_GITHUB_REPO=${{ github.repository }}
+          cache-from: type=gha,scope=hosted
+          cache-to: type=gha,scope=hosted,mode=max

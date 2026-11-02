@@ -1,0 +1,64 @@
+.guideShell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  color: #fff;
+}
+
+.guideShell .guideChat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.guideShell .chatTranscript {
+  flex: 1;
+  overflow: auto;
+  padding: 16px 20px;
+}
+
+.guideWizard {
+  flex: 1;
+  overflow: auto;
+  padding: 28px 20px 64px;
+  max-width: 760px;
+}
+
+.guideField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+
+.guideField input,
+.guideField select,
+.guideWizard textarea {
+  background: #000;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.guideEditions {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.guideCard {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  padding: 14px 16px;
+}
+
+.guideCard h3,
+.guideWizard h2 {
+  margin: 0 0 8px;
+}
+
+.guideCard p {
+  margin: 0 0 10px;
+}

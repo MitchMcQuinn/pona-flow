@@ -1,0 +1,42 @@
+# Public guide chat and onboarding. The GitHub Pages site calls this API.
+#   fly apps create pona-flow-guide
+#   fly volumes create guide_data --region iad --size 1 -a pona-flow-guide
+#   fly deploy -c fly.control-plane.toml
+
+app = "pona-flow-guide"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.control-plane"
+
+[env]
+  CONTROL_PLANE_ENV = "production"
+  CONTROL_PLANE_DB = "/data/control-plane.db"
+  CONTROL_PLANE_PUBLIC_URL = "https://pona-flow-guide.fly.dev"
+  CONTROL_PLANE_SITE_URL = "https://mitchmcquinn.github.io/pona-flow"
+  CONTROL_PLANE_CORS = "https://mitchmcquinn.github.io"
+  CONTROL_PLANE_SCHEDULER = "1"
+
+[http_service]
+  internal_port = 8090
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "40s"
+    method = "GET"
+    path = "/api/config"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[mounts]
+  source = "guide_data"
+  destination = "/data"
+  initial_size = "1gb"

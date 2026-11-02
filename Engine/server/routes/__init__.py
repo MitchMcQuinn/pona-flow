@@ -30,6 +30,7 @@ from . import (
     static_ui,
     templates,
     updates,
+    instance_export,
     webhooks,
 )
 
@@ -53,6 +54,7 @@ ALL_ROUTERS = (
     templates.router,
     embeddings.router,
     updates.router,
+    instance_export.router,
     reset.router,
     regex.router,
     db_editor.router,

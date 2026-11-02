@@ -1,0 +1,94 @@
+# syntax=docker/dockerfile:1.7
+#
+# Hosted Basic, sandbox, and VIP: pona flow and Neo4j Community in one image.
+# Bolt listens on 127.0.0.1 only. One volume at /data holds the catalog and the graph.
+#
+#   docker build -f Dockerfile.hosted -t pona-flow-hosted .
+#   docker run --rm -p 8765:8765 -e NEO4J_PASSWORD=change-me pona-flow-hosted
+
+# ---------------------------------------------------------------------------
+# Stage 1: build the React UI (same inputs as Dockerfile)
+# ---------------------------------------------------------------------------
+FROM node:20-bookworm-slim AS ui
+
+ENV CYPRESS_INSTALL_BINARY=0 \
+    npm_config_update_notifier=false
+
+WORKDIR /src/App
+
+COPY App/ui/package.json App/ui/package-lock.json ./ui/
+COPY App/composer ./composer
+COPY App/authoring ./authoring
+COPY App/connector ./connector
+COPY App/regex-validator ./regex-validator
+RUN cd ui && npm ci --no-audit --no-fund
+
+COPY App/ui ./ui
+COPY App/assets ./assets
+RUN cd ui && npm run build
+
+# ---------------------------------------------------------------------------
+# Stage 2: runtime + Neo4j Community
+# ---------------------------------------------------------------------------
+FROM python:3.13-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+ARG NEO4J_VERSION=5.26.0
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        openjdk-21-jre-headless \
+        bash \
+        ca-certificates \
+        procps \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
+
+COPY Engine ./Engine
+COPY tools/reset_password.py ./tools/reset_password.py
+COPY App/assets ./App/assets
+COPY deploy/hosted-entrypoint.sh /usr/local/bin/hosted-entrypoint.sh
+COPY --from=ui /src/App/ui/dist ./App/ui/dist
+
+RUN python -c "import urllib.request; urllib.request.urlretrieve('https://dist.neo4j.org/neo4j-community-${NEO4J_VERSION}-unix.tar.gz', '/tmp/neo4j.tgz')" \
+    && mkdir -p /opt \
+    && tar -xzf /tmp/neo4j.tgz -C /opt \
+    && mv "/opt/neo4j-community-${NEO4J_VERSION}" /opt/neo4j \
+    && rm /tmp/neo4j.tgz \
+    && chmod 0755 /usr/local/bin/hosted-entrypoint.sh \
+    && useradd --system --uid 10001 --home-dir /data --shell /usr/sbin/nologin pona \
+    && mkdir -p /data \
+    && chown -R pona:pona /data /opt/neo4j
+
+USER pona
+
+ARG PONA_FLOW_BUILD_SHA=
+ARG PONA_FLOW_GITHUB_REPO=MitchMcQuinn/pona-flow
+
+ENV PONA_FLOW_DATA_DIR=/data \
+    PONA_FLOW_HOST=0.0.0.0 \
+    PONA_FLOW_PORT=8765 \
+    PONA_FLOW_CREDENTIAL_BACKEND=local \
+    SQLITE_DATABASE_PATH=data.db \
+    PONA_FLOW_BUILD_SHA=$PONA_FLOW_BUILD_SHA \
+    PONA_FLOW_GITHUB_REPO=$PONA_FLOW_GITHUB_REPO \
+    PONA_FLOW_IMAGE=ghcr.io/mitchmcquinn/pona-flow-hosted:main \
+    NEO4J_URI=bolt://127.0.0.1:7687 \
+    NEO4J_USER=neo4j \
+    FORWARDED_ALLOW_IPS=*
+
+VOLUME ["/data"]
+EXPOSE 8765
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
+    CMD python -c "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8765/healthz', timeout=4).status == 200 else 1)"
+
+CMD ["hosted-entrypoint.sh"]

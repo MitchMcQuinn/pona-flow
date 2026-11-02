@@ -1025,6 +1025,7 @@ def upsert_event(
             ),
         )
         conn.commit()
+        _notify_fleet()
         return {"id": eid}
 
 
@@ -1636,6 +1637,7 @@ def delete_event(event_id: str) -> dict[str, Any]:
             )
         cur = conn.execute("DELETE FROM events WHERE id = ?", (eid,))
         conn.commit()
+        _notify_fleet()
         return {"id": eid, "rowcount": cur.rowcount}
 
 
@@ -2160,3 +2162,13 @@ def reorder_nav_rows(table: str, items: list[dict[str, Any]]) -> dict[str, Any]:
             updated += cur.rowcount
         conn.commit()
         return {"updated": updated}
+
+
+def _notify_fleet() -> None:
+    """Best-effort presence ping. A missing fleet env, or a down control plane, must not fail the write."""
+    try:
+        from . import fleet
+
+        fleet.notify_event_count()
+    except Exception:
+        return

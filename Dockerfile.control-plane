@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1.7
+#
+# Public guide chat and the onboarding control plane.
+#   docker build -f Dockerfile.control-plane -t pona-flow-control-plane .
+
+FROM node:20-bookworm-slim AS ui
+
+ENV CYPRESS_INSTALL_BINARY=0 \
+    npm_config_update_notifier=false
+
+WORKDIR /src/App
+
+COPY App/ui/package.json App/ui/package-lock.json ./ui/
+COPY App/composer ./composer
+COPY App/authoring ./authoring
+COPY App/connector ./connector
+COPY App/regex-validator ./regex-validator
+RUN cd ui && npm ci --no-audit --no-fund
+
+COPY App/ui ./ui
+COPY App/assets ./assets
+RUN cd ui && npm run build
+
+FROM python:3.13-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONPATH=/app \
+    CONTROL_PLANE_UI_DIR=/app/App/ui/dist \
+    PONA_FLOW_PORT=8090
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
+
+COPY control_plane ./control_plane
+COPY Docs ./Docs
+COPY --from=ui /src/App/ui/dist ./App/ui/dist
+
+EXPOSE 8090
+
+CMD ["uvicorn", "control_plane.app:app", "--host", "0.0.0.0", "--port", "8090"]

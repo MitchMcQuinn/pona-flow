@@ -4,19 +4,23 @@ A runtime where **domain types, records, and workflows** share one graph. Humans
 
 [![CI](https://github.com/MitchMcQuinn/pona-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/MitchMcQuinn/pona-flow/actions/workflows/ci.yml)
 
-Landing: [https://mitchmcquinn.github.io/pona-flow/](https://mitchmcquinn.github.io/pona-flow/)
+The public front door is the guide chat at [https://mitchmcquinn.github.io/pona-flow/](https://mitchmcquinn.github.io/pona-flow/).
 
 ## Editions
 
 | Edition | Price | What you get |
 |---------|-------|--------------|
-| **Community** | Free | This repo. You host the app and Neo4j (Docker locally or your own server). |
-| **Self-hosted** | Free | [Terminal installer](https://mitchmcquinn.github.io/pona-flow/wizard.html): your Fly.io app + your Neo4j Aura DB (+ optional Clerk). Deploys the latest `main` image. |
-| **Hosted** | Paid · coming soon | We provision app + database + sign-in for a monthly subscription. |
+| **Local** | Free software. Support priced separately. | Fork [the GitHub repo](https://github.com/MitchMcQuinn/pona-flow) and run it yourself. |
+| **Self-hosted** | Free software. Support priced separately. | Get started configures your Fly.io app and your Neo4j Aura database. The terminal installer remains in [`scripts/fly-setup.sh`](scripts/fly-setup.sh). |
+| **Hosted Basic** | Subscription. The price is on the checkout page. | We run pona flow and Neo4j Community on a VM for you. You can download the catalog and graph and move them. |
+| **Hosted Business** | Coming soon | Same as Basic, with Neo4j Aura. |
+| **Sandbox** | Code `sandbox` | A 7-day preview on your own graph, with a usage window. Not a shared demo. |
+
+The public front door is the guide chat. Ask a question, then use **Get started** on the right of the top bar. That chat is served by the control plane (`/`), not by a customer instance.
 
 There is **no shared public sandbox** — every deployment has its own Neo4j so schema names cannot collide across customers.
 
-### Community (Docker)
+### Local (Docker)
 
 ```bash
 curl -fsSL https://github.com/MitchMcQuinn/pona-flow/releases/latest/download/pona-flow-selfhost.tar.gz | tar xz
@@ -30,12 +34,16 @@ Full guide: [Docs/SELF-HOSTING.md](Docs/SELF-HOSTING.md). Dev from source: [Docs
 
 ### Self-hosted (Fly + Aura)
 
+Get started asks for a Fly deploy token and the Aura URI, user, and password, then deploys `ghcr.io/mitchmcquinn/pona-flow:main` into your Fly account. The token and Aura password are not stored. You can paste a deploy token later under Instance settings if you want in-app updates.
+
+The same deploy from a terminal, if you prefer not to send the token through Get started:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/MitchMcQuinn/pona-flow/main/scripts/fly-setup.sh -o pona-flow-fly-setup.sh
 bash pona-flow-fly-setup.sh
 ```
 
-The script prompts for Aura, Fly, sign-in, and an optional deploy token (so Instance settings can pull later `main` images). Walkthrough: [wizard page](https://mitchmcquinn.github.io/pona-flow/wizard.html). Template: [`fly.toml`](fly.toml).
+Template: [`fly.toml`](fly.toml). Hosted Basic and sandbox use `ghcr.io/mitchmcquinn/pona-flow-hosted:main` (app and Neo4j Community on one VM).
 
 **Learn the model:** [Docs/5-MINUTE-ARCHITECTURE.md](Docs/5-MINUTE-ARCHITECTURE.md) ·
 [Docs/WHY-PONA-FLOW.md](Docs/WHY-PONA-FLOW.md) · [Docs/PITCH.md](Docs/PITCH.md) ·
