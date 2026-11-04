@@ -96,13 +96,11 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: "space",
     target: "space-picker",
-    title: "spaces keep work separate",
+    title: "your workspace",
     body: (
       <p>
-        A space is like a project folder. Everything you build lives inside one, and each space
-        has its own people and settings. The name in the top bar is the space you&rsquo;re in;
-        open it to switch. If you&rsquo;re allowed to create spaces, the <strong>+</strong> on
-        the right starts a new one.
+        The name in the top bar is this instance&rsquo;s workspace. Everything you build lives
+        here, and the gear on the right opens its people and settings.
       </p>
     )
   },

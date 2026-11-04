@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { useAuth, useUser } from "./services/clerkAuth";
 import { ConfigPanel } from "./components/ConfigPanel";
 import { CreateSpaceModal } from "./components/modals/CreateSpaceModal";
-import { DeleteSpaceConfirmModal } from "./components/modals/DeleteSpaceConfirmModal";
 import { useToast } from "./components/Toast";
 import {
   ResizableDashboardLayout,
@@ -97,8 +96,7 @@ export default function App() {
     state,
     dispatch,
     showToast,
-    signOut,
-    dismissVisualization
+    signOut
   });
   const {
     spaces,
@@ -704,15 +702,6 @@ export default function App() {
           onSubmit={spacesLifecycle.handleCreateSpace}
         />
       ) : null}
-      {spacesLifecycle.deleteSpaceModal ? (
-        <DeleteSpaceConfirmModal
-          spaceName={spacesLifecycle.deleteSpaceModal.spaceName}
-          saving={spacesLifecycle.deletingSpace}
-          error={spacesLifecycle.deleteSpaceError}
-          onCancel={spacesLifecycle.closeDeleteSpaceModal}
-          onConfirm={spacesLifecycle.handleDeleteSpaceConfirm}
-        />
-      ) : null}
       {sequenceDelete ? (
         <SequenceDeleteConfirmModal
           sequenceLabel={sequenceDelete.label}
@@ -737,9 +726,6 @@ export default function App() {
         compact={compactShell}
         spaces={spaces}
         selectedSpaceId={state.spaceId}
-        onSelectSpace={(spaceId) => dispatch({ type: "SPACE_SELECTED", spaceId })}
-        onCreateSpace={spacesLifecycle.openCreateSpaceModal}
-        canCreateSpace={Boolean(state.me?.canCreateSpaces)}
         spaceConfigActive={state.view.rightPanelMode === "space"}
         onOpenSpaceConfig={() => {
           dismissVisualization();
@@ -953,7 +939,6 @@ export default function App() {
             onSpaceSaved={spacesLifecycle.handleUpdateSpace}
             savingSpace={spacesLifecycle.savingSpaceEdit}
             spaceSaveError={spacesLifecycle.editSpaceError}
-            onDeleteSpace={spacesLifecycle.openDeleteSpaceModal}
             onLoadAuditLog={loadAuditLog}
             onSpacePanelClose={() => dispatch({ type: "SPACE_PANEL_CLOSED" })}
             onStartTour={handleStartTour}

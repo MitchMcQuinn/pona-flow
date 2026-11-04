@@ -594,7 +594,7 @@ export function NavigationPanel({
 
   return (
     <div className="panel navPanel">
-      <div className="panel__body">
+      <header className="columnHead">
         <h1 className="navWorkbenchTitle">
           <button
             type="button"
@@ -603,9 +603,11 @@ export function NavigationPanel({
             aria-current={workbenchActive ? "page" : undefined}
             onClick={onOpenWorkbench}
           >
-            workbench
+            work<wbr />bench
           </button>
         </h1>
+      </header>
+      <div className="panel__body">
         <GroupedNav
           title="events"
           tour="events"

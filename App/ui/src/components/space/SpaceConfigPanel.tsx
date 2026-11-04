@@ -43,7 +43,6 @@ interface SpaceConfigPanelProps {
   onSaveSpace: (values: CreateSpaceInput) => Promise<void>;
   savingSpace: boolean;
   saveError: string | null;
-  onDeleteSpace: () => void;
   onLoadAuditLog: () => void;
   onClose: () => void;
   onStartTour: () => void;
@@ -142,7 +141,6 @@ export function SpaceConfigPanel({
   onSaveSpace,
   savingSpace,
   saveError,
-  onDeleteSpace,
   onLoadAuditLog,
   onClose,
   onStartTour
@@ -421,16 +419,6 @@ export function SpaceConfigPanel({
               >
                 {savingSpace ? "Saving..." : "Save changes"}
               </button>
-              {canManageSpace ? (
-                <button
-                  type="button"
-                  className="btnDanger"
-                  data-testid="space-delete-btn"
-                  onClick={onDeleteSpace}
-                >
-                  Delete space
-                </button>
-              ) : null}
             </div>
             {canManageSpace && spaceId ? (
               <div className="spaceResetCard">

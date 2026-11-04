@@ -110,7 +110,10 @@ function KindPreview({ spaceId, item, sequences }: ConfigPreviewProps) {
   }
   if (item.kind === "create_space") {
     return (
-      <ConfigPanel title="create a space">
+      <ConfigPanel title="another workspace">
+        <p className="muted">
+          This instance already has its workspace, so this change cannot be applied.
+        </p>
         <ConfigField target="name" label="name" value={text(payload.name)} />
         <ConfigField target="description" label="description" value={text(payload.description)} />
         {text(payload.endpoint) ? <ConfigField target="endpoint" label="endpoint" value={text(payload.endpoint)} /> : null}

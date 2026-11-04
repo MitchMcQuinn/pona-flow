@@ -1,14 +1,13 @@
 /**
  * Space catalog + principal lifecycle for App: the initial spaces/me fetches,
- * per-space permission and label loads, the create/edit/delete space flows
- * (modal state + handlers), and the no-access signout for principals with no
- * spaces and no create capability.
+ * per-space permission and label loads, the one-workspace bootstrap and edit
+ * flows, and the no-access signout for principals with no spaces and no
+ * create capability. The workbench does not offer a second space.
  */
 
 import { useCallback, useEffect, useState, type Dispatch } from "react";
 import {
   createSpace,
-  deleteSpace,
   fetchMe,
   fetchSpacePermissions,
   fetchSpaceRecord,
@@ -24,10 +23,8 @@ export function useSpacesLifecycle(options: {
   dispatch: Dispatch<AppEvent>;
   showToast: (message: string, kind?: "error") => void;
   signOut: () => Promise<unknown> | void;
-  /** Clears the visualization before opening a full-screen panel/modal. */
-  dismissVisualization: () => void;
 }) {
-  const { state, dispatch, showToast, signOut, dismissVisualization } = options;
+  const { state, dispatch, showToast, signOut } = options;
 
   const [spaces, setSpaces] = useState<Array<{ id: string; label: string }>>([]);
   const [spacesError, setSpacesError] = useState<string | null>(null);
@@ -40,13 +37,6 @@ export function useSpacesLifecycle(options: {
   const [createSpaceError, setCreateSpaceError] = useState<string | null>(null);
   const [editSpaceError, setEditSpaceError] = useState<string | null>(null);
   const [savingSpaceEdit, setSavingSpaceEdit] = useState(false);
-  const [deleteSpaceModal, setDeleteSpaceModal] = useState<{
-    open: boolean;
-    spaceId: string;
-    spaceName: string;
-  } | null>(null);
-  const [deleteSpaceError, setDeleteSpaceError] = useState<string | null>(null);
-  const [deletingSpace, setDeletingSpace] = useState(false);
   // Labels created or imported in the active space; the nav only shows sequences
   // whose attributive_label is in this set. Bumping spaceLabelsVersion refetches after
   // a create/edit that keeps the same space id selected.
@@ -204,12 +194,6 @@ export function useSpacesLifecycle(options: {
     }
   }
 
-  function openCreateSpaceModal() {
-    dismissVisualization();
-    setCreateSpaceError(null);
-    setCreateSpaceModal({ open: true, required: false });
-  }
-
   function closeCreateSpaceModal() {
     if (createSpaceModal.required) return;
     setCreateSpaceError(null);
@@ -237,38 +221,9 @@ export function useSpacesLifecycle(options: {
     }
   }
 
-  function openDeleteSpaceModal() {
-    if (!state.spaceId) return;
-    const spaceName = spaces.find((space) => space.id === state.spaceId)?.label ?? state.spaceId;
-    setDeleteSpaceError(null);
-    setDeleteSpaceModal({ open: true, spaceId: state.spaceId, spaceName });
-  }
-
-  function closeDeleteSpaceModal() {
-    setDeleteSpaceError(null);
-    setDeleteSpaceModal(null);
-  }
-
-  async function handleDeleteSpaceConfirm() {
-    if (!deleteSpaceModal) return;
-    setDeletingSpace(true);
-    setDeleteSpaceError(null);
-    try {
-      const deletedId = deleteSpaceModal.spaceId;
-      await deleteSpace(deletedId);
-      const keepSelected = state.spaceId !== deletedId ? state.spaceId : null;
-      await reloadSpaces(keepSelected);
-      setDeleteSpaceModal(null);
-    } catch (error: unknown) {
-      setDeleteSpaceError(error instanceof Error ? error.message : "Failed to delete space");
-    } finally {
-      setDeletingSpace(false);
-    }
-  }
-
-  // First-space bootstrap: only prompt creation for principals who are allowed to.
+  // An empty instance still needs its one workspace. Later creates stay off the workbench.
   const bootstrapCreateSpace = hasNoSpaces && meLoaded && canCreateSpaces;
-  const showCreateSpaceModal = !noAccess && (createSpaceModal.open || bootstrapCreateSpace);
+  const showCreateSpaceModal = bootstrapCreateSpace;
   const createSpaceRequired = createSpaceModal.required || bootstrapCreateSpace;
 
   return {
@@ -283,17 +238,10 @@ export function useSpacesLifecycle(options: {
     createSpaceRequired,
     creatingSpace,
     createSpaceError,
-    openCreateSpaceModal,
     closeCreateSpaceModal,
     handleCreateSpace,
     savingSpaceEdit,
     editSpaceError,
-    handleUpdateSpace,
-    deleteSpaceModal,
-    deleteSpaceError,
-    deletingSpace,
-    openDeleteSpaceModal,
-    closeDeleteSpaceModal,
-    handleDeleteSpaceConfirm
+    handleUpdateSpace
   };
 }

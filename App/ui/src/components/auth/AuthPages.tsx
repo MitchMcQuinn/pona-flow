@@ -1,15 +1,16 @@
 /**
  * Built-in auth screens: first-run setup, sign-in, and invite-based sign-up.
  *
- * Rendered by `main.tsx` in local mode before the app shell mounts. They share one card
- * layout (`.authRoot` / `.authCard` in styles.css) and the same submit plumbing; the
- * server owns every rule (password policy, invite requirement, throttling) and the
- * error message it returns is shown verbatim.
+ * Rendered by `main.tsx` before the app shell mounts. The form sits in the chat column;
+ * the canvas column is the agent's face. The server owns every rule (password policy,
+ * invite requirement, throttling) and the error message it returns is shown verbatim.
  */
 import { useState, type FormEvent } from "react";
+import { SignInButton } from "@clerk/react";
 import type { Me } from "../../state/types";
 import { login, setupFirstAccount, signup, type Credentials } from "../../services/localAuth";
 import logoUrl from "../../../../assets/pona-flow-white.svg";
+import { SignedOutLayout } from "./SignedOutLayout";
 import "./auth.css";
 
 type Mode = "setup" | "login" | "signup";
@@ -25,8 +26,8 @@ const COPY: Record<Mode, { title: string; blurb: string; submit: string; busy: s
   setup: {
     title: "set up pona flow",
     blurb:
-      "Create the first account for this instance. It becomes the instance administrator, " +
-      "which can create spaces and invite everyone else.",
+      "Create the first account for this instance. It becomes the instance administrator " +
+      "and can invite everyone else.",
     submit: "Create admin account",
     busy: "Creating..."
   },
@@ -85,7 +86,7 @@ export function AuthPages({ initialMode, openSignup, onSignedIn }: AuthPagesProp
   }
 
   return (
-    <div className="appRoot authRoot">
+    <SignedOutLayout>
       <form className="authCard" onSubmit={handleSubmit} noValidate>
         <img className="authLogo" src={logoUrl} alt="" aria-hidden="true" />
         <h1>{copy.title}</h1>
@@ -172,14 +173,32 @@ export function AuthPages({ initialMode, openSignup, onSignedIn }: AuthPagesProp
           </p>
         ) : null}
       </form>
-    </div>
+    </SignedOutLayout>
+  );
+}
+
+/** Clerk mode: same canvas face, with the hosted sign-in started from the chat column. */
+export function ClerkSignInGate() {
+  return (
+    <SignedOutLayout>
+      <div className="authCard">
+        <img className="authLogo" src={logoUrl} alt="" aria-hidden="true" />
+        <h1>sign in</h1>
+        <p className="muted">Use your account to open a space and talk with the agent.</p>
+        <SignInButton mode="redirect">
+          <button type="button" className="btnPrimary">
+            Sign in
+          </button>
+        </SignInButton>
+      </div>
+    </SignedOutLayout>
   );
 }
 
 /** Shown when `/api/auth/status` itself cannot be reached (API down or misconfigured). */
 export function ApiUnreachable({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="appRoot authRoot">
+    <SignedOutLayout>
       <div className="authCard">
         <h1>cannot reach the pona flow api</h1>
         <p className="muted">
@@ -191,6 +210,6 @@ export function ApiUnreachable({ onRetry }: { onRetry: () => void }) {
           Retry
         </button>
       </div>
-    </div>
+    </SignedOutLayout>
   );
 }

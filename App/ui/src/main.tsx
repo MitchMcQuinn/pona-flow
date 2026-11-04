@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { ClerkProvider, RedirectToSignIn, Show, useAuth } from "@clerk/react";
+import { ClerkLoaded, ClerkProvider, Show, useAuth } from "@clerk/react";
 import App from "./App";
 import { ConfirmDialogHost } from "./components/modals/confirmDialog";
 import { MeshBackground } from "./components/MeshBackground";
 import { ToastProvider } from "./components/Toast";
-import { ApiUnreachable, AuthPages } from "./components/auth/AuthPages";
+import { ApiUnreachable, AuthPages, ClerkSignInGate } from "./components/auth/AuthPages";
 import { fetchMe } from "./services/api";
 import {
   installAuthFetch,
@@ -85,12 +85,20 @@ function E2EAuthShell() {
   return <div data-e2e-auth-shell hidden aria-hidden="true" />;
 }
 
+function ClerkSignedOutGate() {
+  return (
+    <ClerkLoaded>
+      <ClerkSignInGate />
+    </ClerkLoaded>
+  );
+}
+
 function ClerkRoot({ publishableKey }: { publishableKey: string }) {
   return (
     <ClerkProvider publishableKey={publishableKey}>
       <Show
         when="signed-in"
-        fallback={E2E_SKIP_AUTH_REDIRECT ? <E2EAuthShell /> : <RedirectToSignIn />}
+        fallback={E2E_SKIP_AUTH_REDIRECT ? <E2EAuthShell /> : <ClerkSignedOutGate />}
       >
         <ClerkAuthenticatedApp />
       </Show>

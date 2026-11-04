@@ -1,7 +1,22 @@
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isFollowUp } from "./followUp";
 import { Markdown } from "./Markdown";
 import type { ChatMessage, ChatThreadSummary } from "./types";
+
+/** How close to the end still counts as the bottom, so subpixel rounding stays pinned. */
+const BOTTOM_SLOP_PX = 16;
+
+function distanceFromBottom(element: HTMLElement) {
+  return element.scrollHeight - element.scrollTop - element.clientHeight;
+}
+
+function HistoryIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6a7 7 0 1 1 7 7 6.96 6.96 0 0 1-4.94-2.06l-1.42 1.42A8.95 8.95 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
+    </svg>
+  );
+}
 
 interface ChatColumnProps {
   threads: ChatThreadSummary[];
@@ -45,52 +60,139 @@ export function ChatColumn({
   onClearQueue
 }: ChatColumnProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const transcriptRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true);
+  const streamingRef = useRef(streaming);
+  const threadRef = useRef(threadId);
+  const lastScrollTop = useRef(0);
+  const lastScrollHeight = useRef(0);
+  const pinningRef = useRef(false);
+  const pinRef = useRef(() => {});
+
+  function rememberScroll(transcript: HTMLElement) {
+    lastScrollTop.current = transcript.scrollTop;
+    lastScrollHeight.current = transcript.scrollHeight;
+  }
+
+  function pinToBottom() {
+    const transcript = transcriptRef.current;
+    if (!transcript) return;
+    pinningRef.current = true;
+    transcript.scrollTop = transcript.scrollHeight;
+    rememberScroll(transcript);
+    pinningRef.current = false;
+  }
+
+  pinRef.current = pinToBottom;
+
+  function onTranscriptScroll() {
+    const transcript = transcriptRef.current;
+    if (!transcript) return;
+    if (pinningRef.current) {
+      rememberScroll(transcript);
+      return;
+    }
+    const topDelta = transcript.scrollTop - lastScrollTop.current;
+    const heightDelta = transcript.scrollHeight - lastScrollHeight.current;
+    rememberScroll(transcript);
+    // A shorter transcript clamps scrollTop. That is not the user moving up.
+    if (heightDelta < 0 && topDelta <= 0) {
+      if (distanceFromBottom(transcript) <= BOTTOM_SLOP_PX) stickRef.current = true;
+      return;
+    }
+    if (topDelta < -1) {
+      stickRef.current = false;
+      return;
+    }
+    if (distanceFromBottom(transcript) <= BOTTOM_SLOP_PX) stickRef.current = true;
+  }
+
+  useLayoutEffect(() => {
+    const transcript = transcriptRef.current;
+    const responseStarted = streaming && !streamingRef.current;
+    const threadChanged = threadRef.current !== threadId;
+    streamingRef.current = streaming;
+    threadRef.current = threadId;
+    if (responseStarted || threadChanged) stickRef.current = true;
+    // A scroll event can arrive a frame after the position changes. If the
+    // viewport has already moved up, keep that place instead of pinning.
+    if (
+      transcript &&
+      !responseStarted &&
+      !threadChanged &&
+      distanceFromBottom(transcript) > BOTTOM_SLOP_PX &&
+      transcript.scrollTop < lastScrollTop.current - 1
+    ) {
+      stickRef.current = false;
+    }
+    if (stickRef.current) pinToBottom();
+  }, [messages, streaming, error, threadId]);
+
+  useEffect(() => {
+    const content = contentRef.current;
+    const transcript = transcriptRef.current;
+    if (!content || !transcript) return;
+    const observer = new ResizeObserver(() => {
+      if (stickRef.current) pinRef.current();
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <section className="chatColumn" aria-label="Chat">
-      <header className="chatHeader">
+      <header className="columnHead chatHeader">
         <h1 className="chatTitle">chat</h1>
-        <button
-          type="button"
-          className="tinyBtn"
-          aria-expanded={drawerOpen}
-          onClick={() => setDrawerOpen((open) => !open)}
-        >
-          Threads
-        </button>
-      </header>
-      {drawerOpen ? (
-        <div className="chatDrawer" role="dialog" aria-label="Threads">
+        <div className="chatHeaderActions">
           <button
             type="button"
-            className="btnPrimary"
+            className="navAddBtn"
+            aria-label="New thread"
+            title="New thread"
             onClick={() => {
               onNewThread();
               setDrawerOpen(false);
             }}
           >
-            New thread
+            +
           </button>
-          <ul className="chatThreadList">
-            {threads.length === 0 ? <li className="muted">No saved threads yet.</li> : null}
-            {threads.map((thread) => (
-              <li key={thread.id}>
-                <button
-                  type="button"
-                  className={thread.id === threadId ? "active" : undefined}
-                  onClick={() => {
-                    void onOpenThread(thread.id);
-                    setDrawerOpen(false);
-                  }}
-                >
-                  {thread.title || "Untitled"}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <button
+            type="button"
+            className="chatHistoryBtn"
+            aria-label="Threads"
+            title="Threads"
+            aria-haspopup="dialog"
+            aria-expanded={drawerOpen}
+            onClick={() => setDrawerOpen((open) => !open)}
+          >
+            <HistoryIcon />
+          </button>
         </div>
-      ) : null}
-      <div className="chatTranscript panel__body">
+        {drawerOpen ? (
+          <div className="chatDrawer" role="dialog" aria-label="Threads">
+            <ul className="chatThreadList">
+              {threads.length === 0 ? <li className="muted">No saved threads yet.</li> : null}
+              {threads.map((thread) => (
+                <li key={thread.id}>
+                  <button
+                    type="button"
+                    className={thread.id === threadId ? "active" : undefined}
+                    onClick={() => {
+                      void onOpenThread(thread.id);
+                      setDrawerOpen(false);
+                    }}
+                  >
+                    {thread.title || "Untitled"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </header>
+      <div className="chatTranscript panel__body" ref={transcriptRef} onScroll={onTranscriptScroll}>
+        <div className="chatTranscriptInner" ref={contentRef}>
         {messages.length === 0 ? (
           <p className="muted">Ask for a console, a change, or an explanation of this space.</p>
         ) : null}
@@ -145,8 +247,20 @@ export function ChatColumn({
                 <p>
                   {message.batch.items.length} change{message.batch.items.length === 1 ? "" : "s"} waiting
                 </p>
+                {message.batch.items.some((item) => item.kind === "create_space") ? (
+                  <p className="muted">
+                    This instance already has its workspace, so this change cannot be applied.
+                  </p>
+                ) : null}
                 <div className="buttonRow">
-                  <button type="button" className="btnPrimary" disabled={batchBusy} onClick={onAccept}>
+                  <button
+                    type="button"
+                    className="btnPrimary"
+                    disabled={
+                      batchBusy || message.batch.items.some((item) => item.kind === "create_space")
+                    }
+                    onClick={onAccept}
+                  >
                     Accept
                   </button>
                   <button type="button" disabled={batchBusy} onClick={onReject}>
@@ -172,16 +286,16 @@ export function ChatColumn({
           );
         })}
         {streaming ? (
-          <p className="chatThinking" role="status">
-            thinking
+          <p className="chatThinking" role="status" aria-label="thinking">
             <span className="chatThinkingDots" aria-hidden="true">
-              <span>.</span>
-              <span>.</span>
-              <span>.</span>
+              <span />
+              <span />
+              <span />
             </span>
           </p>
         ) : null}
         {error ? <p className="errorText">{error}</p> : null}
+        </div>
       </div>
       {queued ? (
         <div className="chatQueue">

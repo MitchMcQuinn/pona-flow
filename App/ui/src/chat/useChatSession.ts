@@ -264,6 +264,15 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
 
   async function accept() {
     if (!spaceId || !threadIdRef.current) return;
+    const proposesAnotherSpace = messages.some((message) =>
+      message.batch?.status === "pending"
+        ? message.batch.items.some((item) => item.kind === "create_space")
+        : false
+    );
+    if (proposesAnotherSpace) {
+      setError("This instance already has its workspace.");
+      return;
+    }
     setBatchBusy(true);
     setError(null);
     try {

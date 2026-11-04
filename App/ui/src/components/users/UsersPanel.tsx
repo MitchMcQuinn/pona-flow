@@ -7,7 +7,6 @@ import {
   inviteMember,
   removeMember,
   updateMember,
-  updatePrincipal,
   upsertRole,
   type PrincipalRow,
   type RolePermissions,
@@ -168,12 +167,7 @@ export function UsersPanel({ spaceId, me, sequences, onClose, embedded = false }
           onError={setError}
         />
 
-        {isSuperadmin ? (
-          <PrincipalsSection
-            principals={principals}
-            onToggle={(id, can) => run(() => updatePrincipal(id, can))}
-          />
-        ) : null}
+        {isSuperadmin ? <PrincipalsSection principals={principals} /> : null}
       </>
   );
 
@@ -446,13 +440,7 @@ function RolesSection({
   );
 }
 
-function PrincipalsSection({
-  principals,
-  onToggle
-}: {
-  principals: PrincipalRow[];
-  onToggle: (principalId: string, canCreate: boolean) => void;
-}) {
+function PrincipalsSection({ principals }: { principals: PrincipalRow[] }) {
   return (
     <div className="rbacPrincipalsSection">
       <h2 className="navSectionHeader">instance principals</h2>
@@ -474,15 +462,6 @@ function PrincipalsSection({
                     <span className="rbacBadge rbacBadgeOwner">superadmin</span>
                   ) : null}
                 </div>
-                <label className="rbacCheckRow">
-                  <input
-                    type="checkbox"
-                    checked={p.canCreateSpaces}
-                    disabled={p.isInstanceAdmin}
-                    onChange={(e) => onToggle(p.id, e.target.checked)}
-                  />
-                  Can create spaces
-                </label>
               </div>
             </li>
           ))}

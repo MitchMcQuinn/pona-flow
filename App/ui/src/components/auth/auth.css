@@ -1,9 +1,3 @@
-.authRoot {
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
 .authCard {
   max-width: 420px;
   width: 100%;
@@ -107,4 +101,89 @@
   cursor: pointer;
   font: inherit;
   box-shadow: none;
+}
+
+/* Signed-out workbench: the form occupies the chat column, the shader the canvas. */
+.appRoot.signedOutRoot {
+  display: grid;
+  grid-template-columns: minmax(300px, 440px) var(--column-divider-track) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  column-gap: calc(var(--column-divider-gutter) * 2);
+  align-items: stretch;
+  padding: 12px;
+}
+
+.signedOutChat {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 8px;
+}
+
+.signedOutChat > .authCard {
+  margin: auto;
+  flex: 0 0 auto;
+}
+
+.signedOutDivider {
+  position: relative;
+  min-height: 0;
+}
+
+.signedOutDivider::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 50%;
+  width: var(--handle-width);
+  transform: translateX(-50%);
+  background: var(--mesh);
+  box-shadow: var(--mesh-glow);
+  -webkit-mask-image: var(--handle-fade);
+  mask-image: var(--handle-fade);
+}
+
+.signedOutCanvas {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.signedOutCanvas > .canvasBody {
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.agentFace {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@media (max-width: 800px) {
+  .appRoot.signedOutRoot {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(240px, 1fr) auto;
+  }
+
+  .signedOutDivider {
+    display: none;
+  }
+
+  .signedOutCanvas {
+    grid-row: 1;
+    min-height: 240px;
+  }
+
+  .signedOutChat {
+    grid-row: 2;
+    padding-top: 4px;
+  }
 }

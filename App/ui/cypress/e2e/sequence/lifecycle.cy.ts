@@ -107,7 +107,7 @@ describe("sequence: lifecycle", () => {
 
     cy.visit("/");
     cy.get(".appShell", { timeout: 20_000 }).should("be.visible");
-    cy.get("#space-selector", { timeout: 20_000 }).should("have.value", E2E_SPACE_ID);
+    cy.get("#space-selector", { timeout: 20_000 }).should("have.attr", "data-space-id", E2E_SPACE_ID);
 
     cy.contains(".sequenceBtnLabel", GOLDEN_SEQUENCE_NAME, { timeout: 60_000 })
       .closest('[data-testid="nav-sequence-item"]')

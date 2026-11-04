@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { AgentFace } from "./AgentFace";
 import { ConsoleHost } from "../consoles/ConsoleHost";
 import { runSequenceExecution } from "../services/api";
 import type { EventSummary, SequenceSummary } from "../state/types";
@@ -47,9 +48,10 @@ export function CanvasStack({
   const canvasItems = items.filter((item) => !isInsightKind(item.kind));
   const active =
     canvasItems.find((item) => item.id === activeId) ?? canvasItems[canvasItems.length - 1] ?? null;
+  const showFace = !insight && !active;
 
   return (
-    <section className="panel canvasStack" aria-label="Canvas">
+    <section className={showFace ? "panel canvasStack canvasStackFace" : "panel canvasStack"} aria-label="Canvas">
       <div className="canvasTabs" role="tablist">
         {canvasItems.length === 0 ? <span className="muted">Canvas</span> : null}
         {canvasItems.map((item) => (
@@ -82,13 +84,10 @@ export function CanvasStack({
               <ReadsView entry={insight.entry} />
             )}
           </div>
+        ) : showFace ? (
+          <AgentFace />
         ) : (
           <>
-            {!active ? (
-              <p className="muted">
-                Ask the chat to open a console, or accept a change to review it here.
-              </p>
-            ) : null}
             {active && spaceId ? (
               <CanvasItem
                 spaceId={spaceId}
@@ -216,9 +215,19 @@ function ProposalList({
       {status !== "pending" && item.payload.result ? (
         <p className="muted">{resultSentence(item.payload.result)}</p>
       ) : null}
+      {status === "pending" && proposalItems.some((item) => item.kind === "create_space") ? (
+        <p className="muted">
+          This instance already has its workspace, so this change cannot be applied.
+        </p>
+      ) : null}
       {status === "pending" ? (
         <div className="buttonRow">
-          <button type="button" className="btnPrimary" disabled={batchBusy} onClick={onAccept}>
+          <button
+            type="button"
+            className="btnPrimary"
+            disabled={batchBusy || proposalItems.some((item) => item.kind === "create_space")}
+            onClick={onAccept}
+          >
             Accept
           </button>
           <button type="button" disabled={batchBusy} onClick={onReject}>

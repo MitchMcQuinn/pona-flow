@@ -19,7 +19,7 @@ Cypress.Commands.add("createSpace", (name: string) => {
     .should("not.be.disabled")
     .click();
   cy.get('[data-testid="modal-create-space"]').should("not.exist");
-  cy.get("#space-selector").should("have.value", spaceId);
+  cy.get("#space-selector").should("have.attr", "data-space-id", spaceId);
 });
 
 /** Create the shared E2E space and wait until the builder is ready for mutations. */

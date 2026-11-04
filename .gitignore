@@ -245,6 +245,9 @@ App/js/data-db-editor.js
 /Docs/notes-delete-me.md
 /Docs/landing-pitch.md
 
+# Local idea drafts, not part of the product
+/ideas/
+
 # Runtime data directory used by the Docker image / PONA_FLOW_DATA_DIR
 /data/
 

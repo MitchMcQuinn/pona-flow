@@ -37,7 +37,6 @@ interface ConfigPanelProps {
   }) => Promise<void>;
   savingSpace: boolean;
   spaceSaveError: string | null;
-  onDeleteSpace: () => void;
   onLoadAuditLog: () => void;
   onSpacePanelClose: () => void;
   onStartTour: () => void;
@@ -276,7 +275,6 @@ export function ConfigPanel({
   onSpaceSaved,
   savingSpace,
   spaceSaveError,
-  onDeleteSpace,
   onLoadAuditLog,
   onSpacePanelClose,
   onStartTour,
@@ -447,7 +445,6 @@ export function ConfigPanel({
         onSaveSpace={onSpaceSaved}
         savingSpace={savingSpace}
         saveError={spaceSaveError}
-        onDeleteSpace={onDeleteSpace}
         onLoadAuditLog={onLoadAuditLog}
         onClose={onSpacePanelClose}
         onStartTour={onStartTour}

@@ -1,4 +1,3 @@
-import { Picker } from "./builder/Picker";
 import "./builder/builder.css";
 
 function ChatIcon() {
@@ -64,9 +63,6 @@ interface TopBarProps {
   compact?: boolean;
   spaces: Array<{ id: string; label: string }>;
   selectedSpaceId: string | null;
-  onSelectSpace: (spaceId: string) => void;
-  onCreateSpace: () => void;
-  canCreateSpace: boolean;
   spaceConfigActive: boolean;
   onOpenSpaceConfig: () => void;
   /** Tablet: toggles the navigation drawer. */
@@ -89,9 +85,6 @@ export function TopBar({
   compact = false,
   spaces,
   selectedSpaceId,
-  onSelectSpace,
-  onCreateSpace,
-  canCreateSpace,
   spaceConfigActive,
   onOpenSpaceConfig,
   onToggleNav,
@@ -111,6 +104,8 @@ export function TopBar({
   const showStop = Boolean(onStop) && (parked || awaitingParams || inFlightStatus === "pending");
   const showRun = showRunButton && !parked;
   const chatActive = mode === "chat";
+  const spaceLabel =
+    spaces.find((space) => space.id === selectedSpaceId)?.label || selectedSpaceId || "";
 
   return (
     <header className={`topbar${compact ? " topbarCompact" : ""}`}>
@@ -128,22 +123,14 @@ export function TopBar({
             <MenuIcon />
           </button>
         ) : null}
-        <Picker
+        <span
           id="space-selector"
-          ariaLabel="Space"
-          dataTour="space-picker"
-          className="topbarSpacePicker"
-          toggleClassName="topbarSpaceSelect"
-          toggleTestId="space-selector-toggle"
-          menuTestId="space-selector-menu"
-          caret="end"
-          menuFit="content"
-          value={selectedSpaceId || ""}
-          placeholder="Select a space"
-          options={spaces.map((space) => ({ value: space.id, label: space.label }))}
-          onSelect={onSelectSpace}
-          emptyHint="No spaces yet."
-        />
+          className="topbarSpaceName"
+          data-tour="space-picker"
+          data-space-id={selectedSpaceId || ""}
+        >
+          {spaceLabel}
+        </span>
         <div className="topbarModeSwitch" role="group" aria-label="View">
           {chatActive ? null : (
             <button
@@ -197,17 +184,6 @@ export function TopBar({
           </button>
         ) : null}
         <span className="topbarSpaceActions">
-          {canCreateSpace ? (
-            <button
-              type="button"
-              className="navAddBtn"
-              aria-label="Create space"
-              data-testid="nav-create-space"
-              onClick={onCreateSpace}
-            >
-              +
-            </button>
-          ) : null}
           <button
             type="button"
             className={`tinyBtn tinyBtnIcon navSpaceConfigBtn${spaceConfigActive ? " active" : ""}`}
