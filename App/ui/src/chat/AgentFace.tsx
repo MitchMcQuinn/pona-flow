@@ -52,6 +52,8 @@ function createProgram(gl: WebGL2RenderingContext): WebGLProgram | null {
 /**
  * Full-canvas agent face. Voice stays idle here: there is no session yet.
  * Pointer movement lags into iMouse so the field's brushes follow the cursor.
+ * A finger drag is the touch equivalent of that hover: the canvas keeps the
+ * gesture so the browser does not turn it into a scroll after the first poke.
  */
 export function AgentFace() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -158,11 +160,11 @@ export function AgentFace() {
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
 
-    const toBuffer = (event: PointerEvent) => {
+    const placePointer = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return;
-      pointer.x = (event.clientX - rect.left) / rect.width;
-      pointer.y = (rect.bottom - event.clientY) / rect.height;
+      pointer.x = (clientX - rect.left) / rect.width;
+      pointer.y = (rect.bottom - clientY) / rect.height;
       if (!pointer.seen) {
         pointer.lagX = pointer.x;
         pointer.lagY = pointer.y;
@@ -171,13 +173,43 @@ export function AgentFace() {
       pointer.active = true;
     };
 
-    const onLeave = () => {
+    const toBuffer = (event: PointerEvent) => {
+      placePointer(event.clientX, event.clientY);
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      // Capture keeps pointermove aimed at the canvas for the whole contact.
+      // Without it, a touch is cancelled for scrolling after a few pixels.
+      if (event.pointerType !== "mouse") {
+        try {
+          canvas.setPointerCapture(event.pointerId);
+        } catch {
+          // The pointer can end before capture is requested.
+        }
+      }
+      toBuffer(event);
+    };
+
+    const onLeave = (event: PointerEvent) => {
+      // A finger sliding across the canvas is still over it. pointerleave
+      // during that drag must not switch the brush off.
+      if (event.pointerType !== "mouse") return;
       pointer.active = false;
     };
 
+    // iOS delivers the drag on touchmove and drops pointermove once the
+    // gesture is no longer a tap. preventDefault keeps the page from scrolling.
+    const onTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) return;
+      event.preventDefault();
+      placePointer(touch.clientX, touch.clientY);
+    };
+
     canvas.addEventListener("pointermove", toBuffer);
-    canvas.addEventListener("pointerdown", toBuffer);
+    canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("pointerleave", onLeave);
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
 
     let last = performance.now();
     const paint = (now: number) => {
@@ -243,8 +275,9 @@ export function AgentFace() {
       window.cancelAnimationFrame(raf);
       observer.disconnect();
       canvas.removeEventListener("pointermove", toBuffer);
-      canvas.removeEventListener("pointerdown", toBuffer);
+      canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointerleave", onLeave);
+      canvas.removeEventListener("touchmove", onTouchMove);
       reduce.removeEventListener("change", onReduce);
       document.removeEventListener("visibilitychange", onVisibility);
       gl.deleteProgram(program);

@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { AgentFace } from "../chat/AgentFace";
 import { Markdown } from "../chat/Markdown";
 import { guideApi } from "./api";
 import { Wizard } from "./Wizard";
@@ -63,46 +64,57 @@ export function GuideApp() {
         </div>
       </header>
       {mode === "chat" ? (
-        <section className="chatColumn guideChat">
-          <div className="chatTranscript">
-            <div className="chatTranscriptInner">
-              {messages.map((message, index) => (
-                <article key={`${message.role}-${index}`} className={`chatMessage chatMessage-${message.role}`}>
-                  {message.role === "assistant" ? (
-                    <div className="chatMessageBody">
-                      <Markdown text={message.content} />
-                    </div>
-                  ) : (
-                    <p>{message.content}</p>
-                  )}
-                </article>
-              ))}
-              {busy ? <p className="muted">Thinking...</p> : null}
-              {error ? <p className="errorText">{error}</p> : null}
+        <div className="guideStage">
+          <section className="chatColumn guideChat" aria-label="Chat">
+            <div className="guideFace" aria-hidden="true">
+              <div className="canvasTabs guideFaceTabs">
+                <span className="muted">Canvas</span>
+              </div>
+              <div className="guideFaceBody">
+                <AgentFace />
+              </div>
             </div>
-          </div>
-          <form
-            className="chatComposer"
-            onSubmit={(event) => void send(event)}
-          >
-            <textarea
-              value={draft}
-              rows={3}
-              placeholder="Ask about pona flow"
-              aria-label="Message"
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  void send();
-                }
-              }}
-            />
-            <button type="submit" className="btnPrimary" disabled={busy || !draft.trim()}>
-              Send
-            </button>
-          </form>
-        </section>
+            <div className="guideDivider" aria-hidden="true" />
+            <div className="chatTranscript">
+              <div className="chatTranscriptInner">
+                {messages.map((message, index) => (
+                  <article key={`${message.role}-${index}`} className={`chatMessage chatMessage-${message.role}`}>
+                    {message.role === "assistant" ? (
+                      <div className="chatMessageBody">
+                        <Markdown text={message.content} />
+                      </div>
+                    ) : (
+                      <p>{message.content}</p>
+                    )}
+                  </article>
+                ))}
+                {busy ? <p className="muted">Thinking...</p> : null}
+                {error ? <p className="errorText">{error}</p> : null}
+              </div>
+            </div>
+            <form
+              className="chatComposer"
+              onSubmit={(event) => void send(event)}
+            >
+              <textarea
+                value={draft}
+                rows={3}
+                placeholder="Ask about pona flow"
+                aria-label="Message"
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void send();
+                  }
+                }}
+              />
+              <button type="submit" className="btnPrimary" disabled={busy || !draft.trim()}>
+                Send
+              </button>
+            </form>
+          </section>
+        </div>
       ) : (
         <Wizard onLock={setLocked} />
       )}
