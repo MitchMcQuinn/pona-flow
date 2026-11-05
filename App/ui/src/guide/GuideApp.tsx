@@ -47,14 +47,6 @@ export function GuideApp() {
               Back to chat
             </button>
           ) : null}
-          <button
-            type="button"
-            className="btnPrimary"
-            data-testid="guide-get-started"
-            onClick={() => setMode("wizard")}
-          >
-            Get started
-          </button>
         </div>
       </header>
       {mode === "chat" ? (
@@ -65,7 +57,15 @@ export function GuideApp() {
                 <AgentFace />
                 <div className="guideHello">
                   <h1>hi im pona</h1>
-                  <h2>how can i help</h2>
+                  <h2>your context wizard</h2>
+                  <button
+                    type="button"
+                    className="guideStart"
+                    data-testid="guide-get-started"
+                    onClick={() => setMode("wizard")}
+                  >
+                    get started
+                  </button>
                 </div>
               </div>
             </div>

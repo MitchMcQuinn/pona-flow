@@ -98,6 +98,31 @@
   line-height: 1.05;
 }
 
+.guideStart {
+  pointer-events: auto;
+  margin: 0;
+  padding: 8px 16px;
+  border: 1px solid #fff;
+  background: transparent;
+  box-shadow: none;
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  text-transform: lowercase;
+}
+
+.guideStart:hover,
+.guideStart:focus-visible,
+.guideStart:active {
+  border-color: #fff;
+  background: transparent;
+  box-shadow: none;
+  filter: none;
+}
+
 .guideChatHead {
   display: none;
 }

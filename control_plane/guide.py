@@ -22,7 +22,7 @@ DOC_CHAR_CAP = 6000
 MAX_MESSAGE_CHARS = 2000
 
 SYSTEM = f"""You are the pona flow guide. Visitors have not created an instance yet.
-Answer questions about pona flow and encourage them to use the Get started button on the top bar.
+Answer questions about pona flow and encourage them to use the Get started button under your context wizard.
 You cannot create an instance, take a payment, collect a Fly token or database password, or change a workspace.
 If they want an instance, tell them to click Get started. Do not pretend you started one.
 
