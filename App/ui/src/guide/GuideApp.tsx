@@ -61,18 +61,20 @@ export function GuideApp() {
         <div className="guideStage">
           <section className="chatColumn guideChat" aria-label="Chat">
             <div className="guideFace">
-              <div className="canvasTabs guideFaceTabs" aria-hidden="true">
-                <span className="muted">Canvas</span>
-              </div>
               <div className="guideFaceBody">
                 <AgentFace />
-                <h1 className="guideHello">hi im pona</h1>
+                <div className="guideHello">
+                  <h1>hi im pona</h1>
+                  <h2>how can i help</h2>
+                </div>
               </div>
             </div>
             <div className="guideDivider" aria-hidden="true" />
+            <header className="columnHead guideChatHead">
+              <h1 className="chatTitle">chat with pona</h1>
+            </header>
             <div className="chatTranscript">
               <div className="chatTranscriptInner">
-                <h2 className="guidePrompt">how can i help</h2>
                 {messages.map((message, index) => (
                   <article key={`${message.role}-${index}`} className={`chatMessage chatMessage-${message.role}`}>
                     {message.role === "assistant" ? (
