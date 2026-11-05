@@ -66,6 +66,27 @@
   -webkit-touch-callout: none;
 }
 
+.guideHello {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 12px 16px;
+  pointer-events: none;
+  text-align: center;
+  font-size: clamp(40px, 9vw, 104px);
+  line-height: 0.95;
+  color: #fff;
+  text-shadow: 0 2px 28px rgba(0, 0, 0, 0.72);
+}
+
+.guidePrompt {
+  margin: 4px 0 8px;
+}
+
 .guideShell .chatTranscript {
   flex: 1 1 auto;
   min-height: 0;

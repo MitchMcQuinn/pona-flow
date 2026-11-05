@@ -8,16 +8,10 @@ import "./guide.css";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
-const OPENING: ChatMessage = {
-  role: "assistant",
-  content:
-    "Ask a question about pona flow. When you want an instance, use Get started on the right."
-};
-
 export function GuideApp() {
   const [mode, setMode] = useState<"chat" | "wizard">("chat");
   const [locked, setLocked] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([OPENING]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,17 +60,19 @@ export function GuideApp() {
       {mode === "chat" ? (
         <div className="guideStage">
           <section className="chatColumn guideChat" aria-label="Chat">
-            <div className="guideFace" aria-hidden="true">
-              <div className="canvasTabs guideFaceTabs">
+            <div className="guideFace">
+              <div className="canvasTabs guideFaceTabs" aria-hidden="true">
                 <span className="muted">Canvas</span>
               </div>
               <div className="guideFaceBody">
                 <AgentFace />
+                <h1 className="guideHello">hi im pona</h1>
               </div>
             </div>
             <div className="guideDivider" aria-hidden="true" />
             <div className="chatTranscript">
               <div className="chatTranscriptInner">
+                <h2 className="guidePrompt">how can i help</h2>
                 {messages.map((message, index) => (
                   <article key={`${message.role}-${index}`} className={`chatMessage chatMessage-${message.role}`}>
                     {message.role === "assistant" ? (
