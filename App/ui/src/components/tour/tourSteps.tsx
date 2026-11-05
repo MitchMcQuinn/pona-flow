@@ -219,8 +219,8 @@ export const TOUR_STEPS: TourStep[] = [
       <p>
         Your name sits beside the space settings gear. Open <strong>Space settings</strong> and
         choose <strong>Account</strong> to set your timezone (so scheduled times look right) or
-        sign out. If you run this copy of pona flow, that tab is also where you&rsquo;ll see when
-        a newer version is available.
+        sign out. If you run this copy of pona flow, the <strong>Update</strong> tab is where
+        you&rsquo;ll see when a newer version is available.
       </p>
     )
   },

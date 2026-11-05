@@ -37,7 +37,8 @@ type SpaceConfigTab =
   | "embeddings"
   | "templates"
   | "audit"
-  | "account";
+  | "account"
+  | "update";
 
 interface SpaceConfigPanelProps {
   spaceId: string | null;
@@ -146,15 +147,13 @@ function AccountSection({
   userEmail,
   userTimezone,
   onSaveTimezone,
-  onLogout,
-  isSuperadmin
+  onLogout
 }: {
   userName: string | null;
   userEmail: string | null;
   userTimezone: string | null;
   onSaveTimezone: (timezone: string) => void;
   onLogout: () => void;
-  isSuperadmin: boolean;
 }) {
   const zones = useMemo(() => supportedTimeZones(), []);
   const selectedZone = userTimezone || browserTimeZone();
@@ -184,7 +183,6 @@ function AccountSection({
         </select>
         <span className="navUserMenuHint">Used to show event times in your local time.</span>
       </div>
-      {isSuperadmin ? <InstanceUpdates /> : null}
       <button type="button" className="navUserLogoutBtn" onClick={onLogout}>
         Log out
       </button>
@@ -425,6 +423,16 @@ export function SpaceConfigPanel({
           >
             Account
           </button>
+          {me?.isSuperadmin ? (
+            <button
+              type="button"
+              className={tab === "update" ? "active" : undefined}
+              data-testid="space-tab-update"
+              onClick={() => setTab("update")}
+            >
+              Update
+            </button>
+          ) : null}
         </div>
 
         {tab === "settings" ? (
@@ -584,8 +592,14 @@ export function SpaceConfigPanel({
             userTimezone={me?.timezone ?? null}
             onSaveTimezone={onSaveTimezone}
             onLogout={onLogout}
-            isSuperadmin={Boolean(me?.isSuperadmin)}
           />
+        ) : null}
+
+        {tab === "update" && me?.isSuperadmin ? (
+          <div className="spaceConfigSection">
+            <h2>update</h2>
+            <InstanceUpdates />
+          </div>
         ) : null}
 
         {tab === "audit" ? (
