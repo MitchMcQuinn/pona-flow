@@ -100,17 +100,17 @@
 
 .guideStart {
   pointer-events: auto;
-  margin: 0;
-  padding: 8px 16px;
-  border: 1px solid #fff;
+  margin: 22px 0 0;
+  padding: 10px 22px;
+  border: 3px solid #fff;
   background: transparent;
   box-shadow: none;
   color: #fff;
-  font: inherit;
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 1.2;
-  letter-spacing: 0.01em;
+  font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(18px, 2.5vw, 20px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
   text-transform: lowercase;
 }
 
@@ -121,6 +121,21 @@
   background: transparent;
   box-shadow: none;
   filter: none;
+}
+
+.guideFaceBody-wizard {
+  overflow: auto;
+}
+
+.guideFaceBody .guideWizard {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  margin: 0;
+  background: #000;
 }
 
 .guideChatHead {

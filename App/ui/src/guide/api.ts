@@ -23,7 +23,18 @@ export async function guideApi(path: string, body?: unknown) {
     body: body === undefined ? undefined : JSON.stringify(body)
   });
   const text = await response.text();
-  const data = text ? (JSON.parse(text) as { detail?: string }) : {};
+  let data: { detail?: string } = {};
+  if (text) {
+    try {
+      data = JSON.parse(text) as { detail?: string };
+    } catch {
+      throw new Error(
+        response.ok
+          ? "The guide API returned a non-JSON response."
+          : "The guide API is unreachable from this page."
+      );
+    }
+  }
   if (!response.ok) {
     throw new Error(typeof data.detail === "string" ? data.detail : "Request failed");
   }

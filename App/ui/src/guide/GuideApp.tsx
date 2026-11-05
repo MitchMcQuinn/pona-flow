@@ -8,8 +8,15 @@ import "./guide.css";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
+function shouldOpenWizard(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  return Boolean(
+    params.get("verify") || (params.get("checkout") === "success" && params.get("instance"))
+  );
+}
+
 export function GuideApp() {
-  const [mode, setMode] = useState<"chat" | "wizard">("chat");
+  const [wizardOpen, setWizardOpen] = useState(shouldOpenWizard);
   const [locked, setLocked] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -42,80 +49,82 @@ export function GuideApp() {
           <span className="topbarSpaceName">pona flow</span>
         </div>
         <div className="topbarActions">
-          {mode === "wizard" && !locked ? (
-            <button type="button" data-testid="guide-back" onClick={() => setMode("chat")}>
+          {wizardOpen && !locked ? (
+            <button type="button" data-testid="guide-back" onClick={() => setWizardOpen(false)}>
               Back to chat
             </button>
           ) : null}
         </div>
       </header>
-      {mode === "chat" ? (
-        <div className="guideStage">
-          <section className="chatColumn guideChat" aria-label="Chat">
-            <div className="guideFace">
-              <div className="guideFaceBody">
-                <AgentFace />
-                <div className="guideHello">
-                  <h1>hi im pona</h1>
-                  <h2>your context wizard</h2>
-                  <button
-                    type="button"
-                    className="guideStart"
-                    data-testid="guide-get-started"
-                    onClick={() => setMode("wizard")}
-                  >
-                    get started
-                  </button>
-                </div>
-              </div>
+      <div className="guideStage">
+        <section className="chatColumn guideChat" aria-label="Chat">
+          <div className="guideFace">
+            <div className={`guideFaceBody${wizardOpen ? " guideFaceBody-wizard" : ""}`}>
+              {wizardOpen ? (
+                <Wizard onLock={setLocked} />
+              ) : (
+                <>
+                  <AgentFace />
+                  <div className="guideHello">
+                    <h1>hi im pona</h1>
+                    <h2>your context wizard</h2>
+                    <button
+                      type="button"
+                      className="guideStart"
+                      data-testid="guide-get-started"
+                      onClick={() => setWizardOpen(true)}
+                    >
+                      get started
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
-            <div className="guideDivider" aria-hidden="true" />
-            <header className="columnHead guideChatHead">
-              <h1 className="chatTitle">chat with pona</h1>
-            </header>
-            <div className="chatTranscript">
-              <div className="chatTranscriptInner">
-                {messages.map((message, index) => (
-                  <article key={`${message.role}-${index}`} className={`chatMessage chatMessage-${message.role}`}>
-                    {message.role === "assistant" ? (
-                      <div className="chatMessageBody">
-                        <Markdown text={message.content} />
-                      </div>
-                    ) : (
-                      <p>{message.content}</p>
-                    )}
-                  </article>
-                ))}
-                {busy ? <p className="muted">Thinking...</p> : null}
-                {error ? <p className="errorText">{error}</p> : null}
-              </div>
+          </div>
+          <div className="guideDivider" aria-hidden="true" />
+          <header className="columnHead guideChatHead">
+            <h1 className="chatTitle">chat with pona</h1>
+          </header>
+          <div className="chatTranscript">
+            <div className="chatTranscriptInner">
+              {messages.map((message, index) => (
+                <article key={`${message.role}-${index}`} className={`chatMessage chatMessage-${message.role}`}>
+                  {message.role === "assistant" ? (
+                    <div className="chatMessageBody">
+                      <Markdown text={message.content} />
+                    </div>
+                  ) : (
+                    <p>{message.content}</p>
+                  )}
+                </article>
+              ))}
+              {busy ? <p className="muted">Thinking...</p> : null}
+              {error ? <p className="errorText">{error}</p> : null}
             </div>
-            <form
-              className="chatComposer"
-              onSubmit={(event) => void send(event)}
-            >
-              <textarea
-                value={draft}
-                rows={3}
-                placeholder="Ask about pona flow"
-                aria-label="Message"
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void send();
-                  }
-                }}
-              />
-              <button type="submit" className="btnPrimary" disabled={busy || !draft.trim()}>
-                Send
-              </button>
-            </form>
-          </section>
-        </div>
-      ) : (
-        <Wizard onLock={setLocked} />
-      )}
+          </div>
+          <form
+            className="chatComposer"
+            onSubmit={(event) => void send(event)}
+          >
+            <textarea
+              value={draft}
+              rows={3}
+              placeholder="Ask about pona flow"
+              aria-label="Message"
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void send();
+                }
+              }}
+            />
+            <button type="submit" className="btnPrimary" disabled={busy || !draft.trim()}>
+              Send
+            </button>
+          </form>
+        </section>
+      </div>
     </div>
   );
 }
