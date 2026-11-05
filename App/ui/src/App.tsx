@@ -727,6 +727,14 @@ export default function App() {
         spaces={spaces}
         selectedSpaceId={state.spaceId}
         spaceConfigActive={state.view.rightPanelMode === "space"}
+        userName={
+          user?.fullName?.trim() ||
+          user?.firstName?.trim() ||
+          state.me?.displayName?.trim() ||
+          state.me?.email?.trim() ||
+          user?.primaryEmailAddress?.emailAddress?.trim() ||
+          null
+        }
         onOpenSpaceConfig={() => {
           dismissVisualization();
           // Phone chat has no settings column, so open them on the classic workbench pane.
@@ -854,12 +862,6 @@ export default function App() {
             onReorderConsoleGroups={consolesNav.handleReorderConsoleGroups}
             onAddConsoleGroup={consolesNav.handleAddConsoleGroup}
             onDeleteConsoleGroup={consolesNav.handleDeleteConsoleGroup}
-            userName={user?.fullName ?? user?.firstName ?? null}
-            userEmail={state.me?.email ?? user?.primaryEmailAddress?.emailAddress ?? null}
-            userTimezone={state.me?.timezone ?? null}
-            onSaveTimezone={handleSaveTimezone}
-            onLogout={handleLogout}
-            isSuperadmin={Boolean(state.me?.isSuperadmin)}
             inFlightSequenceIds={navActivitySequenceIds(state.inFlight)}
             workbenchActive={workbenchActive}
             onOpenWorkbench={() => {
@@ -942,6 +944,15 @@ export default function App() {
             onLoadAuditLog={loadAuditLog}
             onSpacePanelClose={() => dispatch({ type: "SPACE_PANEL_CLOSED" })}
             onStartTour={handleStartTour}
+            userName={
+              user?.fullName?.trim() ||
+              user?.firstName?.trim() ||
+              state.me?.displayName?.trim() ||
+              null
+            }
+            userEmail={state.me?.email ?? user?.primaryEmailAddress?.emailAddress ?? null}
+            onSaveTimezone={handleSaveTimezone}
+            onLogout={handleLogout}
             executionPackage={composedSequence?.package ?? null}
             composeError={composeError}
           />

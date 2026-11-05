@@ -65,6 +65,8 @@ interface TopBarProps {
   selectedSpaceId: string | null;
   spaceConfigActive: boolean;
   onOpenSpaceConfig: () => void;
+  /** Signed-in label shown beside the space settings gear. */
+  userName: string | null;
   /** Tablet: toggles the navigation drawer. */
   onToggleNav?: () => void;
   navOpen?: boolean;
@@ -87,6 +89,7 @@ export function TopBar({
   selectedSpaceId,
   spaceConfigActive,
   onOpenSpaceConfig,
+  userName,
   onToggleNav,
   navOpen = false,
   mode,
@@ -184,6 +187,11 @@ export function TopBar({
           </button>
         ) : null}
         <span className="topbarSpaceActions">
+          {userName ? (
+            <span className="topbarHello" data-tour="account" data-testid="topbar-hello">
+              hello {userName}
+            </span>
+          ) : null}
           <button
             type="button"
             className={`tinyBtn tinyBtnIcon navSpaceConfigBtn${spaceConfigActive ? " active" : ""}`}

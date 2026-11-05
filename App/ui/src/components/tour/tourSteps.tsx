@@ -213,14 +213,14 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: "account",
-    pane: "menu",
     target: "account",
     title: "your account",
     body: (
       <p>
-        Open this menu to set your timezone (so scheduled times look right) or sign out. If
-        you run this copy of pona flow, this is also where you&rsquo;ll see when a newer version
-        is available.
+        Your name sits beside the space settings gear. Open <strong>Space settings</strong> and
+        choose <strong>Account</strong> to set your timezone (so scheduled times look right) or
+        sign out. If you run this copy of pona flow, that tab is also where you&rsquo;ll see when
+        a newer version is available.
       </p>
     )
   },

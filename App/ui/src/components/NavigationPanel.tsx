@@ -2,12 +2,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { createPortal } from "react-dom";
 import type { ConsoleNavItem, EventSummary, SequenceSummary } from "../state/types";
 import { UNGROUPED_LABEL } from "../state/navOrder";
-import {
-  browserTimeZone,
-  supportedTimeZones,
-  timeZoneLabel
-} from "../services/timezone";
-import { InstanceUpdates } from "./settings/InstanceUpdates";
 import { GroupedNav, PlainNavItem, type DragApi, type ReorderApi } from "./GroupedNav";
 
 interface NavigationPanelProps {
@@ -62,15 +56,6 @@ interface NavigationPanelProps {
   onOpenWorkbench: () => void;
   /** The builder is the open view, so the heading is the current page. */
   workbenchActive: boolean;
-  /** Display name for the signed-in user (falls back to email inside the footer). */
-  userName: string | null;
-  userEmail: string | null;
-  /** The user's saved IANA timezone, or null when none is set yet. */
-  userTimezone: string | null;
-  onSaveTimezone: (timezone: string) => void;
-  onLogout: () => void;
-  /** Instance admin: show main-branch changelog + update in the user menu. */
-  isSuperadmin?: boolean;
   /** Catalog sequence ids with a background run (waiting or active — not HITL pending). */
   inFlightSequenceIds?: string[];
 }
@@ -100,14 +85,6 @@ function EditIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  );
-}
-
-function GearIcon() {
-  return (
-    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-      <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z" />
     </svg>
   );
 }
@@ -448,93 +425,6 @@ function SequenceItem({
   );
 }
 
-function UserSettingsFooter({
-  userName,
-  userEmail,
-  userTimezone,
-  onSaveTimezone,
-  onLogout,
-  isSuperadmin
-}: {
-  userName: string | null;
-  userEmail: string | null;
-  userTimezone: string | null;
-  onSaveTimezone: (timezone: string) => void;
-  onLogout: () => void;
-  isSuperadmin?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const displayName = userName?.trim() || userEmail?.trim() || "Account";
-  const zones = useMemo(() => supportedTimeZones(), []);
-  const selectedZone = userTimezone || browserTimeZone();
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    window.addEventListener("mousedown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("mousedown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div className="navUserSettings" ref={containerRef} data-tour="account">
-      {open ? (
-        <div className="navUserMenu" role="dialog" aria-label="User settings">
-          <div className="navUserMenuHeader">
-            <span className="navUserMenuName">{displayName}</span>
-            {userEmail && userEmail !== displayName ? (
-              <span className="navUserMenuEmail">{userEmail}</span>
-            ) : null}
-          </div>
-          <div className="field navUserMenuField">
-            <label htmlFor="user-timezone">Timezone</label>
-            <select
-              id="user-timezone"
-              value={selectedZone}
-              onChange={(e) => onSaveTimezone(e.target.value)}
-            >
-              {zones.map((zone) => (
-                <option key={zone} value={zone}>
-                  {timeZoneLabel(zone)}
-                </option>
-              ))}
-            </select>
-            <span className="navUserMenuHint">Used to show event times in your local time.</span>
-          </div>
-          {isSuperadmin ? <InstanceUpdates /> : null}
-          <button type="button" className="navUserLogoutBtn" onClick={onLogout}>
-            Log out
-          </button>
-        </div>
-      ) : null}
-      <button
-        type="button"
-        className={`navUserButton${open ? " active" : ""}`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className="navUserName">{displayName}</span>
-        <span className="navUserGear" aria-hidden="true">
-          <GearIcon />
-        </span>
-      </button>
-    </div>
-  );
-}
-
 export function NavigationPanel({
   sequences,
   groups,
@@ -579,12 +469,6 @@ export function NavigationPanel({
   consoleEditing = false,
   onOpenWorkbench,
   workbenchActive,
-  userName,
-  userEmail,
-  userTimezone,
-  onSaveTimezone,
-  onLogout,
-  isSuperadmin = false,
   inFlightSequenceIds = []
 }: NavigationPanelProps) {
   const navSequences = useMemo(
@@ -718,14 +602,6 @@ export function NavigationPanel({
           )}
         />
       </div>
-      <UserSettingsFooter
-        userName={userName}
-        userEmail={userEmail}
-        userTimezone={userTimezone}
-        onSaveTimezone={onSaveTimezone}
-        onLogout={onLogout}
-        isSuperadmin={isSuperadmin}
-      />
     </div>
   );
 }

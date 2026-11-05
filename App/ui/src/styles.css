@@ -342,8 +342,20 @@ textarea::placeholder {
 .topbarSpaceActions {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   margin-left: 4px;
+  min-width: 0;
+}
+
+.topbarHello {
+  min-width: 0;
+  max-width: 28vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.2;
 }
 
 .topbarBackBtn {
@@ -1452,76 +1464,6 @@ button:focus-visible {
   border-color: rgba(251, 113, 133, 0.45);
 }
 
-/* User settings footer — pinned to the bottom of the navigation panel. */
-.navUserSettings {
-  position: relative;
-  flex-shrink: 0;
-  border-top: none;
-  padding: 8px;
-  background: transparent;
-}
-
-.navUserButton {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.navUserButton:hover,
-.navUserButton.active {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.navUserName {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-}
-
-.navUserGear {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: #fff;
-}
-
-.navUserGear svg {
-  width: 20px;
-  height: 20px;
-}
-
-.navUserMenu {
-  position: absolute;
-  bottom: calc(100% - 4px);
-  left: 8px;
-  right: 8px;
-  background: linear-gradient(145deg, var(--raise), var(--panel));
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  padding: 12px;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: min(80vh, 640px);
-  overflow: auto;
-}
-
 .navUserMenuHeader {
   display: flex;
   flex-direction: column;
@@ -1545,6 +1487,7 @@ button:focus-visible {
 
 .navUserMenuField {
   margin: 0;
+  max-width: 420px;
 }
 
 .navUserMenuField select {
@@ -1615,7 +1558,8 @@ button:focus-visible {
 }
 
 .navUserLogoutBtn {
-  width: 100%;
+  align-self: flex-start;
+  width: auto;
   padding: 8px 10px;
   border: 1px solid rgba(251, 113, 133, 0.45);
   border-radius: 0;
@@ -1786,7 +1730,7 @@ td {
    map, and the console share this overlay. Chat uses the same edge on the
    transcript and the canvas, short of the pinned header, tabs, and composer.
    The nav fade sits in the list's grid cell, under the pinned workbench
-   heading and short of the pinned account footer.
+   heading.
    A console embedded in an event session is not a column, so it is left out. */
 .configPanel.builderPanel::after,
 .configPanel.eventBuilder::after,
@@ -1808,7 +1752,7 @@ td {
 
 .layoutNavSlot > .navPanel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -1821,12 +1765,6 @@ td {
 .layoutNavSlot > .navPanel > .panel__body {
   grid-row: 2;
   grid-column: 1;
-}
-
-.layoutNavSlot > .navPanel > .navUserSettings {
-  grid-row: 3;
-  grid-column: 1;
-  z-index: 5;
 }
 
 .layoutNavSlot > .navPanel::after,
@@ -2747,8 +2685,7 @@ td {
     height: 22px;
   }
 
-  .navSpaceConfigBtn svg,
-  .navUserGear svg {
+  .navSpaceConfigBtn svg {
     width: 22px;
     height: 22px;
   }
@@ -2776,10 +2713,6 @@ td {
     min-height: 40px;
   }
 
-  .navUserButton {
-    min-height: 48px;
-  }
-
   .spaceConfigTabs button {
     min-height: 44px;
     padding: 8px 14px;
@@ -2788,10 +2721,6 @@ td {
   .tourCard button {
     min-height: 44px;
   }
-}
-
-.navUserMenu {
-  max-height: min(80dvh, 640px);
 }
 
 /* Product tour */

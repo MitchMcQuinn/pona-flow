@@ -11,6 +11,12 @@ import {
   normalizeSpaceName,
   sanitizeSpaceNameInput
 } from "../../utils/spaceName";
+import {
+  browserTimeZone,
+  supportedTimeZones,
+  timeZoneLabel
+} from "../../services/timezone";
+import { InstanceUpdates } from "../settings/InstanceUpdates";
 import { ChatModelSettings } from "./ChatModelSettings";
 import { AgentsPanel } from "../agents/AgentsPanel";
 import { Toggle } from "../builder/Toggle";
@@ -30,7 +36,8 @@ type SpaceConfigTab =
   | "credentials"
   | "embeddings"
   | "templates"
-  | "audit";
+  | "audit"
+  | "account";
 
 interface SpaceConfigPanelProps {
   spaceId: string | null;
@@ -46,6 +53,10 @@ interface SpaceConfigPanelProps {
   onLoadAuditLog: () => void;
   onClose: () => void;
   onStartTour: () => void;
+  userName: string | null;
+  userEmail: string | null;
+  onSaveTimezone: (timezone: string) => void;
+  onLogout: () => void;
 }
 
 function AuditLogSection({
@@ -130,6 +141,57 @@ function AuditLogSection({
   );
 }
 
+function AccountSection({
+  userName,
+  userEmail,
+  userTimezone,
+  onSaveTimezone,
+  onLogout,
+  isSuperadmin
+}: {
+  userName: string | null;
+  userEmail: string | null;
+  userTimezone: string | null;
+  onSaveTimezone: (timezone: string) => void;
+  onLogout: () => void;
+  isSuperadmin: boolean;
+}) {
+  const zones = useMemo(() => supportedTimeZones(), []);
+  const selectedZone = userTimezone || browserTimeZone();
+  const displayName = userName?.trim() || userEmail?.trim() || "Account";
+
+  return (
+    <div className="spaceConfigSection">
+      <h2>account</h2>
+      <div className="navUserMenuHeader">
+        <span className="navUserMenuName">{displayName}</span>
+        {userEmail && userEmail !== displayName ? (
+          <span className="navUserMenuEmail">{userEmail}</span>
+        ) : null}
+      </div>
+      <div className="field navUserMenuField">
+        <label htmlFor="user-timezone">Timezone</label>
+        <select
+          id="user-timezone"
+          value={selectedZone}
+          onChange={(event) => onSaveTimezone(event.target.value)}
+        >
+          {zones.map((zone) => (
+            <option key={zone} value={zone}>
+              {timeZoneLabel(zone)}
+            </option>
+          ))}
+        </select>
+        <span className="navUserMenuHint">Used to show event times in your local time.</span>
+      </div>
+      {isSuperadmin ? <InstanceUpdates /> : null}
+      <button type="button" className="navUserLogoutBtn" onClick={onLogout}>
+        Log out
+      </button>
+    </div>
+  );
+}
+
 export function SpaceConfigPanel({
   spaceId,
   spaces,
@@ -143,7 +205,11 @@ export function SpaceConfigPanel({
   saveError,
   onLoadAuditLog,
   onClose,
-  onStartTour
+  onStartTour,
+  userName,
+  userEmail,
+  onSaveTimezone,
+  onLogout
 }: SpaceConfigPanelProps) {
   const [tab, setTab] = useState<SpaceConfigTab>("settings");
   const [name, setName] = useState("");
@@ -351,6 +417,14 @@ export function SpaceConfigPanel({
           >
             Audit log
           </button>
+          <button
+            type="button"
+            className={tab === "account" ? "active" : undefined}
+            data-testid="space-tab-account"
+            onClick={() => setTab("account")}
+          >
+            Account
+          </button>
         </div>
 
         {tab === "settings" ? (
@@ -501,6 +575,17 @@ export function SpaceConfigPanel({
 
         {tab === "templates" && canManageSpace ? (
           <TemplatesPanel spaceId={spaceId} />
+        ) : null}
+
+        {tab === "account" ? (
+          <AccountSection
+            userName={userName}
+            userEmail={userEmail}
+            userTimezone={me?.timezone ?? null}
+            onSaveTimezone={onSaveTimezone}
+            onLogout={onLogout}
+            isSuperadmin={Boolean(me?.isSuperadmin)}
+          />
         ) : null}
 
         {tab === "audit" ? (

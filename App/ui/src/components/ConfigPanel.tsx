@@ -40,6 +40,10 @@ interface ConfigPanelProps {
   onLoadAuditLog: () => void;
   onSpacePanelClose: () => void;
   onStartTour: () => void;
+  userName: string | null;
+  userEmail: string | null;
+  onSaveTimezone: (timezone: string) => void;
+  onLogout: () => void;
   /** Composed EXECUTION package for the selected sequence (webhook curl + input list). */
   executionPackage?: ExecutionPackage | null;
   composeError?: string | null;
@@ -278,6 +282,10 @@ export function ConfigPanel({
   onLoadAuditLog,
   onSpacePanelClose,
   onStartTour,
+  userName,
+  userEmail,
+  onSaveTimezone,
+  onLogout,
   executionPackage = null,
   composeError = null
 }: ConfigPanelProps) {
@@ -448,6 +456,10 @@ export function ConfigPanel({
         onLoadAuditLog={onLoadAuditLog}
         onClose={onSpacePanelClose}
         onStartTour={onStartTour}
+        userName={userName}
+        userEmail={userEmail}
+        onSaveTimezone={onSaveTimezone}
+        onLogout={onLogout}
       />
     );
   }
