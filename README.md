@@ -34,7 +34,7 @@ Full guide: [Docs/SELF-HOSTING.md](Docs/SELF-HOSTING.md). Dev from source: [Docs
 
 ### Self-hosted (Fly + Aura)
 
-Get started asks for a Fly org token and the Aura URI, user, and password, then deploys `ghcr.io/mitchmcquinn/pona-flow:main` into your Fly account. Create the token with `fly tokens create org` and paste only that token. The Fly dashboard cannot mint it yet: an app deploy token requires an app, and Get started is what creates the app. The org token and Aura password are not stored. After the app exists, paste an app deploy token under Instance settings if you want in-app updates.
+Get started asks for a Fly org token, an optional app deploy token, and the Aura URI, user, and password, then deploys `ghcr.io/mitchmcquinn/pona-flow:main` into your Fly account. Create the org token with `fly tokens create org` and paste only that token. An app deploy token (`fly tokens create deploy -a <app>`) can only be created once the app exists; paste it if you already have the app, or add it later under Instance settings. The org token is not stored. Aura Free's user is the instance id in the URI, not `neo4j`. Aura Pro's user is `neo4j`.
 
 The same deploy from a terminal, if you prefer not to send the token through Get started:
 

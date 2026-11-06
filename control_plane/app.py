@@ -343,8 +343,9 @@ def create_app(
             if not password:
                 raise HTTPException(400, "Enter your password so we can create the admin account.")
             fly_token = _fly_token(body.get("fly_token"))
+            fly_app_token = _fly_token(body.get("fly_app_token"))
             neo4j_uri = str(body.get("neo4j_uri") or "")
-            neo4j_password = str(body.get("neo4j_password") or "")
+            neo4j_password = _fly_token(body.get("neo4j_password")).replace("\r", "").replace("\n", "")
             if not fly_token or not neo4j_password or not aura_uri_ok(neo4j_uri):
                 raise HTTPException(400, "A Fly org token and an Aura URI and password are required.")
             try:
@@ -354,10 +355,11 @@ def create_app(
                     region=region,
                     fly_token=fly_token,
                     neo4j_uri=neo4j_uri,
-                    neo4j_user=str(body.get("neo4j_user") or "neo4j"),
+                    neo4j_user=str(body.get("neo4j_user") or ""),
                     neo4j_password=neo4j_password,
                     admin_password=password,
                     display_name=str(display_name or "") or None,
+                    fly_app_token=fly_app_token,
                 )
             except FlyError as exc:
                 message = provision_failure_message(str(exc))

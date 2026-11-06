@@ -45,13 +45,7 @@ def _neo4j_ok() -> tuple[bool, str | None]:
     except KeyError:
         return False, "NEO4J_URI / NEO4J_USER / NEO4J_PASSWORD not configured"
     try:
-        from neo4j import GraphDatabase
-
-        driver = GraphDatabase.driver(graph.direct_bolt_uri(uri), auth=(user, password))
-        try:
-            driver.verify_connectivity()
-        finally:
-            driver.close()
+        graph.ping_neo4j(uri, user, password)
         return True, None
     except Exception as e:  # driver raises many types; never leak details to the client
         log.warning("healthz: neo4j check failed: %s", e)

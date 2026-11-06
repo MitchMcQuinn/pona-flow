@@ -25,7 +25,8 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
+import threading
+from typing import Any, Callable
 
 try:
     from neo4j import GraphDatabase
@@ -86,6 +87,123 @@ def direct_bolt_uri(uri: str) -> str:
         if lowered.startswith(prefix):
             return "bolt://" + raw[len("neo4j://") :]
     return raw
+
+
+def aura_instance_id(uri: str) -> str | None:
+    """Instance id from an Aura host, such as ``abcd`` in ``abcd.databases.neo4j.io``.
+
+    Aura Free uses that id as both the database user and the database name.
+    Aura Pro uses ``neo4j`` for both. The host looks the same either way.
+    """
+    text = (uri or "").strip()
+    if "://" not in text:
+        return None
+    host = text.split("://", 1)[1].split("/")[0].split("?")[0].split("@")[-1]
+    if host.startswith("["):
+        return None
+    host = host.split(":")[0]
+    suffix = ".databases.neo4j.io"
+    if not host.lower().endswith(suffix):
+        return None
+    label = host[: -len(suffix)]
+    if not label or "." in label:
+        return None
+    return label
+
+
+def auth_followups(
+    uri: str, user: str, database: str | None, failure: str
+) -> list[tuple[str, str | None]]:
+    """Next ``(user, database)`` to try after Aura rejects the configured pair.
+
+    ``database`` is ``None`` when the driver should use the server default.
+    ``failure`` is ``auth`` or ``database``.
+    """
+    instance = aura_instance_id(uri)
+    if not instance:
+        return []
+    if failure == "auth" and user == "neo4j" and instance != "neo4j":
+        return [(instance, instance)]
+    if failure == "auth" and user == instance:
+        return [("neo4j", "neo4j")]
+    if failure == "database" and database != instance:
+        return [(user, instance)]
+    return []
+
+
+def _auth_failure_kind(exc: BaseException) -> str | None:
+    text = str(exc)
+    if "Unauthorized" in text or "unauthorized" in text:
+        return "auth"
+    if "DatabaseNotFound" in text or "Database.DatabaseNotFound" in text:
+        return "database"
+    return None
+
+
+_AUTH_LOCK = threading.Lock()
+# (bolt uri, configured user, password) -> (user, database) that succeeded.
+_AUTH_CACHE: dict[tuple[str, str, str], tuple[str, str | None]] = {}
+
+
+def _call_in_session(uri: str, user: str, password: str, fn: Callable[..., Any]) -> Any:
+    """Run ``fn(session)`` and consume it before the driver closes.
+
+    Aura Free rejects user ``neo4j`` with ``Security.Unauthorized``. The user and
+    the database name are the instance id in the host. Aura Pro is the reverse.
+    The first successful pair is reused for later calls with the same settings.
+    """
+    _require_neo4j()
+    bolt = direct_bolt_uri(uri)
+    configured = (user or "").strip() or "neo4j"
+    secret = (password or "").replace("\r", "").replace("\n", "").strip()
+    cache_key = (bolt, configured, secret)
+    with _AUTH_LOCK:
+        preferred = _AUTH_CACHE.get(cache_key)
+
+    def run(first: tuple[str, str | None] | None) -> Any:
+        plans: list[tuple[str, str | None]] = []
+        if first is not None:
+            plans.append(first)
+        plans.append((configured, None))
+        tried: set[tuple[str, str | None]] = set()
+        last: BaseException | None = None
+        while plans:
+            auth_user, database = plans.pop(0)
+            if (auth_user, database) in tried:
+                continue
+            tried.add((auth_user, database))
+            driver = GraphDatabase.driver(bolt, auth=(auth_user, secret))
+            try:
+                kwargs: dict[str, Any] = {} if not database else {"database": database}
+                with driver.session(**kwargs) as session:
+                    outcome = fn(session)
+                with _AUTH_LOCK:
+                    _AUTH_CACHE[cache_key] = (auth_user, database)
+                return outcome
+            except Neo4jError as exc:
+                last = exc
+                kind = _auth_failure_kind(exc)
+                if not kind:
+                    raise
+                for nxt in auth_followups(bolt, auth_user, database, kind):
+                    if nxt not in tried:
+                        plans.append(nxt)
+            finally:
+                driver.close()
+        if last is not None:
+            raise last
+        raise RuntimeError("Neo4j connection failed")
+
+    return run(preferred)
+
+
+def ping_neo4j(uri: str, user: str, password: str) -> None:
+    """Open one session. Raises the driver's error when the database rejects it."""
+
+    def work(session: Any) -> None:
+        session.run("RETURN 1").consume()
+
+    _call_in_session(uri, user, password, work)
 
 
 def _neo4j_connect_error(exc: BaseException) -> RuntimeError:
@@ -185,41 +303,39 @@ def run_cypher_for_space(
     _require_neo4j()
     cfg = spaces.neo4j_config_for_space(space_id)
     params = params or {}
-    driver = GraphDatabase.driver(
-        direct_bolt_uri(cfg["uri"]), auth=(cfg["user"], cfg["password"])
-    )
+
+    def work(session: Any) -> dict[str, Any]:
+        result = session.run(cypher, params)
+        records: list[dict[str, Any]] = []
+        graph_nodes: dict[str, Any] = {}
+        graph_rels: dict[str, Any] = {}
+        for record in result:
+            records.append(_record_data(record))
+            for value in record.values():
+                _collect_graph_entities(value, graph_nodes, graph_rels)
+        _enrich_graph_nodes_display_labels(space_id, graph_nodes)
+        summary = result.consume()
+        return {
+            "records": records,
+            "graph": {
+                "nodes": list(graph_nodes.values()),
+                "relationships": list(graph_rels.values()),
+            },
+            "summary": {
+                "query_type": summary.query_type,
+                "counters": {
+                    "nodes_created": summary.counters.nodes_created,
+                    "nodes_deleted": summary.counters.nodes_deleted,
+                    "relationships_created": summary.counters.relationships_created,
+                    "relationships_deleted": summary.counters.relationships_deleted,
+                },
+            },
+        }
+
     try:
-        with driver.session() as session:
-            result = session.run(cypher, params)
-            records: list[dict[str, Any]] = []
-            graph_nodes: dict[str, Any] = {}
-            graph_rels: dict[str, Any] = {}
-            for record in result:
-                records.append(_record_data(record))
-                for value in record.values():
-                    _collect_graph_entities(value, graph_nodes, graph_rels)
-            _enrich_graph_nodes_display_labels(space_id, graph_nodes)
-            summary = result.consume()
-            return {
-                "records": records,
-                "graph": {
-                    "nodes": list(graph_nodes.values()),
-                    "relationships": list(graph_rels.values()),
-                },
-                "summary": {
-                    "query_type": summary.query_type,
-                    "counters": {
-                        "nodes_created": summary.counters.nodes_created,
-                        "nodes_deleted": summary.counters.nodes_deleted,
-                        "relationships_created": summary.counters.relationships_created,
-                        "relationships_deleted": summary.counters.relationships_deleted,
-                    },
-                },
-            }
+        return _call_in_session(cfg["uri"], cfg["user"], cfg["password"], work)
     except Neo4jError as e:
         raise _neo4j_connect_error(e) from e
-    finally:
-        driver.close()
 
 
 def attributive_label_exists(

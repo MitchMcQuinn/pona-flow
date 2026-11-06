@@ -40,6 +40,7 @@ ADMIN_PASSWORD = "admin-SECRET-VALUE-do-not-store"
 class FakeFly:
     def __init__(self) -> None:
         self.calls: list[tuple] = []
+        self.secrets: dict[str, str] = {}
 
     def create_app(self, name: str) -> None:
         self.calls.append(("create_app", name))
@@ -53,6 +54,7 @@ class FakeFly:
 
     def set_secrets(self, app: str, secrets: dict[str, str]) -> None:
         self.calls.append(("secrets", app, tuple(sorted(secrets))))
+        self.secrets = dict(secrets)
 
     def create_machine(self, app: str, config: dict, region: str) -> str:
         self.calls.append(("machine", app, config["services"][0]["autostop"], config["services"][0]["min_machines_running"]))
@@ -213,9 +215,36 @@ class ControlPlaneTest(unittest.TestCase):
         env = self.fly.config["env"]
         self.assertNotIn("NEO4J_PASSWORD", env)
         self.assertNotIn("FLY_API_TOKEN", env)
+        secret_keys = next(call[2] for call in self.fly.calls if call[0] == "secrets")
+        self.assertNotIn("FLY_API_TOKEN", secret_keys)
+        self.assertEqual(self.fly.secrets["NEO4J_USER"], "neo4j")
         steps = [call[0] for call in self.fly.calls]
         self.assertLess(steps.index("create_app"), steps.index("addresses"))
         self.assertLess(steps.index("addresses"), steps.index("volume"))
+
+    def test_self_hosted_app_token_is_a_secret_and_blank_user_uses_instance_id(self) -> None:
+        account = self.db.create_account("ada@example.com", hash_password(ADMIN_PASSWORD), "Ada")
+        provisioner = Provisioner(self.db, lambda _token: self.fly, self.http, fleet_url="http://127.0.0.1:8090")
+        app_token = "app-deploy-SECRET-do-not-store"
+        provisioner.provision_self_hosted(
+            account=account,
+            app_name="ada-flow",
+            region="iad",
+            fly_token=FLY_TOKEN,
+            neo4j_uri="neo4j+s://abcd1234.databases.neo4j.io",
+            neo4j_user="",
+            neo4j_password="aura-\r\nsecret",
+            admin_password=ADMIN_PASSWORD,
+            display_name="Ada",
+            fly_app_token=f"  {app_token}  ",
+        )
+        self.assertEqual(self.fly.secrets["NEO4J_USER"], "abcd1234")
+        self.assertEqual(self.fly.secrets["NEO4J_PASSWORD"], "aura-secret")
+        self.assertEqual(self.fly.secrets["FLY_API_TOKEN"], app_token)
+        self.assertNotIn("FLY_API_TOKEN", self.fly.config["env"])
+        raw = Path(self.db.path).read_bytes()
+        self.assertNotIn(app_token.encode(), raw)
+        self.assertNotIn(b"aura-secret", raw)
 
     def test_public_addresses_are_assigned_and_a_repeat_is_safe(self) -> None:
         calls: list[tuple[str, str]] = []

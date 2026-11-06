@@ -22,6 +22,21 @@ type Phase = "account" | "edition" | "details" | "progress" | "handoff" | "local
 
 const PASSWORD_KEY = "pf-guide-password";
 
+function auraInstanceId(uri: string): string {
+  const trimmed = uri.trim();
+  const scheme = trimmed.indexOf("://");
+  if (scheme < 0) return "";
+  let host = trimmed.slice(scheme + 3).split("/")[0].split("?")[0];
+  const at = host.lastIndexOf("@");
+  if (at >= 0) host = host.slice(at + 1);
+  host = host.split(":")[0];
+  const suffix = ".databases.neo4j.io";
+  if (!host.toLowerCase().endsWith(suffix)) return "";
+  const label = host.slice(0, -suffix.length);
+  if (!label || label.includes(".")) return "";
+  return label;
+}
+
 interface WizardProps {
   onLock: (locked: boolean) => void;
 }
@@ -38,8 +53,10 @@ export function Wizard({ onLock }: WizardProps) {
   const [appName, setAppName] = useState("");
   const [region, setRegion] = useState("iad");
   const [flyToken, setFlyToken] = useState("");
+  const [flyAppToken, setFlyAppToken] = useState("");
   const [neo4jUri, setNeo4jUri] = useState("");
   const [neo4jUser, setNeo4jUser] = useState("neo4j");
+  const [neo4jUserEdited, setNeo4jUserEdited] = useState(false);
   const [neo4jPassword, setNeo4jPassword] = useState("");
   const [instance, setInstance] = useState<Instance | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -176,8 +193,11 @@ export function Wizard({ onLock }: WizardProps) {
       if ((code.trim() || tier) && tier === "self_hosted") {
         payload.tier = "self_hosted";
         payload.fly_token = flyToken;
+        if (flyAppToken.trim()) payload.fly_app_token = flyAppToken.trim();
         payload.neo4j_uri = neo4jUri;
-        payload.neo4j_user = neo4jUser;
+        payload.neo4j_user = neo4jUserEdited
+          ? neo4jUser.trim()
+          : auraInstanceId(neo4jUri) || neo4jUser.trim() || "neo4j";
         payload.neo4j_password = neo4jPassword;
       }
       if (tier === "sandbox" || code.trim().toLowerCase() === "sandbox") {
@@ -272,7 +292,7 @@ export function Wizard({ onLock }: WizardProps) {
             </article>
             <article className="guideCard">
               <h3>self-hosted</h3>
-              <p>your fly.io account and your aura database. get started creates the fly app with an org token. support is priced separately.</p>
+              <p>your fly.io account and your aura database. get started creates the fly app with an org token. an app deploy token is optional. support is priced separately.</p>
               <button type="button" onClick={() => choose("self_hosted")}>continue</button>
             </article>
             <article className="guideCard">
@@ -343,7 +363,14 @@ export function Wizard({ onLock }: WizardProps) {
             <>
               <label className="guideField">
                 fly org token
-                <input value={flyToken} onChange={(event) => setFlyToken(event.target.value)} type="password" required />
+                <input
+                  value={flyToken}
+                  onChange={(event) => setFlyToken(event.target.value)}
+                  type="password"
+                  name="fly-org-token"
+                  autoComplete="off"
+                  required
+                />
               </label>
               <p className="muted">
                 there is no app to select yet, so the fly dashboard cannot create this token.
@@ -351,16 +378,62 @@ export function Wizard({ onLock }: WizardProps) {
                 it is used for this deploy and is not kept.
               </p>
               <label className="guideField">
+                fly app deploy token
+                <input
+                  value={flyAppToken}
+                  onChange={(event) => setFlyAppToken(event.target.value)}
+                  type="password"
+                  name="fly-app-token"
+                  autoComplete="off"
+                />
+              </label>
+              <p className="muted">
+                optional. if this app already exists, run <code>fly tokens create deploy -a {appName.trim() || "your-app"}</code> and paste that token.
+                it is stored on the app so instance settings can update without another step.
+                a brand-new app has nothing to select yet. leave this blank and add it under instance settings after the app exists.
+              </p>
+              <label className="guideField">
                 aura uri
-                <input value={neo4jUri} onChange={(event) => setNeo4jUri(event.target.value)} placeholder="neo4j+s://…" required />
+                <input
+                  value={neo4jUri}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setNeo4jUri(next);
+                    if (!neo4jUserEdited) {
+                      const instanceId = auraInstanceId(next);
+                      if (instanceId) setNeo4jUser(instanceId);
+                    }
+                  }}
+                  placeholder="neo4j+s://…"
+                  required
+                />
               </label>
               <label className="guideField">
                 aura user
-                <input value={neo4jUser} onChange={(event) => setNeo4jUser(event.target.value)} />
+                <input
+                  value={neo4jUser}
+                  onChange={(event) => {
+                    setNeo4jUserEdited(true);
+                    setNeo4jUser(event.target.value);
+                  }}
+                  name="aura-user"
+                  autoComplete="off"
+                />
               </label>
+              <p className="muted">
+                aura free's user is the instance id, the first part of the uri. pasting the uri fills that in.
+                aura pro's user is neo4j — change this field if that is yours.
+              </p>
               <label className="guideField">
                 aura password
-                <input value={neo4jPassword} onChange={(event) => setNeo4jPassword(event.target.value)} type="password" required />
+                <input
+                  value={neo4jPassword}
+                  onChange={(event) => setNeo4jPassword(event.target.value)}
+                  type="password"
+                  name="aura-password"
+                  autoComplete="new-password"
+                  required
+                />
               </label>
               <p className="muted">the aura password is used for this deploy and is not kept.</p>
             </>
@@ -398,7 +471,9 @@ export function Wizard({ onLock }: WizardProps) {
           ) : null}
           {tier === "self_hosted" ? (
             <p className="muted">
-              in-app updates stay off until you paste an app deploy token under instance settings. create that token after this app exists, and select this app. support is priced separately.
+              {flyAppToken.trim()
+                ? "in-app updates are on. instance settings can pull the latest image. support is priced separately."
+                : "in-app updates stay off until you paste an app deploy token under instance settings. create that token now that this app exists, and select this app. support is priced separately."}
             </p>
           ) : null}
         </div>

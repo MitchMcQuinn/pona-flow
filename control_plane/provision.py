@@ -13,7 +13,7 @@ from .db import Database
 from .fly import FlyClient, FlyError
 from .lifecycle import machine_awake
 from .machines import machine_config
-from .util import decrypt_secret, encrypt_secret, fleet_app_name, hash_token, new_id
+from .util import aura_instance_id, decrypt_secret, encrypt_secret, fleet_app_name, hash_token, new_id
 
 log = logging.getLogger("pona_flow.control_plane.provision")
 
@@ -84,6 +84,7 @@ class Provisioner:
         neo4j_password: str,
         admin_password: str,
         display_name: str | None,
+        fly_app_token: str = "",
     ) -> dict[str, Any]:
         app = app_name.strip().lower()
         public_url = f"https://{app}.fly.dev"
@@ -91,14 +92,19 @@ class Provisioner:
         fly.create_app(app)
         fly.allocate_public_ips(app)
         volume_id = fly.create_volume(app, region)
-        fly.set_secrets(
-            app,
-            {
-                "NEO4J_URI": neo4j_uri.strip(),
-                "NEO4J_USER": (neo4j_user or "neo4j").strip() or "neo4j",
-                "NEO4J_PASSWORD": neo4j_password,
-            },
-        )
+        user = (neo4j_user or "").strip()
+        if not user:
+            # Aura Free's user is the id in the host. Pro callers send neo4j.
+            user = aura_instance_id(neo4j_uri) or "neo4j"
+        secrets = {
+            "NEO4J_URI": neo4j_uri.strip(),
+            "NEO4J_USER": user,
+            "NEO4J_PASSWORD": neo4j_password.replace("\r", "").replace("\n", ""),
+        }
+        app_token = (fly_app_token or "").strip()
+        if app_token:
+            secrets["FLY_API_TOKEN"] = app_token
+        fly.set_secrets(app, secrets)
         config = machine_config(
             hosted=False,
             app=app,

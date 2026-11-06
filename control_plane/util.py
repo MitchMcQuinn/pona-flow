@@ -134,3 +134,24 @@ def valid_region(region: str) -> bool:
 def aura_uri_ok(uri: str) -> bool:
     text = (uri or "").strip()
     return text.startswith("neo4j+s://") or text.startswith("bolt+s://")
+
+
+def aura_instance_id(uri: str) -> str:
+    """First label of ``*.databases.neo4j.io``, or empty when the host is not Aura.
+
+    Aura Free uses this id as the database user. Aura Pro uses ``neo4j``.
+    """
+    text = (uri or "").strip()
+    if "://" not in text:
+        return ""
+    host = text.split("://", 1)[1].split("/")[0].split("?")[0].split("@")[-1]
+    if host.startswith("["):
+        return ""
+    host = host.split(":")[0]
+    suffix = ".databases.neo4j.io"
+    if not host.lower().endswith(suffix):
+        return ""
+    label = host[: -len(suffix)]
+    if not label or "." in label:
+        return ""
+    return label
