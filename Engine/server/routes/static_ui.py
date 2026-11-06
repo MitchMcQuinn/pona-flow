@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from fastapi.exceptions import HTTPException
 from fastapi.responses import FileResponse, Response
 
-from .. import config
+from .. import branding, config
 
 router = APIRouter()
 
@@ -36,6 +36,13 @@ def _serve_static_file(path: str) -> Response:
         raise HTTPException(404, "Not found")
     suffix = file_path.suffix.lower()
     content_type = _CONTENT_TYPES.get(suffix, "application/octet-stream")
+    if file_path.name == "index.html":
+        html = branding.with_tab_title(file_path.read_text(encoding="utf-8"))
+        return Response(
+            content=html,
+            media_type="text/html; charset=utf-8",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
     if suffix == ".html":
         cache_control = "no-cache, no-store, must-revalidate"
     elif "/ui/dist/assets/" in path:

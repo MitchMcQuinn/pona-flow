@@ -14,6 +14,7 @@ import {
   setUnauthorizedHandler
 } from "./services/authFetch";
 import { fetchAuthStatus, setResolvedAuthMode, type AuthStatus } from "./services/authMode";
+import { applyInstanceIcon, applyInstanceTitle } from "./services/tabChrome";
 import { LocalAuthContext } from "./services/clerkAuth";
 import { logout } from "./services/localAuth";
 import type { Me } from "./state/types";
@@ -182,6 +183,8 @@ function boot(): void {
   fetchAuthStatus()
     .then((status) => {
       setResolvedAuthMode(status.mode);
+      applyInstanceTitle(status.appName);
+      applyInstanceIcon(status.iconLabel);
       if (status.mode === "clerk") {
         const key =
           status.clerkPublishableKey ||

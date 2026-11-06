@@ -160,6 +160,9 @@ activemq-data/
 # Environments
 .env
 .envrc
+# Tab icon label written at the repo root when PONA_FLOW_DATA_DIR is unset.
+/tab-icon-label
+/.tab-icon-label.tmp
 .venv
 env/
 venv/

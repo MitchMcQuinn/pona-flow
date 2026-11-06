@@ -1590,6 +1590,18 @@ export async function fetchInstanceVersion(): Promise<InstanceVersion> {
   });
 }
 
+export type InstanceBranding = { app_name: string; icon_label: string };
+
+export async function fetchInstanceBranding(): Promise<InstanceBranding> {
+  return getJson<InstanceBranding>("/api/instance/branding", "Failed to load the tab icon", {
+    cache: "no-store"
+  });
+}
+
+export async function saveInstanceBranding(iconLabel: string): Promise<InstanceBranding> {
+  return postJson("/api/instance/branding", { icon_label: iconLabel }, "Failed to save the tab icon");
+}
+
 export async function saveInstanceUpdateCredentials(body: {
   fly_api_token?: string;
   fly_app_name?: string;

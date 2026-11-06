@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 
-from .. import auth, local_auth, rbac
+from .. import auth, branding, local_auth, rbac
 from ..auth import Principal
 from ..http_utils import bad_request, json_body
 
@@ -98,7 +98,9 @@ def _credentials_from(body: dict) -> tuple[str, str, str | None]:
 @router.get("/api/auth/status")
 def auth_status():
     """Unauthenticated: how the UI should boot (mode, setup needed, signup policy)."""
-    return local_auth.public_status()
+    status = local_auth.public_status()
+    status.update(branding.public_chrome())
+    return status
 
 
 @router.post("/api/auth/setup")

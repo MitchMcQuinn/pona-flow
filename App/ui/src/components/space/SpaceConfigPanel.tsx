@@ -17,6 +17,7 @@ import {
   timeZoneLabel
 } from "../../services/timezone";
 import { InstanceUpdates } from "../settings/InstanceUpdates";
+import { TabChromeSettings } from "../settings/TabChrome";
 import { ChatModelSettings } from "./ChatModelSettings";
 import { AgentsPanel } from "../agents/AgentsPanel";
 import { Toggle } from "../builder/Toggle";
@@ -503,6 +504,7 @@ export function SpaceConfigPanel({
                 {savingSpace ? "saving..." : "save changes"}
               </button>
             </div>
+            {me?.isSuperadmin ? <TabChromeSettings /> : null}
             {canManageSpace && spaceId ? (
               <div className="spaceResetCard">
                 <h3>reset</h3>

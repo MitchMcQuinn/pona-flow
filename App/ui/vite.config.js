@@ -40,6 +40,10 @@ export default defineConfig(function (_a) {
             proxy: {
                 // Keep the browser Host visible so the engine's CSRF check accepts Vite.
                 // Set VITE_API_PROXY to point this dev server at the control plane instead.
+                "/favicon.svg": {
+                    target: apiProxy,
+                    changeOrigin: false,
+                },
                 "/api": {
                     target: apiProxy,
                     changeOrigin: false,

@@ -17,6 +17,10 @@ export interface AuthStatus {
   openSignup: boolean;
   /** Clerk mode only: publishable key served by the backend. */
   clerkPublishableKey: string | null;
+  /** Fly app name. Empty when this process has none; the tab then says "pona flow". */
+  appName: string;
+  /** Short mark drawn in place of the rainbow wave. Empty keeps the wave. */
+  iconLabel: string;
 }
 
 let resolvedMode: AuthMode | null = null;
@@ -40,11 +44,15 @@ export async function fetchAuthStatus(): Promise<AuthStatus> {
     setup_required?: boolean;
     open_signup?: boolean;
     clerk_publishable_key?: string | null;
+    app_name?: string;
+    icon_label?: string;
   };
   return {
     mode: data.mode === "clerk" ? "clerk" : "local",
     setupRequired: Boolean(data.setup_required),
     openSignup: Boolean(data.open_signup),
-    clerkPublishableKey: data.clerk_publishable_key ?? null
+    clerkPublishableKey: data.clerk_publishable_key ?? null,
+    appName: typeof data.app_name === "string" ? data.app_name : "",
+    iconLabel: typeof data.icon_label === "string" ? data.icon_label : ""
   };
 }

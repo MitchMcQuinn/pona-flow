@@ -7,6 +7,7 @@ import {
   type InstanceUpdateStatus,
   type InstanceVersion
 } from "../../services/api";
+import { applyInstanceTitle } from "../../services/tabChrome";
 
 function shortSha(sha: string): string {
   return (sha || "").slice(0, 7) || "—";
@@ -49,6 +50,7 @@ export function InstanceUpdates() {
       if (token.trim()) body.fly_api_token = token.trim();
       if (appName.trim()) body.fly_app_name = appName.trim();
       await saveInstanceUpdateCredentials(body);
+      if (appName.trim()) applyInstanceTitle(appName);
       setToken("");
       await load();
     } catch (e) {

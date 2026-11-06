@@ -2938,6 +2938,24 @@ td {
   font-size: 14px;
 }
 
+.tabChromeTitle {
+  margin: 0 0 12px;
+  font-weight: 700;
+}
+
+.tabChromeRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.tabChromePreview {
+  width: 48px;
+  height: 48px;
+  flex: none;
+}
+
 .spaceResetCard p {
   margin: 0 0 10px;
 }

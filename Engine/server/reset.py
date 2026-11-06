@@ -88,6 +88,9 @@ def factory_reset() -> dict[str, Any]:
     for path in paths:
         _delete_all_entities(path)
     _wipe_catalog()
+    from . import branding
+
+    branding.clear_icon_label()
     return {"ok": True, "setup_required": local_auth.setup_required()}
 
 
