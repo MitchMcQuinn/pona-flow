@@ -147,8 +147,8 @@ export function InstanceUpdates() {
       {status && !status.fly_token_configured ? (
         <form className="instanceUpdateCreds" onSubmit={saveCredentials}>
           <p className="navUserMenuHint">
-            Paste a Fly deploy token to update from this menu. Create one under Fly → Account →
-            Access Tokens, or skip and run <code>{status.manual_hint}</code>.
+            Paste an app deploy token for this app to update from this menu. Create one under
+            Fly → Account → Access Tokens and select this app, or skip and run <code>{status.manual_hint}</code>.
           </p>
           <label className="field navUserMenuField">
             Fly app name

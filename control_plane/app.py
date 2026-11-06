@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from . import mail
 from .billing import StripeError, create_checkout, verify_event
 from .db import Database
-from .fly import FlyClient, urllib_transport
+from .fly import FlyClient, FlyError, urllib_transport
 from .guide import MAX_MESSAGE_CHARS, RateLimiter, default_complete, guide_reply
 from .lifecycle import (
     classify_code,
@@ -49,6 +49,35 @@ from .util import (
 )
 
 log = logging.getLogger("pona_flow.control_plane")
+
+
+def provision_failure_message(detail: str) -> str:
+    """Turn a Fly client error into a sentence the setup form can show."""
+    text = " ".join((detail or "").split())
+    lowered = text.lower()
+    if "already been taken" in lowered or "already taken" in lowered or "already exists" in lowered:
+        return "That app name is already taken on Fly. Choose a different name."
+    if (
+        "not authorized" in lowered
+        or "unauthorized" in lowered
+        or "http 401" in lowered
+        or "http 403" in lowered
+        or "organization was not found" in lowered
+    ):
+        return (
+            "This token cannot create a Fly app. Run fly tokens create org and paste only the token it prints. "
+            "The Fly dashboard asks you to pick an app, and this app does not exist yet."
+        )
+    if text and len(text) <= 240 and not any(word in lowered for word in ("secret", "password", "token", "bearer")):
+        return text
+    return "Could not configure the Fly app."
+
+
+def _fly_token(value: object) -> str:
+    token = str(value or "").strip()
+    if len(token) >= 2 and token[0] == token[-1] and token[0] in {'"', "'"}:
+        token = token[1:-1].strip()
+    return token
 
 COOKIE = "pf_start"
 PUBLIC_INSTANCE_FIELDS = (
@@ -313,11 +342,11 @@ def create_app(
                 raise HTTPException(400, "App name: lowercase letters, numbers, and hyphens.")
             if not password:
                 raise HTTPException(400, "Enter your password so we can create the admin account.")
-            fly_token = str(body.get("fly_token") or "")
+            fly_token = _fly_token(body.get("fly_token"))
             neo4j_uri = str(body.get("neo4j_uri") or "")
             neo4j_password = str(body.get("neo4j_password") or "")
             if not fly_token or not neo4j_password or not aura_uri_ok(neo4j_uri):
-                raise HTTPException(400, "A Fly token and an Aura URI and password are required.")
+                raise HTTPException(400, "A Fly org token and an Aura URI and password are required.")
             try:
                 row = provisioner.provision_self_hosted(
                     account=account,
@@ -330,6 +359,10 @@ def create_app(
                     admin_password=password,
                     display_name=str(display_name or "") or None,
                 )
+            except FlyError as exc:
+                message = provision_failure_message(str(exc))
+                log.info("self-hosted provision failed: %s", message)
+                raise HTTPException(502, message) from exc
             except Exception as exc:
                 log.info("self-hosted provision failed: %s", exc.__class__.__name__)
                 raise HTTPException(502, "Could not configure the Fly app.") from exc

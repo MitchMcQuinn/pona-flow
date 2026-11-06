@@ -30,7 +30,7 @@ it is not mixed with anyone else's.
 | Edition | How |
 |---------|-----|
 | **Local** | Fork [the GitHub repo](https://github.com/MitchMcQuinn/pona-flow) and host it yourself ([SELF-HOSTING.md](SELF-HOSTING.md)). Support is priced separately. |
-| **Self-hosted** | In the guide chat, choose Get started and provide your Fly.io account and Aura database. Support is priced separately. |
+| **Self-hosted** | In the guide chat, choose Get started. Create a Fly org token with `fly tokens create org` (the dashboard asks you to pick an app, and the app does not exist yet) and provide your Aura database. Support is priced separately. |
 | **Hosted Basic** | Get started subscribes you, then we run the app and Neo4j Community. You can export and leave. |
 | **Hosted Business** | Coming soon (Aura). |
 | **Sandbox** | Enter the code `sandbox` in Get started for a 7-day preview on your own graph. |

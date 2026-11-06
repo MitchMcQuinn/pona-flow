@@ -223,21 +223,23 @@ export function Wizard({ onLock }: WizardProps) {
     <div className="guideWizard">
       {error ? <p className="errorText">{error}</p> : null}
       {phase === "account" ? (
-        <form onSubmit={(event) => void submitAccount(event)}>
-          <h2>{login ? "Sign in" : "Create your account"}</h2>
-          <p className="muted">This account is also the first admin on the instance.</p>
+        <form className="guideAccountForm" onSubmit={(event) => void submitAccount(event)}>
+          <h2>{login ? "sign in" : "create your account"}</h2>
+          {!login ? (
+            <p className="muted">this account is also the first admin on the instance.</p>
+          ) : null}
           <label className="guideField">
-            Email
+            email
             <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required />
           </label>
           {!login ? (
             <label className="guideField">
-              Display name
+              display name
               <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
             </label>
           ) : null}
           <label className="guideField">
-            Password
+            password
             <input
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -247,11 +249,11 @@ export function Wizard({ onLock }: WizardProps) {
             />
           </label>
           <button className="btnPrimary" type="submit" disabled={busy}>
-            {busy ? "Working..." : "Continue"}
+            {busy ? "working..." : "continue"}
           </button>
           <p>
             <button type="button" onClick={() => setLogin((value) => !value)}>
-              {login ? "Need an account?" : "Already have an account?"}
+              {login ? "need an account?" : "already have an account?"}
             </button>
           </p>
         </form>
@@ -270,7 +272,7 @@ export function Wizard({ onLock }: WizardProps) {
             </article>
             <article className="guideCard">
               <h3>Self-hosted</h3>
-              <p>Your Fly.io account and your Aura database. We configure the instance. Support is priced separately.</p>
+              <p>Your Fly.io account and your Aura database. Get started creates the Fly app with an org token. Support is priced separately.</p>
               <button type="button" onClick={() => choose("self_hosted")}>Continue</button>
             </article>
             <article className="guideCard">
@@ -340,9 +342,14 @@ export function Wizard({ onLock }: WizardProps) {
           {tier === "self_hosted" ? (
             <>
               <label className="guideField">
-                Fly deploy token
+                Fly org token
                 <input value={flyToken} onChange={(event) => setFlyToken(event.target.value)} type="password" required />
               </label>
+              <p className="muted">
+                There is no app to select yet, so the Fly dashboard cannot create this token.
+                Run <code>fly tokens create org</code> and paste only the token it prints.
+                It is used for this deploy and is not kept.
+              </p>
               <label className="guideField">
                 Aura URI
                 <input value={neo4jUri} onChange={(event) => setNeo4jUri(event.target.value)} placeholder="neo4j+s://…" required />
@@ -355,7 +362,7 @@ export function Wizard({ onLock }: WizardProps) {
                 Aura password
                 <input value={neo4jPassword} onChange={(event) => setNeo4jPassword(event.target.value)} type="password" required />
               </label>
-              <p className="muted">The token and Aura password are used for this deploy and are not kept.</p>
+              <p className="muted">The Aura password is used for this deploy and is not kept.</p>
             </>
           ) : (
             <p className="muted">
@@ -391,7 +398,7 @@ export function Wizard({ onLock }: WizardProps) {
           ) : null}
           {tier === "self_hosted" ? (
             <p className="muted">
-              In-app updates stay off until you paste a Fly token under Instance settings. Support is priced separately.
+              In-app updates stay off until you paste an app deploy token under Instance settings. Create that token after this app exists, and select this app. Support is priced separately.
             </p>
           ) : null}
         </div>

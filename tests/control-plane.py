@@ -20,7 +20,8 @@ sys.path.insert(0, str(ROOT / "Engine"))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from control_plane.app import create_app  # noqa: E402
+from control_plane.app import create_app, provision_failure_message  # noqa: E402
+from control_plane.fly import FlyError  # noqa: E402
 from control_plane.billing import sign_payload  # noqa: E402
 from control_plane.db import Database  # noqa: E402
 from control_plane.lifecycle import should_delete, upgrade_fields  # noqa: E402
@@ -209,6 +210,35 @@ class ControlPlaneTest(unittest.TestCase):
         env = self.fly.config["env"]
         self.assertNotIn("NEO4J_PASSWORD", env)
         self.assertNotIn("FLY_API_TOKEN", env)
+
+    def test_self_hosted_reports_a_taken_fly_name(self) -> None:
+        def reject(name: str) -> None:
+            raise FlyError("Fly GraphQL failed: Validation failed: Name has already been taken")
+
+        self.fly.create_app = reject
+        client = TestClient(self._app())
+        self._account(client)
+        response = client.post(
+            "/api/instances",
+            json={
+                "tier": "self_hosted",
+                "app_name": "ada-flow",
+                "region": "iad",
+                "password": ADMIN_PASSWORD,
+                "fly_token": f"  {FLY_TOKEN}  ",
+                "neo4j_uri": "neo4j+s://example.databases.neo4j.io",
+                "neo4j_user": "neo4j",
+                "neo4j_password": AURA_PASSWORD,
+            },
+        )
+        self.assertEqual(response.status_code, 502, response.text)
+        self.assertIn("already taken", response.text)
+        self.assertNotIn(FLY_TOKEN, response.text)
+        self.assertIn("fly tokens create org", provision_failure_message("Fly request failed (HTTP 401)"))
+        self.assertEqual(
+            provision_failure_message("something unexpected"),
+            "something unexpected",
+        )
 
     def test_events_keep_sandbox_awake_until_day_seven_then_upgrade_and_delete(self) -> None:
         account = self.db.create_account("ada@example.com", hash_password(ADMIN_PASSWORD), "Ada")

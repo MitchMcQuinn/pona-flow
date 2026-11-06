@@ -34,7 +34,7 @@ Full guide: [Docs/SELF-HOSTING.md](Docs/SELF-HOSTING.md). Dev from source: [Docs
 
 ### Self-hosted (Fly + Aura)
 
-Get started asks for a Fly deploy token and the Aura URI, user, and password, then deploys `ghcr.io/mitchmcquinn/pona-flow:main` into your Fly account. The token and Aura password are not stored. You can paste a deploy token later under Instance settings if you want in-app updates.
+Get started asks for a Fly org token and the Aura URI, user, and password, then deploys `ghcr.io/mitchmcquinn/pona-flow:main` into your Fly account. Create the token with `fly tokens create org` and paste only that token. The Fly dashboard cannot mint it yet: an app deploy token requires an app, and Get started is what creates the app. The org token and Aura password are not stored. After the app exists, paste an app deploy token under Instance settings if you want in-app updates.
 
 The same deploy from a terminal, if you prefer not to send the token through Get started:
 
