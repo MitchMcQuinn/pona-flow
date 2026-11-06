@@ -91,7 +91,7 @@ export function TableModule({ data }: ModuleViewProps) {
   if (model.columns.length === 0) {
     return (
       <Text size="sm" c="dimmed">
-        No rows
+        no rows
       </Text>
     )
   }

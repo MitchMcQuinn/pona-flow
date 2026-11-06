@@ -54,7 +54,7 @@ export function ConsoleConfigPreview({
         {triggerEventId ? (
           <ConfigField target="trigger_event" label="trigger event" value={triggerEventId} />
         ) : null}
-        {modules.length === 0 ? <p className="muted">This console has no modules yet.</p> : null}
+        {modules.length === 0 ? <p className="muted">this console has no modules yet.</p> : null}
         {modules.map((module) => (
           <section key={module.id} className="builderCard" data-pin-target={module.id}>
             <h2>{module.title || module.type}</h2>
@@ -112,7 +112,7 @@ function KindPreview({ spaceId, item, sequences }: ConfigPreviewProps) {
     return (
       <ConfigPanel title="another workspace">
         <p className="muted">
-          This instance already has its workspace, so this change cannot be applied.
+          this instance already has its workspace, so this change cannot be applied.
         </p>
         <ConfigField target="name" label="name" value={text(payload.name)} />
         <ConfigField target="description" label="description" value={text(payload.description)} />
@@ -209,7 +209,7 @@ function RecordConfig({ title, record }: { title: string; record: Record<string,
   const rows = Object.entries(record).filter(([, value]) => value != null && value !== "");
   return (
     <ConfigPanel title={title}>
-      {rows.length === 0 ? <p className="muted">No configuration on this item.</p> : null}
+      {rows.length === 0 ? <p className="muted">no configuration on this item.</p> : null}
       {rows.map(([key, value]) => (
         <ConfigField key={key} target={key} label={key.replace(/_/g, " ")} value={fieldValue(value)} multiline />
       ))}
@@ -409,7 +409,7 @@ function consoleModules(document: Record<string, unknown>): Array<{
       modules.push({
         id: text(record.id) || `form-${viewIndex}`,
         type: "form",
-        title: text(record.name) || "Form",
+        title: text(record.name) || "form",
         dataSequenceId: text(record.dataSequenceId),
         actionSequenceId: text(record.actionSequenceId),
         fields: formFieldSummary(record.fields)
@@ -510,7 +510,7 @@ class PreviewBoundary extends Component<{ children: ReactNode; resetKey: string 
   state = { error: null as string | null };
 
   static getDerivedStateFromError(error: Error) {
-    return { error: error.message || "This configuration could not be shown." };
+    return { error: error.message || "this configuration could not be shown." };
   }
 
   componentDidUpdate(previous: { resetKey: string }) {

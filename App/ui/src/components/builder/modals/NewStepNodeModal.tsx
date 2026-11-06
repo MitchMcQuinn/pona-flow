@@ -36,7 +36,7 @@ export function NewStepNodeModal({ onCancel, onSave }: NewStepNodeModalProps) {
             aria-label="attributive_label"
             autoFocus
             value={value}
-            placeholder="Label"
+            placeholder="label"
             onChange={(e) => {
               setValue(sanitizeAttributiveLabelInput(e.target.value));
               setError(null);
@@ -46,7 +46,7 @@ export function NewStepNodeModal({ onCancel, onSave }: NewStepNodeModalProps) {
             }}
           />
           <span className="builderCheckMsg">
-            Enter a literal attributive_label (letters, digits, spaces).
+            enter a literal attributive_label (letters, digits, spaces).
           </span>
         </div>
         {error ? <p className="builderCheckMsg error">{error}</p> : null}
@@ -57,10 +57,10 @@ export function NewStepNodeModal({ onCancel, onSave }: NewStepNodeModalProps) {
             data-testid="modal-cancel-btn"
             onClick={onCancel}
           >
-            Cancel
+            cancel
           </button>
           <button type="button" data-testid="modal-confirm-btn" onClick={save}>
-            Save
+            save
           </button>
         </div>
       </div>

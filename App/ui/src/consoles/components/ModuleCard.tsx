@@ -60,16 +60,16 @@ export const ModuleCard = memo(function ModuleCard({
     if (useSequence && !module.actionSequenceId.trim()) {
       notifications.show({
         color: 'yellow',
-        title: 'No action sequence',
-        message: 'Choose an action sequence before posting a change.',
+        title: 'no action sequence',
+        message: 'choose an action sequence before posting a change.',
       })
       return false
     }
     if (!useSequence && !module.actionUrl.trim()) {
       notifications.show({
         color: 'yellow',
-        title: 'No action URL',
-        message: 'Set an action URL before posting a change.',
+        title: 'no action URL',
+        message: 'set an action URL before posting a change.',
       })
       return false
     }
@@ -97,14 +97,14 @@ export const ModuleCard = memo(function ModuleCard({
           value,
         })
       }
-      notifications.show({ color: 'teal', title: useSequence ? 'Ran' : 'Posted', message: module.title })
+      notifications.show({ color: 'teal', title: useSequence ? 'ran' : 'posted', message: module.title })
       refetch()
       return true
     } catch (reason) {
       notifications.show({
         color: 'red',
-        title: 'Post failed',
-        message: reason instanceof Error ? reason.message : 'Request failed',
+        title: 'post failed',
+        message: reason instanceof Error ? reason.message : 'request failed',
       })
       return false
     } finally {
@@ -118,8 +118,8 @@ export const ModuleCard = memo(function ModuleCard({
           if (!module.actionSequenceId.trim()) {
             notifications.show({
               color: 'yellow',
-              title: 'No action sequence',
-              message: 'Choose an action sequence before posting a change.',
+              title: 'no action sequence',
+              message: 'choose an action sequence before posting a change.',
             })
             throw new Error('no action sequence')
           }
@@ -139,7 +139,7 @@ export const ModuleCard = memo(function ModuleCard({
               }),
             })
             if (outcome.status === 'inactive') {
-              notifications.show({ color: 'teal', title: 'Ran', message: module.title })
+              notifications.show({ color: 'teal', title: 'ran', message: module.title })
               if (module.config.autoRefresh !== false) onConsoleRefresh()
               else refetch()
               return { status: 'inactive' }
@@ -148,8 +148,8 @@ export const ModuleCard = memo(function ModuleCard({
           } catch (reason) {
             notifications.show({
               color: 'red',
-              title: 'Post failed',
-              message: reason instanceof Error ? reason.message : 'Request failed',
+              title: 'post failed',
+              message: reason instanceof Error ? reason.message : 'request failed',
             })
             throw reason
           } finally {
@@ -196,15 +196,15 @@ export const ModuleCard = memo(function ModuleCard({
       >
         {!definition || !View ? (
           <Text size="sm" c="dimmed">
-            Unknown module type “{module.type}”.
+            unknown module type “{module.type}”.
           </Text>
         ) : loading && data == null ? (
           <Skeleton height="70%" mih={48} />
         ) : showEmpty ? (
           <Text size="sm" c="dimmed">
             {module.dataSource === 'sequence'
-              ? 'Choose a data sequence for this module.'
-              : 'Set a data URL for this module.'}
+              ? 'choose a data sequence for this module.'
+              : 'set a data URL for this module.'}
           </Text>
         ) : (
           <>
@@ -235,7 +235,7 @@ class ModuleViewBoundary extends Component<{ children: ReactNode }, { error: str
   state = { error: null as string | null }
 
   static getDerivedStateFromError(error: unknown) {
-    return { error: error instanceof Error ? error.message : 'This module could not render.' }
+    return { error: error instanceof Error ? error.message : 'this module could not render.' }
   }
 
   render() {

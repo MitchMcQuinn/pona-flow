@@ -24,7 +24,7 @@ describe("visualization: design graph", () => {
 
     cy.get(".panel.vizPanel", { timeout: 30_000 }).should("be.visible");
     cy.get(".designGraphView", { timeout: 30_000 }).should("be.visible");
-    cy.contains(".designGraphView .muted", "Design graph for").should("be.visible");
+    cy.contains(".designGraphView .muted", "design graph for").should("be.visible");
     cy.get(".designGraphView .graphViewContainer").should("exist");
     cy.get('[data-testid="graph-view-container"]').should("be.visible");
   });

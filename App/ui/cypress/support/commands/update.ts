@@ -20,14 +20,14 @@ Cypress.Commands.add(
 Cypress.Commands.add(
   "setInstanceProperty",
   (propertyName: string, value: string) => {
-    cy.contains(".builderSection h3", "Set (update)")
+    cy.contains(".builderSection h3", "set (update)")
       .closest(".builderSection")
       .within(() => {
         cy.contains("button", "+ assignment").click();
       });
 
     // Newest assignment row is the last `.builderItemRow` in the SET section.
-    cy.contains(".builderSection h3", "Set (update)")
+    cy.contains(".builderSection h3", "set (update)")
       .closest(".builderSection")
       .find(".builderItemRow")
       .last()
@@ -40,7 +40,7 @@ Cypress.Commands.add(
       });
     cy.get('[data-testid="builder-picker-menu"]').find("button.builderPickerItem").first().click();
 
-    cy.contains(".builderSection h3", "Set (update)")
+    cy.contains(".builderSection h3", "set (update)")
       .closest(".builderSection")
       .find(".builderItemRow")
       .last()
@@ -54,7 +54,7 @@ Cypress.Commands.add(
       .contains("button.builderPickerItem", propertyName)
       .click();
 
-    cy.contains(".builderSection h3", "Set (update)")
+    cy.contains(".builderSection h3", "set (update)")
       .closest(".builderSection")
       .find(".builderItemRow")
       .last()

@@ -20,7 +20,7 @@ function AdvancedOptionsAccordion({ children }: { children: ReactNode }) {
         <span className="builderStepParamsChevron" aria-hidden>
           ▸
         </span>
-        <span>Advanced options</span>
+        <span>advanced options</span>
       </button>
 
       {open ? <div className="builderStepParamsBody">{children}</div> : null}

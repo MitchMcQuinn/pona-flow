@@ -169,7 +169,7 @@ function AddGroupForm({
       <input
         ref={inputRef}
         value={title}
-        placeholder="Group title"
+        placeholder="group title"
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") save();
@@ -178,13 +178,13 @@ function AddGroupForm({
       />
       <div className="navAddGroupActions">
         <button type="button" className="tinyBtn" onClick={onClose}>
-          Cancel
+          cancel
         </button>
         <button type="button" className="tinyBtn" disabled={!canSave} onClick={save}>
-          Add
+          add
         </button>
       </div>
-      {duplicate ? <span className="errorText">Group already exists.</span> : null}
+      {duplicate ? <span className="errorText">group already exists.</span> : null}
     </div>
   );
 }
@@ -238,8 +238,8 @@ export function PlainNavItem({
       {!reorder.touch ? (
         <span
           className="sequenceDragHandle"
-          aria-label="Drag to reorder"
-          title="Drag to reorder"
+          aria-label="drag to reorder"
+          title="drag to reorder"
           onPointerDown={drag.armItemHandle}
         >
           <DragHandleIcon />
@@ -253,7 +253,7 @@ export function PlainNavItem({
           <button
             className="tinyBtn tinyBtnIcon"
             type="button"
-            aria-label={`Move ${label} up`}
+            aria-label={`move ${label} up`}
             disabled={!reorder.canMove(id, -1)}
             onClick={() => reorder.moveSequence(id, -1)}
           >
@@ -262,7 +262,7 @@ export function PlainNavItem({
           <button
             className="tinyBtn tinyBtnIcon"
             type="button"
-            aria-label={`Move ${label} down`}
+            aria-label={`move ${label} down`}
             disabled={!reorder.canMove(id, 1)}
             onClick={() => reorder.moveSequence(id, 1)}
           >
@@ -271,7 +271,7 @@ export function PlainNavItem({
           {reorder.groupOptions.length > 1 ? (
             <select
               className="navMoveToGroup"
-              aria-label={`Move ${label} to group`}
+              aria-label={`move ${label} to group`}
               value={groupTitle?.trim() || UNGROUPED_LABEL}
               onChange={(e) => reorder.moveToGroup(id, e.target.value)}
             >
@@ -642,15 +642,15 @@ export function GroupedNav<T extends GroupableNavItem>({
               data-testid={reorderTestId}
               onClick={() => setReordering((on) => !on)}
             >
-              {reordering ? "Done" : "Reorder"}
+              {reordering ? "done" : "reorder"}
             </button>
           ) : null}
           <button
             type="button"
             className="navAddGroupIcon"
             data-testid={groupTestId}
-            aria-label="New group"
-            title="New group"
+            aria-label="new group"
+            title="new group"
             onClick={() => setAddingGroup(true)}
           >
             <NewGroupIcon />
@@ -713,8 +713,8 @@ export function GroupedNav<T extends GroupableNavItem>({
                     {!reorder.touch ? (
                       <span
                         className="navGroupDragHandle"
-                        aria-label="Drag to reorder group"
-                        title="Drag to reorder group"
+                        aria-label="drag to reorder group"
+                        title="drag to reorder group"
                         onPointerDown={drag.armGroupHandle}
                       >
                         <DragHandleIcon />
@@ -740,7 +740,7 @@ export function GroupedNav<T extends GroupableNavItem>({
                         <button
                           type="button"
                           className="tinyBtn tinyBtnIcon"
-                          aria-label={`Move group ${group.title} up`}
+                          aria-label={`move group ${group.title} up`}
                           disabled={!reorder.canMoveGroup(group.title, -1)}
                           onClick={() => reorder.moveGroup(group.title, -1)}
                         >
@@ -749,7 +749,7 @@ export function GroupedNav<T extends GroupableNavItem>({
                         <button
                           type="button"
                           className="tinyBtn tinyBtnIcon"
-                          aria-label={`Move group ${group.title} down`}
+                          aria-label={`move group ${group.title} down`}
                           disabled={!reorder.canMoveGroup(group.title, 1)}
                           onClick={() => reorder.moveGroup(group.title, 1)}
                         >
@@ -760,8 +760,8 @@ export function GroupedNav<T extends GroupableNavItem>({
                       <button
                         type="button"
                         className="tinyBtn tinyBtnIcon danger navGroupDeleteBtn"
-                        aria-label={`Delete group ${group.title}`}
-                        title="Delete group"
+                        aria-label={`delete group ${group.title}`}
+                        title="delete group"
                         onClick={() => onDeleteGroup(group.title)}
                       >
                         <DeleteIcon />

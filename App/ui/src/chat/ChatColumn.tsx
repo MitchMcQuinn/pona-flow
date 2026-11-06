@@ -141,15 +141,15 @@ export function ChatColumn({
   }, []);
 
   return (
-    <section className="chatColumn" aria-label="Chat">
+    <section className="chatColumn" aria-label="chat">
       <header className="columnHead chatHeader">
         <h1 className="chatTitle">chat</h1>
         <div className="chatHeaderActions">
           <button
             type="button"
             className="navAddBtn"
-            aria-label="New thread"
-            title="New thread"
+            aria-label="new thread"
+            title="new thread"
             onClick={() => {
               onNewThread();
               setDrawerOpen(false);
@@ -160,8 +160,8 @@ export function ChatColumn({
           <button
             type="button"
             className="chatHistoryBtn"
-            aria-label="Threads"
-            title="Threads"
+            aria-label="threads"
+            title="threads"
             aria-haspopup="dialog"
             aria-expanded={drawerOpen}
             onClick={() => setDrawerOpen((open) => !open)}
@@ -169,32 +169,35 @@ export function ChatColumn({
             <HistoryIcon />
           </button>
         </div>
-        {drawerOpen ? (
-          <div className="chatDrawer" role="dialog" aria-label="Threads">
-            <ul className="chatThreadList">
-              {threads.length === 0 ? <li className="muted">No saved threads yet.</li> : null}
-              {threads.map((thread) => (
-                <li key={thread.id}>
-                  <button
-                    type="button"
-                    className={thread.id === threadId ? "active" : undefined}
-                    onClick={() => {
-                      void onOpenThread(thread.id);
-                      setDrawerOpen(false);
-                    }}
-                  >
-                    {thread.title || "Untitled"}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+        <div
+          className="chatDrawer"
+          role="dialog"
+          aria-label="threads"
+          aria-hidden={!drawerOpen}
+        >
+          <ul className="chatThreadList">
+            {threads.length === 0 ? <li className="muted">no saved threads yet.</li> : null}
+            {threads.map((thread) => (
+              <li key={thread.id}>
+                <button
+                  type="button"
+                  className={thread.id === threadId ? "active" : undefined}
+                  onClick={() => {
+                    void onOpenThread(thread.id);
+                    setDrawerOpen(false);
+                  }}
+                >
+                  {thread.title || "untitled"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </header>
       <div className="chatTranscript panel__body" ref={transcriptRef} onScroll={onTranscriptScroll}>
         <div className="chatTranscriptInner" ref={contentRef}>
         {messages.length === 0 ? (
-          <p className="muted">Ask for a console, a change, or an explanation of this space.</p>
+          <p className="muted">ask for a console, a change, or an explanation of this space.</p>
         ) : null}
         {messages.map((message) => {
           if (message.role === "user" && isFollowUp(message.content)) return null;
@@ -249,7 +252,7 @@ export function ChatColumn({
                 </p>
                 {message.batch.items.some((item) => item.kind === "create_space") ? (
                   <p className="muted">
-                    This instance already has its workspace, so this change cannot be applied.
+                    this instance already has its workspace, so this change cannot be applied.
                   </p>
                 ) : null}
                 <div className="buttonRow">
@@ -261,22 +264,22 @@ export function ChatColumn({
                     }
                     onClick={onAccept}
                   >
-                    Accept
+                    accept
                   </button>
                   <button type="button" disabled={batchBusy} onClick={onReject}>
-                    Reject
+                    reject
                   </button>
                 </div>
               </div>
             ) : null}
             {message.batch && message.batch.status !== "pending" ? (
               <p className="muted">
-                Change {message.batch.status}.
+                change {message.batch.status}.
                 {message.batch.result?.failed
                   ? ` ${message.batch.result.failed.summary || message.batch.result.failed.kind} failed: ${message.batch.result.failed.error}`
                   : ""}
                 {message.batch.result?.not_applied?.length
-                  ? ` Not applied: ${message.batch.result.not_applied
+                  ? ` not applied: ${message.batch.result.not_applied
                       .map((item) => item.summary || item.kind)
                       .join(", ")}.`
                   : ""}
@@ -299,9 +302,9 @@ export function ChatColumn({
       </div>
       {queued ? (
         <div className="chatQueue">
-          <p>Waiting until you accept or reject: {queued}</p>
+          <p>waiting until you accept or reject: {queued}</p>
           <button type="button" onClick={onClearQueue}>
-            Remove
+            remove
           </button>
         </div>
       ) : null}
@@ -315,8 +318,8 @@ export function ChatColumn({
         <textarea
           value={draft}
           rows={3}
-          placeholder="Message"
-          aria-label="Message"
+          placeholder="message"
+          aria-label="message"
           onChange={(event) => onDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -326,7 +329,7 @@ export function ChatColumn({
           }}
         />
         <button type="submit" className="btnPrimary" disabled={streaming || !draft.trim()}>
-          Send
+          send
         </button>
       </form>
     </section>

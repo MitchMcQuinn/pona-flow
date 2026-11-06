@@ -33,7 +33,7 @@ interface ReadReturnProjectionRowProps {
   onRemove: () => void;
 }
 
-const ADD_PARAMETER_ACTION_LABEL = "+ ADD A PARAMETER";
+const ADD_PARAMETER_ACTION_LABEL = "+ add a parameter";
 const DEFAULT_COMPARISON_OPERATOR: WhereComparisonOperator = "=";
 
 export function ReadReturnProjectionRow({
@@ -139,7 +139,7 @@ export function ReadReturnProjectionRow({
             emptyHint={
               bindings.length
                 ? undefined
-                : "Set attributive_label on MATCH nodes and relationships first."
+                : "set attributive_label on MATCH nodes and relationships first."
             }
           />
         </div>
@@ -174,7 +174,7 @@ export function ReadReturnProjectionRow({
                 binding
                   ? propertyKeys.length
                     ? undefined
-                    : "No properties found on graph for this schema."
+                    : "no properties found on graph for this schema."
                   : undefined
               }
             />
@@ -272,21 +272,21 @@ export function ReadReturnProjectionRow({
           {!aliasError && aliasMissing ? (
             <span className="builderCheckMsg error">
               {resolved.count_mode
-                ? "A count projection needs an alias."
-                : "A boolean projection needs an alias."}
+                ? "a count projection needs an alias."
+                : "a boolean projection needs an alias."}
             </span>
           ) : null}
         </div>
       </div>
       {resolved.path_variable && resolved.property_key && item.expression ? (
         <p className="builderCheckMsg muted" style={{ marginTop: 4, fontSize: 11 }}>
-          Cypher: <span className="builderMono">{item.expression}</span>
+          cypher: <span className="builderMono">{item.expression}</span>
           {schemaIsParameter || propertyIsParameter ? " (parameterized — not schema-bound)" : ""}
         </p>
       ) : null}
       <div className="builderRowActions">
         <button type="button" className="builderTinyBtn builderDanger" onClick={onRemove}>
-          Remove
+          remove
         </button>
       </div>
       {showSchemaParamModal ? (

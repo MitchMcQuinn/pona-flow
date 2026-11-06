@@ -39,13 +39,13 @@ export function OperationDeleteSuspendModal({
 
         {dependents.length ? (
           <p style={{ margin: "0 0 10px" }}>
-            This removes the one-step sequence and its STEP. These multi-step sequences
+            this removes the one-step sequence and its STEP. these multi-step sequences
             still reference that STEP and will be <strong>suspended</strong> (they cannot run)
             until they are resaved with a valid STEP chain.
           </p>
         ) : (
           <p style={{ margin: "0 0 10px" }}>
-            This deletes the one-step sequence and its STEP node. No other sequences
+            this deletes the one-step sequence and its STEP node. no other sequences
             reference it.
           </p>
         )}
@@ -53,7 +53,7 @@ export function OperationDeleteSuspendModal({
         {dependents.length ? (
           <div className="builderFormFieldset">
             <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
-              Sequences to be suspended:
+              sequences to be suspended:
             </p>
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
               {dependents.map((seq) => (
@@ -73,7 +73,7 @@ export function OperationDeleteSuspendModal({
             disabled={busy}
             onClick={onCancel}
           >
-            Cancel
+            cancel
           </button>
           <button
             type="button"
@@ -82,7 +82,7 @@ export function OperationDeleteSuspendModal({
             disabled={busy}
             onClick={onConfirm}
           >
-            {busy ? "Deleting…" : dependents.length ? "Delete & suspend" : "Delete"}
+            {busy ? "deleting…" : dependents.length ? "delete & suspend" : "delete"}
           </button>
         </div>
       </div>

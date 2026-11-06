@@ -25,7 +25,7 @@ export function ElementConfig({ clauseIndex, label, operation }: ElementConfigPr
   if (!selected) {
     return (
       <div className="matchElementConfig matchElementConfigEmpty">
-        Select a node or relationship to edit it.
+        select a node or relationship to edit it.
       </div>
     );
   }
@@ -40,7 +40,7 @@ export function ElementConfig({ clauseIndex, label, operation }: ElementConfigPr
     if (!gn || element?.kind !== "node") {
       return (
         <div className="matchElementConfig matchElementConfigEmpty">
-          Select a node or relationship to edit it.
+          select a node or relationship to edit it.
         </div>
       );
     }
@@ -56,7 +56,7 @@ export function ElementConfig({ clauseIndex, label, operation }: ElementConfigPr
         {canRemoveNode ? (
           <div className="matchElementConfigHead">
             <button type="button" className="builderTinyBtn builderDanger" onClick={removeNode}>
-              Remove node
+              remove node
             </button>
           </div>
         ) : null}
@@ -78,7 +78,7 @@ export function ElementConfig({ clauseIndex, label, operation }: ElementConfigPr
   if (!ge || relElement?.kind !== "relationship") {
     return (
       <div className="matchElementConfig matchElementConfigEmpty">
-        Select a node or relationship to edit it.
+        select a node or relationship to edit it.
       </div>
     );
   }
@@ -90,7 +90,7 @@ export function ElementConfig({ clauseIndex, label, operation }: ElementConfigPr
     <div className="matchElementConfig">
       <div className="matchElementConfigHead">
         <button type="button" className="builderTinyBtn builderDanger" onClick={removeRelationship}>
-          Remove relationship
+          remove relationship
         </button>
       </div>
       <RelPathEntry

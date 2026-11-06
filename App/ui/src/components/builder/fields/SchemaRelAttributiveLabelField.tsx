@@ -96,8 +96,8 @@ export function SchemaRelAttributiveLabelField({
         placeholder="(select relationship type)"
         options={options}
         createActions={[
-          { label: "+ ADD NEW RELATIONSHIP", onClick: () => setShowModal(true) },
-          { label: "+ ADD A PARAMETER", onClick: () => setShowParamModal(true) }
+          { label: "+ add new relationship", onClick: () => setShowModal(true) },
+          { label: "+ add a parameter", onClick: () => setShowParamModal(true) }
         ]}
         onSelect={(value) => {
           if (!attributiveLabelChanged(attributiveLabel, value)) return;
@@ -105,8 +105,8 @@ export function SchemaRelAttributiveLabelField({
           if (rec) onSelectExisting(rec);
         }}
         disabled={disabled}
-        title={disabled ? "Locked because this entry has an alias." : undefined}
-        emptyHint="No SCHEMA relationship types in both the graph and this space's label catalog."
+        title={disabled ? "locked because this entry has an alias." : undefined}
+        emptyHint="no SCHEMA relationship types in both the graph and this space's label catalog."
       />
       {showModal ? (
         <NewStepNodeModal

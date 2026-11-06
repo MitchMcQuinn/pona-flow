@@ -7,10 +7,7 @@ export function SignedOutLayout({ children }: { children: ReactNode }) {
     <div className="appRoot signedOutRoot">
       <div className="signedOutChat">{children}</div>
       <div className="signedOutDivider" aria-hidden="true" />
-      <section className="panel canvasStack signedOutCanvas" aria-label="Canvas">
-        <div className="canvasTabs" role="tablist">
-          <span className="muted">Canvas</span>
-        </div>
+      <section className="panel canvasStack signedOutCanvas" aria-label="canvas">
         <div className="panel__body canvasBody">
           <AgentFace />
         </div>

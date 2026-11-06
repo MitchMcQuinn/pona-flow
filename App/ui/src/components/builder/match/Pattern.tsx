@@ -161,7 +161,7 @@ export function Pattern({
             className="builderTinyBtn builderDanger"
             onClick={() => patchQuery(removePattern(clauseIndex, patternIndex))}
           >
-            Remove pattern
+            remove pattern
           </button>
         ) : null}
       </div>

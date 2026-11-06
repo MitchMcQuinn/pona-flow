@@ -127,7 +127,7 @@ export function OrderPaginationSection({ nested = false }: OrderPaginationSectio
               className="builderTinyBtn builderDanger"
               onClick={() => patchQuery(removeOrderBy(index))}
             >
-              Remove
+              remove
             </button>
           </div>
         )

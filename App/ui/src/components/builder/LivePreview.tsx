@@ -46,7 +46,7 @@ export function LivePreview({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        <span>Query preview</span>
+        <span>query preview</span>
         <span className="builderStepParamsChevron" aria-hidden>
           ▸
         </span>
@@ -56,11 +56,11 @@ export function LivePreview({
         <div className="builderStepParamsBody">
           <div className="builderPreviewGrid">
             <div className="builderPreviewBlock">
-              <label className="builderField">Composed Cypher</label>
+              <label className="builderField">composed cypher</label>
               <pre className="builderMono builderPreviewPre">{preview.cypher || "(empty)"}</pre>
             </div>
             <div className="builderPreviewBlock">
-              <label className="builderField">Composed SQLite</label>
+              <label className="builderField">composed sqlite</label>
               {sequenceSql || preview.sqliteBlocks.length > 0 ? (
                 <div className="builderPreviewSqliteStack">
                   {sequenceSql ? (

@@ -23,7 +23,7 @@ export function RegexPatternModal({ onClose }: RegexPatternModalProps) {
   function refresh() {
     fetch("/api/regex")
       .then(async (res) => {
-        if (!res.ok) throw new Error(`Failed to load patterns (${res.status})`);
+        if (!res.ok) throw new Error(`failed to load patterns (${res.status})`);
         return (await res.json()) as { patterns?: RegexRow[] };
       })
       .then((data) => {
@@ -36,7 +36,7 @@ export function RegexPatternModal({ onClose }: RegexPatternModalProps) {
         dispatch({ type: "SET_REGEX_PATTERNS", patterns: next });
       })
       .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : "Failed to load patterns");
+        setError(e instanceof Error ? e.message : "failed to load patterns");
       });
   }
 
@@ -44,13 +44,13 @@ export function RegexPatternModal({ onClose }: RegexPatternModalProps) {
 
   async function save() {
     if (!name.trim()) {
-      setError("Name is required.");
+      setError("name is required.");
       return;
     }
     try {
       new RegExp(pattern);
     } catch (e) {
-      setError(`Invalid regex: ${e instanceof Error ? e.message : String(e)}`);
+      setError(`invalid regex: ${e instanceof Error ? e.message : String(e)}`);
       return;
     }
     setSaving(true);
@@ -63,13 +63,13 @@ export function RegexPatternModal({ onClose }: RegexPatternModalProps) {
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
-        throw new Error(data.error || data.detail || `Save failed (${res.status})`);
+        throw new Error(data.error || data.detail || `save failed (${res.status})`);
       }
       setName("");
       setPattern("");
       refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
+      setError(e instanceof Error ? e.message : "save failed");
     } finally {
       setSaving(false);
     }
@@ -106,10 +106,10 @@ export function RegexPatternModal({ onClose }: RegexPatternModalProps) {
 
         <div className="builderModalActions">
           <button type="button" className="builderTinyBtn" onClick={onClose}>
-            Close
+            close
           </button>
           <button type="button" disabled={saving} onClick={save}>
-            {saving ? "Saving…" : "Add pattern"}
+            {saving ? "saving…" : "add pattern"}
           </button>
         </div>
       </div>

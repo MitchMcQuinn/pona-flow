@@ -23,7 +23,7 @@ type ConsoleHostProps = {
   /** Bumps when the nav edit icon should open this console in edit mode. */
   editNonce?: number
   onEditingChange?: (editing: boolean) => void
-  /** Nav label. Called with the name that will be saved, including the "Console" fallback. */
+  /** Nav label. Called with the name that will be saved, including the "console" fallback. */
   onRenamed?: (name: string) => void
   sequences: SequenceSummary[]
   events: EventSummary[]
@@ -120,14 +120,14 @@ function ConsoleEditor({
         if (!cancelled) hydrateConsole(consoleFromApi(row))
       })
       .catch((reason: unknown) => {
-        if (!cancelled) setLoadError(reason instanceof Error ? reason.message : 'Unable to load console')
+        if (!cancelled) setLoadError(reason instanceof Error ? reason.message : 'unable to load console')
       })
     return () => {
       cancelled = true
     }
   }, [consoleId])
 
-  const savedName = record && record.id === consoleId ? record.name.trim() || 'Console' : null
+  const savedName = record && record.id === consoleId ? record.name.trim() || 'console' : null
   useEffect(() => {
     if (savedName == null) return
     onRenamed?.(savedName)
@@ -139,7 +139,7 @@ function ConsoleEditor({
       const payload: ConsoleDetail = {
         id: record.id,
         spaceId,
-        name: record.name.trim() || 'Console',
+        name: record.name.trim() || 'console',
         triggerKind: record.triggerKind,
         listenUrl: record.listenUrl,
         triggerEventId: record.triggerEventId,
@@ -167,7 +167,7 @@ function ConsoleEditor({
     return <Text c="red">{loadError}</Text>
   }
   if (!record || record.id !== consoleId || !active) {
-    return <Text c="dimmed">Loading console...</Text>
+    return <Text c="dimmed">loading console...</Text>
   }
 
   const shownEditing = canEdit && editing
@@ -179,7 +179,7 @@ function ConsoleEditor({
           <Title order={2}>{record.name}</Title>
           <Group gap={8} align="center" wrap="wrap">
             {shownEditing ? null : (
-              <BarIcon label="Refresh" onClick={refreshNow}>
+              <BarIcon label="refresh" onClick={refreshNow}>
                 <RefreshIcon />
               </BarIcon>
             )}
@@ -188,13 +188,13 @@ function ConsoleEditor({
                 done editing
               </button>
             ) : canEdit ? (
-              <BarIcon label="Edit" onClick={() => setEditing(true)}>
+              <BarIcon label="edit" onClick={() => setEditing(true)}>
                 <EditIcon />
               </BarIcon>
             ) : null}
             {shownEditing && active.kind === 'live' ? (
               <button type="button" className="panelTextButton" onClick={openAdd}>
-                Add module
+                add module
               </button>
             ) : null}
           </Group>
@@ -203,7 +203,7 @@ function ConsoleEditor({
         {shownEditing ? (
           <Stack className="consoleEditSettings" gap="sm">
             <TextInput
-              label="Name"
+              label="name"
               value={record.name}
               onChange={(event) => updateConsole({ name: event.currentTarget.value })}
             />
@@ -211,8 +211,8 @@ function ConsoleEditor({
               fullWidth
               value={triggerTab}
               data={[
-                { value: 'url', label: 'Listen URL' },
-                { value: 'event', label: 'Event' },
+                { value: 'url', label: 'listen URL' },
+                { value: 'event', label: 'event' },
               ]}
               onChange={(value) => {
                 const next = value === 'event' ? 'event' : 'url'
@@ -224,8 +224,8 @@ function ConsoleEditor({
             />
             {triggerTab === 'url' ? (
               <TextInput
-                label="Listen URL"
-                description="Server-Sent Events stream. A refresh event, or a plain message, refetches the console."
+                label="listen URL"
+                description="server-sent events stream. a refresh event, or a plain message, refetches the console."
                 placeholder="https://example.com/events"
                 value={record.listenUrl}
                 onChange={(event) =>
@@ -234,15 +234,15 @@ function ConsoleEditor({
               />
             ) : (
               <Select
-                label="Trigger event"
-                description="A time or external event. Each fire refreshes this console."
-                placeholder="Search events"
+                label="trigger event"
+                description="a time or external event. each fire refreshes this console."
+                placeholder="search events"
                 data={triggerEventOptions}
                 value={record.triggerEventId || null}
                 searchable
                 allowDeselect={false}
                 nothingFoundMessage={
-                  triggerEvents.length === 0 ? 'No time or external events' : 'No matching events'
+                  triggerEvents.length === 0 ? 'no time or external events' : 'no matching events'
                 }
                 maxDropdownHeight={280}
                 comboboxProps={{
@@ -328,20 +328,20 @@ function ConsoleEditor({
           onClose={closeViewSettings}
         />
 
-        <Modal opened={addViewOpened} onClose={closeAddView} title="Add view">
+        <Modal opened={addViewOpened} onClose={closeAddView} title="add view">
           <Stack>
             <TextInput
-              label="Name"
+              label="name"
               value={viewName}
-              placeholder={viewKind === 'form' ? 'Form' : 'Live'}
+              placeholder={viewKind === 'form' ? 'form' : 'live'}
               onChange={(event) => setViewName(event.currentTarget.value)}
             />
             <SegmentedControl
               fullWidth
               value={viewKind}
               data={[
-                { value: 'live', label: 'Live' },
-                { value: 'form', label: 'Form' },
+                { value: 'live', label: 'live' },
+                { value: 'form', label: 'form' },
               ]}
               onChange={(value) => setViewKind(value === 'form' ? 'form' : 'live')}
             />
@@ -352,7 +352,7 @@ function ConsoleEditor({
                 closeAddView()
               }}
             >
-              Create view
+              create view
             </Button>
           </Stack>
         </Modal>

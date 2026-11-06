@@ -82,7 +82,7 @@ function normalizeField(value: unknown): FormFieldDefinition | null {
 
 function normalizeView(value: unknown): DashboardView | null {
   if (!isRecord(value) || typeof value.id !== 'string') return null
-  const name = typeof value.name === 'string' && value.name ? value.name : 'View'
+  const name = typeof value.name === 'string' && value.name ? value.name : 'view'
   if (value.kind === 'form') {
     const fields = Array.isArray(value.fields)
       ? value.fields.flatMap((field) => {
@@ -96,7 +96,7 @@ function normalizeView(value: unknown): DashboardView | null {
       kind: 'form',
       dataSequenceId: typeof value.dataSequenceId === 'string' ? value.dataSequenceId : '',
       actionSequenceId: typeof value.actionSequenceId === 'string' ? value.actionSequenceId : '',
-      submitLabel: typeof value.submitLabel === 'string' && value.submitLabel ? value.submitLabel : 'Submit',
+      submitLabel: typeof value.submitLabel === 'string' && value.submitLabel ? value.submitLabel : 'submit',
       fields,
     }
     return view
@@ -124,14 +124,14 @@ export function consoleFromApi(row: {
     const normalized = normalizeView(view)
     return normalized ? [normalized] : []
   })
-  if (views.length === 0) views = [createLiveView('Live')]
+  if (views.length === 0) views = [createLiveView('live')]
   const requested = row.document?.activeViewId
   const activeViewId = views.some((view) => view.id === requested) ? String(requested) : views[0].id
   const kind = row.trigger_kind
   const triggerKind: TriggerKind = kind === 'url' || kind === 'event' ? kind : ''
   return {
     id: row.id || '',
-    name: row.name || 'Console',
+    name: row.name || 'console',
     triggerKind,
     listenUrl: row.listen_url || '',
     triggerEventId: row.trigger_event_id || '',

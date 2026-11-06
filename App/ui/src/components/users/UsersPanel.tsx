@@ -53,7 +53,7 @@ export function UsersPanel({ spaceId, me, sequences, onClose, embedded = false }
         }
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load users");
+      setError(e instanceof Error ? e.message : "failed to load users");
     } finally {
       setLoading(false);
     }
@@ -68,7 +68,7 @@ export function UsersPanel({ spaceId, me, sequences, onClose, embedded = false }
       await action();
       await reload();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Action failed");
+      setError(e instanceof Error ? e.message : "action failed");
     }
   }
 
@@ -86,7 +86,7 @@ export function UsersPanel({ spaceId, me, sequences, onClose, embedded = false }
     const body = (
       <>
         {!embedded ? <h1>users</h1> : null}
-        <p className="muted">Select a space to manage its users.</p>
+        <p className="muted">select a space to manage its users.</p>
       </>
     );
     return embedded ? (
@@ -108,22 +108,22 @@ export function UsersPanel({ spaceId, me, sequences, onClose, embedded = false }
           {!embedded ? <h1>users</h1> : <h2>users</h2>}
           {onClose ? (
             <button type="button" onClick={onClose}>
-              Close
+              close
             </button>
           ) : null}
         </div>
         {error ? <div className="errorText">{error}</div> : null}
-        {loading ? <p className="muted">Loading…</p> : null}
+        {loading ? <p className="muted">loading…</p> : null}
 
         <form className="rbacInviteRow" onSubmit={handleInvite}>
           <input
             type="email"
-            placeholder="Invite by email"
+            placeholder="invite by email"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
           />
           <select value={inviteRoleId} onChange={(e) => setInviteRoleId(e.target.value)}>
-            <option value="">Default role</option>
+            <option value="">default role</option>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -131,13 +131,13 @@ export function UsersPanel({ spaceId, me, sequences, onClose, embedded = false }
             ))}
           </select>
           <button className="btnPrimary" type="submit" disabled={!inviteEmail.trim()}>
-            Invite
+            invite
           </button>
         </form>
 
         <h2 className="navSectionHeader">members</h2>
         {members.length === 0 ? (
-          <p className="muted">No members yet.</p>
+          <p className="muted">no members yet.</p>
         ) : (
           <ul className="rbacMemberList">
             {members.map((member) => (
@@ -216,7 +216,7 @@ function MemberRow({
       await action();
       await onChanged();
     } catch (e: unknown) {
-      onError(e instanceof Error ? e.message : "Action failed");
+      onError(e instanceof Error ? e.message : "action failed");
     }
   }
 
@@ -235,7 +235,7 @@ function MemberRow({
         </div>
         <div className="rbacMemberControls">
           {member.isOwner ? (
-            <span className="muted rbacOwnerNote">Full access</span>
+            <span className="muted rbacOwnerNote">full access</span>
           ) : (
             <select
               value={member.roleId || ""}
@@ -243,7 +243,7 @@ function MemberRow({
                 safe(() => updateMember(spaceId, member.id, { roleId: e.target.value || null }))
               }
             >
-              <option value="">No role</option>
+              <option value="">no role</option>
               {roles.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
@@ -256,16 +256,16 @@ function MemberRow({
               type="checkbox"
               checked={member.isOwner}
               disabled={isSoleOwner}
-              title={isSoleOwner ? "A space must have at least one owner." : undefined}
+              title={isSoleOwner ? "a space must have at least one owner." : undefined}
               onChange={(e) =>
                 safe(() => updateMember(spaceId, member.id, { isOwner: e.target.checked }))
               }
             />
-            Owner
+            owner
           </label>
           {!member.isOwner ? (
             <button type="button" onClick={onToggleExpand}>
-              {expanded ? "Hide" : "Permissions"}
+              {expanded ? "hide" : "permissions"}
             </button>
           ) : null}
           {!isSoleOwner ? (
@@ -274,7 +274,7 @@ function MemberRow({
               type="button"
               onClick={() => safe(() => removeMember(spaceId, member.id))}
             >
-              Remove
+              remove
             </button>
           ) : null}
         </div>
@@ -289,7 +289,7 @@ function MemberRow({
                   setDraftOverride(e.target.checked ? emptyPermissions() : null)
                 }
               />
-              Override role permissions for this member
+              override role permissions for this member
             </label>
             {overrideActive && draftOverride ? (
               <>
@@ -308,7 +308,7 @@ function MemberRow({
                       )
                     }
                   >
-                    Save override
+                    save override
                   </button>
                   <button
                     type="button"
@@ -316,13 +316,13 @@ function MemberRow({
                       safe(() => updateMember(spaceId, member.id, { permissionsOverride: null }))
                     }
                   >
-                    Reset to role
+                    reset to role
                   </button>
                 </div>
               </>
             ) : (
               <p className="muted">
-                This member uses the role&apos;s permissions. Enable the override to customize.
+                this member uses the role&apos;s permissions. enable the override to customize.
               </p>
             )}
           </div>
@@ -353,7 +353,7 @@ function RolesSection({
       await action();
       await onChanged();
     } catch (e: unknown) {
-      onError(e instanceof Error ? e.message : "Action failed");
+      onError(e instanceof Error ? e.message : "action failed");
     }
   }
 
@@ -380,7 +380,7 @@ function RolesSection({
                   type="button"
                   onClick={() => (editingId === role.id ? setEditingId(null) : startEdit(role))}
                 >
-                  {editingId === role.id ? "Hide" : "Edit"}
+                  {editingId === role.id ? "hide" : "edit"}
                 </button>
                 {!role.isDefault ? (
                   <button
@@ -388,7 +388,7 @@ function RolesSection({
                     type="button"
                     onClick={() => safe(() => deleteRole(spaceId, role.id))}
                   >
-                    Delete
+                    delete
                   </button>
                 ) : null}
               </div>
@@ -407,7 +407,7 @@ function RolesSection({
                       })
                     }
                   >
-                    Save role
+                    save role
                   </button>
                 </div>
               </div>
@@ -428,12 +428,12 @@ function RolesSection({
       >
         <input
           type="text"
-          placeholder="New role name"
+          placeholder="new role name"
           value={newRoleName}
           onChange={(e) => setNewRoleName(e.target.value)}
         />
         <button className="btnPrimary" type="submit" disabled={!newRoleName.trim()}>
-          Add role
+          add role
         </button>
       </form>
     </div>
@@ -445,11 +445,11 @@ function PrincipalsSection({ principals }: { principals: PrincipalRow[] }) {
     <div className="rbacPrincipalsSection">
       <h2 className="navSectionHeader">instance principals</h2>
       <p className="muted rbacSectionHint">
-        Every account that has signed in to this instance. The “superadmin” badge marks
+        every account that has signed in to this instance. the “superadmin” badge marks
         instance administrators; others are ordinary principals.
       </p>
       {principals.length === 0 ? (
-        <p className="muted">No principals found.</p>
+        <p className="muted">no principals found.</p>
       ) : (
         <ul className="rbacMemberList">
           {principals.map((p) => (

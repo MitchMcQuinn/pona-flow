@@ -282,8 +282,8 @@
   pointer-events: none;
   width: var(--segment-indicator-width, 0px);
   transform: translateX(var(--segment-indicator-x, 0px));
-  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--motion-form) var(--motion-ease),
+    width var(--motion-form) var(--motion-ease);
   border: 1px solid transparent;
   background:
     linear-gradient(145deg, var(--panel), var(--bg)) padding-box,
@@ -304,7 +304,7 @@
   background: transparent;
   box-shadow: none;
   color: var(--muted);
-  transition: color 0.2s ease, font-weight 0.2s ease;
+  transition: color var(--motion-crossfade) ease, font-weight var(--motion-crossfade) ease;
 }
 
 .builderSegmentToggle button:hover:not(.active):not(:disabled) {
@@ -327,8 +327,8 @@
 .builderSegmentToggle button:focus-visible {
   position: relative;
   z-index: 1;
-  outline: 2px solid #fff;
-  outline-offset: -2px;
+  outline: 1px solid #fff;
+  outline-offset: 2px;
 }
 
 /* Locked operation/label selects while editing a saved operation. */
@@ -968,7 +968,7 @@
   )
   > .builderPicker
   > .builderPickerToggle {
-  border-color: #fbbf24;
+  border-color: var(--warn);
 }
 
 /* Empty SET / DELETE cards have no inner control to ring. */
@@ -976,18 +976,19 @@
     .issue-set-expression [data-issue="set-expression"],
     .issue-delete-target [data-issue="delete-target"]
   ):not(:has(> .builderField, > .builderPicker, > input, > textarea, > select)) {
-  border: 1px solid #fbbf24;
+  border: 1px solid var(--warn);
 }
 
 .builderModalBackdrop {
   position: fixed;
   inset: 0;
-  background: rgba(1, 1, 2, 0.72);
-  backdrop-filter: blur(3px);
+  background: var(--overlay-scrim);
+  backdrop-filter: blur(var(--overlay-blur));
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 50;
+  animation: overlayFadeIn var(--motion-crossfade) ease;
 }
 
 .builderModalPanel {
@@ -1054,7 +1055,7 @@
   border: none;
   border-radius: 0;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color var(--motion-micro) ease, background var(--motion-micro) ease;
 }
 
 .sequenceDeleteOption:hover {
@@ -1301,7 +1302,7 @@
   flex-shrink: 0;
   font-size: 11px;
   color: var(--muted);
-  transition: transform 0.15s ease;
+  transition: transform var(--motion-micro) ease;
 }
 
 .builderStepParamsToggle.is-open .builderStepParamsChevron {
@@ -1376,7 +1377,7 @@
   width: 16px;
   height: 16px;
   color: var(--text);
-  transition: transform 0.15s ease;
+  transition: transform var(--motion-micro) ease;
 }
 
 .builderPickerToggle[aria-expanded="true"] .builderPickerCaret {
@@ -1568,7 +1569,7 @@
   background: var(--well);
   border: 1px solid var(--border);
   box-shadow: none;
-  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: background var(--motion-crossfade) ease, border-color var(--motion-crossfade) ease, box-shadow var(--motion-crossfade) ease;
 }
 
 .builderToggleThumb {
@@ -1580,7 +1581,7 @@
   border-radius: 50%;
   background: #fff;
   box-shadow: none;
-  transition: transform 0.2s ease, background 0.2s ease;
+  transition: transform var(--motion-crossfade) ease, background var(--motion-crossfade) ease;
 }
 
 .builderToggleSwitch[aria-checked="true"] .builderToggleTrack {
@@ -1595,7 +1596,7 @@
 }
 
 .builderToggleSwitch:focus-visible .builderToggleTrack {
-  outline: 2px solid #fff;
+  outline: 1px solid #fff;
   outline-offset: 2px;
 }
 
@@ -1671,18 +1672,19 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 12px;
+  width: calc(var(--column-divider-track) + 2 * var(--column-divider-gutter));
   z-index: 3;
   cursor: col-resize;
   background: transparent;
   touch-action: none;
+  transition: left var(--motion-layout) var(--motion-ease);
 }
 
 .matchSplitHandle::after {
   content: "";
   position: absolute;
-  top: 8px;
-  bottom: 8px;
+  top: 12px;
+  bottom: 12px;
   left: 50%;
   width: var(--handle-width);
   transform: translateX(-50%);
@@ -1693,9 +1695,20 @@
   mask-image: var(--handle-fade);
 }
 
+.matchGraphPane,
+.matchConfigPane {
+  transition: width var(--motion-layout) var(--motion-ease);
+}
+
 body.matchResizing {
   cursor: col-resize;
   user-select: none;
+}
+
+body.matchResizing .matchSplitHandle,
+body.matchResizing .matchGraphPane,
+body.matchResizing .matchConfigPane {
+  transition: none;
 }
 
 /* Stacked layout: panes go full width, no resizer. */
@@ -1898,7 +1911,7 @@ body.matchResizing {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  animation: builderFormEnter 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: builderFormEnter var(--motion-form) var(--motion-ease);
 }
 
 @keyframes builderFormEnter {
@@ -1914,11 +1927,15 @@ body.matchResizing {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .builderSegmentIndicator {
+  .builderSegmentIndicator,
+  .matchSplitHandle,
+  .matchGraphPane,
+  .matchConfigPane {
     transition: none;
   }
 
-  .builderFormTransition {
+  .builderFormTransition,
+  .builderModalBackdrop {
     animation: none;
   }
 }

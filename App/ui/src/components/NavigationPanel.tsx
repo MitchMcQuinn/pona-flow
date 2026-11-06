@@ -284,9 +284,9 @@ function SequenceItem({
   if (indicator === "after") classNames.push("dropAfter");
 
   const warning = sequence.orphaned
-    ? "Orphaned: the entry STEP is missing from the graph. Remove this sequence from the navigation or recreate its step."
+    ? "orphaned: the entry STEP is missing from the graph. remove this sequence from the navigation or recreate its step."
     : sequence.suspended
-      ? "Suspended: a schema change invalidated an INSTANCE step. Re-save the step to restore it."
+      ? "suspended: a schema change invalidated an INSTANCE step. re-save the step to restore it."
       : null;
   const showTooltip =
     hovered && sequence.id !== drag.draggingId && (Boolean(warning) || truncated);
@@ -324,8 +324,8 @@ function SequenceItem({
       {!reorder.touch ? (
         <span
           className="sequenceDragHandle"
-          aria-label="Drag to reorder"
-          title="Drag to reorder"
+          aria-label="drag to reorder"
+          title="drag to reorder"
           onPointerDown={drag.armItemHandle}
         >
           <DragHandleIcon />
@@ -336,15 +336,15 @@ function SequenceItem({
         type="button"
         title={
           sequence.orphaned
-            ? "Orphaned: the entry STEP is missing from the graph. Remove this sequence from the navigation or recreate its step."
+            ? "orphaned: the entry STEP is missing from the graph. remove this sequence from the navigation or recreate its step."
             : sequence.suspended
-              ? "Suspended: a schema change invalidated an INSTANCE step. Re-save the step to restore it."
+              ? "suspended: a schema change invalidated an INSTANCE step. re-save the step to restore it."
               : undefined
         }
         onClick={() => onSelectSequence(sequence.id)}
       >
         {!sequence.singleStep ? (
-          <span className="sequenceMultiStepIcon" title="Multi-step sequence">
+          <span className="sequenceMultiStepIcon" title="multi-step sequence">
             <MultiStepIcon />
           </span>
         ) : null}
@@ -352,7 +352,7 @@ function SequenceItem({
           {sequence.label}
         </span>
         {inFlight ? (
-          <span className="sequenceActivityIcon" title="Sequence is running" data-testid="sequence-activity-icon">
+          <span className="sequenceActivityIcon" title="sequence is running" data-testid="sequence-activity-icon">
             <ActivityIcon />
           </span>
         ) : null}
@@ -362,7 +362,7 @@ function SequenceItem({
           <button
             className="tinyBtn tinyBtnIcon"
             type="button"
-            aria-label={`Move ${sequence.label} up`}
+            aria-label={`move ${sequence.label} up`}
             data-testid="nav-move-up"
             disabled={!reorder.canMove(sequence.id, -1)}
             onClick={() => reorder.moveSequence(sequence.id, -1)}
@@ -372,7 +372,7 @@ function SequenceItem({
           <button
             className="tinyBtn tinyBtnIcon"
             type="button"
-            aria-label={`Move ${sequence.label} down`}
+            aria-label={`move ${sequence.label} down`}
             data-testid="nav-move-down"
             disabled={!reorder.canMove(sequence.id, 1)}
             onClick={() => reorder.moveSequence(sequence.id, 1)}
@@ -382,7 +382,7 @@ function SequenceItem({
           {reorder.groupOptions.length > 1 ? (
             <select
               className="navMoveToGroup"
-              aria-label={`Move ${sequence.label} to group`}
+              aria-label={`move ${sequence.label} to group`}
               value={sequence.groupTitle?.trim() || UNGROUPED_LABEL}
               onChange={(e) => reorder.moveToGroup(sequence.id, e.target.value)}
             >
@@ -401,10 +401,10 @@ function SequenceItem({
             type="button"
             aria-label={
               sequence.singleStep
-                ? `Edit step ${sequence.label}`
-                : `Edit sequence ${sequence.label}`
+                ? `edit step ${sequence.label}`
+                : `edit sequence ${sequence.label}`
             }
-            title={sequence.singleStep ? "Edit step" : "Edit sequence"}
+            title={sequence.singleStep ? "edit step" : "edit sequence"}
             onClick={() => onEditSequence(sequence.id)}
           >
             <EditIcon />
@@ -412,8 +412,8 @@ function SequenceItem({
           <button
             className="tinyBtn tinyBtnIcon danger"
             type="button"
-            aria-label={`Delete sequence ${sequence.label}`}
-            title="Delete sequence"
+            aria-label={`delete sequence ${sequence.label}`}
+            title="delete sequence"
             onClick={() => onDeleteSequence(sequence.id)}
           >
             <DeleteIcon />
@@ -495,15 +495,15 @@ export function NavigationPanel({
         <GroupedNav
           title="events"
           tour="events"
-          addLabel="Add event"
+          addLabel="add event"
           addTestId="nav-add-event"
           groupTestId="nav-add-event-group"
           items={events}
           groupOrder={eventGroups}
           loading={eventsLoading}
           error={eventsError}
-          emptyText="No events yet."
-          loadingText="Loading events..."
+          emptyText="no events yet."
+          loadingText="loading events..."
           selectedId={selectedEventId}
           labelOf={(event) => event.name}
           onAdd={onCreateEvent}
@@ -523,8 +523,8 @@ export function NavigationPanel({
               onSelect={() => onSelectEvent(event.id)}
               onEdit={() => onEditEvent(event.id)}
               onDelete={() => onDeleteEvent(event.id)}
-              editLabel={`Edit event ${event.name}`}
-              deleteLabel={`Delete event ${event.name}`}
+              editLabel={`edit event ${event.name}`}
+              deleteLabel={`delete event ${event.name}`}
               showEdit={!(event.id === selectedEventId && eventEditing)}
             />
           )}
@@ -533,15 +533,15 @@ export function NavigationPanel({
         <GroupedNav
           title="consoles"
           tour="consoles"
-          addLabel="Add console"
+          addLabel="add console"
           addTestId="nav-add-console"
           groupTestId="nav-add-console-group"
           items={consoles}
           groupOrder={consoleGroups}
           loading={consolesLoading}
           error={consolesError}
-          emptyText="No consoles yet."
-          loadingText="Loading consoles..."
+          emptyText="no consoles yet."
+          loadingText="loading consoles..."
           selectedId={selectedConsoleId}
           labelOf={(console) => console.name}
           onAdd={onCreateConsole}
@@ -561,8 +561,8 @@ export function NavigationPanel({
               onSelect={() => onSelectConsole(console.id)}
               onEdit={() => onEditConsole(console.id)}
               onDelete={() => onDeleteConsole(console.id)}
-              editLabel={`Edit console ${console.name}`}
-              deleteLabel={`Delete console ${console.name}`}
+              editLabel={`edit console ${console.name}`}
+              deleteLabel={`delete console ${console.name}`}
               showEdit={!(console.id === selectedConsoleId && consoleEditing)}
             />
           )}
@@ -571,7 +571,7 @@ export function NavigationPanel({
         <GroupedNav
           title="sequences"
           tour="sequences"
-          addLabel="Add sequence"
+          addLabel="add sequence"
           addTestId="nav-add-sequence"
           groupTestId="nav-add-group"
           reorderTestId="nav-reorder-toggle"
@@ -579,8 +579,8 @@ export function NavigationPanel({
           groupOrder={groups}
           loading={loading}
           error={error}
-          emptyText="No sequences yet."
-          loadingText="Loading sequences..."
+          emptyText="no sequences yet."
+          loadingText="loading sequences..."
           selectedId={selectedSequenceId}
           labelOf={(sequence) => sequence.label}
           onAdd={onCreateSequence}

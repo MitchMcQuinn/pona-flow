@@ -176,11 +176,11 @@ function parsePayloadJson(
   try {
     const parsed: unknown = JSON.parse(trimmed);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { ok: false, error: "Custom payload must be a JSON object" };
+      return { ok: false, error: "custom payload must be a JSON object" };
     }
     return { ok: true, value: parsed as Record<string, unknown> };
   } catch {
-    return { ok: false, error: "Custom payload is not valid JSON" };
+    return { ok: false, error: "custom payload is not valid JSON" };
   }
 }
 
@@ -234,7 +234,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
             const text = jsonText[outcome.id] ?? JSON.stringify(outcome.payload || {}, null, 2);
             const parsed = parsePayloadJson(text);
             if (!parsed.ok) {
-              return `${outcome.label.trim() || "Outcome"}: ${parsed.error}`;
+              return `${outcome.label.trim() || "outcome"}: ${parsed.error}`;
             }
           }
         }
@@ -275,13 +275,13 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
         <EventInlineField
           label="tic unit"
           htmlFor="sim-tic-unit"
-          tip="Each tic moves the in-world clock by this amount. Tics advance only when a session is stepped."
+          tip="each tic moves the in-world clock by this amount. tics advance only when a session is stepped."
         >
           <Picker
             id="sim-tic-unit"
             ariaLabel="tic unit"
             value={pkg.tic_unit}
-            placeholder="Please select"
+            placeholder="please select"
             options={TIC_UNITS.map((unit) => ({ value: unit, label: unit }))}
             onSelect={(value) => commit({ ...pkg, tic_unit: value as TicUnit })}
           />
@@ -300,7 +300,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
         <EventInlineField
           label="sequence"
           htmlFor="sim-sequence"
-          tip="When an outcome is chosen, this sequence runs with the outcome payload and the emissions recorded on this tic. Leave empty to record the emission only."
+          tip="when an outcome is chosen, this sequence runs with the outcome payload and the emissions recorded on this tic. leave empty to record the emission only."
         >
           <Picker
             id="sim-sequence"
@@ -308,9 +308,9 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
             toggleTestId="sim-sequence-toggle"
             menuTestId="sim-sequence-menu"
             value={pkg.sequence_id || ""}
-            placeholder="Record only"
+            placeholder="record only"
             options={[
-              { value: "", label: "Record only" },
+              { value: "", label: "record only" },
               ...sequences.map((sequence) => ({ value: sequence.id, label: sequence.label }))
             ]}
             onSelect={(value) => commit({ ...pkg, sequence_id: value })}
@@ -319,7 +319,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
         <EventInlineField
           label="console"
           htmlFor="sim-console"
-          tip="Each tic refreshes this console in place of its listen URL or trigger event."
+          tip="each tic refreshes this console in place of its listen URL or trigger event."
         >
           <Picker
             id="sim-console"
@@ -327,9 +327,9 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
             toggleTestId="sim-console-toggle"
             menuTestId="sim-console-menu"
             value={pkg.console_id || ""}
-            placeholder="No console"
+            placeholder="no console"
             options={[
-              { value: "", label: "No console" },
+              { value: "", label: "no console" },
               ...consoles.map((console) => ({ value: console.id, label: console.name }))
             ]}
             onSelect={(value) => commit({ ...pkg, console_id: value })}
@@ -346,7 +346,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
               className="tinyBtn builderAddBtn"
               onClick={() => commit({ ...pkg, probabilities: [...pkg.probabilities, emptyProbability()] })}
             >
-              + Add probability
+              + add probability
             </button>
           ) : null}
         </EventInlineField>
@@ -358,7 +358,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
               return (
                 <div className="eventInlineGroup" key={probability.id}>
                   <CardRemove
-                    label="Remove probability"
+                    label="remove probability"
                     onClick={() =>
                       commit({
                         ...pkg,
@@ -378,7 +378,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                       className="builderPropertyNameInput"
                       aria-label="probability name"
                       value={probability.name}
-                      placeholder="Enter a probability name"
+                      placeholder="enter a probability name"
                       onChange={(event) => updateProbability(probability.id, { name: event.target.value })}
                     />
                   </div>
@@ -386,7 +386,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                     <input
                       id={`sim-probability-note-${probability.id}`}
                       value={probability.description}
-                      placeholder="Enter an optional description"
+                      placeholder="enter an optional description"
                       onChange={(event) =>
                         updateProbability(probability.id, { description: event.target.value })
                       }
@@ -395,7 +395,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                   <EventInlineField
                     label="priority"
                     htmlFor={`sim-priority-${probability.id}`}
-                    tip="Lower numbers run first. Equal priorities are shuffled."
+                    tip="lower numbers run first. equal priorities are shuffled."
                   >
                     <input
                       id={`sim-priority-${probability.id}`}
@@ -411,7 +411,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                       id={`sim-schedule-${probability.id}`}
                       ariaLabel="schedule"
                       value={schedule.type}
-                      placeholder="Please select"
+                      placeholder="please select"
                       options={[
                         { value: "recurring", label: "recurring" },
                         { value: "scheduled", label: "scheduled tics" },
@@ -427,7 +427,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                   </EventInlineField>
                   {schedule.type === "recurring" ? (
                     <>
-                      <EventInlineField label="every" tip="How often this probability is considered.">
+                      <EventInlineField label="every" tip="how often this probability is considered.">
                         <input
                           type="number"
                           min={1}
@@ -441,7 +441,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                           }
                         />
                       </EventInlineField>
-                      <EventInlineField label="delay" tip="Skip this many tics before the first check.">
+                      <EventInlineField label="delay" tip="skip this many tics before the first check.">
                         <input
                           type="number"
                           min={0}
@@ -459,7 +459,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                   ) : null}
                   {schedule.type === "random" ? (
                     <>
-                      <EventInlineField label="every" tip="How often this probability is considered.">
+                      <EventInlineField label="every" tip="how often this probability is considered.">
                         <input
                           type="number"
                           min={1}
@@ -473,7 +473,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                           }
                         />
                       </EventInlineField>
-                      <EventInlineField label="percent" tip="Chance this probability fires on a matching tic.">
+                      <EventInlineField label="percent" tip="chance this probability fires on a matching tic.">
                         <input
                           type="number"
                           min={0}
@@ -491,7 +491,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                     </>
                   ) : null}
                   {schedule.type === "scheduled" ? (
-                    <EventInlineField label="tics" tip="Comma-separated tic numbers when this probability is due.">
+                    <EventInlineField label="tics" tip="comma-separated tic numbers when this probability is due.">
                       <input
                         value={schedule.tics.join(", ")}
                         placeholder="1, 5, 10"
@@ -517,7 +517,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                           })
                         }
                       >
-                        + Add outcome
+                        + add outcome
                       </button>
                     ) : null}
                   </EventInlineField>
@@ -530,7 +530,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                         return (
                           <div className="eventInlineGroup" key={outcome.id}>
                             <CardRemove
-                              label="Remove outcome"
+                              label="remove outcome"
                               onClick={() =>
                                 updateProbability(probability.id, {
                                   outcomes: probability.outcomes.filter((item) => item.id !== outcome.id)
@@ -549,7 +549,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                                 className="builderPropertyNameInput"
                                 aria-label="outcome label"
                                 value={outcome.label}
-                                placeholder="Enter an outcome label"
+                                placeholder="enter an outcome label"
                                 onChange={(event) =>
                                   updateOutcome(probability.id, outcome.id, { label: event.target.value })
                                 }
@@ -562,7 +562,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                                   ? "sim-outcome-weight"
                                   : `sim-outcome-weight-${outcome.id}`
                               }
-                              tip="A number, or $parameter from the weight sequence. Negatives become 0. If every weight is 0, the run is cancelled."
+                              tip="a number, or $parameter from the weight sequence. negatives become 0. if every weight is 0, the run is cancelled."
                             >
                               <input
                                 id={
@@ -581,18 +581,18 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                               <EventInlineField
                                 label="weight sequence"
                                 htmlFor={`sim-weight-sequence-${outcome.id}`}
-                                tip={`Runs first. The weight is that sequence’s value for ${outcome.weight.trim()}. If it is missing or not a number, the parameter default is used, then 0.`}
+                                tip={`runs first. the weight is that sequence’s value for ${outcome.weight.trim()}. if it is missing or not a number, the parameter default is used, then 0.`}
                               >
                                 <Picker
                                   id={`sim-weight-sequence-${outcome.id}`}
                                   ariaLabel="weight sequence"
                                   value={outcome.weight_sequence_id || ""}
-                                  placeholder="Select a sequence"
+                                  placeholder="select a sequence"
                                   options={sequences.map((sequence) => ({
                                     value: sequence.id,
                                     label: sequence.label
                                   }))}
-                                  emptyHint="No sequences available"
+                                  emptyHint="no sequences available"
                                   onSelect={(value) =>
                                     updateOutcome(probability.id, outcome.id, {
                                       weight_sequence_id: value
@@ -653,7 +653,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                                     ])
                                   }
                                 >
-                                  + Add field
+                                  + add field
                                 </button>
                               )}
                             </EventInlineField>
@@ -686,7 +686,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                                 {rowPairs.map((pair) => (
                                   <div className="eventInlineGroup eventPayloadPair" key={pair.id}>
                                     <CardRemove
-                                      label="Remove field"
+                                      label="remove field"
                                       onClick={() =>
                                         setOutcomePairs(
                                           probability.id,
@@ -697,7 +697,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                                     />
                                     <EventInlineField label="key">
                                       <input
-                                        aria-label="Payload key"
+                                        aria-label="payload key"
                                         value={pair.key}
                                         placeholder="key"
                                         onChange={(event) =>
@@ -713,7 +713,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                                     </EventInlineField>
                                     <EventInlineField label="value">
                                       <input
-                                        aria-label="Payload value"
+                                        aria-label="payload value"
                                         value={pair.value}
                                         placeholder="value"
                                         onChange={(event) =>
@@ -739,7 +739,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                                     ])
                                   }
                                 >
-                                  + Add field
+                                  + add field
                                 </button>
                               </div>
                             ) : null}
@@ -755,7 +755,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
                           })
                         }
                       >
-                        + Add outcome
+                        + add outcome
                       </button>
                     </div>
                     </div>
@@ -768,7 +768,7 @@ export const SimulatedEventFields = forwardRef<SimulatedEventFieldsHandle, Simul
               className="tinyBtn builderAddBtn eventInlineAdd"
               onClick={() => commit({ ...pkg, probabilities: [...pkg.probabilities, emptyProbability()] })}
             >
-              + Add probability
+              + add probability
             </button>
           </div>
           </div>

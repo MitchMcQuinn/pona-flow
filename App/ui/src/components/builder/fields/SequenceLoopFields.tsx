@@ -90,13 +90,13 @@ export function SequenceLoopFields({
     <section className="builderBlock createSequenceFields">
       {type === "for" ? (
         <div className="builderField">
-          <FieldLabel tip="Zero skips the looped steps entirely.">iterations</FieldLabel>
+          <FieldLabel tip="zero skips the looped steps entirely.">iterations</FieldLabel>
           <input
             type="text"
             inputMode="numeric"
             pattern="[0-9]*"
             value={loop.count ?? ""}
-            placeholder="How many passes"
+            placeholder="how many passes"
             disabled={disabled}
             onChange={(e) => {
               const raw = e.target.value;
@@ -114,15 +114,15 @@ export function SequenceLoopFields({
       {type === "for_while" ? (
         <>
           <div className="builderField">
-            <FieldLabel tip={unsaved ? "Save the sequence once so these pickers can list aliases from its steps." : undefined}>
+            <FieldLabel tip={unsaved ? "save the sequence once so these pickers can list aliases from its steps." : undefined}>
               while parameter
             </FieldLabel>
             <Picker
               value={condition.parameter}
-              placeholder={unsaved ? "Save the sequence first" : "Please select"}
+              placeholder={unsaved ? "save the sequence first" : "please select"}
               disabled={disabled || unsaved}
               options={aliasOptions}
-              emptyHint="No RETURN aliases found on this sequence's steps."
+              emptyHint="no RETURN aliases found on this sequence's steps."
               onSelect={(value) => patch({ condition: { ...condition, parameter: value } })}
             />
           </div>
@@ -148,7 +148,7 @@ export function SequenceLoopFields({
             </select>
           </div>
           <div className="builderField">
-            <FieldLabel tip="Tested before every pass, including the first — an already-false condition skips the looped steps.">
+            <FieldLabel tip="tested before every pass, including the first — an already-false condition skips the looped steps.">
               value
             </FieldLabel>
             <input
@@ -167,18 +167,18 @@ export function SequenceLoopFields({
           <FieldLabel
             tip={
               unsaved
-                ? "Save the sequence once so these pickers can list aliases from its steps."
-                : "One pass per row. Each pass binds that row’s columns under their aliases, so the looped steps see one entity at a time."
+                ? "save the sequence once so these pickers can list aliases from its steps."
+                : "one pass per row. each pass binds that row’s columns under their aliases, so the looped steps see one entity at a time."
             }
           >
             iterate rows of
           </FieldLabel>
           <Picker
             value={loop.source ?? ""}
-            placeholder={unsaved ? "Save the sequence first" : "Please select"}
+            placeholder={unsaved ? "save the sequence first" : "please select"}
             disabled={disabled || unsaved}
             options={aliasOptions}
-            emptyHint="No RETURN aliases found on this sequence's steps."
+            emptyHint="no RETURN aliases found on this sequence's steps."
             onSelect={(value) => patch({ source: value })}
           />
         </div>
@@ -186,7 +186,7 @@ export function SequenceLoopFields({
 
       {looping ? (
         <div className="builderField">
-          <FieldLabel tip="Safety cap: a run that exceeds it fails instead of looping forever.">
+          <FieldLabel tip="safety cap: a run that exceeds it fails instead of looping forever.">
             maximum iterations
           </FieldLabel>
           <input
@@ -209,7 +209,7 @@ export function SequenceLoopFields({
           label="delay between iterations"
           value={loop.delay_seconds ?? 0}
           disabled={disabled}
-          hint="Parks the run between completed passes. The first pass starts immediately."
+          hint="parks the run between completed passes. the first pass starts immediately."
           onChange={(next) =>
             patch({
               delay_seconds: typeof next === "number" ? next : undefined
@@ -222,7 +222,7 @@ export function SequenceLoopFields({
         <div className="builderField">
           <div className="createSequenceLabelRow">
             <label>collect across passes</label>
-            <FieldTip text="Keep a result from every pass, not just the last one, so a later step can use them all." />
+            <FieldTip text="keep a result from every pass, not just the last one, so a later step can use them all." />
             <button
               type="button"
               className="builderTinyBtn builderAddBtn"
@@ -233,17 +233,17 @@ export function SequenceLoopFields({
                 })
               }
             >
-              Add
+              add
             </button>
           </div>
           {(loop.collect ?? []).map((item, index) => (
             <div key={index} className="createSequenceCollectRow">
               <Picker
                 value={item.from}
-                placeholder={unsaved ? "Save the sequence first" : "from"}
+                placeholder={unsaved ? "save the sequence first" : "from"}
                 disabled={disabled || unsaved}
                 options={aliasOptions}
-                emptyHint="No aliases found on this sequence's steps."
+                emptyHint="no aliases found on this sequence's steps."
                 onSelect={(value) => patchCollect(index, { from: value })}
               />
               <input
@@ -276,7 +276,7 @@ export function SequenceLoopFields({
                   })
                 }
               >
-                Remove
+                remove
               </button>
             </div>
           ))}

@@ -108,18 +108,18 @@ export function QueryRunActions({
   async function onPreviewSchemaDelete() {
     const label = primaryNodeLabel(state);
     if (!state.spaceId || !label) {
-      dispatch({ type: "SET_STATUS", message: "Select a SCHEMA to delete first.", kind: "error" });
+      dispatch({ type: "SET_STATUS", message: "select a SCHEMA to delete first.", kind: "error" });
       return;
     }
     setPreviewing(true);
     setDeleteError(null);
-    dispatch({ type: "SET_STATUS", message: "Resolving deletion impact…", kind: "info" });
+    dispatch({ type: "SET_STATUS", message: "resolving deletion impact…", kind: "info" });
     try {
       const preview = await previewSchemaDeletion(state.spaceId, label);
       setSchemaDeletePreview(preview);
       dispatch({ type: "SET_STATUS", message: "", kind: "info" });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Preview failed";
+      const message = error instanceof Error ? error.message : "preview failed";
       dispatch({ type: "SET_STATUS", message, kind: "error" });
     } finally {
       setPreviewing(false);
@@ -140,13 +140,13 @@ export function QueryRunActions({
       const labels = await connector.fetchSpaceLabels(state.spaceId);
       dispatch({ type: "SET_SPACE_LABELS", labels });
       showToast(
-        `Schema "${result.attributive_label}" and its dependents were deleted.`
+        `schema "${result.attributive_label}" and its dependents were deleted.`
       );
       dispatch({ type: "DATA_CHANGED" });
       dispatch({ type: "RESET_BUILDER" });
       onNavRefresh?.();
     } catch (error) {
-      setDeleteError(error instanceof Error ? error.message : "Delete failed");
+      setDeleteError(error instanceof Error ? error.message : "delete failed");
     } finally {
       setConfirmingDelete(false);
     }
@@ -156,18 +156,18 @@ export function QueryRunActions({
   async function onPreviewStepDelete() {
     const label = primaryNodeLabel(state);
     if (!state.spaceId || !label) {
-      dispatch({ type: "SET_STATUS", message: "Select a STEP to delete first.", kind: "error" });
+      dispatch({ type: "SET_STATUS", message: "select a STEP to delete first.", kind: "error" });
       return;
     }
     setPreviewing(true);
     setDeleteError(null);
-    dispatch({ type: "SET_STATUS", message: "Resolving deletion impact…", kind: "info" });
+    dispatch({ type: "SET_STATUS", message: "resolving deletion impact…", kind: "info" });
     try {
       const preview = await previewStepDeletion(state.spaceId, label);
       setStepDeletePreview(preview);
       dispatch({ type: "SET_STATUS", message: "", kind: "info" });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Preview failed";
+      const message = error instanceof Error ? error.message : "preview failed";
       dispatch({ type: "SET_STATUS", message, kind: "error" });
     } finally {
       setPreviewing(false);
@@ -188,13 +188,13 @@ export function QueryRunActions({
       const labels = await connector.fetchSpaceLabels(state.spaceId);
       dispatch({ type: "SET_SPACE_LABELS", labels });
       showToast(
-        `Step "${result.attributive_label}" and its dependent sequences were deleted.`
+        `step "${result.attributive_label}" and its dependent sequences were deleted.`
       );
       dispatch({ type: "DATA_CHANGED" });
       dispatch({ type: "RESET_BUILDER" });
       onNavRefresh?.();
     } catch (error) {
-      setDeleteError(error instanceof Error ? error.message : "Delete failed");
+      setDeleteError(error instanceof Error ? error.message : "delete failed");
     } finally {
       setConfirmingDelete(false);
     }
@@ -208,7 +208,7 @@ export function QueryRunActions({
    */
   async function onSchemaUpdate() {
     setBusy(true);
-    dispatch({ type: "SET_STATUS", message: "Checking schema change…", kind: "info" });
+    dispatch({ type: "SET_STATUS", message: "checking schema change…", kind: "info" });
     try {
       const preview = await previewSchemaUpdate(state);
       if (hasSchemaUpdateImpact(preview)) {
@@ -219,7 +219,7 @@ export function QueryRunActions({
       }
       await commitSchemaUpdate(preview);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Schema update failed";
+      const message = error instanceof Error ? error.message : "schema update failed";
       dispatch({ type: "SET_STATUS", message, kind: "error" });
     } finally {
       setBusy(false);
@@ -228,7 +228,7 @@ export function QueryRunActions({
 
   /** Persist a (previously previewed) SCHEMA update and report the suspension fallout. */
   async function commitSchemaUpdate(preview: SchemaUpdatePreviewOutcome) {
-    dispatch({ type: "SET_STATUS", message: "Updating schema…", kind: "info" });
+    dispatch({ type: "SET_STATUS", message: "updating schema…", kind: "info" });
     const outcome = await applySchemaUpdate(preview.input);
     const changes: string[] = [];
     if (outcome.added.length) changes.push(`added ${outcome.added.length}`);
@@ -242,13 +242,13 @@ export function QueryRunActions({
       ? ` ${marked} instance${marked === 1 ? "" : "s"} marked out of sync.`
       : "";
     showToast(
-      `Schema "${outcome.attributiveLabel}" updated${
+      `schema "${outcome.attributiveLabel}" updated${
         changes.length ? ` (${changes.join(", ")})` : ""
       }.${suspendNote}${markedNote}`
     );
     if (suspended) {
       const names = outcome.suspension.suspended.map((s) => s.name || s.id).join(", ");
-      showToast(`Suspended until their INSTANCE step is re-saved: ${names}`);
+      showToast(`suspended until their INSTANCE step is re-saved: ${names}`);
     }
     onQueriesReload();
     onNavRefresh?.();
@@ -265,7 +265,7 @@ export function QueryRunActions({
       await commitSchemaUpdate(schemaUpdatePreview);
       setSchemaUpdatePreview(null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Schema update failed";
+      const message = error instanceof Error ? error.message : "schema update failed";
       setSchemaUpdateError(message);
     } finally {
       setBusy(false);
@@ -287,16 +287,16 @@ export function QueryRunActions({
     }
     setBusy(true);
     dispatch({ type: "RUN_STARTED" });
-    dispatch({ type: "SET_STATUS", message: `Running ${op}…`, kind: "info" });
+    dispatch({ type: "SET_STATUS", message: `running ${op}…`, kind: "info" });
     try {
       const result = await runQuery(state);
       dispatch({ type: "RUN_SUCCEEDED", result });
       onResult?.(result);
       if (op === "read") {
-        dispatch({ type: "SET_STATUS", message: "Read completed.", kind: "ok" });
+        dispatch({ type: "SET_STATUS", message: "read completed.", kind: "ok" });
       } else {
         // Mutations reset the builder for the next edit; success surfaces as a toast.
-        showToast(`${op.toUpperCase()} completed successfully.`);
+        showToast(`${op} completed successfully.`);
         // Refresh dropdowns so the graph change is reflected immediately.
         dispatch({ type: "DATA_CHANGED" });
         dispatch({ type: "RESET_BUILDER" });
@@ -312,7 +312,7 @@ export function QueryRunActions({
 
   async function onCreateOperationSave(values: CreateOperationFormValues) {
     setSavingOp(true);
-    dispatch({ type: "SET_STATUS", message: "Saving as sequence…", kind: "info" });
+    dispatch({ type: "SET_STATUS", message: "saving as sequence…", kind: "info" });
     try {
       const result = await saveQueryOperation(state, {
         name: values.name,
@@ -332,11 +332,11 @@ export function QueryRunActions({
         onSequenceCreated?.(result.sequenceId);
       }
       setShowCreateModal(false);
-      showToast("Saved as a one-step sequence.");
+      showToast("saved as a one-step sequence.");
     } catch (error) {
       dispatch({
         type: "SET_STATUS",
-        message: error instanceof Error ? error.message : "Save failed",
+        message: error instanceof Error ? error.message : "save failed",
         kind: "error"
       });
     } finally {
@@ -347,7 +347,7 @@ export function QueryRunActions({
   const disabled = busy || savingOp || previewing || confirmingDelete;
   const runButtonClass = isDestructiveRunButton(op) ? "btnDanger" : "btnPrimary";
   const runButtonLabelText = previewing
-    ? "Resolving…"
+    ? "resolving…"
     : runButtonLabel(op, clauseLabel, { busy });
 
   return (
@@ -372,7 +372,7 @@ export function QueryRunActions({
             disabled={!canSaveOp || disabled}
             onClick={() => setShowCreateModal(true)}
           >
-            Save as sequence
+            save as sequence
           </button>
         </div>
         {state.status.kind === "error" ? (
@@ -440,7 +440,7 @@ export function QueryRunActions({
             if (!busy) {
               setSchemaUpdatePreview(null);
               setSchemaUpdateError(null);
-              dispatch({ type: "SET_STATUS", message: "Schema update cancelled.", kind: "info" });
+              dispatch({ type: "SET_STATUS", message: "schema update cancelled.", kind: "info" });
             }
           }}
           onConfirm={onConfirmSchemaUpdate}

@@ -61,12 +61,12 @@ export function UnwindSection() {
         </div>
       </div>
       <p className="builderCheckMsg">
-        Stack several properties into rows under one name. MATCH aliases stay unique;
+        stack several properties into rows under one name. MATCH aliases stay unique;
         a for/each loop iterates the stacked column.
       </p>
       {items.length === 0 ? (
         <p className="muted">
-          Empty UNWIND is omitted. Add at least two values (e.g. subject id and object id).
+          empty UNWIND is omitted. add at least two values (e.g. subject id and object id).
         </p>
       ) : null}
       {items.map((item, index) => (

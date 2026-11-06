@@ -1,4 +1,5 @@
 import { createTheme, type CSSVariablesResolver, type MantineColor, type MantineTheme } from '@mantine/core'
+import { MOTION_CROSSFADE_MS, MOTION_DRAWER_MS } from '../motion'
 
 const black = [
   '#ffffff',
@@ -135,6 +136,18 @@ export const theme = createTheme({
           }
         }
         return { root: {} }
+      },
+    },
+    Modal: {
+      defaultProps: {
+        transitionProps: { duration: MOTION_CROSSFADE_MS, transition: 'fade' },
+        overlayProps: { backgroundOpacity: 0.72, blur: 3 },
+      },
+    },
+    Drawer: {
+      defaultProps: {
+        transitionProps: { duration: MOTION_DRAWER_MS, transition: 'fade' },
+        overlayProps: { backgroundOpacity: 0.72, blur: 3 },
       },
     },
   },

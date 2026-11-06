@@ -71,7 +71,7 @@ type FieldRecord = { [key: string]: FieldValue }
 type FieldValue = string | number | boolean | string[] | FieldRecord[]
 
 export function ButtonModule({ data, config, onAction, acting }: ModuleViewProps) {
-  const label = displayText(data, ['label']) || configString(config, 'label', 'Run')
+  const label = displayText(data, ['label']) || configString(config, 'label', 'run')
   const color = configString(config, 'color', 'accent')
   return (
     <Flex h="100%" align="center">
@@ -86,7 +86,7 @@ export function SwitchModule({ data, config, onAction, acting }: ModuleViewProps
   const remote = booleanValue(data)
   const [pending, setPending] = useState<{ source: unknown; value: boolean } | null>(null)
   const checked = pending != null && pending.source === data ? pending.value : remote
-  const label = (isRecord(data) && typeof data.label === 'string' ? data.label : '') || configString(config, 'label', 'Enabled')
+  const label = (isRecord(data) && typeof data.label === 'string' ? data.label : '') || configString(config, 'label', 'enabled')
 
   return (
     <Flex h="100%" align="center">
@@ -110,7 +110,7 @@ export function CheckboxModule({ data, config, onAction, acting }: ModuleViewPro
   const remote = booleanValue(data)
   const [pending, setPending] = useState<{ source: unknown; value: boolean } | null>(null)
   const checked = pending != null && pending.source === data ? pending.value : remote
-  const label = (isRecord(data) && typeof data.label === 'string' ? data.label : '') || configString(config, 'label', 'Checked')
+  const label = (isRecord(data) && typeof data.label === 'string' ? data.label : '') || configString(config, 'label', 'checked')
 
   return (
     <Flex h="100%" align="center">
@@ -131,7 +131,7 @@ export function CheckboxModule({ data, config, onAction, acting }: ModuleViewPro
 }
 
 export function SegmentedModule({ data, config, onAction, acting }: ModuleViewProps) {
-  const options = optionList(data, configString(config, 'options', 'Day, Week, Month'))
+  const options = optionList(data, configString(config, 'options', 'day, week, month'))
   if (options.length === 0) return <ShapeNote expected={choiceShape} />
   const remote = stringValue(data)
   const value = options.includes(remote) ? remote : options[0]
@@ -153,7 +153,7 @@ export function SelectModule({ data, config, onAction, acting }: ModuleViewProps
   if (options.length === 0) return <ShapeNote expected={choiceShape} />
   const remote = stringValue(data)
   const value = options.includes(remote) ? remote : null
-  const label = configString(config, 'label', 'Choice')
+  const label = configString(config, 'label', 'choice')
 
   return (
     <Select
@@ -173,7 +173,7 @@ export function NumberModule({ data, config, onAction, acting }: ModuleViewProps
   const remote = numberValue(data)
   const [draft, setDraft] = useState<{ source: unknown; value: number | string } | null>(null)
   const value = draft != null && draft.source === data ? draft.value : (remote ?? '')
-  const label = (isRecord(data) && typeof data.label === 'string' ? data.label : '') || configString(config, 'label', 'Value')
+  const label = (isRecord(data) && typeof data.label === 'string' ? data.label : '') || configString(config, 'label', 'value')
 
   return (
     <NumberInput
@@ -262,27 +262,27 @@ function collectErrors(fields: ModuleFormField[], values: FieldRecord, prefix = 
     const value = values[field.name]
     if (field.type === 'array') {
       const items = asFieldRecords(value)
-      if (field.required && items.length === 0) errors[path] = 'Add at least one item'
+      if (field.required && items.length === 0) errors[path] = 'add at least one item'
       items.forEach((item, index) => Object.assign(errors, collectErrors(field.fields, item, `${path}.${index}`)))
       continue
     }
     if (field.type === 'number') {
       const numeric = asNumber(value)
       if (numeric == null) {
-        if (field.required) errors[path] = 'Required'
-      } else if (field.min != null && numeric < field.min) errors[path] = `Minimum is ${field.min}`
-      else if (field.max != null && numeric > field.max) errors[path] = `Maximum is ${field.max}`
+        if (field.required) errors[path] = 'required'
+      }       else if (field.min != null && numeric < field.min) errors[path] = `minimum is ${field.min}`
+      else if (field.max != null && numeric > field.max) errors[path] = `maximum is ${field.max}`
       continue
     }
     if (field.type === 'checkbox' && field.options.length > 0) {
-      if (field.required && (!Array.isArray(value) || value.length === 0)) errors[path] = 'Required'
+      if (field.required && (!Array.isArray(value) || value.length === 0)) errors[path] = 'required'
       continue
     }
     if (field.type === 'checkbox') {
-      if (field.required && value !== true) errors[path] = 'Required'
+      if (field.required && value !== true) errors[path] = 'required'
       continue
     }
-    if (field.required && (value == null || value === '')) errors[path] = 'Required'
+    if (field.required && (value == null || value === '')) errors[path] = 'required'
   }
   return errors
 }
@@ -340,14 +340,14 @@ function FormFieldInput({
         </Text>
         {named.length === 0 ? (
           <Text size="xs" c="dimmed">
-            This array has no item fields yet.
+            this array has no item fields yet.
           </Text>
         ) : (
           items.map((item, index) => (
             <Stack key={`${path}.${index}`} gap="xs" className="field-editor">
               <Group justify="space-between">
                 <Text size="xs" className="section-label">
-                  {field.label || 'Item'} {index + 1}
+                  {field.label || 'item'} {index + 1}
                 </Text>
                 <Button
                   type="button"
@@ -357,7 +357,7 @@ function FormFieldInput({
                   disabled={disabled}
                   onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
                 >
-                  Remove
+                  remove
                 </Button>
               </Group>
               {named.map((child, childIndex) => (
@@ -386,7 +386,7 @@ function FormFieldInput({
           disabled={disabled || named.length === 0}
           onClick={() => onChange([...items, valuesFrom({}, named, false)])}
         >
-          Add {field.label || 'item'}
+          add {field.label || 'item'}
         </Button>
       </Stack>
     )
@@ -438,7 +438,7 @@ function FormFieldInput({
         <Stack gap={6} mt={4}>
           {options.length === 0 ? (
             <Text size="xs" c="dimmed">
-              Add options in the field builder.
+              add options in the field builder.
             </Text>
           ) : (
             options.map((option, index) => <Radio key={`${option}:${index}`} value={option} label={option} disabled={disabled} />)
@@ -580,8 +580,8 @@ export function FormModule({ data, config, onAction, acting, sequenceRun }: Modu
         } else if (decision.cursor === pageCursor) {
           notifications.show({
             color: 'yellow',
-            title: 'Still needs input',
-            message: 'Fill the required fields to continue.',
+            title: 'still needs input',
+            message: 'fill the required fields to continue.',
           })
         } else {
           setPauseFields(null)
@@ -604,7 +604,7 @@ export function FormModule({ data, config, onAction, acting, sequenceRun }: Modu
     if (!sequenceRun) return <ShapeNote expected={formShape} />
     return (
       <Button loading={acting} onClick={() => void submit()}>
-        Submit
+        submit
       </Button>
     )
   }
@@ -619,12 +619,12 @@ export function FormModule({ data, config, onAction, acting, sequenceRun }: Modu
       <Stack gap="xs">
         {pages.length > 1 && !pauseFields ? (
           <Text size="xs" c="dimmed">
-            Page {pageCursor + 1} of {pages.length}
+            page {pageCursor + 1} of {pages.length}
           </Text>
         ) : null}
         {pauseFields ? (
           <Text size="xs" c="dimmed">
-            This sequence needs more input before it can finish.
+            this sequence needs more input before it can finish.
           </Text>
         ) : null}
         {visible.map((field, index) => (
@@ -639,7 +639,7 @@ export function FormModule({ data, config, onAction, acting, sequenceRun }: Modu
           />
         ))}
         <Button type="submit" loading={acting}>
-          {pauseFields ? 'Continue' : laterPage ? 'Next' : 'Submit'}
+          {pauseFields ? 'continue' : laterPage ? 'next' : 'submit'}
         </Button>
       </Stack>
     </form>

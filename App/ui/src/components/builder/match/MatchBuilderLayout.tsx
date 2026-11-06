@@ -13,7 +13,7 @@ const MIN_PANE = 300;
 /** Below this width the resizer is hidden and panes stack vertically. */
 const STACK_BREAKPOINT = 600;
 const DEFAULT_CONFIG = 400;
-const HANDLE_HIT = 12;
+const HANDLE_HIT = 14;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -106,7 +106,7 @@ export function MatchBuilderLayout({ graph, config }: MatchBuilderLayoutProps) {
           className="matchSplitHandle"
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize element config panel"
+          aria-label="resize element config panel"
           style={{ left: graphWidth - HANDLE_HIT / 2 }}
           onPointerDown={startResize}
         />

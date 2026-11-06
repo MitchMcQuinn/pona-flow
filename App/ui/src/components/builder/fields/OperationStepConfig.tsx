@@ -161,11 +161,11 @@ export function OperationStepConfig({
             className="builderPropertyNameInput"
             aria-label="evaluation name"
             data-testid="builder-operation-name"
-            placeholder="Enter an evaluation name"
+            placeholder="enter an evaluation name"
             value={evaluation.name}
             onChange={(e) => commitEvaluation({ ...evaluation, name: e.target.value })}
           />
-          <FieldTip text="Written into the run as a boolean. $name and $name.field read parameters already in the run." />
+          <FieldTip text="written into the run as a boolean. $name and $name.field read parameters already in the run." />
         </div>
       </div>
       <div className="builderField">
@@ -232,7 +232,7 @@ export function OperationStepConfig({
                     />
                   ) : null}
                   <CardRemove
-                    label="Remove condition"
+                    label="remove condition"
                     onClick={() =>
                       commitEvaluation({
                         ...evaluation,
@@ -259,7 +259,7 @@ export function OperationStepConfig({
                       >
                       {group.statements.length > 1 ? (
                         <CardRemove
-                          label="Remove statement"
+                          label="remove statement"
                           onClick={() => {
                             const groups = evaluation.groups.map((item, index) =>
                               index === groupIndex
@@ -277,7 +277,7 @@ export function OperationStepConfig({
                         <div className="builderField">
                           <input
                             className="builderMono"
-                            aria-label="X"
+                            aria-label="x"
                             data-testid={`builder-operation-x-${groupIndex}-${statementIndex}`}
                             placeholder="$user.email"
                             value={operandText(statement.x)}
@@ -317,7 +317,7 @@ export function OperationStepConfig({
                           <div className="builderField">
                             <input
                               className="builderMono"
-                              aria-label="Y"
+                              aria-label="y"
                               data-testid={`builder-operation-y-${groupIndex}-${statementIndex}`}
                               placeholder="@corp.example.com"
                               value={operandText(statement.y)}
@@ -348,7 +348,7 @@ export function OperationStepConfig({
                     commitEvaluation({ ...evaluation, groups });
                   }}
                 >
-                  + Statement
+                  + statement
                 </button>
               </div>
             </div>
@@ -367,7 +367,7 @@ export function OperationStepConfig({
                 })
               }
             >
-              + Condition
+              + condition
             </button>
           </div>
         </div>
@@ -376,7 +376,7 @@ export function OperationStepConfig({
       <div className="builderField builderOperationAssignments">
         <div className="createSequenceLabelRow">
           <h2 className="builderPanelTitle">assignments</h2>
-          <FieldTip text="Each row writes when the condition matches this choice. ALWAYS writes either way. A row that does not match leaves the key as it is." />
+          <FieldTip text="each row writes when the condition matches this choice. ALWAYS writes either way. a row that does not match leaves the key as it is." />
         </div>
         <div className="builderBlock">
           {assignments.map((item, index) => (
@@ -390,7 +390,7 @@ export function OperationStepConfig({
             >
               {assignments.length > 1 ? (
                 <CardRemove
-                  label="Remove assignment"
+                  label="remove assignment"
                   onClick={() => commitAssignments(assignments.filter((_, i) => i !== index))}
                 />
               ) : null}
@@ -497,7 +497,7 @@ export function OperationStepConfig({
                       className="builderMono"
                       data-testid={`builder-operation-value-${index}`}
                       type={item.type === "number" ? "number" : "text"}
-                      placeholder={item.type === "number" ? "12" : "High"}
+                      placeholder={item.type === "number" ? "12" : "high"}
                       value={
                         item.type === "number" && typeof item.value === "number" && !Number.isFinite(item.value)
                           ? ""
@@ -523,7 +523,7 @@ export function OperationStepConfig({
               data-testid="builder-operation-add-assignment"
               onClick={() => commitAssignments([...assignments, emptyOperationAssignment()])}
             >
-              + Assignment
+              + assignment
             </button>
           </div>
         </div>

@@ -52,16 +52,16 @@ export function GuideApp() {
           <div className="topbarActions">
             {!locked ? (
               <button type="button" data-testid="guide-back" onClick={() => setWizardOpen(false)}>
-                Back to chat
+                back to chat
               </button>
             ) : null}
           </div>
         </header>
       ) : null}
       <div className="guideStage">
-        <section className="chatColumn guideChat" aria-label="Chat">
+        <section className="chatColumn guideChat" aria-label="chat">
           <div className="guideFace">
-            <div className={`guideFaceBody${wizardOpen ? " guideFaceBody-wizard" : ""}`}>
+            <div className={`guideFaceBody screenFade${wizardOpen ? " guideFaceBody-wizard" : ""}`} key={wizardOpen ? "wizard" : "hello"}>
               {wizardOpen ? (
                 <Wizard onLock={setLocked} />
               ) : (
@@ -100,7 +100,7 @@ export function GuideApp() {
                   )}
                 </article>
               ))}
-              {busy ? <p className="muted">Thinking...</p> : null}
+              {busy ? <p className="muted">thinking...</p> : null}
               {error ? <p className="errorText">{error}</p> : null}
             </div>
           </div>
@@ -111,8 +111,8 @@ export function GuideApp() {
             <textarea
               value={draft}
               rows={3}
-              placeholder="Ask about pona flow"
-              aria-label="Message"
+              placeholder="ask about pona flow"
+              aria-label="message"
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
@@ -122,7 +122,7 @@ export function GuideApp() {
               }}
             />
             <button type="submit" className="btnPrimary" disabled={busy || !draft.trim()}>
-              Send
+              send
             </button>
           </form>
         </section>

@@ -23,7 +23,7 @@ export function Walkthrough({ spaceId, item, sequences }: WalkthroughProps) {
     document.querySelectorAll(".pinHighlight").forEach((node) => node.classList.remove("pinHighlight"));
   }, [index, item.id]);
 
-  if (!frame) return <p className="muted">This walkthrough has no frames.</p>;
+  if (!frame) return <p className="muted">this walkthrough has no frames.</p>;
 
   function choosePin(target: string) {
     setActivePin(target);
@@ -44,7 +44,7 @@ export function Walkthrough({ spaceId, item, sequences }: WalkthroughProps) {
           min={0}
           max={Math.max(frames.length - 1, 0)}
           value={index}
-          aria-label="Walkthrough frame"
+          aria-label="walkthrough frame"
           onChange={(event) => setIndex(Number(event.target.value))}
         />
         <span>
@@ -77,7 +77,7 @@ function FrameNotes({
     if (frame.pins.length === 0) return null;
     return (
       <div className="agentNote">
-        <p className="agentNoteLabel">Pinned notes</p>
+        <p className="agentNoteLabel">pinned notes</p>
         <ul className="walkthroughPins">
           {frame.pins.map((pin) => (
             <li key={pin.target}>
@@ -98,7 +98,7 @@ function FrameNotes({
   if (!frame.note) return null;
   return (
     <div className="agentNote">
-      <p className="agentNoteLabel">Agent note</p>
+      <p className="agentNoteLabel">agent note</p>
       <Markdown text={frame.note} />
     </div>
   );
@@ -208,7 +208,7 @@ class PreviewBoundary extends Component<{ children: ReactNode; resetKey: string 
   state = { error: null as string | null };
 
   static getDerivedStateFromError(error: Error) {
-    return { error: error.message || "This frame could not be shown." };
+    return { error: error.message || "this frame could not be shown." };
   }
 
   componentDidUpdate(previous: { resetKey: string }) {

@@ -133,7 +133,7 @@ export function StepCreateRelCard(props: RelCardProps) {
             value={relationship.attributive_label ?? ""}
             placeholder="NEXT or $parameter"
             disabled={aliasLocked}
-            title={aliasLocked ? "Locked because this entry has an alias." : undefined}
+            title={aliasLocked ? "locked because this entry has an alias." : undefined}
             onFocus={() => {
               relLabelAtFocusRef.current = relationship.attributive_label ?? "";
             }}
@@ -420,8 +420,8 @@ export function SchemaCreateRelCard(props: RelCardProps) {
         <>
           {isExisting ? (
             <p className="builderCheckMsg">
-              Reusing an existing relationship type — its properties are shared by every use
-              and shown read-only here. Edit the type via a SCHEMA update to change them
+              reusing an existing relationship type — its properties are shared by every use
+              and shown read-only here. edit the type via a SCHEMA update to change them
               everywhere.
             </p>
           ) : null}

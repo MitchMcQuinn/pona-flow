@@ -26,24 +26,24 @@ const COPY: Record<Mode, { title: string; blurb: string; submit: string; busy: s
   setup: {
     title: "set up pona flow",
     blurb:
-      "Create the first account for this instance. It becomes the instance administrator " +
+      "create the first account for this instance. it becomes the instance administrator " +
       "and can invite everyone else.",
-    submit: "Create admin account",
-    busy: "Creating..."
+    submit: "create admin account",
+    busy: "creating..."
   },
   login: {
     title: "sign in",
-    blurb: "Use the email and password for your account on this instance.",
-    submit: "Sign in",
-    busy: "Signing in..."
+    blurb: "use the email and password for your account on this instance.",
+    submit: "sign in",
+    busy: "signing in..."
   },
   signup: {
     title: "create your account",
     blurb:
-      "Use the email address a space admin invited. Your account is attached to that " +
+      "use the email address a space admin invited. your account is attached to that " +
       "invitation as soon as it is created.",
-    submit: "Create account",
-    busy: "Creating..."
+    submit: "create account",
+    busy: "creating..."
   }
 };
 
@@ -73,7 +73,7 @@ export function AuthPages({ initialMode, openSignup, onSignedIn }: AuthPagesProp
       const me = await action(credentials);
       onSignedIn(me);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      setError(e instanceof Error ? e.message : "something went wrong.");
     } finally {
       setBusy(false);
     }
@@ -87,20 +87,20 @@ export function AuthPages({ initialMode, openSignup, onSignedIn }: AuthPagesProp
 
   return (
     <SignedOutLayout>
-      <form className="authCard" onSubmit={handleSubmit} noValidate>
+      <form className="authCard screenFade" key={mode} onSubmit={handleSubmit} noValidate>
         <img className="authLogo" src={logoUrl} alt="" aria-hidden="true" />
         <h1>{copy.title}</h1>
         <p className="muted">{copy.blurb}</p>
 
         {wantsName ? (
           <label className="field">
-            <span>Name</span>
+            <span>name</span>
             <input
               type="text"
               autoComplete="name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="How you want to appear to teammates"
+              placeholder="how you want to appear to teammates"
               disabled={busy}
             />
           </label>
@@ -144,7 +144,7 @@ export function AuthPages({ initialMode, openSignup, onSignedIn }: AuthPagesProp
             </div>
           </div>
         </div>
-        {mode !== "login" ? <small className="muted">At least 10 characters.</small> : null}
+        {mode !== "login" ? <small className="muted">at least 10 characters.</small> : null}
 
         {error ? (
           <p className="authError" role="alert">
@@ -158,17 +158,17 @@ export function AuthPages({ initialMode, openSignup, onSignedIn }: AuthPagesProp
 
         {mode === "login" ? (
           <p className="authSwitch muted">
-            {openSignup ? "New here?" : "Have an invitation?"}{" "}
+            {openSignup ? "new here?" : "have an invitation?"}{" "}
             <button type="button" className="linkButton" onClick={() => switchMode("signup")}>
-              Create an account
+              create an account
             </button>
           </p>
         ) : null}
         {mode === "signup" ? (
           <p className="authSwitch muted">
-            Already have an account?{" "}
+            already have an account?{" "}
             <button type="button" className="linkButton" onClick={() => switchMode("login")}>
-              Sign in
+              sign in
             </button>
           </p>
         ) : null}
@@ -184,10 +184,10 @@ export function ClerkSignInGate() {
       <div className="authCard">
         <img className="authLogo" src={logoUrl} alt="" aria-hidden="true" />
         <h1>sign in</h1>
-        <p className="muted">Use your account to open a space and talk with the agent.</p>
+        <p className="muted">use your account to open a space and talk with the agent.</p>
         <SignInButton mode="redirect">
           <button type="button" className="btnPrimary">
-            Sign in
+            sign in
           </button>
         </SignInButton>
       </div>
@@ -202,12 +202,12 @@ export function ApiUnreachable({ onRetry }: { onRetry: () => void }) {
       <div className="authCard">
         <h1>cannot reach the pona flow api</h1>
         <p className="muted">
-          The browser loaded the app but <code>/api/auth/status</code> did not answer. If you
-          just started the server, give it a few seconds; otherwise check that the API process
+          the browser loaded the app but <code>/api/auth/status</code> did not answer. if you
+          just started the server, give it a few seconds; otherwise check that the api process
           is running and that this page is served from the same origin.
         </p>
         <button type="button" className="btnPrimary" onClick={onRetry}>
-          Retry
+          retry
         </button>
       </div>
     </SignedOutLayout>

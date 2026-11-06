@@ -147,13 +147,13 @@
 }
 
 .resultResponseStatus.ok .resultResponseBadge {
-  background: rgba(52, 199, 89, 0.16);
-  color: #34c759;
+  background: rgba(52, 211, 153, 0.16);
+  color: var(--ok);
 }
 
 .resultResponseStatus.error .resultResponseBadge {
-  background: rgba(255, 69, 58, 0.16);
-  color: #ff453a;
+  background: rgba(251, 113, 133, 0.16);
+  color: var(--bad);
 }
 
 .resultResponseStatusText {

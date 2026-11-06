@@ -25,16 +25,16 @@ describe("nav: in-flight activity icon and Stop Sequence", () => {
       .find(".builderPickerToggle")
       .click();
     cy.get('[data-testid="builder-picker-menu"]')
-      .contains("button.builderPickerCreate", "+ New group title")
+      .contains("button.builderPickerCreate", "+ new group title")
       .click();
-    cy.get('[data-testid="modal-create-operation"] input[placeholder="New group title"]')
+    cy.get('[data-testid="modal-create-operation"] input[placeholder="new group title"]')
       .clear()
       .type(GOLDEN_SEQUENCE_GROUP);
     cy.get('[data-testid="modal-create-operation"] [data-testid="modal-confirm-btn"]').click();
     cy.get('[data-testid="modal-create-operation"]').should("not.exist");
     cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should(
       "contain.text",
-      "Step published as a one-step sequence"
+      "step published as a one-step sequence"
     );
 
     cy.contains(

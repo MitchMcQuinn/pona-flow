@@ -21,7 +21,7 @@ interface OrderByProjectionRowProps {
   item: OrderByItem;
 }
 
-const ADD_PARAMETER_ACTION_LABEL = "+ ADD A PARAMETER";
+const ADD_PARAMETER_ACTION_LABEL = "+ add a parameter";
 
 export function OrderByProjectionRow({ index, item }: OrderByProjectionRowProps) {
   const { state, patchQuery } = useBuilder();
@@ -90,7 +90,7 @@ export function OrderByProjectionRow({ index, item }: OrderByProjectionRowProps)
             emptyHint={
               bindings.length
                 ? undefined
-                : "Set attributive_label on MATCH nodes and relationships first."
+                : "set attributive_label on MATCH nodes and relationships first."
             }
           />
         </div>
@@ -110,11 +110,11 @@ export function OrderByProjectionRow({ index, item }: OrderByProjectionRowProps)
             }}
             emptyHint={
               schemaIsParameter
-                ? "Schema is a parameter — add a parameter for the property too."
+                ? "schema is a parameter — add a parameter for the property too."
                 : binding
                   ? propertyKeys.length
                     ? undefined
-                    : "No properties found on graph for this schema."
+                    : "no properties found on graph for this schema."
                   : undefined
             }
           />
@@ -134,7 +134,7 @@ export function OrderByProjectionRow({ index, item }: OrderByProjectionRowProps)
           className="builderTinyBtn builderDanger"
           onClick={() => patchQuery(removeOrderBy(index))}
         >
-          Remove
+          remove
         </button>
       </div>
       {showSchemaParamModal ? (

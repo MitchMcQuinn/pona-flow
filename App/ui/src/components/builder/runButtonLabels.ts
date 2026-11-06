@@ -7,10 +7,10 @@ const LABEL_NOUN: Record<GraphNodeLabel, string> = {
 };
 
 const OP_VERB: Record<Operation, { idle: string; busy: string }> = {
-  create: { idle: "Create", busy: "Creating" },
-  read: { idle: "Read", busy: "Reading" },
-  update: { idle: "Update", busy: "Updating" },
-  delete: { idle: "Delete", busy: "Deleting" }
+  create: { idle: "create", busy: "creating" },
+  read: { idle: "read", busy: "reading" },
+  update: { idle: "update", busy: "updating" },
+  delete: { idle: "delete", busy: "deleting" }
 };
 
 /** True when the run button should use the destructive (red) style. */

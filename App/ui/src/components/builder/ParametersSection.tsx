@@ -143,8 +143,8 @@ function ParameterRow({
         <button
           type="button"
           className="builderPropertyRemove"
-          aria-label="Remove parameter"
-          title="Remove parameter"
+          aria-label="remove parameter"
+          title="remove parameter"
           onClick={onRemove}
         >
           <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
@@ -234,7 +234,7 @@ function ParameterRow({
                   );
                 }}
               >
-                {!typeLocked ? <option value={ADD_REGEX_VALUE}>+ REGEX PATTERN</option> : null}
+                {!typeLocked ? <option value={ADD_REGEX_VALUE}>+ regex pattern</option> : null}
                 {formatOptions.map((f) => (
                   <option key={f} value={f}>
                     {f}
@@ -248,7 +248,7 @@ function ParameterRow({
             <Toggle
               checked={Boolean(param.is_required)}
               onChange={(checked) => patchQuery(updateParameterAt(index, { is_required: checked }))}
-              label="Required (pause for input)"
+              label="required (pause for input)"
               labelFirst
               disabled={locked}
             />
@@ -287,13 +287,13 @@ function ParameterRow({
             minChoices={schema?.min_choices}
             maxChoices={schema?.max_choices}
             value={rawValue}
-            placeholder="Enter a default value"
+            placeholder="enter a default value"
             onChange={(next) => patchQuery(updateParameterAt(index, { value: next }))}
           />
         ) : (
           <input
             value={rawValue}
-            placeholder="Enter a default value"
+            placeholder="enter a default value"
             onChange={(e) =>
               patchQuery(
                 updateParameterAt(index, {
@@ -310,7 +310,7 @@ function ParameterRow({
         <label>description (optional)</label>
         <input
           value={String(param.description ?? "")}
-          placeholder="What this parameter is. Shown to MCP agents in the tool's input schema."
+          placeholder="what this parameter is. shown to MCP agents in the tool's input schema."
           onChange={(e) => patchQuery(updateParameterAt(index, { description: e.target.value }))}
         />
       </div>
@@ -345,8 +345,8 @@ export function ParametersSection() {
       {params.length === 0 ? (
         <p className="builderCheckMsg muted">
           {schemaCreate
-            ? "No parameters yet. Reference one with $name in a property name or default value field, or add one here."
-            : "No parameters found in value fields. Reference one with $name, or add one here to collect it at run time."}
+            ? "no parameters yet. reference one with $name in a property name or default value field, or add one here."
+            : "no parameters found in value fields. reference one with $name, or add one here to collect it at run time."}
         </p>
       ) : null}
 

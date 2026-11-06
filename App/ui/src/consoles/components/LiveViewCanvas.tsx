@@ -91,19 +91,19 @@ export function LiveViewCanvas({
     <>
       {editing ? (
         <Text size="sm" c="dimmed">
-          Drag a module header to move it. Drag the corner to resize. Click a module to choose its data.
+          drag a module header to move it. drag the corner to resize. click a module to choose its data.
         </Text>
       ) : null}
 
       {view.modules.length === 0 ? (
         <Box className="empty-canvas">
           <Stack align="flex-start" gap="xs">
-            <Text fw={600}>This live view is empty</Text>
+            <Text fw={600}>this live view is empty</Text>
             <Text size="sm" c="dimmed">
-              Add a module from the Mantine catalog.
+              add a module from the mantine catalog.
             </Text>
             <button type="button" className="panelTextButton" onClick={onAddRequest}>
-              Add module
+              add module
             </button>
           </Stack>
         </Box>

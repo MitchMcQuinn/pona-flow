@@ -58,11 +58,11 @@ export function SequenceDeleteConfirmModal({
   const confirmLabel =
     mode === "nav"
       ? busy
-        ? "Removing…"
-        : "Remove from navigation"
+        ? "removing…"
+        : "remove from navigation"
       : busy
-        ? "Deleting…"
-        : "Delete sequence & cascade";
+        ? "deleting…"
+        : "delete sequence & cascade";
 
   return (
     <ModalBackdrop onClick={busy ? undefined : onCancel}>
@@ -77,8 +77,8 @@ export function SequenceDeleteConfirmModal({
 
         {orphaned ? (
           <p className="muted" data-testid="sequence-delete-orphan-hint" style={{ margin: "0 0 4px" }}>
-            This sequence&rsquo;s entry STEP is missing from the graph, so a cascade delete
-            isn&rsquo;t available. You can still remove the sequence definition from the
+            this sequence&rsquo;s entry STEP is missing from the graph, so a cascade delete
+            isn&rsquo;t available. you can still remove the sequence definition from the
             navigation.
           </p>
         ) : null}
@@ -94,9 +94,9 @@ export function SequenceDeleteConfirmModal({
               onChange={() => setMode("nav")}
             />
             <span>
-              <strong>Remove from the navigation only</strong>
+              <strong>remove from the navigation only</strong>
               <span className="sequenceDeleteOptionHint">
-                Deletes just this sequence&rsquo;s definition. The underlying steps and graph
+                deletes just this sequence&rsquo;s definition. the underlying steps and graph
                 patterns stay intact and can be reused by other sequences.
               </span>
             </span>
@@ -117,14 +117,14 @@ export function SequenceDeleteConfirmModal({
               onChange={() => setMode("cascade")}
             />
             <span>
-              <strong>Delete the sequence and everything it depends on</strong>
+              <strong>delete the sequence and everything it depends on</strong>
               <span className="sequenceDeleteOptionHint">
                 {orphaned ? (
-                  <>Cascade is unavailable because the entry STEP no longer exists.</>
+                  <>cascade is unavailable because the entry STEP no longer exists.</>
                 ) : (
                   <>
-                    Permanently removes the entry step, its relationship patterns, and every
-                    dependent sequence. This cannot be undone.
+                    permanently removes the entry step, its relationship patterns, and every
+                    dependent sequence. this cannot be undone.
                   </>
                 )}
               </span>
@@ -135,7 +135,7 @@ export function SequenceDeleteConfirmModal({
         {mode === "cascade" && preview && rows.length ? (
           <div className="builderFormFieldset">
             <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
-              The following will be deleted:
+              the following will be deleted:
             </p>
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
               {rows.map((row) => (
@@ -146,7 +146,7 @@ export function SequenceDeleteConfirmModal({
             </ul>
             {preview.affected.sequences.length ? (
               <p className="muted" style={{ margin: "8px 0 0", fontSize: 12 }}>
-                Sequences: {namedList(preview.affected.sequences)}
+                sequences: {namedList(preview.affected.sequences)}
               </p>
             ) : null}
           </div>
@@ -173,7 +173,7 @@ export function SequenceDeleteConfirmModal({
             disabled={busy}
             onClick={onCancel}
           >
-            Cancel
+            cancel
           </button>
           <button
             type="button"

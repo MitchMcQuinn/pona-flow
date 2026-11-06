@@ -122,8 +122,8 @@ export function PropertyBinding({
           <button
             type="button"
             className="builderPropertyRemove"
-            aria-label="Remove property"
-            title="Remove property"
+            aria-label="remove property"
+            title="remove property"
             onClick={() =>
               patchQuery(removeProperty(clauseIndex, patternIndex, pathIndex, propIndex))
             }
@@ -141,7 +141,7 @@ export function PropertyBinding({
         ) : null}
         {locked && !readOnly ? (
           <p className="builderCheckMsg builderPropertyLockNote">
-            Existing property — its value type and format are locked. You can still change its
+            existing property — its value type and format are locked. you can still change its
             label, required, and indexed flags, edit its default, or delete it.
           </p>
         ) : null}
@@ -200,7 +200,7 @@ export function PropertyBinding({
                     patchSchema({ format: e.target.value });
                   }}
                 >
-                  <option value={ADD_REGEX_VALUE}>+ REGEX PATTERN</option>
+                  <option value={ADD_REGEX_VALUE}>+ regex pattern</option>
                   {formatOptions.map((f) => (
                     <option key={f} value={f}>
                       {f}
@@ -357,10 +357,10 @@ export function PropertyBinding({
         <button
           type="button"
           className="builderTinyBtn builderDanger"
-          title="Remove property"
+          title="remove property"
           onClick={() => patchQuery(removeProperty(clauseIndex, patternIndex, pathIndex, propIndex))}
         >
-          Remove
+          remove
         </button>
       </div>
     </div>

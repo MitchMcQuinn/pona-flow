@@ -72,9 +72,9 @@ Cypress.Commands.add("fillExternalEvent", (options: ExternalEventOptions) => {
   }
 
   (options.filters ?? []).forEach((filter, index) => {
-    cy.get(".eventExternal").contains("button", "+ Add filter").click();
-    cy.get(`[aria-label="Filter ${index + 1} path"]`).clear().type(filter.path);
-    cy.get(`[aria-label="Filter ${index + 1} value"]`).clear().type(filter.value);
+    cy.get(".eventExternal").contains("button", "+ add filter").click();
+    cy.get(`[aria-label="filter ${index + 1} path"]`).clear().type(filter.path);
+    cy.get(`[aria-label="filter ${index + 1} value"]`).clear().type(filter.value);
   });
 
   if (options.sequences?.length) selectEventSequences(options.sequences);
@@ -92,7 +92,7 @@ Cypress.Commands.add("deleteEventInNav", (name: string) => {
     .contains(".sequenceBtnLabel", name)
     .closest('[data-testid="nav-event-item"]')
     .trigger("mouseover");
-  cy.get(`[aria-label="Delete event ${name}"]`).click();
+  cy.get(`[aria-label="delete event ${name}"]`).click();
   cy.get('[data-testid="confirm-ok"]').click();
   cy.get('[data-testid="nav-event-item"]')
     .contains(".sequenceBtnLabel", name)

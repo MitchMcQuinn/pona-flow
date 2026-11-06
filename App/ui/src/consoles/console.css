@@ -171,8 +171,9 @@
 
 .mantine-Modal-overlay,
 .mantine-Drawer-overlay {
-  --overlay-bg: rgba(0, 0, 0, 0.72);
-  background: rgba(0, 0, 0, 0.72);
+  --overlay-bg: var(--overlay-scrim);
+  background: var(--overlay-scrim);
+  backdrop-filter: blur(var(--overlay-blur));
 }
 
 .mantine-Combobox-option[data-combobox-selected] {

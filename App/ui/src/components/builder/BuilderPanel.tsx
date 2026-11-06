@@ -151,7 +151,7 @@ function EditOperationActions({
 
   async function onSave() {
     setBusy(true);
-    dispatch({ type: "SET_STATUS", message: "Saving step…", kind: "info" });
+    dispatch({ type: "SET_STATUS", message: "saving step…", kind: "info" });
     try {
       const result = await updateQueryOperation(state);
       loadSavedQueries(dispatch);
@@ -160,7 +160,7 @@ function EditOperationActions({
       // (and on any sequence whose steps reference it). Refresh the nav so the red highlighting
       // clears immediately, without requiring a manual reload.
       onNavRefresh?.();
-      dispatch({ type: "SET_STATUS", message: "Step saved", kind: "ok" });
+      dispatch({ type: "SET_STATUS", message: "step saved", kind: "ok" });
       const title = state.query.name.trim();
       if (
         result.wrapLabel &&
@@ -168,16 +168,16 @@ function EditOperationActions({
         result.wrapRetargeted === false
       ) {
         showToast(
-          `Title saved. Graph label remains ${result.wrapLabel} because the new name is already used or a multi-step sequence still matches it.`,
+          `title saved. graph label remains ${result.wrapLabel} because the new name is already used or a multi-step sequence still matches it.`,
           "info"
         );
       } else {
-        showToast("Step updated.");
+        showToast("step updated.");
       }
     } catch (error) {
       dispatch({
         type: "SET_STATUS",
-        message: error instanceof Error ? error.message : "Save failed",
+        message: error instanceof Error ? error.message : "save failed",
         kind: "error"
       });
     } finally {
@@ -195,7 +195,7 @@ function EditOperationActions({
           disabled={!canSave || busy || !nameValid || nameTaken}
           onClick={onSave}
         >
-          {busy ? "Saving…" : "Save step"}
+          {busy ? "saving…" : "save step"}
         </button>
       </div>
       {state.status.kind === "error" ? (
@@ -232,7 +232,7 @@ function MutationRunActions({
 
   async function onRun() {
     setBusy(true);
-    dispatch({ type: "SET_STATUS", message: `Running ${op}…`, kind: "info" });
+    dispatch({ type: "SET_STATUS", message: `running ${op}…`, kind: "info" });
     try {
       if (op === "create") {
         const result = await runCreate(state);
@@ -253,7 +253,7 @@ function MutationRunActions({
         }
       }
       // Reset the builder for the next edit; success surfaces as a toast.
-      showToast(`${op.toUpperCase()} completed successfully.`);
+      showToast(`${op} completed successfully.`);
       // Refresh dropdowns so any newly created graph nodes are immediately selectable.
       dispatch({ type: "DATA_CHANGED" });
       dispatch({ type: "RESET_BUILDER" });
@@ -273,7 +273,7 @@ function MutationRunActions({
     const publishingStep = isSingleNewStepCreate(state.query);
     dispatch({
       type: "SET_STATUS",
-      message: publishingStep ? "Publishing step…" : "Saving as sequence…",
+      message: publishingStep ? "publishing step…" : "saving as sequence…",
       kind: "info"
     });
     try {
@@ -293,7 +293,7 @@ function MutationRunActions({
           onSequenceCreated?.(result.sequenceId);
         }
         setShowCreateModal(false);
-        showToast("Step published as a one-step sequence.");
+        showToast("step published as a one-step sequence.");
         dispatch({ type: "RESET_BUILDER" });
         return;
       }
@@ -314,11 +314,11 @@ function MutationRunActions({
         onSequenceCreated?.(result.sequenceId);
       }
       setShowCreateModal(false);
-      showToast("Saved as a one-step sequence.");
+      showToast("saved as a one-step sequence.");
     } catch (error) {
       dispatch({
         type: "SET_STATUS",
-        message: error instanceof Error ? error.message : "Save failed",
+        message: error instanceof Error ? error.message : "save failed",
         kind: "error"
       });
     } finally {
@@ -351,7 +351,7 @@ function MutationRunActions({
               disabled={!canSaveOp || disabled}
               onClick={() => setShowCreateModal(true)}
             >
-              Save as sequence
+              save as sequence
             </button>
           ) : null}
         </div>
@@ -453,13 +453,13 @@ function CreateSequenceFields({
             className="builderPropertyNameInput"
             aria-label="query name"
             value={name}
-            placeholder="Enter a sequence name"
+            placeholder="enter a sequence name"
             data-testid="builder-sequence-name"
             disabled={disabled}
             onChange={(e) => onName(e.target.value)}
           />
           {editing ? (
-            <FieldTip text="Workspace title. The graph label updates only when this name is not already used by another STEP or SCHEMA." />
+            <FieldTip text="workspace title. the graph label updates only when this name is not already used by another STEP or SCHEMA." />
           ) : null}
         </div>
         {nameTaken ? (
@@ -467,7 +467,7 @@ function CreateSequenceFields({
         ) : null}
       </div>
       <div className="builderField" data-pin-target="description">
-        <FieldLabel tip="What this sequence does. Shown to MCP agents as the tool description.">
+        <FieldLabel tip="what this sequence does. shown to MCP agents as the tool description.">
           description
         </FieldLabel>
         <textarea
@@ -486,14 +486,14 @@ function CreateSequenceFields({
               <input
                 autoFocus
                 value={newGroupTitle}
-                placeholder="New group title"
+                placeholder="new group title"
                 disabled={disabled}
                 onChange={(e) => setNewGroupTitle(e.target.value)}
               />
               <button
                 type="button"
                 className="createSequenceClearBtn"
-                aria-label="Back to group list"
+                aria-label="back to group list"
                 disabled={disabled}
                 onClick={() => {
                   setGroupChoice("");
@@ -506,13 +506,13 @@ function CreateSequenceFields({
           ) : (
             <Picker
               value={groupChoice}
-              placeholder="No group"
+              placeholder="no group"
               disabled={disabled}
               options={[
-                { value: "", label: "No group" },
+                { value: "", label: "no group" },
                 ...existingGroups.map((group) => ({ value: group, label: group }))
               ]}
-              createLabel="+ New group title"
+              createLabel="+ new group title"
               onCreate={() => setGroupChoice(CREATE_NEW_GROUP)}
               onSelect={(value) => setGroupChoice(value)}
             />
@@ -522,8 +522,8 @@ function CreateSequenceFields({
           <FieldLabel
             tip={
               loopType === "dag"
-                ? "Each step runs once, so a transition back to an earlier step ends the run."
-                : "Draw the cycle as a transition from a later step back to an earlier one. This sets when it stops."
+                ? "each step runs once, so a transition back to an earlier step ends the run."
+                : "draw the cycle as a transition from a later step back to an earlier one. this sets when it stops."
             }
           >
             type
@@ -609,7 +609,7 @@ function CreateSequenceActions({
         result.wrapRetargeted === false
       ) {
         showToast(
-          `Title saved. Graph label remains ${result.wrapLabel} because the new name is already used.`,
+          `title saved. graph label remains ${result.wrapLabel} because the new name is already used.`,
           "info"
         );
       }
@@ -617,18 +617,18 @@ function CreateSequenceActions({
       // active space, panel sizes, and builder context all stay put (no white flash).
       onSequenceCreated?.(result.id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : editing ? "Save sequence failed" : "Create sequence failed");
+      setError(e instanceof Error ? e.message : editing ? "save sequence failed" : "create sequence failed");
       setBusy(false);
     }
   }
 
   const label = editing
     ? busy
-      ? "Saving…"
-      : "Save sequence"
+      ? "saving…"
+      : "save sequence"
     : busy
-      ? "Creating…"
-      : "Create sequence";
+      ? "creating…"
+      : "create sequence";
 
   return (
     <div className="builderRunActions">
@@ -689,7 +689,7 @@ function BuilderBody({
       window.setTimeout(() => setSequenceIdCopied(false), 1500);
     } catch {
       setSequenceIdCopied(false);
-      showToast("Couldn't copy the sequence ID.", "error");
+      showToast("couldn't copy the sequence ID.", "error");
     }
   }, [editingSequenceId, showToast]);
 
@@ -863,7 +863,7 @@ function BuilderBody({
           });
         } else {
           showToast(
-            "This sequence's saved Cypher can't be opened in the visual builder.",
+            "this sequence's saved cypher can't be opened in the visual builder.",
             "error"
           );
         }
@@ -900,7 +900,7 @@ function BuilderBody({
         setLoopAliases([]);
         setBindableParameters([]);
         setLoopComposeError(
-          error instanceof Error ? error.message : "Failed to compose this sequence."
+          error instanceof Error ? error.message : "failed to compose this sequence."
         );
       })
       .finally(() => {
@@ -1000,7 +1000,7 @@ function BuilderBody({
             });
           } else {
             showToast(
-              "This operation's saved Cypher can't be opened in the visual builder.",
+              "this operation's saved cypher can't be opened in the visual builder.",
               "error"
             );
           }
@@ -1051,7 +1051,7 @@ function BuilderBody({
         const startRow = rows.find((r) => r.attributive_label === seed.startAttributiveLabel);
         const edge = edges.find((e) => e.rel_id === seed.relationshipId);
         if (!startRow || !edge) {
-          showToast("Couldn't resolve this relationship for editing.", "error");
+          showToast("couldn't resolve this relationship for editing.", "error");
           return;
         }
         const targetRow = rows.find((r) => r.attributive_label === edge.target_attributive_label);
@@ -1185,7 +1185,7 @@ function BuilderBody({
                 className="builderTinyBtn"
                 onClick={() => void copySequenceId()}
               >
-                {sequenceIdCopied ? "Copied" : "Copy sequence ID"}
+                {sequenceIdCopied ? "copied" : "copy sequence ID"}
               </button>
             ) : null}
           </div>
@@ -1214,16 +1214,16 @@ function BuilderBody({
         {editingOperation ? (
           <div className="builderField" data-pin-target="name">
             <div className="createSequenceLabelRow">
-              <label>Step name</label>
+              <label>step name</label>
               {!operationNameValid ? (
-                <span className="createSequenceRequired">Required</span>
+                <span className="createSequenceRequired">required</span>
               ) : operationNameTaken ? (
-                <span className="createSequenceRequired">Already used</span>
+                <span className="createSequenceRequired">already used</span>
               ) : null}
             </div>
             <input
               value={state.query.name}
-              placeholder="Step name"
+              placeholder="step name"
               data-testid="builder-operation-name"
               data-pin-target={state.query.name}
               onChange={(e) =>
@@ -1234,7 +1234,7 @@ function BuilderBody({
               }
             />
             <span className="createSequenceHint">
-              Workspace title shared with the one-step sequence in the nav. The graph label
+              workspace title shared with the one-step sequence in the nav. the graph label
               updates only when this name is not already used by another STEP or SCHEMA, and no
               multi-step sequence still matches the current wrap.
             </span>
@@ -1270,7 +1270,7 @@ function BuilderBody({
 
         {unmatchedWarnings.length > 0 ? (
           <div className="builderWarnings">
-            <strong>Warnings</strong>
+            <strong>warnings</strong>
             <ul>
               {unmatchedWarnings.map((w, i) => (
                 <li key={i}>{w}</li>

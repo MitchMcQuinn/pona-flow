@@ -27,10 +27,10 @@ interface CreateOperationModalProps {
 }
 
 const VARIANT_HINT: Record<SaveAsSequenceVariant, string> = {
-  step: "Create this step and add a one-step sequence in the active space.",
+  step: "create this step and add a one-step sequence in the active space.",
   schema:
-    "Save this create-schema query as a reusable one-step sequence. Running it mints a schema; it does not publish the schema you are editing.",
-  query: "Save this query as a one-step sequence in the active space."
+    "save this create-schema query as a reusable one-step sequence. running it mints a schema; it does not publish the schema you are editing.",
+  query: "save this query as a one-step sequence in the active space."
 };
 
 export function CreateOperationModal({
@@ -54,15 +54,15 @@ export function CreateOperationModal({
   function save() {
     const trimmedName = finalizeAttributiveLabelInput(name);
     if (!trimmedName) {
-      setError("Query name is required.");
+      setError("query name is required.");
       return;
     }
     if (isNewGroup && !groupTitle) {
-      setError("Group title is required.");
+      setError("group title is required.");
       return;
     }
     if (takenSequenceNames.includes(trimmedName.trim().toLowerCase())) {
-      setError(`A sequence named "${trimmedName}" already exists.`);
+      setError(`a sequence named "${trimmedName}" already exists.`);
       return;
     }
     onSave({
@@ -91,7 +91,7 @@ export function CreateOperationModal({
               <input
                 autoFocus
                 value={name}
-                placeholder="Query name"
+                placeholder="query name"
                 disabled={saving}
                 onChange={(e) => {
                   setName(sanitizeAttributiveLabelInput(e.target.value));
@@ -113,7 +113,7 @@ export function CreateOperationModal({
                   <input
                     autoFocus
                     value={newGroupTitle}
-                    placeholder="New group title"
+                    placeholder="new group title"
                     disabled={saving}
                     onChange={(e) => {
                       setNewGroupTitle(e.target.value);
@@ -123,7 +123,7 @@ export function CreateOperationModal({
                   <button
                     type="button"
                     className="createSequenceClearBtn"
-                    aria-label="Back to group list"
+                    aria-label="back to group list"
                     disabled={saving}
                     onClick={() => {
                       setGroupChoice("");
@@ -136,13 +136,13 @@ export function CreateOperationModal({
               ) : (
                 <Picker
                   value={groupChoice}
-                  placeholder="No group"
+                  placeholder="no group"
                   disabled={saving}
                   options={[
-                    { value: "", label: "No group" },
+                    { value: "", label: "no group" },
                     ...existingGroups.map((group) => ({ value: group, label: group }))
                   ]}
-                  createLabel="+ New group title"
+                  createLabel="+ new group title"
                   onCreate={() => setGroupChoice(CREATE_NEW_GROUP)}
                   onSelect={(value) => {
                     setGroupChoice(value);
@@ -159,7 +159,7 @@ export function CreateOperationModal({
               <textarea
                 value={description}
                 rows={2}
-                placeholder="What this sequence does. Shown to MCP agents as the tool description."
+                placeholder="what this sequence does. shown to MCP agents as the tool description."
                 disabled={saving}
                 onChange={(e) => {
                   setDescription(e.target.value);
@@ -180,7 +180,7 @@ export function CreateOperationModal({
             disabled={saving}
             onClick={onCancel}
           >
-            Cancel
+            cancel
           </button>
           <button
             type="button"
@@ -189,7 +189,7 @@ export function CreateOperationModal({
             disabled={saving}
             onClick={save}
           >
-            {saving ? "Saving…" : "Save sequence"}
+            {saving ? "saving…" : "save sequence"}
           </button>
         </div>
       </div>

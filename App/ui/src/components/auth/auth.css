@@ -83,7 +83,7 @@
 }
 
 .authError {
-  color: var(--danger, #ff6b6b);
+  color: var(--bad);
   font-size: 13px;
 }
 

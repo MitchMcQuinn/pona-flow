@@ -12,7 +12,7 @@ export function AddFiltersToggle({ checked, onChange, disabled }: AddFiltersTogg
       <Toggle
         checked={checked}
         onChange={onChange}
-        label="Add filters"
+        label="add filters"
         labelFirst
         disabled={disabled}
       />

@@ -16,11 +16,11 @@ import { formFieldsFromWebhookPages } from '../webhookFields'
 import type { DashboardView, FormFieldType } from '../types'
 
 const fieldTypeOptions: { value: FormFieldType; label: string }[] = [
-  { value: 'text', label: 'Text' },
-  { value: 'textarea', label: 'Text area' },
-  { value: 'number', label: 'Number' },
-  { value: 'checkbox', label: 'Checkbox' },
-  { value: 'select', label: 'Select' },
+  { value: 'text', label: 'text' },
+  { value: 'textarea', label: 'text area' },
+  { value: 'number', label: 'number' },
+  { value: 'checkbox', label: 'checkbox' },
+  { value: 'select', label: 'select' },
 ]
 
 type ViewSettingsProps = {
@@ -70,9 +70,9 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
         if (activeViewId.current !== viewId) return
         setNote(
           pages.length === 0
-            ? 'This sequence has no caller-supplied webhook parameters.'
+            ? 'this sequence has no caller-supplied webhook parameters.'
             : pages.length > 1
-              ? `Split into ${pages.length} pages, one for each time the sequence pauses for input.`
+              ? `split into ${pages.length} pages, one for each time the sequence pauses for input.`
               : null,
         )
       })
@@ -80,8 +80,8 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
         if (!stillCurrent() || activeViewId.current !== viewId) return
         notifications.show({
           color: 'red',
-          title: 'Webhook parameters unavailable',
-          message: reason instanceof Error ? reason.message : 'Could not read the webhook parameters for this sequence.',
+          title: 'webhook parameters unavailable',
+          message: reason instanceof Error ? reason.message : 'could not read the webhook parameters for this sequence.',
         })
       })
       .finally(() => {
@@ -94,16 +94,16 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
       <Stack gap="sm">
         <Text className="section-label">{view.kind} view</Text>
         <TextInput
-          label="Name"
+          label="name"
           value={view.name}
           onChange={(event) => updateView(view.id, { name: event.currentTarget.value })}
         />
         {view.kind === 'form' ? (
           <>
             <Select
-              label="Data sequence"
-              description="Runs when the console refreshes. The result prefills matching field names."
-              placeholder="None"
+              label="data sequence"
+              description="runs when the console refreshes. the result prefills matching field names."
+              placeholder="none"
               data={sequenceData}
               value={view.dataSequenceId || null}
               clearable
@@ -111,9 +111,9 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
               onChange={(value) => updateView(view.id, { dataSequenceId: value ?? '' })}
             />
             <Select
-              label="Action sequence"
-              description="Runs on submit. Choosing a sequence sets these fields from its webhook parameters."
-              placeholder="None"
+              label="action sequence"
+              description="runs on submit. choosing a sequence sets these fields from its webhook parameters."
+              placeholder="none"
               data={sequenceData}
               value={view.actionSequenceId || null}
               clearable
@@ -122,7 +122,7 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
             />
             {matching ? (
               <Text size="sm" c="dimmed">
-                Reading webhook parameters…
+                reading webhook parameters…
               </Text>
             ) : null}
             {note ? (
@@ -131,14 +131,14 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
               </Text>
             ) : null}
             <TextInput
-              label="Submit label"
+              label="submit label"
               value={view.submitLabel}
               onChange={(event) => updateView(view.id, { submitLabel: event.currentTarget.value })}
             />
             <Group justify="space-between">
               <Text className="section-label">fields</Text>
               <Button size="xs" variant="default" onClick={() => addFormField(view.id)}>
-                Add field
+                add field
               </Button>
             </Group>
             {view.fields.map((field, index) => {
@@ -147,18 +147,18 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
                 <Stack key={field.id} gap="xs" className="field-editor">
                   {view.fields.some((item) => item.page > 0) ? (
                     <Text size="xs" c="dimmed">
-                      Page {field.page + 1}
+                      page {field.page + 1}
                     </Text>
                   ) : null}
                   <TextInput
-                    label="Label"
+                    label="label"
                     value={field.label}
                     onChange={(event) => updateFormField(view.id, field.id, { label: event.currentTarget.value })}
                   />
                   <TextInput
-                    label="Name"
-                    description={duplicate ? 'Another field already uses this name.' : 'Sequence parameter name.'}
-                    error={duplicate ? 'Duplicate name' : undefined}
+                    label="name"
+                    description={duplicate ? 'another field already uses this name.' : 'sequence parameter name.'}
+                    error={duplicate ? 'duplicate name' : undefined}
                     value={field.name}
                     onChange={(event) =>
                       updateFormField(view.id, field.id, {
@@ -167,7 +167,7 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
                     }
                   />
                   <Select
-                    label="Type"
+                    label="type"
                     data={fieldTypeOptions}
                     value={field.type}
                     allowDeselect={false}
@@ -179,14 +179,14 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
                   />
                   {field.type === 'select' || field.type === 'checkbox' ? (
                     <TextInput
-                      label="Options"
-                      description="Comma-separated. A checkbox with options lets the user pick any of them."
+                      label="options"
+                      description="comma-separated. a checkbox with options lets the user pick any of them."
                       value={field.options}
                       onChange={(event) => updateFormField(view.id, field.id, { options: event.currentTarget.value })}
                     />
                   ) : null}
                   <TextInput
-                    label="Placeholder"
+                    label="placeholder"
                     value={field.placeholder}
                     onChange={(event) =>
                       updateFormField(view.id, field.id, { placeholder: event.currentTarget.value })
@@ -194,7 +194,7 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
                   />
                   <Group justify="space-between">
                     <Switch
-                      label="Required"
+                      label="required"
                       checked={field.required}
                       onChange={(event) =>
                         updateFormField(view.id, field.id, { required: event.currentTarget.checked })
@@ -207,7 +207,7 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
                         disabled={index === 0}
                         onClick={() => moveFormField(view.id, field.id, -1)}
                       >
-                        Up
+                        up
                       </Button>
                       <Button
                         size="compact-xs"
@@ -215,7 +215,7 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
                         disabled={index === view.fields.length - 1}
                         onClick={() => moveFormField(view.id, field.id, 1)}
                       >
-                        Down
+                        down
                       </Button>
                       <Button
                         size="compact-xs"
@@ -223,7 +223,7 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
                         variant="light"
                         onClick={() => removeFormField(view.id, field.id)}
                       >
-                        Remove
+                        remove
                       </Button>
                     </Group>
                   </Group>
@@ -233,7 +233,7 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
           </>
         ) : (
           <Text size="sm" c="dimmed">
-            A live view is a Mantine module grid. It refetches each module when the console refreshes.
+            a live view is a mantine module grid. it refetches each module when the console refreshes.
           </Text>
         )}
         <Button
@@ -245,7 +245,7 @@ export function ViewSettings({ spaceId, view, canDelete, opened, onClose }: View
             onClose()
           }}
         >
-          Delete view
+          delete view
         </Button>
       </Stack>
     </Drawer>

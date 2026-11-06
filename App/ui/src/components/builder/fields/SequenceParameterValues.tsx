@@ -74,16 +74,16 @@ export function SequenceParameterValues({
 }: SequenceParameterValuesProps) {
   return (
     <section className="builderBlock createSequenceFields" data-testid="sequence-parameter-values">
-      <FieldLabel tip="Pre-set a STEP parameter for this sequence only. Leave it blank to collect the value when the sequence runs.">
-        Parameter values
+      <FieldLabel tip="pre-set a STEP parameter for this sequence only. leave it blank to collect the value when the sequence runs.">
+        parameter values
       </FieldLabel>
 
       {waitingForEntry ? (
-        <p className="createSequenceHint muted">Pick an entry STEP first.</p>
+        <p className="createSequenceHint muted">pick an entry STEP first.</p>
       ) : loading ? (
-        <p className="createSequenceHint muted">Loading…</p>
+        <p className="createSequenceHint muted">loading…</p>
       ) : parameters.length === 0 ? (
-        <p className="createSequenceHint muted">No step parameters.</p>
+        <p className="createSequenceHint muted">no step parameters.</p>
       ) : (
         parameters.map((parameter) => {
           const name = parameter.name;
@@ -94,8 +94,8 @@ export function SequenceParameterValues({
                 <FieldTip
                   text={
                     parameter.is_required
-                      ? "Pauses for input if left blank."
-                      : "Optional. Leave blank to collect at run time."
+                      ? "pauses for input if left blank."
+                      : "optional. leave blank to collect at run time."
                   }
                 />
               </div>

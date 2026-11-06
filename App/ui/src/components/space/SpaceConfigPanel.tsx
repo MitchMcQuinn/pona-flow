@@ -92,26 +92,26 @@ function AuditLogSection({
       <div className="rbacHeaderRow">
         <h2>audit log</h2>
         <button type="button" onClick={onRefresh} disabled={loading}>
-          {loading ? "Loading..." : "Refresh"}
+          {loading ? "loading..." : "refresh"}
         </button>
       </div>
       <p className="muted">
-        Read-only record of every sequence run in this space, including the parameter map
+        read-only record of every sequence run in this space, including the parameter map
         collected during the run.
       </p>
       {error ? <p className="errorText">{error}</p> : null}
       {!loading && !error && entries.length === 0 ? (
-        <p className="muted">No sequence runs recorded yet.</p>
+        <p className="muted">no sequence runs recorded yet.</p>
       ) : null}
       {!error && entries.length > 0 ? (
         <table className="auditLogTable">
           <thead>
             <tr>
-              <th>Run at (UTC)</th>
-              <th>Trigger</th>
-              <th>Sequence(s)</th>
-              <th>Event</th>
-              <th>Principal</th>
+              <th>run at (UTC)</th>
+              <th>trigger</th>
+              <th>sequence(s)</th>
+              <th>event</th>
+              <th>principal</th>
             </tr>
           </thead>
           <tbody>
@@ -157,7 +157,7 @@ function AccountSection({
 }) {
   const zones = useMemo(() => supportedTimeZones(), []);
   const selectedZone = userTimezone || browserTimeZone();
-  const displayName = userName?.trim() || userEmail?.trim() || "Account";
+  const displayName = userName?.trim() || userEmail?.trim() || "account";
 
   return (
     <div className="spaceConfigSection">
@@ -169,7 +169,7 @@ function AccountSection({
         ) : null}
       </div>
       <div className="field navUserMenuField">
-        <label htmlFor="user-timezone">Timezone</label>
+        <label htmlFor="user-timezone">timezone</label>
         <select
           id="user-timezone"
           value={selectedZone}
@@ -181,10 +181,10 @@ function AccountSection({
             </option>
           ))}
         </select>
-        <span className="navUserMenuHint">Used to show event times in your local time.</span>
+        <span className="navUserMenuHint">used to show event times in your local time.</span>
       </div>
       <button type="button" className="navUserLogoutBtn" onClick={onLogout}>
-        Log out
+        log out
       </button>
     </div>
   );
@@ -330,22 +330,22 @@ export function SpaceConfigPanel({
   return (
     <div className="panel configPanel spaceConfigPanel">
       <div className="panel__body">
-        <div className="rbacHeaderRow">
-          <h1>space</h1>
-          <button type="button" onClick={onClose}>
-            Close
+        <div className="canvasInsightBar">
+          <button type="button" className="canvasInsightClose" aria-label="close" onClick={onClose}>
+            ×
           </button>
         </div>
-        {!spaceId ? <p className="muted">Select a space to configure it.</p> : null}
+        <h1>space</h1>
+        {!spaceId ? <p className="muted">select a space to configure it.</p> : null}
 
-        <div className="spaceConfigTabs" role="tablist" aria-label="Space configuration">
+        <div className="spaceConfigTabs" role="tablist" aria-label="space configuration">
           <button
             type="button"
             className={tab === "settings" ? "active" : undefined}
             data-testid="space-tab-settings"
             onClick={() => setTab("settings")}
           >
-            Settings
+            settings
           </button>
           {canManageSpace ? (
             <button
@@ -354,7 +354,7 @@ export function SpaceConfigPanel({
               data-testid="space-tab-chat"
               onClick={() => setTab("chat")}
             >
-              Chat
+              chat
             </button>
           ) : null}
           {canManageSpace ? (
@@ -364,7 +364,7 @@ export function SpaceConfigPanel({
               data-testid="space-tab-users"
               onClick={() => setTab("users")}
             >
-              Users
+              users
             </button>
           ) : null}
           {canManageSpace ? (
@@ -374,7 +374,7 @@ export function SpaceConfigPanel({
               data-testid="space-tab-agents"
               onClick={() => setTab("agents")}
             >
-              Agents
+              agents
             </button>
           ) : null}
           {canManageSpace ? (
@@ -384,7 +384,7 @@ export function SpaceConfigPanel({
               data-testid="space-tab-credentials"
               onClick={() => setTab("credentials")}
             >
-              Credentials
+              credentials
             </button>
           ) : null}
           {canManageSpace ? (
@@ -394,7 +394,7 @@ export function SpaceConfigPanel({
               data-testid="space-tab-embeddings"
               onClick={() => setTab("embeddings")}
             >
-              Embeddings
+              embeddings
             </button>
           ) : null}
           {canManageSpace ? (
@@ -404,7 +404,7 @@ export function SpaceConfigPanel({
               data-testid="space-tab-templates"
               onClick={() => setTab("templates")}
             >
-              Templates
+              templates
             </button>
           ) : null}
           <button
@@ -413,7 +413,7 @@ export function SpaceConfigPanel({
             data-testid="space-tab-audit"
             onClick={() => setTab("audit")}
           >
-            Audit log
+            audit log
           </button>
           <button
             type="button"
@@ -421,7 +421,7 @@ export function SpaceConfigPanel({
             data-testid="space-tab-account"
             onClick={() => setTab("account")}
           >
-            Account
+            account
           </button>
           {me?.isSuperadmin ? (
             <button
@@ -430,18 +430,19 @@ export function SpaceConfigPanel({
               data-testid="space-tab-update"
               onClick={() => setTab("update")}
             >
-              Update
+              update
             </button>
           ) : null}
         </div>
 
+        <div key={tab} className="screenFade">
         {tab === "settings" ? (
           <div className="spaceConfigSection">
             <h2>settings</h2>
-            {recordLoading ? <p className="muted">Loading space...</p> : null}
+            {recordLoading ? <p className="muted">loading space...</p> : null}
             {displayError ? <p className="builderCheckMsg error">{displayError}</p> : null}
             {duplicate && !displayError ? (
-              <p className="builderCheckMsg error">A space with this name already exists.</p>
+              <p className="builderCheckMsg error">a space with this name already exists.</p>
             ) : null}
             <div className="builderFormFieldset">
               <div className="builderRow">
@@ -449,7 +450,7 @@ export function SpaceConfigPanel({
                   <label>name</label>
                   <input
                     value={name}
-                    placeholder="e.g. Test space"
+                    placeholder="e.g. test space"
                     disabled={!canManageSpace || savingSpace || recordLoading}
                     onChange={(e) => setName(sanitizeSpaceNameInput(e.target.value))}
                   />
@@ -472,7 +473,7 @@ export function SpaceConfigPanel({
                   <textarea
                     value={description}
                     rows={3}
-                    placeholder="What this space is for. Shown to MCP agents as overall guidance for its tools."
+                    placeholder="what this space is for. shown to MCP agents as overall guidance for its tools."
                     disabled={!canManageSpace || savingSpace || recordLoading}
                     onChange={(e) => setDescription(e.target.value)}
                   />
@@ -487,7 +488,7 @@ export function SpaceConfigPanel({
                   disabled={!canManageSpace || savingSpace || recordLoading}
                 />
                 <span className="muted">
-                  Show composed Cypher and SQLite previews in the builder.
+                  show composed cypher and sqlite previews in the builder.
                 </span>
               </div>
             </div>
@@ -499,22 +500,22 @@ export function SpaceConfigPanel({
                 disabled={!canSave}
                 onClick={save}
               >
-                {savingSpace ? "Saving..." : "Save changes"}
+                {savingSpace ? "saving..." : "save changes"}
               </button>
             </div>
             {canManageSpace && spaceId ? (
               <div className="spaceResetCard">
-                <h3>Reset</h3>
+                <h3>reset</h3>
                 <p className="muted">
-                  Reset space clears this space's graph, records, sequences, events, consoles,
-                  and chat. The space stays, along with its members, roles, credentials, and
+                  reset space clears this space graph, records, sequences, events, consoles,
+                  and chat. the space stays, along with its members, roles, credentials, and
                   settings.
                 </p>
                 {me?.isSuperadmin ? (
                   <p className="muted">
-                    Factory reset erases every space, account, and saved secret on this instance,
-                    then opens first-run setup. A sign-in that lives outside this instance, such
-                    as Clerk, stays.
+                    factory reset erases every space, account, and saved secret on this instance,
+                    then opens first-run setup. a sign-in that lives outside this instance, such
+                    as clerk, stays.
                   </p>
                 ) : null}
                 <div className="spaceResetActions">
@@ -528,7 +529,7 @@ export function SpaceConfigPanel({
                       setResetKind("space");
                     }}
                   >
-                    Reset space
+                    reset space
                   </button>
                   {me?.isSuperadmin ? (
                     <button
@@ -540,7 +541,7 @@ export function SpaceConfigPanel({
                         setResetKind("instance");
                       }}
                     >
-                      Factory reset
+                      factory reset
                     </button>
                   ) : null}
                 </div>
@@ -548,13 +549,13 @@ export function SpaceConfigPanel({
             ) : null}
             <div className="spaceTourCard">
               <div>
-                <strong>Product tour</strong>
+                <strong>product tour</strong>
                 <p className="muted">
-                  A two-minute walk through the main parts of pona flow and what they're for.
+                  a two-minute walk through the main parts of pona flow and what they are for.
                 </p>
               </div>
               <button type="button" data-testid="space-start-tour-btn" onClick={onStartTour}>
-                Take the product tour
+                take the product tour
               </button>
             </div>
           </div>
@@ -612,15 +613,16 @@ export function SpaceConfigPanel({
             onRefresh={onLoadAuditLog}
           />
         ) : null}
+        </div>
       </div>
       {resetKind === "space" ? (
         <ResetConfirmModal
-          title="Reset space"
-          description="This clears the graph and the records, sequences, events, consoles, and chat that belong to this space. Members, roles, credentials, and settings stay."
+          title="reset space"
+          description="this clears the graph and the records, sequences, events, consoles, and chat that belong to this space. members, roles, credentials, and settings stay."
           phrase={storedName}
           saving={resetSaving}
           error={resetError}
-          confirmLabel="Reset space"
+          confirmLabel="reset space"
           testId="modal-reset-space"
           onCancel={() => {
             if (!resetSaving) setResetKind(null);
@@ -630,12 +632,12 @@ export function SpaceConfigPanel({
       ) : null}
       {resetKind === "instance" ? (
         <ResetConfirmModal
-          title="Factory reset"
-          description="This erases every space and account stored here, then opens first-run setup. A sign-in that lives outside this instance, such as Clerk, stays."
+          title="factory reset"
+          description="this erases every space and account stored here, then opens first-run setup. a sign-in that lives outside this instance, such as clerk, stays."
           phrase="RESET INSTANCE"
           saving={resetSaving}
           error={resetError}
-          confirmLabel="Factory reset"
+          confirmLabel="factory reset"
           testId="modal-reset-instance"
           onCancel={() => {
             if (!resetSaving) setResetKind(null);

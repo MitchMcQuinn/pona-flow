@@ -28,16 +28,16 @@ describe("builder: publish HTTP STEP as a one-step sequence", () => {
       .find(".builderPickerToggle")
       .click();
     cy.get('[data-testid="builder-picker-menu"]')
-      .contains("button.builderPickerCreate", "+ New group title")
+      .contains("button.builderPickerCreate", "+ new group title")
       .click();
-    cy.get('[data-testid="modal-create-operation"] input[placeholder="New group title"]')
+    cy.get('[data-testid="modal-create-operation"] input[placeholder="new group title"]')
       .clear()
       .type(GOLDEN_SEQUENCE_GROUP);
     cy.get('[data-testid="modal-create-operation"] [data-testid="modal-confirm-btn"]').click();
     cy.get('[data-testid="modal-create-operation"]').should("not.exist");
     cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should(
       "contain.text",
-      "Step published as a one-step sequence"
+      "step published as a one-step sequence"
     );
 
     cy.contains(
@@ -53,7 +53,7 @@ describe("builder: publish HTTP STEP as a one-step sequence", () => {
     )
       .closest('[data-testid="nav-sequence-item"]')
       .trigger("mouseover");
-    cy.get(`[aria-label="Edit step ${STEP_LABEL}"]`).click();
+    cy.get(`[aria-label="edit step ${STEP_LABEL}"]`).click();
     cy.contains(".builderField label", "endpoint", { timeout: 20_000 })
       .parent()
       .find("input")

@@ -134,20 +134,20 @@ export function VectorSearchSection() {
 
   const hints: string[] = [];
   if (enabled && embeddingsEnabled === false) {
-    hints.push("Vector search is not enabled for this space (Embeddings settings).");
+    hints.push("vector search is not enabled for this space (embeddings settings).");
   }
   if (enabled && schemaVectorized === false) {
     hints.push(
       attributiveLabel
         ? `${attributiveLabel} is not marked vectorized — reindex will skip it.`
-        : "Select an attributive_label that is marked vectorized."
+        : "select an attributive_label that is marked vectorized."
     );
   }
   if (enabled && allLabels) {
     hints.push(
       attributiveLabel
-        ? `Searching every vectorized type — the selected ${attributiveLabel} is ignored.`
-        : "Searching every vectorized type."
+        ? `searching every vectorized type — the selected ${attributiveLabel} is ignored.`
+        : "searching every vectorized type."
     );
   }
   if (enabled && (textParameter || kParameter)) {
@@ -161,7 +161,7 @@ export function VectorSearchSection() {
   }
   if (enabled) {
     hints.push(
-      "Tight WHERE filters can return fewer than k hits (post-filter on the vector index)."
+      "tight WHERE filters can return fewer than k hits (post-filter on the vector index)."
     );
   }
 
@@ -189,13 +189,13 @@ export function VectorSearchSection() {
       {enabled ? (
         <div className="builderFormTransition">
           <div className="builderField" data-issue="vector-text">
-            <label htmlFor="vector-search-text">Search text</label>
+            <label htmlFor="vector-search-text">search text</label>
             <textarea
               id="vector-search-text"
               data-testid="vector-search-text"
               rows={3}
               value={text}
-              placeholder="Describe what to find… or $param"
+              placeholder="describe what to find… or $param"
               onChange={(e) => patchQuery(setVectorSearch({ text: e.target.value }))}
             />
           </div>
@@ -203,7 +203,7 @@ export function VectorSearchSection() {
             <Toggle
               checked={allLabels}
               onChange={(value) => patchQuery(setVectorSearch({ all_labels: value }))}
-              label="Search all types"
+              label="search all types"
               labelFirst
               id="vector-search-all-labels-toggle"
             />

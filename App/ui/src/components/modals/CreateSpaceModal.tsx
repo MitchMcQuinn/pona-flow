@@ -76,15 +76,15 @@ export function CreateSpaceModal({
 
   function save() {
     if (!trimmedName) {
-      setLocalError("Name is required.");
+      setLocalError("name is required.");
       return;
     }
     if (!nameValid) {
-      setLocalError("Name needs at least one letter or number.");
+      setLocalError("name needs at least one letter or number.");
       return;
     }
     if (duplicate) {
-      setLocalError("A space with this name already exists.");
+      setLocalError("a space with this name already exists.");
       return;
     }
     onSubmit({ name: trimmedName, endpoint: endpoint.trim() });
@@ -103,10 +103,10 @@ export function CreateSpaceModal({
         <h2 style={{ marginTop: 0 }}>{isEdit ? "edit space" : "create space"}</h2>
         <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>
           {required
-            ? "You're in. Create your first space to start building. A space is a working environment (a project, a team, a client); it uses the instance's Neo4j connection unless you configure a space-specific one later."
+            ? "you're in. create your first space to start building. a space is a working environment (a project, a team, a client); it uses the instance's neo4j connection unless you configure a space-specific one later."
             : isEdit
-              ? "Update the space name or endpoint. Renaming recomputes connection env keys."
-              : "Add a working environment to the catalog spaces table."}
+              ? "update the space name or endpoint. renaming recomputes connection env keys."
+              : "add a working environment to the catalog spaces table."}
         </p>
 
         <div className="builderFormFieldset">
@@ -116,7 +116,7 @@ export function CreateSpaceModal({
               <input
                 autoFocus
                 value={name}
-                placeholder="e.g. Test space"
+                placeholder="e.g. test space"
                 disabled={saving}
                 onChange={(e) => setName(sanitizeSpaceNameInput(e.target.value))}
                 onKeyDown={(e) => {
@@ -143,7 +143,7 @@ export function CreateSpaceModal({
 
           {displayError ? <p className="builderCheckMsg error">{displayError}</p> : null}
           {duplicate && !displayError ? (
-            <p className="builderCheckMsg error">A space with this name already exists.</p>
+            <p className="builderCheckMsg error">a space with this name already exists.</p>
           ) : null}
         </div>
 
@@ -156,7 +156,7 @@ export function CreateSpaceModal({
               disabled={saving}
               onClick={onCancel}
             >
-              Cancel
+              cancel
             </button>
           ) : null}
           <button
@@ -168,11 +168,11 @@ export function CreateSpaceModal({
           >
             {saving
               ? isEdit
-                ? "Saving…"
-                : "Creating…"
+                ? "saving…"
+                : "creating…"
               : isEdit
-                ? "Save changes"
-                : "Create space"}
+                ? "save changes"
+                : "create space"}
           </button>
         </div>
       </div>

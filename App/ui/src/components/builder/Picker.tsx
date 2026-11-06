@@ -219,7 +219,7 @@ export function Picker({
             ref={searchRef}
             type="text"
             className="builderPickerSearchInput"
-            placeholder="Search…"
+            placeholder="search…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => {
@@ -263,7 +263,7 @@ export function Picker({
         ))}
         {filteredOptions.length === 0 && (options.length > 0 || emptyHint) ? (
           <li className="builderPickerEmpty">
-            {options.length === 0 ? emptyHint : "No matches."}
+            {options.length === 0 ? emptyHint : "no matches."}
           </li>
         ) : null}
       </ul>

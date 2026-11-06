@@ -94,12 +94,12 @@ export function MatchAttributiveLabelField({
     state.dataVersion
   ]);
   const emptyHint = graphUnavailable
-    ? `Could not load ${fetchLabel} nodes from the graph. Check the space Neo4j connection.`
+    ? `could not load ${fetchLabel} nodes from the graph. check the space neo4j connection.`
     : requireSpaceCatalog
       ? fetchLabel === "SCHEMA"
-        ? "No schema nodes available"
-        : `No ${fetchLabel} nodes in both the graph and this space's label catalog.`
-      : `No ${fetchLabel} nodes in this space.`;
+        ? "no schema nodes available"
+        : `no ${fetchLabel} nodes in both the graph and this space's label catalog.`
+      : `no ${fetchLabel} nodes in this space.`;
 
   const missing = !attributiveLabel.trim() || creatingParameter;
 
@@ -128,7 +128,7 @@ export function MatchAttributiveLabelField({
           createActions={
             createSequenceMode || !allowParameter
               ? []
-              : [{ label: "+ ADD A PARAMETER", onClick: () => setCreatingParameter(true) }]
+              : [{ label: "+ add a parameter", onClick: () => setCreatingParameter(true) }]
           }
           onSelect={onSelect}
           disabled={disabled}

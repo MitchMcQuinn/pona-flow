@@ -103,7 +103,7 @@ export function DeleteSection() {
                 options={targetOptions}
                 onSelect={(variable) => patchQuery(updateDeleteTarget(index, variable))}
                 emptyHint={
-                  bindings.length ? undefined : "Add MATCH nodes or relationships first."
+                  bindings.length ? undefined : "add MATCH nodes or relationships first."
                 }
               />
             ) : (
@@ -121,7 +121,7 @@ export function DeleteSection() {
               className="builderTinyBtn builderDanger"
               onClick={() => patchQuery(removeDeleteTarget(index))}
             >
-              Remove
+              remove
             </button>
           </div>
         </div>

@@ -18,7 +18,7 @@ describe("space administration", () => {
     cy.get('[data-testid="space-settings-save-btn"]').should("not.be.disabled").click();
     cy.get('[data-testid="space-settings-save-btn"]', { timeout: 20_000 }).should(
       "contain.text",
-      "Save changes"
+      "save changes"
     );
   });
 
@@ -32,10 +32,10 @@ describe("space administration", () => {
     cy.get('[data-testid="space-settings-save-btn"]').should("not.be.disabled").click();
     cy.get('[data-testid="space-settings-save-btn"]', { timeout: 20_000 }).should(
       "contain.text",
-      "Save changes"
+      "save changes"
     );
     cy.get("#space-dev-mode-toggle", { timeout: 20_000 }).should("have.attr", "aria-checked", "true");
-    cy.contains(".spaceConfigPanel .rbacHeaderRow button", "Close").click();
+    cy.get('.spaceConfigPanel button[aria-label="close"]').click();
     cy.get('[data-testid="builder-query-preview"]', { timeout: 20_000 }).should("be.visible");
   });
 
@@ -60,11 +60,11 @@ describe("space administration", () => {
   it("shows the read-only audit log", () => {
     cy.openSpaceTab("audit");
     cy.contains(".spaceConfigSection h2", "audit log").should("be.visible");
-    cy.contains(".rbacHeaderRow button", "Refresh").click();
+    cy.contains(".rbacHeaderRow button", "refresh").click();
     // Either rows render or the empty-state message is shown — both are valid.
     cy.get(".spaceConfigSection").should(($section) => {
       const text = $section.text();
-      expect(text.includes("No sequence runs recorded yet") || text.includes("Run at")).to.eq(
+      expect(text.includes("no sequence runs recorded yet") || text.includes("run at")).to.eq(
         true
       );
     });

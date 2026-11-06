@@ -59,7 +59,7 @@ function ToastView({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => vo
   return (
     <div className={`toast toast--${toast.kind}`} role="status">
       <span className="toastMessage">{toast.message}</span>
-      <button type="button" className="toastClose" aria-label="Dismiss" onClick={onDismiss}>
+      <button type="button" className="toastClose" aria-label="dismiss" onClick={onDismiss}>
         ×
       </button>
     </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { MOTION_CROSSFADE_MS, MOTION_LAYOUT_MS } from "./motion";
 import { useAuth, useUser } from "./services/clerkAuth";
 import { ConfigPanel } from "./components/ConfigPanel";
 import { CreateSpaceModal } from "./components/modals/CreateSpaceModal";
@@ -152,7 +153,7 @@ export default function App() {
     setColumnSliding(true);
     if (presentedChat !== chatMode) setViewPhase("out");
     const frame = window.requestAnimationFrame(() => setWidthMode(chatMode));
-    const swap = window.setTimeout(() => setPresentedChat(chatMode), 200);
+    const swap = window.setTimeout(() => setPresentedChat(chatMode), MOTION_CROSSFADE_MS);
     return () => {
       window.cancelAnimationFrame(frame);
       window.clearTimeout(swap);
@@ -167,7 +168,7 @@ export default function App() {
 
   useEffect(() => {
     if (!columnSliding || widthMode !== chatMode) return;
-    const done = window.setTimeout(() => setColumnSliding(false), 450);
+    const done = window.setTimeout(() => setColumnSliding(false), MOTION_LAYOUT_MS);
     return () => window.clearTimeout(done);
   }, [columnSliding, widthMode, chatMode]);
 
@@ -385,7 +386,7 @@ export default function App() {
     if (target.singleStep) {
       const attributiveLabel = target.attributiveLabel.trim();
       if (!attributiveLabel) {
-        showToast("This sequence's entry STEP is missing, so it can't be edited.", "error");
+        showToast("this sequence's entry STEP is missing, so it can't be edited.", "error");
         return;
       }
       dismissVisualization();
@@ -420,7 +421,7 @@ export default function App() {
       .catch((error: unknown) =>
         dispatch({
           type: "AUDIT_LOG_LOAD_FAILED",
-          error: error instanceof Error ? error.message : "Unable to load audit log"
+          error: error instanceof Error ? error.message : "unable to load audit log"
         })
       );
   }, [state.spaceId]);
@@ -531,8 +532,8 @@ export default function App() {
       dispatch({
         type: "RUN_FAILED",
         error:
-          "This sequence is suspended: a schema change invalidated one of its INSTANCE steps. " +
-          "Re-save the affected step to match the new schema pattern, then try again."
+          "this sequence is suspended: a schema change invalidated one of its INSTANCE steps. " +
+          "re-save the affected step to match the new schema pattern, then try again."
       });
       return;
     }
@@ -560,8 +561,8 @@ export default function App() {
         dispatch({
           type: "RUN_FAILED",
           error: composeError
-            ? `Sequence failed to compose: ${composeError}`
-            : "Sequence is still composing; try again."
+            ? `sequence failed to compose: ${composeError}`
+            : "sequence is still composing; try again."
         });
         return;
       }
@@ -647,7 +648,7 @@ export default function App() {
     } catch (error: unknown) {
       dispatch({
         type: "RUN_FAILED",
-        error: error instanceof Error ? error.message : "Run failed"
+        error: error instanceof Error ? error.message : "run failed"
       });
     }
   }
@@ -679,11 +680,11 @@ export default function App() {
         <div className="noAccessCard">
           <h1>no access</h1>
           <p>
-            This account is not authorized for access to any spaces within this instance.
+            this account is not authorized for access to any spaces within this instance.
           </p>
-          <p className="muted">You'll be signed out automatically.</p>
+          <p className="muted">you'll be signed out automatically.</p>
           <button type="button" className="btnPrimary" onClick={handleLogout}>
-            Log out now
+            log out now
           </button>
         </div>
       </div>
@@ -737,8 +738,6 @@ export default function App() {
         }
         onOpenSpaceConfig={() => {
           dismissVisualization();
-          // Phone chat has no settings column, so open them on the classic workbench pane.
-          if (chatMode && viewport.mode === "phone") setWorkbench("classic");
           dispatch({ type: "SPACE_PANEL_OPENED" });
         }}
         onToggleNav={
@@ -763,15 +762,12 @@ export default function App() {
         onStop={handleStop}
       />
 
-      {spacesError ? <div className="appError">Space load error: {spacesError}</div> : null}
+      {spacesError ? <div className="appError">space load error: {spacesError}</div> : null}
 
       <ResizableDashboardLayout
         showVisualization={presentedChat ? true : showVisualization}
-        showConfig={
-          presentedChat
-            ? viewport.mode !== "phone" && state.view.rightPanelMode === "space"
-            : showConfig
-        }
+        showConfig={presentedChat ? state.view.rightPanelMode === "space" : showConfig}
+        configOverlay={presentedChat && state.view.rightPanelMode === "space"}
         mode={viewport.mode}
         chatMode={layoutChatMode}
         contentHidden={viewPhase === "out"}

@@ -207,7 +207,7 @@ function FilterRow({
   function commitParameterReference(raw: string): boolean {
     const name = extractExactParameterRef(raw);
     if (!name) {
-      setParameterError('Enter exactly one parameter reference (for example "$count").');
+      setParameterError('enter exactly one parameter reference (for example "$count").');
       return false;
     }
     setParameterError(null);
@@ -217,7 +217,7 @@ function FilterRow({
 
   return (
     <div className="builderCard nested builderItemRow builderParameterCard builderParameterCardRemovable">
-      <CardRemove label="Remove filter" onClick={remove} />
+      <CardRemove label="remove filter" onClick={remove} />
       <div className="builderInlineRow">
         <div className="builderField">
           <label>property</label>
@@ -284,7 +284,7 @@ function FilterRow({
                   }}
                 >
                   <option value="">(select value)</option>
-                  {allowParameterInPicker ? <option value={ADD_PARAMETER_VALUE}>+ Parameter</option> : null}
+                  {allowParameterInPicker ? <option value={ADD_PARAMETER_VALUE}>+ parameter</option> : null}
                   {values.map((v) => (
                     <option key={v} value={v}>
                       {v}
@@ -399,7 +399,7 @@ function GroupEditor({
           ) : (
             <h3 className="builderPanelTitle">group</h3>
           )}
-          <CardRemove label="Remove group" onClick={removeThisGroup} />
+          <CardRemove label="remove group" onClick={removeThisGroup} />
         </div>
       ) : showCombine ? (
         <div className="builderField builderSegmentField">
@@ -419,7 +419,7 @@ function GroupEditor({
         </div>
       ) : null}
 
-      {empty ? <p className="builderCheckMsg muted">No filters yet.</p> : null}
+      {empty ? <p className="builderCheckMsg muted">no filters yet.</p> : null}
 
       {group.items.map((item: WhereItem, index) => {
         const itemPath = fullPath([index]);

@@ -468,10 +468,10 @@ export function MatchRelCard(props: RelCardProps) {
   const hopMode: HopMode = forcedMode ?? relationshipHopMode(relationship);
   const hopModeHint =
     forcedMode === "optional"
-      ? "An earlier hop in this path is optional, so this hop is optional too."
+      ? "an earlier hop in this path is optional, so this hop is optional too."
       : forcedMode === "absent"
-        ? "An earlier hop in this path must not exist, so this hop is part of that excluded pattern."
-        : "required: anchor nodes must have this hop. optional: anchor nodes without this hop are still matched (OPTIONAL MATCH). must not exist: only anchor nodes WITHOUT this hop are matched (NOT EXISTS).";
+        ? "an earlier hop in this path must not exist, so this hop is part of that excluded pattern."
+        : "required: anchor nodes must have this hop. optional: anchor nodes without this hop are still matched (OPTIONAL MATCH). must not exist: only anchor nodes without this hop are matched (NOT EXISTS).";
   // Depth (variable-length traversal): match SCHEMA/INSTANCE hops in required mode
   // only — optional/absent hops keep the OPTIONAL MATCH / NOT EXISTS splitting
   // logic untouched, and STEP paths need concrete single hops.

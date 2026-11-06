@@ -648,7 +648,7 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
       .attr("stroke-width", coarse ? 14 : 0)
       .attr("filter", `url(#${graphFilterId(themePrefix, "graph-node-glow")})`)
       .style("cursor", "crosshair");
-    ports.append("title").text("Drag to add a relationship");
+    ports.append("title").text("drag to add a relationship");
 
     const pointerInRoot = (event: { sourceEvent: Event } | MouseEvent): [number, number] => {
       const t = d3.zoomTransform(svgEl);
@@ -989,8 +989,8 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
       {connectMode ? (
         <div className="matchConnectBanner" role="status" data-testid="match-connect-banner">
           {connectSource
-            ? "Now tap the dot to link to, or empty space to link to a new dot."
-            : "Tap the dot you want to link from."}
+            ? "now tap the dot to link to, or empty space to link to a new dot."
+            : "tap the dot you want to link from."}
         </div>
       ) : null}
       {editable ? (
@@ -1001,27 +1001,27 @@ export function MatchGraph({ clauseIndex, label, operation, editable }: MatchGra
           data-testid="match-connect-toggle"
           onClick={toggleConnectMode}
         >
-          {connectMode ? "Done linking" : "Link dots"}
+          {connectMode ? "done linking" : "link dots"}
         </button>
       ) : null}
-      <div className="matchZoomControls" role="group" aria-label="Zoom">
+      <div className="matchZoomControls" role="group" aria-label="zoom">
         <span className="matchZoomGlyph" aria-hidden="true">
           <svg viewBox="0 0 16 16" width="14" height="14">
             <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
             <line x1="10.5" y1="10.5" x2="14" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
           </svg>
         </span>
-        <button type="button" className="matchZoomBtn" aria-label="Zoom in" onClick={() => zoomBy(1.25)}>
+        <button type="button" className="matchZoomBtn" aria-label="zoom in" onClick={() => zoomBy(1.25)}>
           +
         </button>
-        <button type="button" className="matchZoomBtn" aria-label="Zoom out" onClick={() => zoomBy(0.8)}>
+        <button type="button" className="matchZoomBtn" aria-label="zoom out" onClick={() => zoomBy(0.8)}>
           −
         </button>
         <button
           type="button"
           className="matchZoomBtn matchZoomFit"
-          aria-label="Fit to screen"
-          title="Fit to screen"
+          aria-label="fit to screen"
+          title="fit to screen"
           onClick={fitView}
         >
           <FitIcon />

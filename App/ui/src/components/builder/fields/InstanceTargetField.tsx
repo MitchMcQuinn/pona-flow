@@ -72,7 +72,7 @@ export function InstanceTargetField({
 
   const options = [
     ...(targetValue === INSTANCE_TARGET_NEW_VALUE
-      ? [{ value: INSTANCE_TARGET_NEW_VALUE, label: "New instance" }]
+      ? [{ value: INSTANCE_TARGET_NEW_VALUE, label: "new instance" }]
       : []),
     ...instances.map((n) => ({
       value: n.id,
@@ -87,23 +87,23 @@ export function InstanceTargetField({
         value={targetValue}
         placeholder="(select target)"
         options={options}
-        createLabel="+ NEW INSTANCE"
+        createLabel="+ new instance"
         onCreate={() => {
           if (targetValue === INSTANCE_TARGET_NEW_VALUE) return;
           onSelectNew();
         }}
-        createActions={[{ label: "+ ADD A PARAMETER", onClick: () => setShowParamModal(true) }]}
+        createActions={[{ label: "+ add a parameter", onClick: () => setShowParamModal(true) }]}
         onSelect={(value) => {
           if (value === INSTANCE_TARGET_NEW_VALUE) return;
           const rec = instances.find((n) => n.id === value);
           if (rec) onSelectExisting(rec);
         }}
         disabled={disabled || !schemaAttributiveLabel.trim()}
-        title={disabled ? "Locked because this entry has an alias." : undefined}
+        title={disabled ? "locked because this entry has an alias." : undefined}
         emptyHint={
           schemaAttributiveLabel.trim()
-            ? "No existing instances for this schema yet — use + NEW INSTANCE."
-            : "Select a schema first."
+            ? "no existing instances for this schema yet — use + new instance."
+            : "select a schema first."
         }
       />
       {showParamModal ? (

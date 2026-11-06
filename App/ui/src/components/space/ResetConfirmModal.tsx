@@ -46,7 +46,7 @@ export function ResetConfirmModal({
         </p>
         <div className="builderField">
           <label htmlFor="reset-confirm-input">
-            Type <strong>{phrase}</strong> to confirm
+            type <strong>{phrase}</strong> to confirm
           </label>
           <input
             id="reset-confirm-input"
@@ -69,7 +69,7 @@ export function ResetConfirmModal({
             disabled={saving}
             onClick={onCancel}
           >
-            Cancel
+            cancel
           </button>
           <button
             type="button"
@@ -78,7 +78,7 @@ export function ResetConfirmModal({
             disabled={saving || !matches}
             onClick={onConfirm}
           >
-            {saving ? "Resetting…" : confirmLabel}
+            {saving ? "resetting…" : confirmLabel}
           </button>
         </div>
       </div>

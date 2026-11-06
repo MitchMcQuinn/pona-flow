@@ -51,10 +51,10 @@ export function MatchRelAttributiveLabelField({
         value={attributiveLabel}
         placeholder="(select relationship)"
         options={options}
-        createActions={[{ label: "+ ADD A PARAMETER", onClick: () => setShowParamModal(true) }]}
+        createActions={[{ label: "+ add a parameter", onClick: () => setShowParamModal(true) }]}
         onSelect={onSelect}
         disabled={disabled}
-        emptyHint="No relationships in both the graph and this space's label catalog."
+        emptyHint="no relationships in both the graph and this space's label catalog."
       />
       {showParamModal ? (
         <AddParameterModal

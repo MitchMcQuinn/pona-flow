@@ -30,9 +30,9 @@ import "../builder/builder.css";
 import "./events.css";
 
 const EVENT_TYPE_TIPS: Record<EventType, string> = {
-  time: "Runs the selected sequences when the schedule below is met, in the timezone you pick.",
-  external: "Runs the selected sequences when a matching payload is posted to this event’s inbound URL.",
-  simulated: "Advances one tic at a time. Each due probability picks a weighted outcome and can run a sequence."
+  time: "runs the selected sequences when the schedule below is met, in the timezone you pick.",
+  external: "runs the selected sequences when a matching payload is posted to this event’s inbound URL.",
+  simulated: "advances one tic at a time. each due probability picks a weighted outcome and can run a sequence."
 };
 
 export interface EventPreviewDocument {
@@ -127,7 +127,7 @@ function CopyField({ value, testId }: { value: string; testId?: string }) {
     <div className="agentTokenCode">
       <code data-testid={testId}>{value}</code>
       <button type="button" className="btnPrimary" onClick={copy}>
-        {copied ? "Copied" : "Copy"}
+        {copied ? "copied" : "copy"}
       </button>
     </div>
   );
@@ -272,7 +272,7 @@ export function EventBuilder({
         setSimulation(simulationPackageFromApi(detail.simulationPackage));
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load event");
+        if (!cancelled) setError(err instanceof Error ? err.message : "failed to load event");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -365,7 +365,7 @@ export function EventBuilder({
       }
       onSaved(id);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to save event");
+      setError(err instanceof Error ? err.message : "failed to save event");
     } finally {
       setBusy(false);
     }
@@ -373,14 +373,14 @@ export function EventBuilder({
 
   async function handleDelete() {
     if (!eventId) return;
-    if (!(await confirmDialog(`Delete event "${name || eventId}"?`))) return;
+    if (!(await confirmDialog(`delete event "${name || eventId}"?`))) return;
     setBusy(true);
     setError(null);
     try {
       await deleteEvent(eventId);
       onDeleted();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to delete event");
+      setError(err instanceof Error ? err.message : "failed to delete event");
     } finally {
       setBusy(false);
     }
@@ -417,7 +417,7 @@ export function EventBuilder({
         disabled={!canSave}
         onClick={handleSave}
       >
-        {busy ? "Saving..." : eventId ? "Save changes" : "Create event"}
+        {busy ? "saving..." : eventId ? "save changes" : "create event"}
       </button>
       {eventId ? (
         <button
@@ -427,7 +427,7 @@ export function EventBuilder({
           disabled={busy}
           onClick={handleDelete}
         >
-          Delete
+          delete
         </button>
       ) : null}
     </>
@@ -465,7 +465,7 @@ export function EventBuilder({
                 className="builderPropertyNameInput"
                 aria-label="event name"
                 value={name}
-                placeholder="Enter an event name"
+                placeholder="enter an event name"
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
@@ -497,7 +497,7 @@ export function EventBuilder({
           ) : null}
         </div>
 
-        {loading ? <p className="muted">Loading event...</p> : null}
+        {loading ? <p className="muted">loading event...</p> : null}
 
         {!savedSimulation || settingsOpen ? typePicker : null}
 
@@ -527,7 +527,7 @@ export function EventBuilder({
               className="builderPropertyNameInput"
               aria-label="event name"
               value={name}
-              placeholder="Enter an event name"
+              placeholder="enter an event name"
               onChange={(e) => setName(e.target.value)}
             />
           </div>
@@ -546,12 +546,12 @@ export function EventBuilder({
           <div className="eventExternal eventSection">
             <EventInlineField
               label="inbound URL"
-              tip="External services POST their payload here to run the sequences below. The URL is created when you first save."
+              tip="external services POST their payload here to run the sequences below. the URL is created when you first save."
             >
               {ingestUrl ? (
                 <CopyField value={ingestUrl} testId="event-ingest-url" />
               ) : (
-                <p className="muted">Save to generate the URL.</p>
+                <p className="muted">save to generate the URL.</p>
               )}
             </EventInlineField>
 
@@ -565,7 +565,7 @@ export function EventBuilder({
             <EventInlineField
               label="signing secret"
               htmlFor="event-secret"
-              tip="When set, callers must send an X-Pona-Signature HMAC-SHA256 of the raw body. Leave blank to accept any request."
+              tip="when set, callers must send an X-Pona-Signature HMAC-SHA256 of the raw body. leave blank to accept any request."
             >
               <input
                 id="event-secret"
@@ -580,7 +580,7 @@ export function EventBuilder({
             <EventInlineField
               label="filters"
               heading={filters.length > 0 ? "h2" : undefined}
-              tip="Only matching payloads fire the event. No filters means every request."
+              tip="only matching payloads fire the event. no filters means every request."
             >
               {filters.length > 0 ? (
                 <select
@@ -598,7 +598,7 @@ export function EventBuilder({
                   className="tinyBtn"
                   onClick={() => setFilters((c) => [...c, emptyFilter()])}
                 >
-                  + Add filter
+                  + add filter
                 </button>
               )}
             </EventInlineField>
@@ -617,8 +617,8 @@ export function EventBuilder({
                     <button
                       type="button"
                       className="builderPropertyRemove"
-                      aria-label={`Remove filter ${index + 1}`}
-                      title="Remove filter"
+                      aria-label={`remove filter ${index + 1}`}
+                      title="remove filter"
                       onClick={() => setFilters((c) => c.filter((_, i) => i !== index))}
                     >
                       <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
@@ -633,7 +633,7 @@ export function EventBuilder({
                     </button>
                     <EventInlineField label="path">
                       <input
-                        aria-label={`Filter ${index + 1} path`}
+                        aria-label={`filter ${index + 1} path`}
                         value={filter.path}
                         placeholder="event.type"
                         onChange={(e) => updateFilter(index, { path: e.target.value })}
@@ -641,7 +641,7 @@ export function EventBuilder({
                     </EventInlineField>
                     <EventInlineField label="operator">
                       <select
-                        aria-label={`Filter ${index + 1} operator`}
+                        aria-label={`filter ${index + 1} operator`}
                         value={filter.operator}
                         onChange={(e) =>
                           updateFilter(index, {
@@ -658,7 +658,7 @@ export function EventBuilder({
                     </EventInlineField>
                     <EventInlineField label="value">
                       <input
-                        aria-label={`Filter ${index + 1} value`}
+                        aria-label={`filter ${index + 1} value`}
                         value={filter.value}
                         placeholder="value"
                         disabled={filter.operator === "exists"}
@@ -673,7 +673,7 @@ export function EventBuilder({
                   className="tinyBtn eventInlineAdd"
                   onClick={() => setFilters((c) => [...c, emptyFilter()])}
                 >
-                  + Add filter
+                  + add filter
                 </button>
               </div>
               </div>
@@ -684,7 +684,7 @@ export function EventBuilder({
             <EventInlineField
               label="mappings"
               heading={mappings.length > 0 ? "h2" : undefined}
-              tip="Copy values from the inbound payload into sequence parameters."
+              tip="copy values from the inbound payload into sequence parameters."
             >
               {mappings.length === 0 ? (
                 <button
@@ -692,7 +692,7 @@ export function EventBuilder({
                   className="tinyBtn"
                   onClick={() => setMappings((c) => [...c, emptyMapping()])}
                 >
-                  + Add mapping
+                  + add mapping
                 </button>
               ) : null}
             </EventInlineField>
@@ -705,8 +705,8 @@ export function EventBuilder({
                     <button
                       type="button"
                       className="builderPropertyRemove"
-                      aria-label={`Remove mapping ${index + 1}`}
-                      title="Remove mapping"
+                      aria-label={`remove mapping ${index + 1}`}
+                      title="remove mapping"
                       onClick={() => setMappings((c) => c.filter((_, i) => i !== index))}
                     >
                       <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
@@ -721,7 +721,7 @@ export function EventBuilder({
                     </button>
                     <EventInlineField label="source">
                       <input
-                        aria-label={`Mapping ${index + 1} source path`}
+                        aria-label={`mapping ${index + 1} source path`}
                         value={mapping.source_path}
                         placeholder="user.email"
                         onChange={(e) => updateMapping(index, { source_path: e.target.value })}
@@ -729,7 +729,7 @@ export function EventBuilder({
                     </EventInlineField>
                     <EventInlineField label="parameter">
                       <input
-                        aria-label={`Mapping ${index + 1} parameter`}
+                        aria-label={`mapping ${index + 1} parameter`}
                         value={mapping.parameter}
                         placeholder="parameter name"
                         onChange={(e) => updateMapping(index, { parameter: e.target.value })}
@@ -742,7 +742,7 @@ export function EventBuilder({
                   className="tinyBtn eventInlineAdd"
                   onClick={() => setMappings((c) => [...c, emptyMapping()])}
                 >
-                  + Add mapping
+                  + add mapping
                 </button>
               </div>
               </div>
@@ -797,7 +797,7 @@ export function EventBuilder({
         {eventType === "time" ? (
         <div className="eventSection">
           <div className="field" data-pin-target="timezone">
-            <FieldLabel tip="Dates and times below are read in this zone. DST is handled automatically.">
+            <FieldLabel tip="dates and times below are read in this zone. DST is handled automatically.">
               timezone
             </FieldLabel>
             <select
@@ -829,7 +829,7 @@ export function EventBuilder({
         <div className={eventType === "external" ? "eventSection eventSectionFlat" : "eventSection"}>
           <SequenceMultiPicker
             label="sequences"
-            tip="Sequences that run when this event fires."
+            tip="sequences that run when this event fires."
             sequences={sequenceOptions}
             selected={selectedSequences}
             onChange={setSelectedSequences}
@@ -844,13 +844,13 @@ export function EventBuilder({
         <div className="eventSection">
           <SequenceMultiPicker
             label="recovery"
-            tip="Run these if a scheduled fire was missed while the engine was offline."
+            tip="run these if a scheduled fire was missed while the engine was offline."
             sequences={sequenceOptions}
             selected={selectedRecovery}
             onChange={setSelectedRecovery}
             pickerTestId="event-recovery-picker"
             menuTestId="event-recovery-menu"
-            placeholder="Add a recovery sequence"
+            placeholder="add a recovery sequence"
             pinTarget="recovery_sequences"
           />
         </div>

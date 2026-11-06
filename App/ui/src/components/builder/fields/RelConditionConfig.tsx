@@ -39,7 +39,7 @@ export function RelConditionConfig({ relationship, onPatch }: RelConditionConfig
   return (
     <div className="builderCard nested">
       <div className="builderField">
-        <label>Relationship condition</label>
+        <label>relationship condition</label>
         <select
           value={conditionType}
           onChange={(e) =>
@@ -176,7 +176,7 @@ export function RelConditionConfig({ relationship, onPatch }: RelConditionConfig
                     className="builderTinyBtn builderDanger"
                     onClick={() => setPredicates(builder.predicates.filter((_, i) => i !== index))}
                   >
-                    Remove
+                    remove
                   </button>
                 </div>
               </div>

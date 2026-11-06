@@ -89,14 +89,14 @@ export function InstanceRelAttributiveField({
         value={selectedIndex >= 0 ? String(selectedIndex) : attributiveLabel}
         placeholder="(select relationship)"
         options={options}
-        createActions={[{ label: "+ ADD A PARAMETER", onClick: () => setShowParamModal(true) }]}
+        createActions={[{ label: "+ add a parameter", onClick: () => setShowParamModal(true) }]}
         onSelect={(value) => {
           const edge = catalogEdges[Number(value)];
           if (edge) onSelect(edge);
         }}
         disabled={disabled}
-        title={disabled ? "Locked because this entry has an alias." : undefined}
-        emptyHint="No outgoing relationships in both the graph and this space's label catalog."
+        title={disabled ? "locked because this entry has an alias." : undefined}
+        emptyHint="no outgoing relationships in both the graph and this space's label catalog."
       />
       {showParamModal ? (
         <AddParameterModal

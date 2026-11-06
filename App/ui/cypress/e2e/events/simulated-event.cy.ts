@@ -8,12 +8,12 @@ describe("events: simulated event", () => {
     cy.get('[data-testid="event-type-toggle-option-simulated"]').click();
     cy.get("#event-name").clear().type(EVENTS.SIMULATED_NAME);
     cy.get("#sim-tic-duration").clear().type("15");
-    cy.contains("button", "+ Add probability").click();
+    cy.contains("button", "+ add probability").click();
     cy.get("#sim-probability-name").clear().type("Weather");
     cy.get("#sim-outcome-weight").clear().type("5");
     cy.get("#sim-sequence").click();
     cy.get('[data-testid="sim-sequence-menu"] button.builderPickerItem').then(($items) => {
-      const next = [...$items].find((el) => (el.textContent || "").trim() !== "Record only");
+      const next = [...$items].find((el) => (el.textContent || "").trim() !== "record only");
       if (next) {
         cy.wrap(next).click();
       } else {

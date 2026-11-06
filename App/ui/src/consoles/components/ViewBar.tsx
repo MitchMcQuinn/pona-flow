@@ -31,8 +31,8 @@ export function ViewBar({ dashboard, editing, configuring, onAdd, onConfigure }:
           <Group gap={0} wrap="nowrap" className="view-tab-actions">
             <UnstyledButton
               className="view-tab-action"
-              aria-label="View settings"
-              title="View settings"
+              aria-label="view settings"
+              title="view settings"
               data-active={configuring ? 'true' : undefined}
               onClick={onConfigure}
             >
@@ -40,8 +40,8 @@ export function ViewBar({ dashboard, editing, configuring, onAdd, onConfigure }:
             </UnstyledButton>
             <UnstyledButton
               className="view-tab-action"
-              aria-label="Add view"
-              title="Add view"
+              aria-label="add view"
+              title="add view"
               onClick={onAdd}
             >
               <AddViewIcon />

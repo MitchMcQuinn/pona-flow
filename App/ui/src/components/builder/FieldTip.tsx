@@ -63,7 +63,7 @@ export function FieldTip({ text }: { text: string }) {
         ref={markRef}
         type="button"
         className="builderTipMark"
-        aria-label="More information"
+        aria-label="more information"
         aria-describedby={tipId}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}

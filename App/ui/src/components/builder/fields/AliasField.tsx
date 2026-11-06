@@ -26,7 +26,7 @@ export function AliasField({
   aliasName,
   locked,
   effectiveAlias = "",
-  placeholder = "Default to ID",
+  placeholder = "default to ID",
   available,
   canCreate,
   onCreate,
@@ -44,7 +44,7 @@ export function AliasField({
       return;
     }
     if (available.includes(v)) {
-      setError("An alias with this name already exists in this query.");
+      setError("an alias with this name already exists in this query.");
       return;
     }
     setShowModal(false);
@@ -60,7 +60,7 @@ export function AliasField({
         value={locked ? aliasName : effectiveAlias}
         placeholder={placeholder}
         options={available.map((a) => ({ value: a, label: a }))}
-        createLabel={canCreate ? "+ ADD ALIAS" : undefined}
+        createLabel={canCreate ? "+ add alias" : undefined}
         onCreate={
           canCreate
             ? () => {
@@ -72,8 +72,8 @@ export function AliasField({
         }
         onSelect={(value) => onChooseExisting(value)}
         disabled={locked}
-        title={locked ? "Alias is locked for this entry." : undefined}
-        emptyHint={canCreate ? undefined : "Select an attributive_label to add a new alias."}
+        title={locked ? "alias is locked for this entry." : undefined}
+        emptyHint={canCreate ? undefined : "select an attributive_label to add a new alias."}
       />
 
       {showModal ? (
@@ -103,10 +103,10 @@ export function AliasField({
                 className="builderTinyBtn"
                 onClick={() => setShowModal(false)}
               >
-                Cancel
+                cancel
               </button>
               <button type="button" onClick={save}>
-                Save
+                save
               </button>
             </div>
           </div>

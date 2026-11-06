@@ -114,7 +114,7 @@ export function useUpdateInstanceGuard(): void {
         const matched = validateMatchedInstances(result, constraintsByLabel, coveredRequiredKeys);
         issues.push(...matched.issues);
         if (matched.count === 0) {
-          info = "No instances match these filters — this UPDATE would affect nothing.";
+          info = "no instances match these filters — this update would affect nothing.";
         }
       }
 

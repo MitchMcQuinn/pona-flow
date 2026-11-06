@@ -18,28 +18,28 @@ const RULE_LABELS: Record<RuleKind, string> = {
 };
 
 const WEEKDAYS: Array<{ value: number; label: string }> = [
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
-  { value: 7, label: "Sun" }
+  { value: 1, label: "mon" },
+  { value: 2, label: "tue" },
+  { value: 3, label: "wed" },
+  { value: 4, label: "thu" },
+  { value: 5, label: "fri" },
+  { value: 6, label: "sat" },
+  { value: 7, label: "sun" }
 ];
 
 const MONTHS: Array<{ value: number; label: string }> = [
-  { value: 1, label: "Jan" },
-  { value: 2, label: "Feb" },
-  { value: 3, label: "Mar" },
-  { value: 4, label: "Apr" },
-  { value: 5, label: "May" },
-  { value: 6, label: "Jun" },
-  { value: 7, label: "Jul" },
-  { value: 8, label: "Aug" },
-  { value: 9, label: "Sep" },
-  { value: 10, label: "Oct" },
-  { value: 11, label: "Nov" },
-  { value: 12, label: "Dec" }
+  { value: 1, label: "jan" },
+  { value: 2, label: "feb" },
+  { value: 3, label: "mar" },
+  { value: 4, label: "apr" },
+  { value: 5, label: "may" },
+  { value: 6, label: "jun" },
+  { value: 7, label: "jul" },
+  { value: 8, label: "aug" },
+  { value: 9, label: "sep" },
+  { value: 10, label: "oct" },
+  { value: 11, label: "nov" },
+  { value: 12, label: "dec" }
 ];
 
 interface TimeEventGroupsProps {
@@ -171,11 +171,11 @@ function RuleJunctionField({
 }) {
   return (
     <div className="builderField builderJunctionField">
-      <FieldLabel tip="How this schedule's date rules combine. The time always applies as well.">
+      <FieldLabel tip="how this schedule's date rules combine. the time always applies as well.">
         rule junction
       </FieldLabel>
       <select
-        aria-label={`Schedule ${groupIndex + 1} combinator`}
+        aria-label={`schedule ${groupIndex + 1} combinator`}
         data-testid={`event-rule-junction-${groupIndex}`}
         value={value}
         onChange={(e) => onChange(e.target.value as Combinator)}
@@ -263,7 +263,7 @@ export function TimeEventGroups({
       <div className="builderOperationConditionHead eventGroupsHead">
         <div className="createSequenceLabelRow">
           <h2 className="builderPanelTitle">schedules</h2>
-          <FieldTip text="Each schedule fires at its time on the days its rules match. Add another for a different day or time." />
+          <FieldTip text="each schedule fires at its time on the days its rules match. add another for a different day or time." />
         </div>
         {groups.length === 1 && (slots[0]?.length ?? 0) > 1 ? (
           <RuleJunctionField
@@ -298,12 +298,12 @@ export function TimeEventGroups({
                           onChange={(next) => updateGroup(groupIndex, { combinator: next })}
                         />
                       ) : null}
-                      <CardRemove label={`Remove schedule ${groupIndex + 1}`} onClick={() => removeGroup(groupIndex)} />
+                      <CardRemove label={`remove schedule ${groupIndex + 1}`} onClick={() => removeGroup(groupIndex)} />
                     </div>
                   ) : null}
 
                   <div className="builderField eventTimeField" data-pin-target="is_time">
-                    <FieldLabel tip={`Empty is midnight. Times are in ${timeZoneNote}.`}>time</FieldLabel>
+                    <FieldLabel tip={`empty is midnight. times are in ${timeZoneNote}.`}>time</FieldLabel>
                     <input
                       id={`group-${groupIndex}-time`}
                       type="time"
@@ -327,7 +327,7 @@ export function TimeEventGroups({
                           >
                             {rules.length > 1 ? (
                               <CardRemove
-                                label={`Remove ${RULE_LABELS[kind]}`}
+                                label={`remove ${RULE_LABELS[kind]}`}
                                 onClick={() => removeRule(groupIndex, ruleIndex)}
                               />
                             ) : null}
@@ -335,7 +335,7 @@ export function TimeEventGroups({
                               <div className="builderField builderInlineRowOperator">
                                 <div className="builderOperatorSelect" data-value={RULE_LABELS[kind]}>
                                   <select
-                                    aria-label={`Schedule ${groupIndex + 1} rule ${ruleIndex + 1}`}
+                                    aria-label={`schedule ${groupIndex + 1} rule ${ruleIndex + 1}`}
                                     value={kind}
                                     onChange={(e) =>
                                       changeRuleKind(groupIndex, ruleIndex, e.target.value as RuleKind)
@@ -436,7 +436,7 @@ function RuleValue({
     return (
       <input
         id={`group-${groupIndex}-ordinal`}
-        aria-label={`Schedule ${groupIndex + 1} days`}
+        aria-label={`schedule ${groupIndex + 1} days`}
         value={formatNumberList(group.is_date_ordinal)}
         placeholder="1, 15"
         onChange={(e) => onChange({ is_date_ordinal: parseNumberList(e.target.value) })}
@@ -448,7 +448,7 @@ function RuleValue({
     return (
       <input
         id={`group-${groupIndex}-years`}
-        aria-label={`Schedule ${groupIndex + 1} years`}
+        aria-label={`schedule ${groupIndex + 1} years`}
         value={formatNumberList(group.is_year)}
         placeholder="2026, 2027"
         onChange={(e) => onChange({ is_year: parseNumberList(e.target.value) })}
@@ -459,7 +459,7 @@ function RuleValue({
   return (
     <input
       id={`group-${groupIndex}-date`}
-      aria-label={`Schedule ${groupIndex + 1} date`}
+      aria-label={`schedule ${groupIndex + 1} date`}
       type="date"
       value={group.is_date ?? ""}
       onChange={(e) => onChange({ is_date: e.target.value || null })}

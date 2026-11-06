@@ -220,7 +220,7 @@ export function Wizard({ onLock }: WizardProps) {
   const regions = config?.regions || ["iad"];
 
   return (
-    <div className="guideWizard">
+    <div className="guideWizard screenFade" key={phase}>
       {error ? <p className="errorText">{error}</p> : null}
       {phase === "account" ? (
         <form className="guideAccountForm" onSubmit={(event) => void submitAccount(event)}>
@@ -260,30 +260,30 @@ export function Wizard({ onLock }: WizardProps) {
       ) : null}
       {phase === "edition" ? (
         <div>
-          <h2>Choose an edition</h2>
+          <h2>choose an edition</h2>
           {!verified ? (
-            <p className="muted">Verify your email before a sandbox or VIP code. Hosted Basic uses checkout instead.</p>
+            <p className="muted">verify your email before a sandbox or vip code. hosted basic uses checkout instead.</p>
           ) : null}
           <div className="guideEditions">
             <article className="guideCard">
-              <h3>Local</h3>
-              <p>Fork the repo and run it yourself. Support is priced separately.</p>
-              <button type="button" onClick={() => choose("local")}>Continue</button>
+              <h3>local</h3>
+              <p>fork the repo and run it yourself. support is priced separately.</p>
+              <button type="button" onClick={() => choose("local")}>continue</button>
             </article>
             <article className="guideCard">
-              <h3>Self-hosted</h3>
-              <p>Your Fly.io account and your Aura database. Get started creates the Fly app with an org token. Support is priced separately.</p>
-              <button type="button" onClick={() => choose("self_hosted")}>Continue</button>
+              <h3>self-hosted</h3>
+              <p>your fly.io account and your aura database. get started creates the fly app with an org token. support is priced separately.</p>
+              <button type="button" onClick={() => choose("self_hosted")}>continue</button>
             </article>
             <article className="guideCard">
-              <h3>Hosted Basic</h3>
-              <p>We run pona flow and Neo4j Community. Checkout shows the price. You can download your data later.</p>
-              <button type="button" onClick={() => choose("basic")}>Continue</button>
+              <h3>hosted basic</h3>
+              <p>we run pona flow and neo4j community. checkout shows the price. you can download your data later.</p>
+              <button type="button" onClick={() => choose("basic")}>continue</button>
             </article>
             <article className="guideCard">
-              <h3>Hosted Business</h3>
-              <p>Same as Basic, with Neo4j Aura. Coming soon.</p>
-              <button type="button" onClick={() => choose("business")}>Coming soon</button>
+              <h3>hosted business</h3>
+              <p>same as basic, with neo4j aura. coming soon.</p>
+              <button type="button" onClick={() => choose("business")}>coming soon</button>
             </article>
           </div>
           <form
@@ -294,45 +294,45 @@ export function Wizard({ onLock }: WizardProps) {
             }}
           >
             <label className="guideField">
-              Code
+              code
               <input
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
-                placeholder="sandbox or a VIP code"
+                placeholder="sandbox or a vip code"
                 data-testid="guide-code"
               />
             </label>
-            <button type="submit" disabled={!code.trim()}>Use code</button>
+            <button type="submit" disabled={!code.trim()}>use code</button>
           </form>
         </div>
       ) : null}
       {phase === "local" ? (
         <div>
-          <h2>Fork the repo</h2>
+          <h2>fork the repo</h2>
           <p>
             <a href={config?.github_url || "https://github.com/MitchMcQuinn/pona-flow"}>
-              {config?.github_url || "GitHub"}
+              {config?.github_url || "github"}
             </a>
           </p>
-          <p className="muted">Support for Local is priced separately.</p>
-          {config?.support_url ? <p><a href={config.support_url}>Support</a></p> : null}
+          <p className="muted">support for local is priced separately.</p>
+          {config?.support_url ? <p><a href={config.support_url}>support</a></p> : null}
         </div>
       ) : null}
       {phase === "business" ? (
         <div>
-          <h2>Hosted Business is coming soon</h2>
-          <p>It needs a Neo4j Aura Business Critical subscription. Basic is available now.</p>
+          <h2>hosted business is coming soon</h2>
+          <p>it needs a neo4j aura business critical subscription. basic is available now.</p>
         </div>
       ) : null}
       {phase === "details" ? (
         <form onSubmit={(event) => void submitDetails(event)}>
-          <h2>{tier === "self_hosted" ? "Your Fly and Aura" : "Name the instance"}</h2>
+          <h2>{tier === "self_hosted" ? "your fly and aura" : "name the instance"}</h2>
           <label className="guideField">
-            App name
+            app name
             <input value={appName} onChange={(event) => setAppName(event.target.value)} required />
           </label>
           <label className="guideField">
-            Region
+            region
             <select value={region} onChange={(event) => setRegion(event.target.value)}>
               {regions.map((item) => (
                 <option key={item} value={item}>{item}</option>
@@ -342,50 +342,50 @@ export function Wizard({ onLock }: WizardProps) {
           {tier === "self_hosted" ? (
             <>
               <label className="guideField">
-                Fly org token
+                fly org token
                 <input value={flyToken} onChange={(event) => setFlyToken(event.target.value)} type="password" required />
               </label>
               <p className="muted">
-                There is no app to select yet, so the Fly dashboard cannot create this token.
-                Run <code>fly tokens create org</code> and paste only the token it prints.
-                It is used for this deploy and is not kept.
+                there is no app to select yet, so the fly dashboard cannot create this token.
+                run <code>fly tokens create org</code> and paste only the token it prints.
+                it is used for this deploy and is not kept.
               </p>
               <label className="guideField">
-                Aura URI
+                aura uri
                 <input value={neo4jUri} onChange={(event) => setNeo4jUri(event.target.value)} placeholder="neo4j+s://…" required />
               </label>
               <label className="guideField">
-                Aura user
+                aura user
                 <input value={neo4jUser} onChange={(event) => setNeo4jUser(event.target.value)} />
               </label>
               <label className="guideField">
-                Aura password
+                aura password
                 <input value={neo4jPassword} onChange={(event) => setNeo4jPassword(event.target.value)} type="password" required />
               </label>
-              <p className="muted">The Aura password is used for this deploy and is not kept.</p>
+              <p className="muted">the aura password is used for this deploy and is not kept.</p>
             </>
           ) : (
             <p className="muted">
               {tier === "basic"
-                ? "You will subscribe before the machine is created. Checkout shows the price."
-                : `A sandbox preview lasts ${config?.sandbox_days ?? 7} days.`}
+                ? "you will subscribe before the machine is created. checkout shows the price."
+                : `a sandbox preview lasts ${config?.sandbox_days ?? 7} days.`}
             </p>
           )}
           <button className="btnPrimary" type="submit" disabled={busy}>
-            {busy ? "Working..." : tier === "basic" ? "Continue to checkout" : "Create instance"}
+            {busy ? "working..." : tier === "basic" ? "continue to checkout" : "create instance"}
           </button>
         </form>
       ) : null}
       {phase === "progress" ? (
         <div>
-          <h2>Creating your instance</h2>
-          <p className="muted">This can take a few minutes. {instance?.status || "provisioning"}</p>
+          <h2>creating your instance</h2>
+          <p className="muted">this can take a few minutes. {instance?.status || "provisioning"}</p>
         </div>
       ) : null}
       {phase === "handoff" && instance ? (
         <div>
-          <h2>Open your instance</h2>
-          <p>Sign in with the email and password you just used, then create your first space. The tour starts from there.</p>
+          <h2>open your instance</h2>
+          <p>sign in with the email and password you just used, then create your first space. the tour starts from there.</p>
           {instance.public_url ? (
             <p>
               <a href={instance.public_url} data-testid="guide-instance-url">{instance.public_url}</a>
@@ -393,12 +393,12 @@ export function Wizard({ onLock }: WizardProps) {
           ) : null}
           {instance.tier === "sandbox" ? (
             <p>
-              <button type="button" onClick={() => void upgrade()} disabled={busy}>Upgrade to Hosted Basic</button>
+              <button type="button" onClick={() => void upgrade()} disabled={busy}>upgrade to hosted basic</button>
             </p>
           ) : null}
           {tier === "self_hosted" ? (
             <p className="muted">
-              In-app updates stay off until you paste an app deploy token under Instance settings. Create that token after this app exists, and select this app. Support is priced separately.
+              in-app updates stay off until you paste an app deploy token under instance settings. create that token after this app exists, and select this app. support is priced separately.
             </p>
           ) : null}
         </div>

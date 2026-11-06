@@ -22,7 +22,7 @@ export function OperationSelect() {
           value: op,
           label: op,
           disabled: locked || !operationAllowed(flows, op),
-          title: operationAllowed(flows, op) ? undefined : "You lack permission for this operation"
+          title: operationAllowed(flows, op) ? undefined : "you lack permission for this operation"
         }))}
         onChange={(operation) => {
           uiPersistence.setOperation(operation);

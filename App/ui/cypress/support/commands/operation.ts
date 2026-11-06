@@ -27,7 +27,7 @@ Cypress.Commands.add(
       .last()
       .parent()
       .find("select")
-      .select("+ Parameter");
+      .select("+ parameter");
 
     cy.contains(".builderItemRow label", "value")
       .last()
@@ -57,9 +57,9 @@ Cypress.Commands.add(
       .find(".builderPickerToggle")
       .click();
     cy.get('[data-testid="builder-picker-menu"]')
-      .contains("button.builderPickerCreate", "+ New group title")
+      .contains("button.builderPickerCreate", "+ new group title")
       .click();
-    cy.get('[data-testid="modal-create-operation"] input[placeholder="New group title"]')
+    cy.get('[data-testid="modal-create-operation"] input[placeholder="new group title"]')
       .clear()
       .type(groupTitle);
 
@@ -67,7 +67,7 @@ Cypress.Commands.add(
     cy.get('[data-testid="modal-create-operation"]').should("not.exist");
     cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should(
       "contain.text",
-      "Saved as a one-step sequence"
+      "saved as a one-step sequence"
     );
   }
 );

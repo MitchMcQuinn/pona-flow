@@ -105,12 +105,12 @@ export function MatchStepRelAttributiveLabelField({
   const hasCatalogOverlap = catalogEdges.length > 0;
 
   const emptyHint = !parentKey
-    ? "Select the preceding STEP node's attributive_label first."
+    ? "select the preceding STEP node's attributive_label first."
     : graphUnavailable
-      ? "Could not load outbound relationships from the graph. Check the space Neo4j connection."
+      ? "could not load outbound relationships from the graph. check the space neo4j connection."
       : hasGraphEdges && !hasCatalogOverlap
-        ? "Outbound relationships exist in the graph but none are listed in this space's label catalog."
-        : "No outbound STEP relationships from this node in both the graph and label catalog.";
+        ? "outbound relationships exist in the graph but none are listed in this space's label catalog."
+        : "no outbound STEP relationships from this node in both the graph and label catalog.";
 
   return (
     <div className="builderField" data-issue="attributive_label">
@@ -118,7 +118,7 @@ export function MatchStepRelAttributiveLabelField({
         value={selectedValue}
         placeholder="(select relationship)"
         options={options.map((o) => ({ value: o.value, label: o.label }))}
-        createActions={[{ label: "+ ADD A PARAMETER", onClick: () => setShowParamModal(true) }]}
+        createActions={[{ label: "+ add a parameter", onClick: () => setShowParamModal(true) }]}
         onSelect={(value) => {
           const match = options.find((o) => o.value === value);
           if (match) onSelect(value, match.edge);

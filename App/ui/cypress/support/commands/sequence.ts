@@ -22,9 +22,9 @@ Cypress.Commands.add(
       .find(".builderPickerToggle")
       .click();
     cy.get('[data-testid="builder-picker-menu"]')
-      .contains("button.builderPickerCreate", "+ New group title")
+      .contains("button.builderPickerCreate", "+ new group title")
       .click();
-    cy.get('.createSequenceNewGroup input[placeholder="New group title"]')
+    cy.get('.createSequenceNewGroup input[placeholder="new group title"]')
       .clear()
       .type(options.groupTitle);
 

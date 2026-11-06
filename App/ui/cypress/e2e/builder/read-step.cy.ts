@@ -18,6 +18,6 @@ describe("builder: read STEP", () => {
     cy.selectAttributiveLabelFromPicker(GOLDEN_READ_OPERATION);
 
     cy.get('[data-testid="builder-run-btn"]').should("not.be.disabled").click();
-    cy.contains(".builderRunStatus.ok", "Read completed", { timeout: 60_000 }).should("be.visible");
+    cy.contains(".builderRunStatus.ok", "read completed", { timeout: 60_000 }).should("be.visible");
   });
 });

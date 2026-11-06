@@ -35,7 +35,7 @@ export function StepResponseParametersSection({
     <div className="builderField">
       <div className="createSequenceLabelRow">
         <h2 className="builderPanelTitle">response parameters</h2>
-        <FieldTip text="Map JSON paths from the response to parameter names. The default is used when that path is missing." />
+        <FieldTip text="map JSON paths from the response to parameter names. the default is used when that path is missing." />
       </div>
       <div className="builderBlock">
         {rows.map((row, index) => {
@@ -55,8 +55,8 @@ export function StepResponseParametersSection({
               <button
                 type="button"
                 className="builderPropertyRemove"
-                aria-label="Remove response parameter"
-                title="Remove response parameter"
+                aria-label="remove response parameter"
+                title="remove response parameter"
                 onClick={() => removeAt(index)}
               >
                 <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
@@ -107,7 +107,7 @@ export function StepResponseParametersSection({
                   ) : null}
                 </div>
                 <div className="builderField">
-                  <FieldLabel tip="Used when the response does not include a value at that path.">
+                  <FieldLabel tip="used when the response does not include a value at that path.">
                     default value
                   </FieldLabel>
                   <input
@@ -126,7 +126,7 @@ export function StepResponseParametersSection({
             className="builderTinyBtn builderAddBtn builderAddParameterBtn"
             onClick={addRow}
           >
-            + Add response parameter
+            + add response parameter
           </button>
         </div>
       </div>

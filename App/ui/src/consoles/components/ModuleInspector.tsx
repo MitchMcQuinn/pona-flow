@@ -20,7 +20,7 @@ type ModuleInspectorProps = {
 
 const sourceChoices = [
   { value: 'url', label: 'URL' },
-  { value: 'sequence', label: 'Sequence' },
+  { value: 'sequence', label: 'sequence' },
 ]
 
 function asSource(value: string): ModuleSourceKind {
@@ -66,9 +66,9 @@ export function ModuleInspector({ spaceId, viewId, module, opened, onClose }: Mo
         if (activeModuleId.current !== moduleId) return
         setNote(
           pages.length === 0
-            ? 'This sequence has no caller-supplied webhook parameters.'
+            ? 'this sequence has no caller-supplied webhook parameters.'
             : pages.length > 1
-              ? `Split into ${pages.length} pages, one for each time the sequence pauses for input.`
+              ? `split into ${pages.length} pages, one for each time the sequence pauses for input.`
               : null,
         )
       })
@@ -76,8 +76,8 @@ export function ModuleInspector({ spaceId, viewId, module, opened, onClose }: Mo
         if (!stillCurrent() || activeModuleId.current !== moduleId) return
         notifications.show({
           color: 'red',
-          title: 'Webhook parameters unavailable',
-          message: reason instanceof Error ? reason.message : 'Could not read the webhook parameters for this sequence.',
+          title: 'webhook parameters unavailable',
+          message: reason instanceof Error ? reason.message : 'could not read the webhook parameters for this sequence.',
         })
       })
       .finally(() => {
@@ -91,13 +91,13 @@ export function ModuleInspector({ spaceId, viewId, module, opened, onClose }: Mo
   }
 
   return (
-    <Drawer opened={opened} onClose={onClose} position="right" title={module?.title ?? 'Module'} size="md">
+    <Drawer opened={opened} onClose={onClose} position="right" title={module?.title ?? 'module'} size="md">
       {module ? (
         <Stack gap="sm">
           <Text className="section-label">
             {definition ? `${definition.mantineComponent} · ${definition.category}` : module.type}
           </Text>
-          <TextInput label="Title" value={module.title} onChange={(event) => patch({ title: event.currentTarget.value })} />
+          <TextInput label="title" value={module.title} onChange={(event) => patch({ title: event.currentTarget.value })} />
           <Stack gap="xs">
             <Text className="section-label">data</Text>
             <SegmentedControl
@@ -108,20 +108,20 @@ export function ModuleInspector({ spaceId, viewId, module, opened, onClose }: Mo
             />
             {module.dataSource === 'sequence' ? (
               <Select
-                label="Data sequence"
-                description="Runs when the console refreshes. The result is this module's data."
-                placeholder="Choose a sequence"
+                label="data sequence"
+                description="runs when the console refreshes. the result is this module's data."
+                placeholder="choose a sequence"
                 data={sequences}
                 value={module.dataSequenceId || null}
                 searchable
                 clearable
-                nothingFoundMessage="No sequences"
+                nothingFoundMessage="no sequences"
                 comboboxProps={{ withinPortal: false, hideDetached: false, width: 'target', zIndex: 1200 }}
                 onChange={(value) => patch({ dataSequenceId: value ?? '' })}
               />
             ) : (
               <TextInput
-                label="Data URL"
+                label="data URL"
                 description="GET this URL when the console refreshes."
                 placeholder="https://example.com/stat"
                 value={module.dataUrl}
@@ -144,18 +144,18 @@ export function ModuleInspector({ spaceId, viewId, module, opened, onClose }: Mo
               />
               {module.actionSource === 'sequence' ? (
                 <Select
-                  label="Action sequence"
+                  label="action sequence"
                   description={
                     module.type === 'form'
-                      ? 'Runs on a change. Choosing a sequence sets the form fields from its webhook parameters.'
-                      : "Runs on a change. A posted record's keys are the sequence parameters."
+                      ? 'runs on a change. choosing a sequence sets the form fields from its webhook parameters.'
+                      : "runs on a change. a posted record's keys are the sequence parameters."
                   }
-                  placeholder="Choose a sequence"
+                  placeholder="choose a sequence"
                   data={sequences}
                   value={module.actionSequenceId || null}
                   searchable
                   clearable
-                  nothingFoundMessage="No sequences"
+                  nothingFoundMessage="no sequences"
                   comboboxProps={{ withinPortal: false, hideDetached: false, width: 'target', zIndex: 1200 }}
                   onChange={(value) => {
                     const sequenceId = value ?? ''
@@ -166,7 +166,7 @@ export function ModuleInspector({ spaceId, viewId, module, opened, onClose }: Mo
                 />
               ) : (
                 <TextInput
-                  label="Action URL"
+                  label="action URL"
                   description="POST changes here as JSON."
                   placeholder="https://example.com/actions"
                   value={module.actionUrl}
@@ -175,7 +175,7 @@ export function ModuleInspector({ spaceId, viewId, module, opened, onClose }: Mo
               )}
               {module.type === 'form' && module.actionSource === 'sequence' && matching ? (
                 <Text size="sm" c="dimmed">
-                  Reading webhook parameters…
+                  reading webhook parameters…
                 </Text>
               ) : null}
               {module.type === 'form' && module.actionSource === 'sequence' && note ? (
@@ -259,7 +259,7 @@ export function ModuleInspector({ spaceId, viewId, module, opened, onClose }: Mo
           {definition ? (
             <div>
               <Text size="sm" fw={500} mb={4}>
-                Expected response
+                expected response
               </Text>
               <Code block style={{ whiteSpace: 'pre-wrap' }}>
                 {definition.expectedShape}
@@ -267,8 +267,8 @@ export function ModuleInspector({ spaceId, viewId, module, opened, onClose }: Mo
             </div>
           ) : null}
           <Text size="xs" c="dimmed">
-            A URL is fetched in the browser, so a cross-origin data URL needs CORS. A sequence runs in this space with
-            console_id, view_id, and module_id. An action sequence also receives value, or the posted record's keys.
+            a URL is fetched in the browser, so a cross-origin data URL needs CORS. a sequence runs in this space with
+            console_id, view_id, and module_id. an action sequence also receives value, or the posted record's keys.
           </Text>
           <Button
             color="red"
@@ -278,7 +278,7 @@ export function ModuleInspector({ spaceId, viewId, module, opened, onClose }: Mo
               onClose()
             }}
           >
-            Remove module
+            remove module
           </Button>
         </Stack>
       ) : null}

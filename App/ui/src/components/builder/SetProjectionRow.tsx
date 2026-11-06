@@ -23,7 +23,7 @@ import { fetchWherePropertyKeysForEntity, fetchWherePropertyValuesForEntity } fr
 const SET_MODE_HINT =
   "value: literal or $parameter. now: toString(datetime()) at run time (string properties). " +
   "negate property: NOT coalesce(source.prop, false) (boolean properties). " +
-  "expression: raw Cypher right-hand side, validated only at run time.";
+  "expression: raw cypher right-hand side, validated only at run time.";
 import type { SchematicProperties, SetItem, SetValueMode } from "../../state/builder/types";
 
 interface SetProjectionRowProps {
@@ -205,7 +205,7 @@ export function SetProjectionRow({ index, item, onRemove }: SetProjectionRowProp
             emptyHint={
               bindings.length
                 ? undefined
-                : "Set attributive_label on MATCH nodes and relationships first."
+                : "set attributive_label on MATCH nodes and relationships first."
             }
           />
         </div>
@@ -235,7 +235,7 @@ export function SetProjectionRow({ index, item, onRemove }: SetProjectionRowProp
                 binding
                   ? propertyKeys.length
                     ? undefined
-                    : "No properties found on graph for this schema."
+                    : "no properties found on graph for this schema."
                   : undefined
               }
             />
@@ -323,7 +323,7 @@ export function SetProjectionRow({ index, item, onRemove }: SetProjectionRowProp
                   sourceBinding
                     ? booleanSourceKeys.length
                       ? undefined
-                      : "No boolean properties on this schema."
+                      : "no boolean properties on this schema."
                     : undefined
                 }
               />
@@ -343,14 +343,14 @@ export function SetProjectionRow({ index, item, onRemove }: SetProjectionRowProp
               }
             />
             <span className="builderCheckMsg muted" style={{ fontSize: 11 }}>
-              Raw Cypher — validated only when the operation runs.
+              raw cypher — validated only when the operation runs.
             </span>
           </div>
         ) : null}
       </div>
       <div className="builderRowActions">
         <button type="button" className="builderTinyBtn builderDanger" onClick={onRemove}>
-          Remove
+          remove
         </button>
       </div>
     </div>

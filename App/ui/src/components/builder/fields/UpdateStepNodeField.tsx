@@ -59,8 +59,8 @@ export function UpdateStepNodeField({
     .map((r) => ({ value: r.attributive_label, label: r.attributive_label }));
 
   const emptyHint = graphUnavailable
-    ? "Could not load STEP nodes from the graph. Check the space Neo4j connection."
-    : "No custom-endpoint STEP nodes in both the graph and this space's label catalog.";
+    ? "could not load STEP nodes from the graph. check the space neo4j connection."
+    : "no custom-endpoint STEP nodes in both the graph and this space's label catalog.";
 
   return (
     <div className="builderField" data-issue="attributive_label">

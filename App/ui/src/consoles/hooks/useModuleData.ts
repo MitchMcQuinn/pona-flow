@@ -76,7 +76,7 @@ export function useModuleData(input: ModuleDataInput, refreshToken: number) {
       .catch((reason: unknown) => {
         if (cancelled) return
         if (reason instanceof DOMException && reason.name === 'AbortError') return
-        const message = reason instanceof Error ? reason.message : 'Request failed'
+        const message = reason instanceof Error ? reason.message : 'request failed'
         setResult((previous) => ({
           key,
           token,

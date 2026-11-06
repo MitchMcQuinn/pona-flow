@@ -49,7 +49,7 @@ Cypress.Commands.add("addNewAttributiveLabelNode", (attributiveLabel: string) =>
 
   openAttributiveLabelPicker();
   cy.get('[data-testid="builder-picker-menu"]')
-    .contains("button.builderPickerCreate", "+ ADD NEW NODE")
+    .contains("button.builderPickerCreate", "+ add new NODE")
     .click();
 
   cy.get('[data-testid="inline-create-name"]').should("be.visible").clear().type(normalized).type("{enter}");
@@ -119,7 +119,7 @@ Cypress.Commands.add("configureWaitStep", (seconds: number) => {
   cy.get('[data-testid="builder-step-type-option-wait"]')
     .should("not.be.disabled")
     .click();
-  cy.get('[data-testid="builder-step-type"] button.active').should("contain.text", "Wait");
+  cy.get('[data-testid="builder-step-type"] button.active').should("contain.text", "wait");
   cy.get('[data-testid="builder-wait-duration"]').clear().type(String(seconds)).blur();
 });
 

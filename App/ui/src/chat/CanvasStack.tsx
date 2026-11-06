@@ -51,30 +51,31 @@ export function CanvasStack({
   const showFace = !insight && !active;
 
   return (
-    <section className={showFace ? "panel canvasStack canvasStackFace" : "panel canvasStack"} aria-label="Canvas">
-      <div className="canvasTabs" role="tablist">
-        {canvasItems.length === 0 ? <span className="muted">Canvas</span> : null}
-        {canvasItems.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={item.id === active?.id}
-            className={item.id === active?.id ? "active" : undefined}
-            onClick={() => {
-              onCloseInsight();
-              onSelect(item.id);
-            }}
-          >
-            {item.title || item.kind}
-          </button>
-        ))}
-      </div>
-      <div className="panel__body canvasBody">
+    <section className={showFace ? "panel canvasStack canvasStackFace" : "panel canvasStack"} aria-label="canvas">
+      {canvasItems.length > 0 ? (
+        <div className="canvasTabs" role="tablist">
+          {canvasItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={item.id === active?.id}
+              className={item.id === active?.id ? "active" : undefined}
+              onClick={() => {
+                onCloseInsight();
+                onSelect(item.id);
+              }}
+            >
+              {item.title || item.kind}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="panel__body canvasBody screenFade" key={insight?.kind ?? active?.id ?? "face"}>
         {insight ? (
           <div className="canvasInsight">
             <div className="canvasInsightBar">
-              <button type="button" className="canvasInsightClose" aria-label="Close" onClick={onCloseInsight}>
+              <button type="button" className="canvasInsightClose" aria-label="close" onClick={onCloseInsight}>
                 ×
               </button>
             </div>
@@ -131,7 +132,7 @@ function CanvasItem({
 }) {
   if (item.kind === "saved_console") {
     const consoleId = String(item.payload.console_id || "");
-    if (!consoleId) return <p className="muted">This console has no id.</p>;
+    if (!consoleId) return <p className="muted">this console has no id.</p>;
     return (
       <ConsoleHost
         spaceId={spaceId}
@@ -191,7 +192,7 @@ function ProposalList({
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   return (
     <div className="canvasProposal">
-      <h2>Proposed changes</h2>
+      <h2>proposed changes</h2>
       <p className="muted">{status}</p>
       <ul className="proposalList">
         {proposalItems.map((proposal, index) => {
@@ -205,7 +206,7 @@ function ProposalList({
                 onClick={() => setOpenIndex(open ? null : index)}
               >
                 <span>{proposal.summary || proposal.kind}</span>
-                <span className="proposalKind">{open ? "Hide" : "Show"} configuration</span>
+                <span className="proposalKind">{open ? "hide" : "show"} configuration</span>
               </button>
               {open ? <ConfigPreview spaceId={spaceId} item={proposal} sequences={sequences} /> : null}
             </li>
@@ -217,7 +218,7 @@ function ProposalList({
       ) : null}
       {status === "pending" && proposalItems.some((item) => item.kind === "create_space") ? (
         <p className="muted">
-          This instance already has its workspace, so this change cannot be applied.
+          this instance already has its workspace, so this change cannot be applied.
         </p>
       ) : null}
       {status === "pending" ? (
@@ -228,10 +229,10 @@ function ProposalList({
             disabled={batchBusy || proposalItems.some((item) => item.kind === "create_space")}
             onClick={onAccept}
           >
-            Accept
+            accept
           </button>
           <button type="button" disabled={batchBusy} onClick={onReject}>
-            Reject
+            reject
           </button>
         </div>
       ) : null}
@@ -248,12 +249,12 @@ function resultSentence(result: unknown): string {
   };
   const applied = Array.isArray(record.applied) ? record.applied.length : 0;
   const failed = record.failed
-    ? `${record.failed.summary || record.failed.kind || "A change"} failed: ${record.failed.error || "unknown error"}`
+    ? `${record.failed.summary || record.failed.kind || "a change"} failed: ${record.failed.error || "unknown error"}`
     : "";
   const skipped = Array.isArray(record.not_applied)
     ? record.not_applied.map((entry) => entry.summary || entry.kind).filter(Boolean)
     : [];
-  return [`${applied} applied.`, failed, skipped.length ? `Not applied: ${skipped.join(", ")}.` : ""]
+  return [`${applied} applied.`, failed, skipped.length ? `not applied: ${skipped.join(", ")}.` : ""]
     .filter(Boolean)
     .join(" ");
 }
@@ -265,7 +266,7 @@ function ReadOnlyBuilder({ item }: { item: ChatStackItem }) {
     <div className="canvasBuilder">
       <h2>{item.title}</h2>
       <p className="muted">
-        Read-only {kind}. Changes are proposed in chat. There is no save button here.
+        read-only {kind}. changes are proposed in chat. there is no save button here.
       </p>
       <pre>{JSON.stringify(snapshot, null, 2)}</pre>
     </div>
@@ -305,13 +306,13 @@ function HitlForm({
       await onPatch(item.id, { ...item.payload, submitted: true });
       await onRecord({
         kind: "run_log",
-        title: "Run",
+        title: "run",
         payload: { sequence_id: sequenceId, result }
       });
       if (result.status === "pending") {
         await onRecord({
           kind: "hitl",
-          title: "Input needed",
+          title: "input needed",
           payload: {
             sequence_id: sequenceId,
             state_id: result.state_id,
@@ -321,7 +322,7 @@ function HitlForm({
         });
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Run failed");
+      setError(caught instanceof Error ? caught.message : "run failed");
     } finally {
       setBusy(false);
     }
@@ -329,8 +330,8 @@ function HitlForm({
 
   return (
     <form className="canvasHitl" onSubmit={submit}>
-      <h2>Input needed</h2>
-      {parameters.length === 0 ? <p className="muted">This run is waiting, but listed no fields.</p> : null}
+      <h2>input needed</h2>
+      {parameters.length === 0 ? <p className="muted">this run is waiting, but listed no fields.</p> : null}
       {parameters.map((parameter, index) => {
         const name = parameterName(parameter, index);
         return (
@@ -346,21 +347,21 @@ function HitlForm({
       })}
       {error ? <p className="errorText">{error}</p> : null}
       <button type="submit" className="btnPrimary" disabled={busy || submitted || !stateId}>
-        {submitted ? "Submitted" : "Submit"}
+        {submitted ? "submitted" : "submit"}
       </button>
     </form>
   );
 }
 
 function ReasoningView({ rounds }: { rounds: unknown[] }) {
-  if (rounds.length === 0) return <p className="muted">No reasoning yet.</p>;
+  if (rounds.length === 0) return <p className="muted">no reasoning yet.</p>;
   return (
     <div className="canvasReasoning">
       {rounds.map((round, index) => {
         const entry = round as { round?: number; thought?: string; text?: string; tools?: string[] };
         return (
           <section key={`${entry.round ?? index}`}>
-            <h2>Round {entry.round ?? index + 1}</h2>
+            <h2>round {entry.round ?? index + 1}</h2>
             {entry.thought ? <Markdown text={entry.thought} /> : null}
             {entry.text ? <Markdown text={entry.text} /> : null}
             {entry.tools && entry.tools.length > 0 ? (
@@ -378,13 +379,13 @@ function ReadsView({
 }: {
   entry: { name?: string; arguments?: unknown; result?: unknown } | null;
 }) {
-  if (!entry) return <p className="muted">No reads yet.</p>;
+  if (!entry) return <p className="muted">no reads yet.</p>;
   return (
     <div className="canvasReads">
-      <h2>{entry.name || "Read"}</h2>
-      <h3>Arguments</h3>
+      <h2>{entry.name || "read"}</h2>
+      <h3>arguments</h3>
       <pre>{JSON.stringify(entry.arguments ?? {}, null, 2)}</pre>
-      <h3>Result</h3>
+      <h3>result</h3>
       <pre>{typeof entry.result === "string" ? entry.result : JSON.stringify(entry.result, null, 2)}</pre>
     </div>
   );

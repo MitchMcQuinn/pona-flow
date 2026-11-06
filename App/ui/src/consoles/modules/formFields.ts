@@ -23,7 +23,7 @@ const maxFieldDepth = 8
 export function emptyModuleFormField(index: number): ModuleFormField {
   return {
     name: `field${index}`,
-    label: 'Field',
+    label: 'field',
     type: 'text',
     options: [],
     placeholder: '',
@@ -65,8 +65,8 @@ function optionsFrom(value: unknown): string[] {
 }
 
 function parseFieldList(parsed: unknown, depth: number): { fields: ModuleFormField[]; error: string | null } {
-  if (!Array.isArray(parsed)) return { fields: [], error: 'Fields must be a JSON array.' }
-  if (depth > maxFieldDepth) return { fields: [], error: 'Nested field arrays are too deep.' }
+  if (!Array.isArray(parsed)) return { fields: [], error: 'fields must be a JSON array.' }
+  if (depth > maxFieldDepth) return { fields: [], error: 'nested field arrays are too deep.' }
   const fields: ModuleFormField[] = []
   for (const entry of parsed) {
     if (!isRecord(entry) || typeof entry.name !== 'string') continue
@@ -80,7 +80,7 @@ function parseFieldList(parsed: unknown, depth: number): { fields: ModuleFormFie
     const page = finiteNumber(entry.page)
     fields.push({
       name: entry.name,
-      label: typeof entry.label === 'string' && entry.label ? entry.label : entry.name || 'Field',
+      label: typeof entry.label === 'string' && entry.label ? entry.label : entry.name || 'field',
       type,
       options: optionsFrom(entry.options),
       placeholder: typeof entry.placeholder === 'string' ? entry.placeholder : '',
@@ -99,7 +99,7 @@ export function parseModuleFormFields(value: unknown): { fields: ModuleFormField
     const parsed = typeof value === 'string' ? (value.trim() ? (JSON.parse(value) as unknown) : []) : value
     return parseFieldList(parsed, 0)
   } catch {
-    return { fields: [], error: 'Fields JSON could not be parsed.' }
+    return { fields: [], error: 'fields JSON could not be parsed.' }
   }
 }
 

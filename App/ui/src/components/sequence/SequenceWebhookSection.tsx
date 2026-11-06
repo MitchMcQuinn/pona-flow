@@ -115,7 +115,7 @@ export function SequenceWebhookSection({
         data-testid="sequence-webhook-toggle"
         onClick={() => setOpen((value) => !value)}
       >
-        <span>Webhook{inputs.length ? ` (${inputs.length})` : ""}</span>
+        <span>webhook{inputs.length ? ` (${inputs.length})` : ""}</span>
         <span className="builderStepParamsChevron" aria-hidden>
           ▸
         </span>
@@ -124,8 +124,8 @@ export function SequenceWebhookSection({
       {open ? (
         <div className="builderStepParamsBody sequenceWebhookBody">
           <p className="muted sequenceWebhookHint">
-            Copy a curl command to run this sequence from an agent or script. Replace{" "}
-            <code>$STG_KEY</code> with an agent key from Space settings → Agents.
+            copy a curl command to run this sequence from an agent or script. replace{" "}
+            <code>$STG_KEY</code> with an agent key from space settings → agents.
           </p>
 
           <div className="sequenceWebhookCopyRow">
@@ -136,7 +136,7 @@ export function SequenceWebhookSection({
               disabled={loading}
               onClick={copyCurl}
             >
-              {copied ? "Copied" : "Copy curl"}
+              {copied ? "copied" : "copy curl"}
             </button>
           </div>
           <pre className="sequenceWebhookCurl" data-testid="sequence-webhook-curl">
@@ -145,11 +145,11 @@ export function SequenceWebhookSection({
 
           <h2 className="sequenceWebhookInputsHead">parameter inputs</h2>
           {loading ? (
-            <p className="muted">Collecting inputs from the sequence…</p>
+            <p className="muted">collecting inputs from the sequence…</p>
           ) : composeError ? (
-            <p className="muted">Inputs unavailable: {composeError}</p>
+            <p className="muted">inputs unavailable: {composeError}</p>
           ) : inputs.length === 0 ? (
-            <p className="muted">This sequence has no caller-supplied inputs.</p>
+            <p className="muted">this sequence has no caller-supplied inputs.</p>
           ) : (
             <table className="responseParamsTable" data-testid="sequence-webhook-params">
               <thead>

@@ -66,15 +66,15 @@ function backupFilename(spaceId: string): string {
 }
 
 const SUMMARY_ROWS: Array<{ key: keyof TemplateSummary; label: string }> = [
-  { key: "sequences", label: "Sequences" },
-  { key: "operations", label: "Queries" },
-  { key: "steps", label: "Steps" },
-  { key: "schemas", label: "Schemas" },
-  { key: "instances", label: "Instances" },
-  { key: "relationships", label: "Relationships" },
-  { key: "regex", label: "Regex formats" },
-  { key: "events", label: "Events / schedules" },
-  { key: "credential_slots", label: "Credential slots" }
+  { key: "sequences", label: "sequences" },
+  { key: "operations", label: "queries" },
+  { key: "steps", label: "steps" },
+  { key: "schemas", label: "schemas" },
+  { key: "instances", label: "instances" },
+  { key: "relationships", label: "relationships" },
+  { key: "regex", label: "regex formats" },
+  { key: "events", label: "events / schedules" },
+  { key: "credential_slots", label: "credential slots" }
 ];
 
 export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
@@ -130,7 +130,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
       setEvents(eventList);
       setSourcesLoaded(true);
     } catch (e: unknown) {
-      setLoadError(e instanceof Error ? e.message : "Failed to load selection lists");
+      setLoadError(e instanceof Error ? e.message : "failed to load selection lists");
     }
   }, [spaceId]);
 
@@ -217,7 +217,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
       const doc = await exportTemplate(spaceId, selection);
       setResolved(doc);
     } catch (e: unknown) {
-      setExportError(e instanceof Error ? e.message : "Failed to resolve selection");
+      setExportError(e instanceof Error ? e.message : "failed to resolve selection");
     } finally {
       setResolving(false);
     }
@@ -242,10 +242,10 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
       downloadTemplate(backupFilename(requestedSpace), doc);
       if (activeSpaceId.current !== requestedSpace) return;
       setResolved(doc);
-      setBackupNote("Backup downloaded. Credential values and signing secrets are not included.");
+      setBackupNote("backup downloaded. credential values and signing secrets are not included.");
     } catch (e: unknown) {
       if (activeSpaceId.current !== requestedSpace) return;
-      setExportError(e instanceof Error ? e.message : "Failed to back up this space");
+      setExportError(e instanceof Error ? e.message : "failed to back up this space");
     } finally {
       setBackingUp(false);
     }
@@ -265,7 +265,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
     try {
       parsed = JSON.parse(await file.text()) as TemplateDocument;
     } catch {
-      setImportError("Selected file is not valid JSON.");
+      setImportError("selected file is not valid JSON.");
       setTemplate(null);
       return;
     }
@@ -284,7 +284,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         if (status && status.status !== "complete") setPriorRun(status);
       }
     } catch (e: unknown) {
-      setImportError(e instanceof Error ? e.message : "Failed to inspect template");
+      setImportError(e instanceof Error ? e.message : "failed to inspect template");
     } finally {
       setPreviewing(false);
     }
@@ -310,14 +310,14 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
       setResult(outcome);
       setPriorRun(null);
     } catch (e: unknown) {
-      setImportError(e instanceof Error ? e.message : "Failed to import template");
+      setImportError(e instanceof Error ? e.message : "failed to import template");
     } finally {
       setImporting(false);
     }
   }
 
   if (!spaceId) {
-    return <p className="muted">Select a space to manage its templates.</p>;
+    return <p className="muted">select a space to manage its templates.</p>;
   }
 
   const summary = resolved?.summary;
@@ -328,10 +328,10 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         <h2>export</h2>
       </div>
       <p className="muted rbacSectionHint">
-        Backup everything downloads this space&apos;s sequences, queries, schemas, instances, and
-        events in one step. Nested queries, the STEP graph, connected schemas, regex formats, and
-        credential slots come along automatically. Credential values and event signing secrets stay
-        on this instance. Or pick a subset and resolve it before downloading.
+        backup everything downloads this space&apos;s sequences, queries, schemas, instances, and
+        events in one step. nested queries, the STEP graph, connected schemas, regex formats, and
+        credential slots come along automatically. credential values and event signing secrets stay
+        on this instance. or pick a subset and resolve it before downloading.
       </p>
       {loadError ? <p className="errorText">{loadError}</p> : null}
       {exportError ? <p className="errorText">{exportError}</p> : null}
@@ -352,7 +352,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         <section className="templateSelectionGroup" data-testid="template-select-sequences">
           <h3 className="navSectionHeader">sequences</h3>
           {sequences.length === 0 ? (
-            <p className="muted">No sequences in this space.</p>
+            <p className="muted">no sequences in this space.</p>
           ) : (
             <ul className="templateSelectionList">
               {sequences.map((seq) => (
@@ -377,7 +377,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         <section className="templateSelectionGroup" data-testid="template-select-operations">
           <h3 className="navSectionHeader">queries</h3>
           {operations.length === 0 ? (
-            <p className="muted">No standalone queries in this space.</p>
+            <p className="muted">no standalone queries in this space.</p>
           ) : (
             <ul className="templateSelectionList">
               {operations.map((op) => (
@@ -402,7 +402,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         <section className="templateSelectionGroup" data-testid="template-select-schemas">
           <h3 className="navSectionHeader">schemas</h3>
           {schemas.length === 0 ? (
-            <p className="muted">No schemas in this space.</p>
+            <p className="muted">no schemas in this space.</p>
           ) : (
             <ul className="templateSelectionList">
               {schemas.map((schema) => {
@@ -451,7 +451,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         <section className="templateSelectionGroup" data-testid="template-select-events">
           <h3 className="navSectionHeader">events / schedules</h3>
           {events.length === 0 ? (
-            <p className="muted">No events in this space.</p>
+            <p className="muted">no events in this space.</p>
           ) : (
             <ul className="templateSelectionList">
               {events.map((event) => (
@@ -496,7 +496,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
           disabled={!sourcesLoaded || backingUp || resolving}
           onClick={handleBackupEverything}
         >
-          {backingUp ? "Backing up..." : "Backup everything"}
+          {backingUp ? "backing up..." : "backup everything"}
         </button>
         <button
           type="button"
@@ -505,7 +505,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
           disabled={!hasSelection || resolving || backingUp}
           onClick={handleResolve}
         >
-          {resolving ? "Resolving..." : "Resolve selection"}
+          {resolving ? "resolving..." : "resolve selection"}
         </button>
         <button
           type="button"
@@ -514,7 +514,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
           disabled={!resolved || backingUp}
           onClick={handleDownload}
         >
-          Download template
+          download template
         </button>
       </div>
 
@@ -522,8 +522,8 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         <h2>import</h2>
       </div>
       <p className="muted rbacSectionHint">
-        Load a template file. Any names that would clash with this space are listed below so
-        you can rename them before importing. The import is idempotent and can be re-run safely
+        load a template file. any names that would clash with this space are listed below so
+        you can rename them before importing. the import is idempotent and can be re-run safely
         if it is interrupted.
       </p>
       <div className="builderFormFieldset">
@@ -538,16 +538,16 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
             />
           </div>
         </div>
-        {fileName ? <p className="muted">Loaded {fileName}</p> : null}
+        {fileName ? <p className="muted">loaded {fileName}</p> : null}
       </div>
 
-      {previewing ? <p className="muted">Checking for conflicts...</p> : null}
+      {previewing ? <p className="muted">checking for conflicts...</p> : null}
       {importError ? <p className="errorText">{importError}</p> : null}
 
       {priorRun ? (
         <p className="builderCheckMsg">
-          A previous import of this template was interrupted ({priorRun.applied}/
-          {priorRun.total} applied, status {priorRun.status}). Importing again resumes it.
+          a previous import of this template was interrupted ({priorRun.applied}/
+          {priorRun.total} applied, status {priorRun.status}). importing again resumes it.
         </p>
       ) : null}
 
@@ -576,12 +576,12 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
       ) : null}
 
       {template && !previewing && conflicts.length === 0 ? (
-        <p className="muted">No conflicts detected. Ready to import.</p>
+        <p className="muted">no conflicts detected. ready to import.</p>
       ) : null}
 
       {result ? (
         <p className="builderCheckMsg" data-testid="template-import-result">
-          Imported {result.applied}/{result.total} statements (status {result.status}
+          imported {result.applied}/{result.total} statements (status {result.status}
           {result.resumed ? ", resumed" : ""}).
         </p>
       ) : null}
@@ -590,8 +590,8 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
         <div className="templateCredentials" data-testid="template-credentials-needed">
           <h2 className="navSectionHeader">configure credentials</h2>
           <p className="muted rbacSectionHint">
-            This template references the credential slots below. Their values are never exported;
-            populate them in the space's Credentials settings before running the imported flows.
+            this template references the credential slots below. their values are never exported;
+            populate them in the space's credentials settings before running the imported flows.
           </p>
           <ul className="templateCredentialList">
             {credentialsNeeded.map((cred) => (
@@ -617,7 +617,7 @@ export function TemplatesPanel({ spaceId }: TemplatesPanelProps) {
           disabled={!template || previewing || importing || unresolved}
           onClick={handleImport}
         >
-          {importing ? "Importing..." : "Import template"}
+          {importing ? "importing..." : "import template"}
         </button>
       </div>
     </div>

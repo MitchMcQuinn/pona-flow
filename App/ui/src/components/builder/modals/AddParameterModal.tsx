@@ -22,7 +22,7 @@ export function AddParameterModal({ onCancel, onSave }: AddParameterModalProps) 
   function save() {
     const t = value.trim();
     if (!isAttributiveLabelParameter(t)) {
-      setError('Enter a valid parameter like "$companyType".');
+      setError('enter a valid parameter like "$companyType".');
       return;
     }
     onSave(t);
@@ -48,16 +48,16 @@ export function AddParameterModal({ onCancel, onSave }: AddParameterModalProps) 
             }}
           />
           <span className="builderCheckMsg">
-            Supplied at run time. Set its value in the Parameters card.
+            supplied at run time. set its value in the parameters card.
           </span>
         </div>
         {error ? <p className="builderCheckMsg error">{error}</p> : null}
         <div className="builderModalActions">
           <button type="button" className="builderTinyBtn" onClick={onCancel}>
-            Cancel
+            cancel
           </button>
           <button type="button" onClick={save}>
-            Add
+            add
           </button>
         </div>
       </div>

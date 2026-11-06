@@ -119,7 +119,7 @@ export function useSpacesLifecycle(options: {
           type: "PERMISSIONS_LOADED",
           permissions: { flows: [], sequences: { all: false, ids: [] }, manageSpace: false }
         });
-        showToast("Failed to load your permissions for this space; actions are disabled.", "error");
+        showToast("failed to load your permissions for this space; actions are disabled.", "error");
       });
     return () => {
       cancelled = true;

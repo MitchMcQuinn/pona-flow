@@ -57,7 +57,7 @@ export function updateConsole(patch: ConsolePatch) {
 
 export function addView(kind: 'live' | 'form', name: string) {
   if (!current) return null
-  const view = kind === 'form' ? createFormView(name || 'Form') : createLiveView(name || 'Live')
+  const view = kind === 'form' ? createFormView(name || 'form') : createLiveView(name || 'live')
   replaceViews([...current.views, view], view.id)
   return view
 }

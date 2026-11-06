@@ -26,7 +26,7 @@ export function SequenceMultiPicker({
   onChange,
   pickerTestId,
   menuTestId,
-  placeholder = "Add a sequence",
+  placeholder = "add a sequence",
   pinTarget
 }: SequenceMultiPickerProps) {
   const labels = new Map(sequences.map((sequence) => [sequence.id, sequence.label]));
@@ -54,7 +54,7 @@ export function SequenceMultiPicker({
                 <button
                   type="button"
                   className="eventSeqChipRemove"
-                  aria-label={`Remove ${name}`}
+                  aria-label={`remove ${name}`}
                   onClick={() => remove(id)}
                 >
                   <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
@@ -73,7 +73,7 @@ export function SequenceMultiPicker({
         </ul>
       ) : null}
       {sequences.length === 0 ? (
-        <p className="muted">No sequences available in this space.</p>
+        <p className="muted">no sequences available in this space.</p>
       ) : available.length > 0 ? (
         <Picker
           value=""

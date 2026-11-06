@@ -25,8 +25,8 @@ export function DeleteSpaceConfirmModal({
       >
         <h2 style={{ marginTop: 0 }}>delete space</h2>
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          Are you sure you want to delete <strong>{spaceName}</strong>? This removes the space
-          from the catalog; it does not delete Neo4j or SQLite data files.
+          are you sure you want to delete <strong>{spaceName}</strong>? this removes the space
+          from the catalog; it does not delete neo4j or sqlite data files.
         </p>
         {error ? <p className="builderCheckMsg error">{error}</p> : null}
         <div className="builderModalActions">
@@ -37,7 +37,7 @@ export function DeleteSpaceConfirmModal({
             disabled={saving}
             onClick={onCancel}
           >
-            Cancel
+            cancel
           </button>
           <button
             type="button"
@@ -46,7 +46,7 @@ export function DeleteSpaceConfirmModal({
             disabled={saving}
             onClick={onConfirm}
           >
-            {saving ? "Deleting…" : "Delete space"}
+            {saving ? "deleting…" : "delete space"}
           </button>
         </div>
       </div>

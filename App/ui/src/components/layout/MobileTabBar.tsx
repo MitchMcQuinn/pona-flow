@@ -35,9 +35,9 @@ function MapIcon() {
 }
 
 const TABS: Array<{ pane: MobilePane; label: string; icon: ReactNode }> = [
-  { pane: "menu", label: "Menu", icon: <MenuIcon /> },
-  { pane: "workbench", label: "Workbench", icon: <WorkbenchIcon /> },
-  { pane: "map", label: "Map", icon: <MapIcon /> }
+  { pane: "menu", label: "menu", icon: <MenuIcon /> },
+  { pane: "workbench", label: "workbench", icon: <WorkbenchIcon /> },
+  { pane: "map", label: "map", icon: <MapIcon /> }
 ];
 
 interface MobileTabBarProps {
@@ -52,12 +52,12 @@ interface MobileTabBarProps {
 export function MobileTabBar({ active, onChange, unseen = {}, chatMode = false }: MobileTabBarProps) {
   const tabs = chatMode
     ? [
-        { pane: "menu" as const, label: "Chat", icon: <MenuIcon /> },
-        { pane: "map" as const, label: "Canvas", icon: <MapIcon /> }
+        { pane: "menu" as const, label: "chat", icon: <MenuIcon /> },
+        { pane: "map" as const, label: "canvas", icon: <MapIcon /> }
       ]
     : TABS;
   return (
-    <nav className="mobileTabBar" aria-label="Screens" data-tour="mobile-tabs">
+    <nav className="mobileTabBar" aria-label="screens" data-tour="mobile-tabs">
       {tabs.map((tab) => {
         const isActive = tab.pane === active;
         return (

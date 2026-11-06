@@ -25,7 +25,7 @@ export function LabelSelect() {
           disabled: locked || !flowAllowed(flows, operation, label),
           title: flowAllowed(flows, operation, label)
             ? undefined
-            : `You lack ${operation} permission for ${label}`
+            : `you lack ${operation} permission for ${label}`
         }))}
         onChange={(label) => {
           uiPersistence.setLabel(label);

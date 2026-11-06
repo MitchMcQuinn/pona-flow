@@ -44,8 +44,8 @@ export function SchemaDeleteConfirmModal({
   onConfirm
 }: SchemaDeleteConfirmModalProps) {
   const rows = summaryRows(preview);
-  const confirmLabel = "Delete schema & cascade";
-  const busyLabel = "Deleting…";
+  const confirmLabel = "delete schema & cascade";
+  const busyLabel = "deleting…";
 
   return (
     <ModalBackdrop onClick={busy ? undefined : onCancel}>
@@ -59,14 +59,14 @@ export function SchemaDeleteConfirmModal({
         </h2>
 
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          This schema will be <strong>permanently deleted</strong> along with everything
-          that depends on it (below). This cannot be undone.
+          this schema will be <strong>permanently deleted</strong> along with everything
+          that depends on it (below). this cannot be undone.
         </p>
 
         {rows.length ? (
           <div className="builderFormFieldset">
             <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
-              The following will be deleted:
+              the following will be deleted:
             </p>
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
               {rows.map((row) => (
@@ -77,12 +77,12 @@ export function SchemaDeleteConfirmModal({
             </ul>
             {preview.affected.queries.length ? (
               <p className="muted" style={{ margin: "8px 0 0", fontSize: 12 }}>
-                Queries: {namedList(preview.affected.queries)}
+                queries: {namedList(preview.affected.queries)}
               </p>
             ) : null}
             {preview.affected.sequences.length ? (
               <p className="muted" style={{ margin: "4px 0 0", fontSize: 12 }}>
-                Sequences: {namedList(preview.affected.sequences)}
+                sequences: {namedList(preview.affected.sequences)}
               </p>
             ) : null}
           </div>
@@ -90,7 +90,7 @@ export function SchemaDeleteConfirmModal({
 
         {!rows.length ? (
           <p className="muted" style={{ fontSize: 13 }}>
-            Only the schema node itself will be removed; nothing else references it.
+            only the schema node itself will be removed; nothing else references it.
           </p>
         ) : null}
 
@@ -113,7 +113,7 @@ export function SchemaDeleteConfirmModal({
             disabled={busy}
             onClick={onCancel}
           >
-            Cancel
+            cancel
           </button>
           <button
             type="button"

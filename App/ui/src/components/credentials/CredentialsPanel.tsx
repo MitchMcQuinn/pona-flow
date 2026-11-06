@@ -33,7 +33,7 @@ function CopyField({ value }: { value: string }) {
     <div className="agentTokenCode">
       <code>{value}</code>
       <button type="button" className="btnPrimary" onClick={copy}>
-        {copied ? "Copied" : "Copy"}
+        {copied ? "copied" : "copy"}
       </button>
     </div>
   );
@@ -60,7 +60,7 @@ export function CredentialsPanel({ spaceId }: CredentialsPanelProps) {
       setCredentials(result.credentials);
       setBackend(result.backend);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load credentials");
+      setError(e instanceof Error ? e.message : "failed to load credentials");
     } finally {
       setLoading(false);
     }
@@ -75,7 +75,7 @@ export function CredentialsPanel({ spaceId }: CredentialsPanelProps) {
       await action();
       await reload();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Action failed");
+      setError(e instanceof Error ? e.message : "action failed");
     }
   }
 
@@ -96,7 +96,7 @@ export function CredentialsPanel({ spaceId }: CredentialsPanelProps) {
   }
 
   if (!spaceId) {
-    return <p className="muted">Select a space to manage its credentials.</p>;
+    return <p className="muted">select a space to manage its credentials.</p>;
   }
 
   return (
@@ -105,25 +105,25 @@ export function CredentialsPanel({ spaceId }: CredentialsPanelProps) {
         <h2>credentials</h2>
       </div>
       <p className="muted rbacSectionHint">
-        Securely store API keys and authorization secrets for this space. Reference a
+        securely store API keys and authorization secrets for this space. reference a
         credential from a workflow step&apos;s headers or body as{" "}
         <code>$secret.&lt;NAME&gt;</code> (for example{" "}
-        <code>{'"Authorization": "Bearer $secret.MY_API_KEY"'}</code>). The value is resolved
+        <code>{'"Authorization": "Bearer $secret.MY_API_KEY"'}</code>). the value is resolved
         only when the request runs and is never stored in the workflow, run history, or logs.
       </p>
       {error ? <div className="errorText">{error}</div> : null}
-      {loading ? <p className="muted">Loading…</p> : null}
+      {loading ? <p className="muted">loading…</p> : null}
 
       <h2 className="navSectionHeader">storage</h2>
       {writable ? (
         <p className="muted rbacSectionHint">
-          This instance stores credentials in its local <code>.env</code> file
+          this instance stores credentials in its local <code>.env</code> file
           (<code>local</code> backend).
         </p>
       ) : (
         <p className="muted rbacSectionHint">
-          This instance uses the <code>{backend || "passthrough"}</code> backend: secret
-          values are injected by the hosting platform, not written here. You can still
+          this instance uses the <code>{backend || "passthrough"}</code> backend: secret
+          values are injected by the hosting platform, not written here. you can still
           register a credential name below; set its value in your platform&apos;s secret
           store under the env key shown for each entry.
         </p>
@@ -132,13 +132,13 @@ export function CredentialsPanel({ spaceId }: CredentialsPanelProps) {
       <form className="rbacInviteRow" onSubmit={handleSubmit}>
         <input
           type="text"
-          placeholder="Name (e.g. STRIPE_KEY)"
+          placeholder="name (e.g. STRIPE_KEY)"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
         />
         <input
           type="password"
-          placeholder={writable ? "Value (secret)" : "Value (set on platform)"}
+          placeholder={writable ? "value (secret)" : "value (set on platform)"}
           value={newValue}
           autoComplete="new-password"
           disabled={!writable}
@@ -146,18 +146,18 @@ export function CredentialsPanel({ spaceId }: CredentialsPanelProps) {
         />
         <input
           type="text"
-          placeholder="Description (optional)"
+          placeholder="description (optional)"
           value={newDescription}
           onChange={(e) => setNewDescription(e.target.value)}
         />
         <button className="btnPrimary" type="submit" disabled={!newName.trim()}>
-          Save credential
+          save credential
         </button>
       </form>
 
       <h2 className="navSectionHeader">stored credentials</h2>
       {credentials.length === 0 ? (
-        <p className="muted">No credentials yet.</p>
+        <p className="muted">no credentials yet.</p>
       ) : (
         <ul className="rbacMemberList">
           {credentials.map((cred) => (
@@ -183,7 +183,7 @@ export function CredentialsPanel({ spaceId }: CredentialsPanelProps) {
                     type="button"
                     onClick={() => run(() => deleteCredential(spaceId, cred.name))}
                   >
-                    Delete
+                    delete
                   </button>
                 </div>
               </div>

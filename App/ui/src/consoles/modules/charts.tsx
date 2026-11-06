@@ -58,7 +58,7 @@ export function DonutChartModule({ data }: ModuleViewProps) {
   const cells = rows.flatMap((row, index) => {
     const value = typeof row.value === 'number' ? row.value : Number(row.value)
     if (!Number.isFinite(value)) return []
-    const name = typeof row.name === 'string' ? row.name : `Slice ${index + 1}`
+    const name = typeof row.name === 'string' ? row.name : `slice ${index + 1}`
     const color = (typeof row.color === 'string' ? row.color : palette[index % palette.length]) as MantineColor
     return [{ name, value, color }]
   })

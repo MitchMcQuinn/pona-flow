@@ -3,7 +3,7 @@ import { fetchChatModel, fetchCredentials, saveChatModel } from "../../services/
 import type { ChatModelSettings as ChatModel } from "../../chat/types";
 
 const PROVIDERS: Array<{ id: ChatModel["provider"]; label: string }> = [
-  { id: "platform", label: "Platform" },
+  { id: "platform", label: "platform" },
   { id: "anthropic", label: "Anthropic" },
   { id: "openai", label: "OpenAI" },
   { id: "gemini", label: "Gemini" },
@@ -28,7 +28,7 @@ export function ChatModelSettings({ spaceId }: { spaceId: string }) {
         setCredentials(creds.credentials.map((credential) => credential.name));
       })
       .catch((caught: unknown) => {
-        if (!cancelled) setError(caught instanceof Error ? caught.message : "Failed to load chat model");
+        if (!cancelled) setError(caught instanceof Error ? caught.message : "failed to load chat model");
       });
     return () => {
       cancelled = true;
@@ -36,7 +36,7 @@ export function ChatModelSettings({ spaceId }: { spaceId: string }) {
   }, [spaceId]);
 
   if (!settings) {
-    return error ? <p className="errorText">{error}</p> : <p className="muted">Loading chat model…</p>;
+    return error ? <p className="errorText">{error}</p> : <p className="muted">loading chat model…</p>;
   }
 
   const needsKey = settings.provider === "anthropic" || settings.provider === "openai" || settings.provider === "gemini";
@@ -58,7 +58,7 @@ export function ChatModelSettings({ spaceId }: { spaceId: string }) {
       }
       setSaved(true);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Failed to save chat model");
+      setError(caught instanceof Error ? caught.message : "failed to save chat model");
     } finally {
       setBusy(false);
     }
@@ -68,10 +68,10 @@ export function ChatModelSettings({ spaceId }: { spaceId: string }) {
     <form className="spaceConfigSection chatModelForm" onSubmit={save}>
       <h2>chat model</h2>
       <p className="muted rbacSectionHint">
-        Chat mode uses this model for the space. Provider keys are stored as space credentials.
+        chat mode uses this model for the space. provider keys are stored as space credentials.
       </p>
       <label className="canvasField">
-        <span>Provider</span>
+        <span>provider</span>
         <select
           value={settings.provider}
           onChange={(event) =>
@@ -88,16 +88,16 @@ export function ChatModelSettings({ spaceId }: { spaceId: string }) {
       {settings.provider === "platform" ? (
         <p className="muted">
           {settings.platform_configured
-            ? "The server has a platform key."
-            : "The server has no PONA_FLOW_CHAT_API_KEY yet."}
+            ? "the server has a platform key."
+            : "the server has no PONA_FLOW_CHAT_API_KEY yet."}
         </p>
       ) : null}
       {settings.provider !== "local_llm" ? (
         <label className="canvasField">
-          <span>Model</span>
+          <span>model</span>
           <input
             value={settings.model}
-            placeholder="Leave blank for the provider default"
+            placeholder="leave blank for the provider default"
             onChange={(event) => setSettings({ ...settings, model: event.target.value })}
           />
         </label>
@@ -105,7 +105,7 @@ export function ChatModelSettings({ spaceId }: { spaceId: string }) {
       {needsKey ? (
         <>
           <label className="canvasField">
-            <span>Credential</span>
+            <span>credential</span>
             <input
               list="chat-model-credentials"
               value={settings.credential_name}
@@ -118,12 +118,12 @@ export function ChatModelSettings({ spaceId }: { spaceId: string }) {
             </datalist>
           </label>
           <label className="canvasField">
-            <span>New key value</span>
+            <span>new key value</span>
             <input
               type="password"
               value={apiKey}
               autoComplete="off"
-              placeholder="Leave blank to keep the stored value"
+              placeholder="leave blank to keep the stored value"
               onChange={(event) => setApiKey(event.target.value)}
             />
           </label>
@@ -132,14 +132,14 @@ export function ChatModelSettings({ spaceId }: { spaceId: string }) {
       {settings.provider === "local_llm" ? (
         <>
           <label className="canvasField">
-            <span>Base URL</span>
+            <span>base url</span>
             <input
               value={settings.local_llm_base_url}
               onChange={(event) => setSettings({ ...settings, local_llm_base_url: event.target.value })}
             />
           </label>
           <label className="canvasField">
-            <span>Config id</span>
+            <span>config id</span>
             <input
               value={settings.local_llm_config_id}
               onChange={(event) => setSettings({ ...settings, local_llm_config_id: event.target.value })}
@@ -148,7 +148,7 @@ export function ChatModelSettings({ spaceId }: { spaceId: string }) {
         </>
       ) : null}
       <label className="canvasField">
-        <span>Tool rounds</span>
+        <span>tool rounds</span>
         <input
           type="number"
           min={4}
@@ -160,9 +160,9 @@ export function ChatModelSettings({ spaceId }: { spaceId: string }) {
         />
       </label>
       {error ? <p className="errorText">{error}</p> : null}
-      {saved ? <p className="muted">Saved.</p> : null}
+      {saved ? <p className="muted">saved.</p> : null}
       <button type="submit" className="btnPrimary" disabled={busy}>
-        {busy ? "Saving…" : "Save chat model"}
+        {busy ? "saving…" : "save chat model"}
       </button>
     </form>
   );

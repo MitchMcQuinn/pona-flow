@@ -50,13 +50,13 @@ export function SchemaUpdateSuspendModal({
 
         {count ? (
           <p style={{ margin: "0 0 10px" }}>
-            This change affects {count} {count === 1 ? "item" : "items"}. They will be{" "}
+            this change affects {count} {count === 1 ? "item" : "items"}. they will be{" "}
             <strong>suspended</strong> and cannot run (for users or agents) until their INSTANCE
             step is re-saved to match the new schema pattern.
           </p>
         ) : (
           <p style={{ margin: "0 0 10px" }}>
-            Confirm this add/delete-only change to the schema pattern.
+            confirm this add/delete-only change to the schema pattern.
           </p>
         )}
 
@@ -73,12 +73,12 @@ export function SchemaUpdateSuspendModal({
           <div className="builderFormFieldset">
             {added.length ? (
               <p className="muted" style={{ margin: "0 0 4px", fontSize: 12 }}>
-                Added: {added.join(", ")}
+                added: {added.join(", ")}
               </p>
             ) : null}
             {deleted.length ? (
               <p className="muted" style={{ margin: 0, fontSize: 12 }}>
-                Removed: {deleted.join(", ")} (auto-removed from existing instances)
+                removed: {deleted.join(", ")} (auto-removed from existing instances)
               </p>
             ) : null}
           </div>
@@ -87,7 +87,7 @@ export function SchemaUpdateSuspendModal({
         {affectedSequences.length ? (
           <div className="builderFormFieldset">
             <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
-              Sequences to be suspended:
+              sequences to be suspended:
             </p>
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
               {affectedSequences.map((seq) => (
@@ -100,7 +100,7 @@ export function SchemaUpdateSuspendModal({
         {affectedOperations.length ? (
           <div className="builderFormFieldset">
             <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
-              Standalone queries to be suspended:
+              standalone queries to be suspended:
             </p>
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
               {affectedOperations.map((op) => (
@@ -120,7 +120,7 @@ export function SchemaUpdateSuspendModal({
             disabled={busy}
             onClick={onCancel}
           >
-            Cancel
+            cancel
           </button>
           <button
             type="button"
@@ -129,7 +129,7 @@ export function SchemaUpdateSuspendModal({
             disabled={busy}
             onClick={onConfirm}
           >
-            {busy ? "Updating…" : count ? "Update & suspend" : "Update schema"}
+            {busy ? "updating…" : count ? "update & suspend" : "update schema"}
           </button>
         </div>
       </div>

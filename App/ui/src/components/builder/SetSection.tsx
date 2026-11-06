@@ -115,7 +115,7 @@ export function SetSection() {
                 className="builderTinyBtn builderDanger"
                 onClick={() => patchQuery(removeSetItem(index))}
               >
-                Remove
+                remove
               </button>
             </div>
           </div>

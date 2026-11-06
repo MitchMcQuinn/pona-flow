@@ -138,7 +138,7 @@ function InspectPropertiesPanel({
         <div className="inspectPayloadSection">
           <h2>payload</h2>
           {payloadEntries.length === 0 ? (
-            <p className="muted">No payload properties stored for this entity.</p>
+            <p className="muted">no payload properties stored for this entity.</p>
           ) : (
             <table className="inspectPayloadTable">
               <tbody>
@@ -156,7 +156,7 @@ function InspectPropertiesPanel({
         </div>
         <div className="buttonRow">
           <button type="button" onClick={onCloseInspect}>
-            Close
+            close
           </button>
         </div>
       </div>
@@ -197,7 +197,7 @@ function SequenceDescriptionEditor({
       setEditing(false);
       onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save description");
+      setError(e instanceof Error ? e.message : "failed to save description");
     } finally {
       setSaving(false);
     }
@@ -218,7 +218,7 @@ function SequenceDescriptionEditor({
               setEditing(true);
             }}
           >
-            {value ? "Edit" : "Add"}
+            {value ? "edit" : "add"}
           </button>
         ) : null}
       </div>
@@ -228,14 +228,14 @@ function SequenceDescriptionEditor({
             className="sequenceDescriptionInput"
             value={draft}
             rows={3}
-            placeholder="What this sequence does. Shown to MCP agents as the tool description."
+            placeholder="what this sequence does. shown to MCP agents as the tool description."
             disabled={saving}
             onChange={(e) => setDraft(e.target.value)}
           />
           {error ? <p className="errorText">{error}</p> : null}
           <div className="buttonRow">
             <button type="button" className="btnPrimary" disabled={saving} onClick={save}>
-              {saving ? "Saving..." : "Save"}
+              {saving ? "saving..." : "save"}
             </button>
             <button
               type="button"
@@ -246,14 +246,14 @@ function SequenceDescriptionEditor({
                 setEditing(false);
               }}
             >
-              Cancel
+              cancel
             </button>
           </div>
         </>
       ) : value ? (
         <p className="sequenceDescriptionText">{value}</p>
       ) : (
-        <p className="muted">No description yet. Agents see a generic tool description until one is set.</p>
+        <p className="muted">no description yet. agents see a generic tool description until one is set.</p>
       )}
     </div>
   );
@@ -315,10 +315,10 @@ export function ConfigPanel({
       <div className="panel configPanel">
         <div className="panel__body">
           <h1>properties</h1>
-          <p className="muted">Selected element not found in the current step flow.</p>
+          <p className="muted">selected element not found in the current step flow.</p>
           <div className="buttonRow">
             <button type="button" onClick={onCloseInspect}>
-              Close
+              close
             </button>
           </div>
         </div>
@@ -365,12 +365,12 @@ export function ConfigPanel({
           <h1>parameters</h1>
           {inputParams.length === 0 ? (
             <p className="muted">
-              Inputs appear here as the sequence reaches steps that pause for them. Run the sequence
+              inputs appear here as the sequence reaches steps that pause for them. run the sequence
               to begin.
             </p>
           ) : state.run.awaitingParams ? (
             <p className="muted">
-              The run paused for operator input. Fill in the fields below and run again to continue.
+              the run paused for operator input. fill in the fields below and run again to continue.
             </p>
           ) : null}
           {inputParams.map((parameter) => {
@@ -397,9 +397,9 @@ export function ConfigPanel({
                   onChange={locked ? () => undefined : (next) => onParamChange(parameter.name, next)}
                 />
                 {locked ? (
-                  <div className="muted paramLockedHint">Locked — already used by an executed step.</div>
+                  <div className="muted paramLockedHint">locked — already used by an executed step.</div>
                 ) : state.params.validity[parameter.name] === false ? (
-                  <div className="errorText">Needs a value to continue</div>
+                  <div className="errorText">needs a value to continue</div>
                 ) : null}
               </div>
             );
@@ -408,7 +408,7 @@ export function ConfigPanel({
           {hasResponseParams ? (
             <div className="responseParamsSection">
               <h2>response parameters</h2>
-              <p className="muted">Values returned and updated as the sequence runs.</p>
+              <p className="muted">values returned and updated as the sequence runs.</p>
               <table className="responseParamsTable">
                 <tbody>
                   {state.params.responseParams.map((responseParam) => {

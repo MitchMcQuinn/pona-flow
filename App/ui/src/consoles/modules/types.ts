@@ -2,7 +2,7 @@ import type { ComponentType } from 'react'
 
 export type ModuleKind = 'display' | 'action'
 
-export type ModuleCategory = 'Data display' | 'Charts' | 'Feedback' | 'Inputs'
+export type ModuleCategory = 'data display' | 'charts' | 'feedback' | 'inputs'
 
 export type ConfigField = {
   key: string
@@ -52,4 +52,4 @@ export type ModuleDefinition = {
   View: ComponentType<ModuleViewProps>
 }
 
-export const moduleCategories: ModuleCategory[] = ['Data display', 'Charts', 'Feedback', 'Inputs']
+export const moduleCategories: ModuleCategory[] = ['data display', 'charts', 'feedback', 'inputs']

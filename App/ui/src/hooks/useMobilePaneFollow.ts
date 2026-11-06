@@ -65,7 +65,13 @@ export function useMobilePaneFollow({ mode, state, builderResult, builderSeed, c
 
   useEffect(() => {
     if (chatMode) {
-      if (paneRef.current === "workbench") setMobilePane("menu");
+      const spaceOpened = rightPanelMode === "space" && prev.current.rightPanelMode !== "space";
+      const showSpaceOnCanvas =
+        mode === "phone" &&
+        rightPanelMode === "space" &&
+        (spaceOpened || paneRef.current === "workbench");
+      if (showSpaceOnCanvas) setMobilePane("map");
+      else if (paneRef.current === "workbench") setMobilePane("menu");
       prev.current = {
         selectedSequenceId,
         selectedEventId,

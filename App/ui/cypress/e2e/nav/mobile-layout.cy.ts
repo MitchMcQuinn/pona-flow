@@ -77,19 +77,19 @@ describe("mobile layout", () => {
     // Touch: group actions are visible without hover; Reorder swaps them for arrows.
     cy.addNavGroup(GROUP_A);
     cy.addNavGroup(GROUP_B);
-    cy.get(`[aria-label="Delete group ${GROUP_A}"]`).should("be.visible");
+    cy.get(`[aria-label="delete group ${GROUP_A}"]`).should("be.visible");
     cy.get(".navGroupDragHandle").should("not.exist");
 
-    cy.get('[data-testid="nav-reorder-toggle"]').should("contain.text", "Reorder").click();
-    cy.get(`[aria-label="Delete group ${GROUP_A}"]`).should("not.exist");
-    cy.get(`[aria-label="Move group ${GROUP_A} up"]`).should("be.disabled");
-    cy.get(`[aria-label="Move group ${GROUP_A} down"]`).should("not.be.disabled").click();
+    cy.get('[data-testid="nav-reorder-toggle"]').should("contain.text", "reorder").click();
+    cy.get(`[aria-label="delete group ${GROUP_A}"]`).should("not.exist");
+    cy.get(`[aria-label="move group ${GROUP_A} up"]`).should("be.disabled");
+    cy.get(`[aria-label="move group ${GROUP_A} down"]`).should("not.be.disabled").click();
     cy.get(".navGroupTitle").then(($titles) => {
       const order = [...$titles].map((el) => el.textContent?.trim());
       expect(order.indexOf(GROUP_B)).to.be.lessThan(order.indexOf(GROUP_A));
     });
-    cy.get('[data-testid="nav-reorder-toggle"]').should("contain.text", "Done").click();
-    cy.get(`[aria-label="Delete group ${GROUP_A}"]`).should("be.visible");
+    cy.get('[data-testid="nav-reorder-toggle"]').should("contain.text", "done").click();
+    cy.get(`[aria-label="delete group ${GROUP_A}"]`).should("be.visible");
 
     // Replay the tour from Space settings: the card is a sheet clear of the spotlight.
     cy.openSpaceSettings();

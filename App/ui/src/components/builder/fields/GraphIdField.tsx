@@ -37,7 +37,7 @@ export function GraphIdField({ checkKey, idValue, onChange }: GraphIdFieldProps)
       <div className="builderInputWithAction">
         <input className="builderMono" value={idValue} onChange={(e) => onChange(e.target.value)} />
         <button type="button" className="builderTinyBtn" onClick={generate}>
-          Generate
+          generate
         </button>
       </div>
       {check &&

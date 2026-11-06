@@ -32,7 +32,7 @@ function TraversalReturnSection() {
         <Toggle
           checked={mode === "downstream"}
           onChange={(value) => patchQuery(setReadTraversal(value ? "downstream" : undefined))}
-          label="Return downstream"
+          label="return downstream"
           labelFirst
         />
         {/* Sequences only expose the downstream traversal; the full-network option is
@@ -41,7 +41,7 @@ function TraversalReturnSection() {
           <Toggle
             checked={mode === "network"}
             onChange={(value) => patchQuery(setReadTraversal(value ? "network" : undefined))}
-            label="Return network"
+            label="return network"
             labelFirst
           />
         ) : null}
@@ -129,10 +129,10 @@ export function ReturnSection() {
           {state.query.unwind?.alias?.trim() &&
           (state.query.unwind?.items ?? []).filter((item) => (item.expression ?? "").trim()).length >=
             2
-            ? `Empty RETURN emits \`RETURN ${state.query.unwind.alias.trim()}\` (the UNWIND column).`
+            ? `empty RETURN emits \`RETURN ${state.query.unwind.alias.trim()}\` (the UNWIND column).`
             : boundReadReturn
-              ? "Empty RETURN emits `RETURN *`. Add projections to return specific properties."
-              : "Empty RETURN emits `RETURN *`."}
+              ? "empty RETURN emits `RETURN *`. add projections to return specific properties."
+              : "empty RETURN emits `RETURN *`."}
         </p>
       ) : null}
 
@@ -175,7 +175,7 @@ export function ReturnSection() {
                 className="builderTinyBtn builderDanger"
                 onClick={() => patchQuery(removeReturnItem(index))}
               >
-                Remove
+                remove
               </button>
             </div>
           </div>

@@ -20,7 +20,7 @@ interface UnwindProjectionRowProps {
   item: UnwindItem;
 }
 
-const ADD_PARAMETER_ACTION_LABEL = "+ ADD A PARAMETER";
+const ADD_PARAMETER_ACTION_LABEL = "+ add a parameter";
 
 export function UnwindProjectionRow({ index, item }: UnwindProjectionRowProps) {
   const { state, patchQuery } = useBuilder();
@@ -88,7 +88,7 @@ export function UnwindProjectionRow({ index, item }: UnwindProjectionRowProps) {
             emptyHint={
               bindings.length
                 ? undefined
-                : "Set attributive_label on MATCH nodes and relationships first."
+                : "set attributive_label on MATCH nodes and relationships first."
             }
           />
         </div>
@@ -122,7 +122,7 @@ export function UnwindProjectionRow({ index, item }: UnwindProjectionRowProps) {
                 binding
                   ? propertyKeys.length
                     ? undefined
-                    : "No properties found on graph for this schema."
+                    : "no properties found on graph for this schema."
                   : undefined
               }
             />
@@ -133,7 +133,7 @@ export function UnwindProjectionRow({ index, item }: UnwindProjectionRowProps) {
           className="builderTinyBtn builderDanger"
           onClick={() => patchQuery(removeUnwindItem(index))}
         >
-          Remove
+          remove
         </button>
       </div>
       {showSchemaParamModal ? (

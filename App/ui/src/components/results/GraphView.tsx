@@ -756,18 +756,18 @@ export function GraphView({
           {caption}
         </div>
       ) : null}
-      <div className="matchZoomControls graphZoomControls" role="group" aria-label="Zoom">
-        <button type="button" className="matchZoomBtn" aria-label="Zoom in" onClick={() => zoomBy(1.25)}>
+      <div className="matchZoomControls graphZoomControls" role="group" aria-label="zoom">
+        <button type="button" className="matchZoomBtn" aria-label="zoom in" onClick={() => zoomBy(1.25)}>
           +
         </button>
-        <button type="button" className="matchZoomBtn" aria-label="Zoom out" onClick={() => zoomBy(0.8)}>
+        <button type="button" className="matchZoomBtn" aria-label="zoom out" onClick={() => zoomBy(0.8)}>
           −
         </button>
         <button
           type="button"
           className="matchZoomBtn matchZoomFit"
-          aria-label="Fit to screen"
-          title="Fit to screen"
+          aria-label="fit to screen"
+          title="fit to screen"
           onClick={fit}
         >
           <FitIcon />

@@ -53,8 +53,8 @@ function formatHint(format: string | undefined) {
 
 function labelFromName(name: string) {
   const words = name.replace(/_/g, ' ').replace(/\s+/g, ' ').trim()
-  if (!words) return 'Field'
-  return words.charAt(0).toUpperCase() + words.slice(1)
+  if (!words) return 'field'
+  return words
 }
 
 function formName(name: string) {

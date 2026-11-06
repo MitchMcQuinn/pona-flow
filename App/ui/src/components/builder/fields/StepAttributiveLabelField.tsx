@@ -126,9 +126,9 @@ export function StepAttributiveLabelField({
           placeholder="select or create node"
           options={options}
           createActions={[
-            { label: "+ ADD NEW NODE", onClick: () => setCreateKind("node") },
+            { label: "+ add new node", onClick: () => setCreateKind("node") },
             ...(allowParameter
-              ? [{ label: "+ ADD A PARAMETER", onClick: () => setCreateKind("parameter") }]
+              ? [{ label: "+ add a parameter", onClick: () => setCreateKind("parameter") }]
               : [])
           ]}
           onSelect={(value) => {
@@ -137,11 +137,11 @@ export function StepAttributiveLabelField({
             if (rec) onSelectExisting(rec);
           }}
           disabled={disabled}
-          title={disabled ? "Locked because this entry has an alias." : undefined}
+          title={disabled ? "locked because this entry has an alias." : undefined}
           emptyHint={
             nodeLabel === "SCHEMA"
-              ? "No schema nodes available"
-              : `No ${nodeLabel} nodes in both the graph and this space's label catalog.`
+              ? "no schema nodes available"
+              : `no ${nodeLabel} nodes in both the graph and this space's label catalog.`
           }
         />
       )}

@@ -27,11 +27,11 @@ describe("sequence: lifecycle", () => {
     seedSequence();
 
     cy.selectSequenceInNav(GOLDEN_SEQUENCE_NAME);
-    cy.contains(".sequenceDescriptionHead button", "Add").click();
+    cy.contains(".sequenceDescriptionHead button", "add").click();
     cy.get(".sequenceDescriptionInput")
       .clear()
       .type("E2E lifecycle description for agents.");
-    cy.contains(".sequenceDescription .buttonRow button", "Save").click();
+    cy.contains(".sequenceDescription .buttonRow button", "save").click();
     cy.get(".sequenceDescription").should("contain.text", "E2E lifecycle description for agents.");
   });
 
@@ -45,7 +45,7 @@ describe("sequence: lifecycle", () => {
       "/sequences/"
     );
     cy.get('[data-testid="sequence-webhook-curl"]').should("contain.text", "/run");
-    cy.get('[data-testid="sequence-webhook-copy"]').should("contain.text", "Copy curl");
+    cy.get('[data-testid="sequence-webhook-copy"]').should("contain.text", "copy curl");
   });
 
   it("edits a sequence from the nav and re-saves its builder config", () => {
@@ -60,7 +60,7 @@ describe("sequence: lifecycle", () => {
       .type(`${GOLDEN_SEQUENCE_NAME}_RENAMED`);
 
     cy.get('[data-testid="builder-create-sequence-btn"]')
-      .should("contain.text", "Save sequence")
+      .should("contain.text", "save sequence")
       .click();
 
     cy.contains(".sequenceBtnLabel", `${GOLDEN_SEQUENCE_NAME}_RENAMED`, { timeout: 60_000 }).should(
@@ -80,7 +80,7 @@ describe("sequence: lifecycle", () => {
     cy.get('[data-testid="builder-sequence-name"]').should("be.enabled").clear().type(GOLDEN_SCHEMA_LABEL);
 
     cy.get('[data-testid="builder-create-sequence-btn"]')
-      .should("contain.text", "Save sequence")
+      .should("contain.text", "save sequence")
       .click();
 
     cy.contains(".sequenceBtnLabel", GOLDEN_SCHEMA_LABEL, { timeout: 60_000 }).should(
@@ -116,7 +116,7 @@ describe("sequence: lifecycle", () => {
       .trigger("mouseenter");
     cy.get('[data-testid="nav-sequence-tooltip"]', { timeout: 5_000 })
       .should("be.visible")
-      .and("contain.text", "Orphaned");
+      .and("contain.text", "orphaned");
 
     cy.deleteSequenceInNav(GOLDEN_SEQUENCE_NAME, "nav");
   });
@@ -143,12 +143,12 @@ describe("sequence: lifecycle", () => {
       .should("have.value", GOLDEN_READ_OPERATION)
       .parents(".builderField")
       .first()
-      .should("not.contain.text", "Already used");
+      .should("not.contain.text", "already used");
     cy.get('[data-testid="builder-save-operation-btn"]').should("not.be.disabled");
 
     cy.get('[data-testid="builder-operation-name"]').clear().type("READ_PERSON_RENAMED");
     cy.get('[data-testid="builder-save-operation-btn"]').should("not.be.disabled").click();
-    cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should("contain.text", "Step updated");
+    cy.get('[role="status"].toast--ok', { timeout: 60_000 }).should("contain.text", "step updated");
     cy.contains(
       '[data-testid="nav-sequence-item"][data-single-step="true"] .sequenceBtnLabel',
       "READ_PERSON_RENAMED",

@@ -52,7 +52,7 @@ export function ChoiceOptionsEditor({
     <div className="builderField choiceOptionsEditor">
       <label>options</label>
       {options.length === 0 ? (
-        <p className="builderCheckMsg">No options yet. Add the choices the user picks from.</p>
+        <p className="builderCheckMsg">no options yet. add the choices the user picks from.</p>
       ) : null}
       {options.map((opt, index) => (
         <div key={index} className="choiceOptionRow">
@@ -66,11 +66,11 @@ export function ChoiceOptionsEditor({
           <button
             type="button"
             className="builderTinyBtn builderDanger"
-            title="Remove option"
+            title="remove option"
             disabled={disabled}
             onClick={() => removeOption(index)}
           >
-            Remove
+            remove
           </button>
         </div>
       ))}

@@ -41,7 +41,7 @@ function CopyField({ value, testId }: { value: string; testId?: string }) {
     <div className="agentTokenCode">
       <code data-testid={testId}>{value}</code>
       <button type="button" className="btnPrimary" onClick={copy}>
-        {copied ? "Copied" : "Copy"}
+        {copied ? "copied" : "copy"}
       </button>
     </div>
   );
@@ -79,7 +79,7 @@ export function EventTestListener({ eventId, ingestToken, signed }: EventTestLis
         setCapture(next);
       } catch (err: unknown) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to listen for a test payload");
+          setError(err instanceof Error ? err.message : "failed to listen for a test payload");
         }
       }
     }
@@ -107,7 +107,7 @@ export function EventTestListener({ eventId, ingestToken, signed }: EventTestLis
       await clearEventTestCapture(eventId);
       setCapture(null);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to clear the test payload");
+      setError(err instanceof Error ? err.message : "failed to clear the test payload");
     } finally {
       setClearing(false);
     }
@@ -119,28 +119,28 @@ export function EventTestListener({ eventId, ingestToken, signed }: EventTestLis
         label="test endpoint"
         tip={
           signed
-            ? "POST a sample payload here to preview it. Sequences do not run. Send X-Pona-Signature when a signing secret is set."
-            : "POST a sample payload here to preview it. Sequences do not run."
+            ? "POST a sample payload here to preview it. sequences do not run. send X-Pona-Signature when a signing secret is set."
+            : "POST a sample payload here to preview it. sequences do not run."
         }
       >
         {testUrl ? (
           <CopyField value={testUrl} testId="event-test-url" />
         ) : (
-          <p className="muted">Save to generate a test endpoint.</p>
+          <p className="muted">save to generate a test endpoint.</p>
         )}
       </EventInlineField>
 
       {testUrl ? (
         <div className="eventTestMeta">
-          {listening ? <span className="eventTestLive">Listening</span> : null}
+          {listening ? <span className="eventTestLive">listening</span> : null}
           {capture ? (
             <span className="eventHint">Received {formatReceived(capture.receivedAt)}</span>
           ) : (
-            <span className="muted">Waiting for a request…</span>
+            <span className="muted">waiting for a request…</span>
           )}
           {capture ? (
             <button type="button" className="tinyBtn" disabled={clearing} onClick={clear}>
-              {clearing ? "Clearing…" : "Clear"}
+              {clearing ? "clearing…" : "clear"}
             </button>
           ) : null}
         </div>

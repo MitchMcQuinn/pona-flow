@@ -180,21 +180,21 @@ export function VisualizationPanel({
       <section className="panel vizPanel">
         <div className="panel__body">
           <h1>audit log</h1>
-          <p className="muted">Read-only record of every sequence run (most recent first).</p>
-          {loading ? <p className="muted">Loading audit log...</p> : null}
+          <p className="muted">read-only record of every sequence run (most recent first).</p>
+          {loading ? <p className="muted">loading audit log...</p> : null}
           {error ? <p className="errorText">{error}</p> : null}
           {!loading && !error && entries.length === 0 ? (
-            <p className="muted">No sequence runs recorded yet.</p>
+            <p className="muted">no sequence runs recorded yet.</p>
           ) : null}
           {!loading && !error && entries.length > 0 ? (
             <table className="auditLogTable">
               <thead>
                 <tr>
-                  <th>Run at (UTC)</th>
-                  <th>Trigger</th>
-                  <th>Sequence(s)</th>
-                  <th>Event</th>
-                  <th>Principal</th>
+                  <th>run at (UTC)</th>
+                  <th>trigger</th>
+                  <th>sequence(s)</th>
+                  <th>event</th>
+                  <th>principal</th>
                 </tr>
               </thead>
               <tbody>
@@ -275,8 +275,8 @@ export function VisualizationPanel({
     <section className="panel vizPanel">
       <div className="panel__body">
         <h1>visualization</h1>
-        {state.view.visualMode === "empty" ? <p className="muted">Select a sequence to begin.</p> : null}
-        {flowLoading ? <p className="muted">Loading step flow...</p> : null}
+        {state.view.visualMode === "empty" ? <p className="muted">select a sequence to begin.</p> : null}
+        {flowLoading ? <p className="muted">loading step flow...</p> : null}
         {state.sequence.error ? <p className="errorText">{state.sequence.error}</p> : null}
 
       {state.view.visualMode === "design_graph" &&
@@ -285,7 +285,7 @@ export function VisualizationPanel({
       !flowLoading &&
       (designGraph.nodes.length > 0 || designGraph.relationships.length > 0) ? (
         <div className="designGraphView">
-          <p className="muted">Design graph for {definition.label}</p>
+          <p className="muted">design graph for {definition.label}</p>
           <GraphView
             graph={designGraph}
             onClickNode={onClickNode}
@@ -307,19 +307,19 @@ export function VisualizationPanel({
       designGraph &&
       designGraph.nodes.length === 0 &&
       designGraph.relationships.length === 0 ? (
-        <p className="muted">This sequence has no step graph to display.</p>
+        <p className="muted">this sequence has no step graph to display.</p>
       ) : null}
 
       {state.view.visualMode === "result_graph" && state.results.graphData ? (
         <div>
-          <p className="muted">Result graph</p>
+          <p className="muted">result graph</p>
           <pre>{JSON.stringify(state.results.graphData, null, 2)}</pre>
         </div>
       ) : null}
 
       {state.view.visualMode === "result_table" && state.results.tableData ? (
         <div>
-          <p className="muted">Result table</p>
+          <p className="muted">result table</p>
           <table>
             <thead>
               <tr>

@@ -13,7 +13,7 @@ interface VectorizedFieldProps {
 }
 
 const HINT =
-  "Include these records in semantic search. Mark the properties to embed with is_embedded, then reindex from the space's Embeddings settings.";
+  "include these records in semantic search. mark the properties to embed with is_embedded, then reindex from the space's embeddings settings.";
 
 /**
  * SCHEMA-level opt-in to vector search, above the property list.

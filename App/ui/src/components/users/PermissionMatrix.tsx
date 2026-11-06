@@ -89,7 +89,7 @@ export function PermissionMatrix({ value, sequences, disabled, onChange }: Permi
           checked={value.manageSpace}
           onChange={() => onChange({ ...value, manageSpace: !value.manageSpace })}
         />
-        Manage space (settings, events, members & roles)
+        manage space (settings, events, members & roles)
       </label>
 
       <h3>sequences</h3>
@@ -100,12 +100,12 @@ export function PermissionMatrix({ value, sequences, disabled, onChange }: Permi
           checked={value.sequences.all}
           onChange={toggleSequenceAll}
         />
-        Run all sequences
+        run all sequences
       </label>
       {!value.sequences.all ? (
         <div className="rbacSequenceList">
           {runnableSequences.length === 0 ? (
-            <p className="muted">No sequences in this space yet.</p>
+            <p className="muted">no sequences in this space yet.</p>
           ) : (
             runnableSequences.map((s) => (
               <label key={s.id} className="rbacCheckRow">

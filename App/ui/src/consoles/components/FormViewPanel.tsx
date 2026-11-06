@@ -121,7 +121,7 @@ function useFormSequenceData(consoleId: string, viewId: string, sequenceId: stri
           token: refreshToken,
           sequenceId,
           data: null,
-          error: reason instanceof Error ? reason.message : 'Request failed',
+          error: reason instanceof Error ? reason.message : 'request failed',
           loading: false,
         })
       })
@@ -204,7 +204,7 @@ function FormViewBody({
           : field.type === 'checkbox'
             ? value !== true
             : value === '' || value == null || (typeof value === 'number' && Number.isNaN(value))
-        if (missing) errors[field.id] = 'Required'
+        if (missing) errors[field.id] = 'required'
       }
       return errors
     },
@@ -222,7 +222,7 @@ function FormViewBody({
 
   const submit = async (values: FormValues) => {
     if (!view.actionSequenceId) {
-      notifications.show({ color: 'yellow', title: 'No action sequence', message: 'Choose an action sequence before submitting.' })
+      notifications.show({ color: 'yellow', title: 'no action sequence', message: 'choose an action sequence before submitting.' })
       return
     }
     const pagePayload = answeredValues(visibleRef.current, values)
@@ -257,8 +257,8 @@ function FormViewBody({
         } else if (decision.cursor === pageCursor) {
           notifications.show({
             color: 'yellow',
-            title: 'Still needs input',
-            message: 'Fill the required fields to continue.',
+            title: 'still needs input',
+            message: 'fill the required fields to continue.',
           })
         } else {
           setPauseFields(null)
@@ -272,12 +272,12 @@ function FormViewBody({
       setPauseFields(null)
       setPageCursor(0)
       form.resetDirty()
-      notifications.show({ color: 'teal', title: 'Submitted', message: view.name })
+      notifications.show({ color: 'teal', title: 'submitted', message: view.name })
     } catch (reason) {
       notifications.show({
         color: 'red',
-        title: 'Post failed',
-        message: reason instanceof Error ? reason.message : 'Request failed',
+        title: 'post failed',
+        message: reason instanceof Error ? reason.message : 'request failed',
       })
     } finally {
       setActing(false)
@@ -291,7 +291,7 @@ function FormViewBody({
           <Text className="section-label">form</Text>
           {loading && data == null ? (
             <Text size="sm" c="dimmed">
-              Loading form data
+              loading form data
             </Text>
           ) : null}
           {error ? (
@@ -301,24 +301,24 @@ function FormViewBody({
           ) : null}
           {plannedPages.length > 1 && !pauseFields ? (
             <Text size="sm" c="dimmed">
-              Page {pageCursor + 1} of {plannedPages.length}
+              page {pageCursor + 1} of {plannedPages.length}
             </Text>
           ) : null}
           {pauseFields ? (
             <Text size="sm" c="dimmed">
-              This sequence needs more input before it can finish.
+              this sequence needs more input before it can finish.
             </Text>
           ) : null}
           {visible.length === 0 ? (
             <Text size="sm" c="dimmed">
-              This form has no fields yet. Add some from view settings.
+              this form has no fields yet. add some from view settings.
             </Text>
           ) : (
             visible.map((field) => <FormControl key={field.id} field={field} getInputProps={form.getInputProps} />)
           )}
           <Group justify="space-between">
             <Button type="submit" loading={acting} disabled={visible.length === 0 && !pauseFields}>
-              {pauseFields ? 'Continue' : laterPage ? 'Next' : view.submitLabel || 'Submit'}
+              {pauseFields ? 'continue' : laterPage ? 'next' : view.submitLabel || 'submit'}
             </Button>
             {form.isDirty() && view.dataSequenceId ? (
               <Button
@@ -329,7 +329,7 @@ function FormViewBody({
                   form.resetDirty(next)
                 }}
               >
-                Load latest
+                load latest
               </Button>
             ) : null}
           </Group>

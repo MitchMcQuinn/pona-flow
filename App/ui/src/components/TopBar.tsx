@@ -117,7 +117,7 @@ export function TopBar({
           <button
             type="button"
             className="topbarMenuBtn"
-            aria-label={navOpen ? "Close navigation" : "Open navigation"}
+            aria-label={navOpen ? "close navigation" : "open navigation"}
             aria-expanded={navOpen}
             data-testid="topbar-nav-toggle"
             data-tour="nav-toggle"
@@ -134,14 +134,14 @@ export function TopBar({
         >
           {spaceLabel}
         </span>
-        <div className="topbarModeSwitch" role="group" aria-label="View">
+        <div className="topbarModeSwitch" role="group" aria-label="view">
           {chatActive ? null : (
             <button
               type="button"
               className="topbarModeBtn"
               data-testid="topbar-chat-btn"
-              aria-label="Chat"
-              title="Chat"
+              aria-label="chat"
+              title="chat"
               onClick={onOpenChat}
             >
               <ChatIcon />
@@ -152,8 +152,8 @@ export function TopBar({
               type="button"
               className="topbarModeBtn"
               data-testid="topbar-back-btn"
-              aria-label="Workbench"
-              title="Workbench"
+              aria-label="workbench"
+              title="workbench"
               onClick={onOpenWorkbench}
             >
               <WrenchIcon />
@@ -167,23 +167,23 @@ export function TopBar({
             type="button"
             className="btnDanger topbarStopBtn"
             data-testid="topbar-stop-btn"
-            aria-label="Stop sequence"
+            aria-label="stop sequence"
             onClick={onStop}
           >
             <StopIcon />
-            {compact ? "Stop" : "Stop Sequence"}
+            {compact ? "stop" : "stop sequence"}
           </button>
         ) : null}
         {showRun ? (
           <button
             className="btnPrimary topbarRunBtn"
             data-testid="topbar-run-btn"
-            aria-label="Run sequence"
+            aria-label="run sequence"
             onClick={onRun}
             disabled={!canRun}
           >
             {!running ? <PlayIcon /> : null}
-            {running ? "Running..." : compact ? "Run" : "Run Sequence"}
+            {running ? "running..." : compact ? "run" : "run sequence"}
           </button>
         ) : null}
         <span className="topbarSpaceActions">
@@ -195,8 +195,8 @@ export function TopBar({
           <button
             type="button"
             className={`tinyBtn tinyBtnIcon navSpaceConfigBtn${spaceConfigActive ? " active" : ""}`}
-            aria-label="Open space settings"
-            title="Space settings"
+            aria-label="open space settings"
+            title="space settings"
             data-testid="nav-space-settings"
             data-tour="space-settings"
             disabled={!selectedSpaceId}

@@ -20,7 +20,7 @@ export function EphemeralConsole({
   const record = useMemo(() => {
     const loaded = consoleFromApi({
       id: item.id,
-      name: String(item.payload.name || item.title || "Console"),
+      name: String(item.payload.name || item.title || "console"),
       document: (item.payload.document || {}) as { views?: unknown; activeViewId?: string }
     });
     return {
@@ -41,7 +41,7 @@ export function EphemeralConsole({
     value: sequence.id,
     label: sequence.label
   }));
-  if (!view) return <p className="muted">This console has no view.</p>;
+  if (!view) return <p className="muted">this console has no view.</p>;
   return (
     <ConsoleFrame className="consoleEmbedded">
       <SequenceOptionsProvider options={options}>

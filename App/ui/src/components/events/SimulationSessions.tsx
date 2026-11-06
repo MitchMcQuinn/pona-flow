@@ -50,7 +50,7 @@ function CopyField({ value, testId }: { value: string; testId?: string }) {
     <div className="agentTokenCode">
       <code data-testid={testId}>{value}</code>
       <button type="button" className="btnPrimary" onClick={copy}>
-        {copied ? "Copied" : "Copy"}
+        {copied ? "copied" : "copy"}
       </button>
     </div>
   );
@@ -114,7 +114,7 @@ export function SimulationSessions({
     if (!eventId) return;
     let cancelled = false;
     reload().catch((err: unknown) => {
-      if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load sessions");
+      if (!cancelled) setError(err instanceof Error ? err.message : "failed to load sessions");
     });
     return () => {
       cancelled = true;
@@ -137,7 +137,7 @@ export function SimulationSessions({
         setNameDraft(shown);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load session");
+        if (!cancelled) setError(err instanceof Error ? err.message : "failed to load session");
       });
     return () => {
       cancelled = true;
@@ -150,7 +150,7 @@ export function SimulationSessions({
     try {
       await action();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Simulation request failed");
+      setError(err instanceof Error ? err.message : "simulation request failed");
     } finally {
       setBusy(false);
     }
@@ -193,7 +193,7 @@ export function SimulationSessions({
         setNameDraft(shown);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to rename session");
+      setError(err instanceof Error ? err.message : "failed to rename session");
     }
   }
 
@@ -257,7 +257,7 @@ export function SimulationSessions({
   }
 
   const endpointTip =
-    "These URLs are the secret — no login is required. The same actions are available to a signed-in user or agent key at /api/events/{event_id}/sessions.";
+    "these URLs are the secret — no login is required. the same actions are available to a signed-in user or agent key at /api/events/{event_id}/sessions.";
   const showEndpoints = view !== "sessions";
   const showSessions = view !== "endpoints";
 
@@ -286,7 +286,7 @@ export function SimulationSessions({
         </>
       ) : showEndpoints ? (
         <EventInlineField label="session endpoints" tip={endpointTip}>
-          <p className="muted">Save to generate session URLs.</p>
+          <p className="muted">save to generate session URLs.</p>
         </EventInlineField>
       ) : null}
 
@@ -307,12 +307,12 @@ export function SimulationSessions({
               disabled={busy}
               onClick={handleCreate}
             >
-              + New session
+              + new session
             </button>
           </EventInlineField>
 
           {sessions.length === 0 ? (
-            <p className="muted">No sessions yet.</p>
+            <p className="muted">no sessions yet.</p>
           ) : (
             <ul className="simSessionList">
               {sessions.map((session) => (
@@ -331,8 +331,8 @@ export function SimulationSessions({
                   <button
                     type="button"
                     className="simSessionDelete"
-                    aria-label={`Delete session ${sessionName(session)}`}
-                    title="Delete session"
+                    aria-label={`delete session ${sessionName(session)}`}
+                    title="delete session"
                     data-testid="sim-session-list-delete"
                     disabled={busy}
                     onClick={() => void handleDeleteSession(session.id)}
@@ -401,7 +401,7 @@ export function SimulationSessions({
                     disabled={busy}
                     onClick={handleClear}
                   >
-                    Clear error
+                    clear error
                   </button>
                 ) : null}
                 <button
@@ -411,7 +411,7 @@ export function SimulationSessions({
                   disabled={busy}
                   onClick={handleDelete}
                 >
-                  Delete
+                  delete
                 </button>
               </div>
               {detail.errorMessage ? <p className="errorText">{detail.errorMessage}</p> : null}
@@ -432,7 +432,7 @@ export function SimulationSessions({
                 <div className="simEmissionsBlock">
                   <h2 className="simEmissionsHeading">emissions</h2>
                   {(detail.emissions || []).length === 0 ? (
-                    <p className="muted">No emissions yet.</p>
+                    <p className="muted">no emissions yet.</p>
                   ) : (
                     <div className="eventInlineNest">
                       <ul className="simEmissions">
@@ -461,11 +461,11 @@ export function SimulationSessions({
                 <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
                   <path fill="currentColor" d="M5.25 3.5v9l7.25-4.5L5.25 3.5z" />
                 </svg>
-                Advance tic
+                advance tic
               </button>
             </>
           ) : (
-            <p className="muted">Loading session...</p>
+            <p className="muted">loading session...</p>
           )}
         </div>
       ) : null}

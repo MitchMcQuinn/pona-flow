@@ -12,6 +12,7 @@
   --border: rgba(255, 255, 255, 0.28);
   --ok: #34d399;
   --bad: #fb7185;
+  --warn: #fbbf24;
   --accent: #818cf8;
   --accent-soft: rgba(129, 140, 248, 0.35);
 
@@ -56,6 +57,15 @@
   --btn-glow-bleed: 20px;
 
   --panel-radius: 0px;
+
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-layout: 450ms;
+  --motion-form: 340ms;
+  --motion-drawer: 220ms;
+  --motion-crossfade: 200ms;
+  --motion-micro: 150ms;
+  --overlay-scrim: rgba(1, 1, 2, 0.72);
+  --overlay-blur: 3px;
 
   /* Ambient mesh blob anchors — animated by `useMeshBackgroundMotion`. */
   --mesh-bg-x1: -8%;
@@ -156,7 +166,7 @@ textarea::placeholder {
   min-height: 100vh;
   min-height: 100dvh;
   opacity: 0;
-  animation: appRootFadeIn 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+  animation: appRootFadeIn 0.95s var(--motion-ease) 0.1s forwards;
 }
 
 .appRoot {
@@ -422,15 +432,18 @@ body.layoutResizing {
 
 /* The chat and workbench columns share this handle. Ease its travel only while
    those views are switching, so window resizes and drags stay immediate. */
-.layoutMode-desktop.layoutColumnSlide .layoutNavSlot {
-  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+.layoutMode-desktop.layoutColumnSlide .layoutNavSlot,
+.layoutMode-desktop.layoutColumnSlide .layoutConfigSlot {
+  transition: width var(--motion-layout) var(--motion-ease);
 }
 
-body.layoutResizing .layoutNavSlot {
+body.layoutResizing .layoutNavSlot,
+body.layoutResizing .layoutConfigSlot {
   transition: none;
 }
 
-body.layoutResizing .layoutMode-desktop.layoutColumnSlide .layoutNavSlot {
+body.layoutResizing .layoutMode-desktop.layoutColumnSlide .layoutNavSlot,
+body.layoutResizing .layoutMode-desktop.layoutColumnSlide .layoutConfigSlot {
   transition: none;
 }
 
@@ -438,7 +451,7 @@ body.layoutResizing .layoutMode-desktop.layoutColumnSlide .layoutNavSlot {
 .layoutNavSlot > .chatColumn,
 .layoutVizSlot > .panel,
 .layoutConfigSlot > .panel {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--motion-crossfade) ease;
 }
 
 .layoutViewHidden .layoutNavSlot > .navPanel,
@@ -449,17 +462,56 @@ body.layoutResizing .layoutMode-desktop.layoutColumnSlide .layoutNavSlot {
   pointer-events: none;
 }
 
+@keyframes screenFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.screenFade {
+  animation: screenFadeIn var(--motion-crossfade) ease;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .layoutMode-desktop .layoutNavSlot,
+  .layoutMode-desktop .layoutConfigSlot,
   .layoutNavSlot > .navPanel,
   .layoutNavSlot > .chatColumn,
   .layoutVizSlot > .panel,
-  .layoutConfigSlot > .panel {
+  .layoutConfigSlot > .panel,
+  .layoutMode-phone > .layoutNavSlot,
+  .layoutMode-phone > .layoutConfigSlot,
+  .layoutMode-phone > .layoutVizSlot,
+  .layoutMode-tablet .layoutNavSlot,
+  .chatDrawer {
     transition: none;
+  }
+
+  .screenFade,
+  .builderModalBackdrop,
+  .confirmCardBackdrop,
+  .canvasSpaceOverlay,
+  .chatDrawer {
+    animation: none;
   }
 }
 
 .layoutVizSlot {
+  position: relative;
   flex: 1 1 auto;
   min-width: 200px;
 }
@@ -674,7 +726,7 @@ textarea {
   color: var(--text);
   border-radius: 0;
   padding: 8px 10px;
-  transition: box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: box-shadow var(--motion-micro) ease, background var(--motion-micro) ease, border-color var(--motion-micro) ease, color var(--motion-micro) ease;
 }
 
 /* Fields stay borderless until they are focused. */
@@ -975,7 +1027,7 @@ button:focus-visible {
   flex-shrink: 0;
   font-size: 11px;
   color: var(--muted);
-  transition: transform 0.15s ease;
+  transition: transform var(--motion-micro) ease;
 }
 
 .navCollapsibleToggle.is-open .navCollapsibleChevron {
@@ -1065,7 +1117,7 @@ button:focus-visible {
   width: 14px;
   height: 14px;
   color: var(--muted);
-  transition: transform 0.15s ease;
+  transition: transform var(--motion-micro) ease;
 }
 
 .navGroupToggle:not([aria-expanded="true"]) .navGroupChevron {
@@ -1411,7 +1463,7 @@ button:focus-visible {
   opacity: 0;
   overflow: hidden;
   pointer-events: none;
-  transition: max-width 0.15s ease, opacity 0.12s ease;
+  transition: max-width var(--motion-micro) ease, opacity var(--motion-micro) ease;
 }
 
 .sequenceItem:hover .sequenceItemActions,
@@ -2142,7 +2194,7 @@ td {
 }
 
 .rbacFlowTable th {
-  text-transform: capitalize;
+  text-transform: lowercase;
 }
 
 .rbacFlowTableWrap {
@@ -2448,13 +2500,13 @@ td {
 
 .templateCredOk {
   margin-left: auto;
-  color: var(--success, #2e7d32);
+  color: var(--ok);
   font-size: 12px;
 }
 
 .templateCredMissing {
   margin-left: auto;
-  color: var(--danger, #c0392b);
+  color: var(--bad);
   font-size: 12px;
 }
 
@@ -2472,19 +2524,32 @@ td {
   padding-right: max(8px, env(safe-area-inset-right));
 }
 
-.layoutMode-phone .layoutNavSlot,
-.layoutMode-phone .layoutConfigSlot,
-.layoutMode-phone .layoutVizSlot {
-  display: none;
+.layoutMode-phone > .layoutNavSlot,
+.layoutMode-phone > .layoutConfigSlot,
+.layoutMode-phone > .layoutVizSlot {
+  display: flex;
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: max(8px, env(safe-area-inset-left));
+  right: max(8px, env(safe-area-inset-right));
   flex: 1 1 auto;
-  width: 100% !important;
+  width: auto !important;
   min-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity var(--motion-crossfade) ease, visibility var(--motion-crossfade);
 }
 
-.layoutMode-phone.layoutPane-menu .layoutNavSlot,
-.layoutMode-phone.layoutPane-workbench .layoutConfigSlot,
-.layoutMode-phone.layoutPane-map .layoutVizSlot {
-  display: flex;
+.layoutMode-phone.layoutPane-menu > .layoutNavSlot,
+.layoutMode-phone.layoutPane-workbench > .layoutConfigSlot,
+.layoutMode-phone.layoutPane-map > .layoutVizSlot {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  z-index: 1;
 }
 
 .layoutMode-tablet .layoutNavSlot {
@@ -2497,7 +2562,7 @@ td {
   width: min(320px, calc(100% - 48px));
   z-index: 30;
   visibility: hidden;
-  transition: left 0.22s ease, visibility 0.22s;
+  transition: left var(--motion-drawer) ease, visibility var(--motion-drawer);
 }
 
 .layoutMode-tablet.layoutNavDrawerOpen .layoutNavSlot {
@@ -2891,9 +2956,10 @@ td {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: var(--overlay-scrim);
+  backdrop-filter: blur(var(--overlay-blur));
+  -webkit-backdrop-filter: blur(var(--overlay-blur));
+  animation: overlayFadeIn var(--motion-crossfade) ease;
 }
 
 .confirmCard {
@@ -2945,8 +3011,38 @@ td {
   transition: none;
 }
 
+.layoutResizable.layoutChat.layoutMode-tablet.layoutColumnSlide .layoutNavSlot {
+  transition: width var(--motion-layout) var(--motion-ease);
+}
+
+body.layoutResizing .layoutResizable.layoutChat.layoutMode-tablet.layoutColumnSlide .layoutNavSlot {
+  transition: none;
+}
+
 .layoutMode-phone.layoutChat .layoutConfigSlot {
   display: none !important;
+}
+
+/* Space settings in chat cover the canvas instead of taking a column beside it. */
+.layoutVizSlot > .layoutConfigSlot.canvasSpaceOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  width: auto !important;
+  max-width: none;
+  height: auto;
+  background: var(--bg);
+  animation: screenFadeIn var(--motion-crossfade) ease;
+}
+
+.layoutMode-phone.layoutPane-map .layoutVizSlot > .layoutConfigSlot.canvasSpaceOverlay {
+  display: flex !important;
+}
+
+.canvasSpaceOverlay .spaceConfigPanel .panel__body > .canvasInsightBar {
+  align-self: stretch;
+  width: auto;
+  max-width: none;
 }
 
 .layoutMode-phone.layoutChat.layoutPane-workbench .layoutNavSlot {
@@ -3001,6 +3097,15 @@ td {
 .layoutVizSlot > .panel.canvasStack > .canvasBody {
   grid-row: 2;
   grid-column: 1;
+}
+
+.layoutVizSlot > .panel.canvasStack:not(:has(> .canvasTabs)) {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.layoutVizSlot > .panel.canvasStack:not(:has(> .canvasTabs)) > .canvasBody,
+.layoutVizSlot > .panel.canvasStack:not(:has(> .canvasTabs))::after {
+  grid-row: 1;
 }
 
 .layoutVizSlot > .panel.canvasStack.canvasStackFace::after {
@@ -3296,6 +3401,20 @@ td {
   border-radius: 8px;
   background: var(--bg, #111);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  transition:
+    opacity var(--motion-crossfade) ease,
+    transform var(--motion-crossfade) var(--motion-ease),
+    visibility var(--motion-crossfade);
+}
+
+.chatDrawer[aria-hidden="true"] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px);
 }
 
 .chatThreadList button.active {
@@ -3319,6 +3438,10 @@ td {
   min-height: 0;
   overflow: auto;
   padding: 12px;
+}
+
+.canvasBody.screenFade {
+  animation: screenFadeIn var(--motion-crossfade) ease;
 }
 
 .canvasInsightBar {

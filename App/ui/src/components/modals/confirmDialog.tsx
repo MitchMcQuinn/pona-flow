@@ -94,7 +94,7 @@ export function ConfirmDialogHost() {
         <p id="confirm-card-message">{pending.message}</p>
         <div className="confirmCardActions">
           <button type="button" data-testid="confirm-cancel" onClick={() => settle(false)}>
-            Cancel
+            cancel
           </button>
           <button
             ref={okRef}
@@ -102,7 +102,7 @@ export function ConfirmDialogHost() {
             data-testid="confirm-ok"
             onClick={() => settle(true)}
           >
-            OK
+            ok
           </button>
         </div>
       </div>

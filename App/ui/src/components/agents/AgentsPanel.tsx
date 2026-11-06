@@ -37,7 +37,7 @@ function CopyField({ value }: { value: string }) {
     <div className="agentTokenCode">
       <code>{value}</code>
       <button type="button" className="btnPrimary" onClick={copy}>
-        {copied ? "Copied" : "Copy"}
+        {copied ? "copied" : "copy"}
       </button>
     </div>
   );
@@ -68,7 +68,7 @@ export function AgentsPanel({ spaceId }: AgentsPanelProps) {
       setKeys(k);
       setRoles(r);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load agents");
+      setError(e instanceof Error ? e.message : "failed to load agents");
     } finally {
       setLoading(false);
     }
@@ -83,7 +83,7 @@ export function AgentsPanel({ spaceId }: AgentsPanelProps) {
       await action();
       await reload();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Action failed");
+      setError(e instanceof Error ? e.message : "action failed");
     }
   }
 
@@ -99,7 +99,7 @@ export function AgentsPanel({ spaceId }: AgentsPanelProps) {
   }
 
   if (!spaceId) {
-    return <p className="muted">Select a space to manage its agents.</p>;
+    return <p className="muted">select a space to manage its agents.</p>;
   }
 
   return (
@@ -108,36 +108,36 @@ export function AgentsPanel({ spaceId }: AgentsPanelProps) {
         <h2>agents</h2>
       </div>
       <p className="muted rbacSectionHint">
-        Agents are non-human callers (AI tools, external systems) that run this space&apos;s
+        agents are non-human callers (AI tools, external systems) that run this space&apos;s
         sequences using an API key instead of a login. A key&apos;s role decides which
         sequences it may run.
       </p>
       {error ? <div className="errorText">{error}</div> : null}
-      {loading ? <p className="muted">Loading…</p> : null}
+      {loading ? <p className="muted">loading…</p> : null}
 
       <h2 className="navSectionHeader">connection</h2>
       <p className="muted rbacSectionHint">
-        Connect an MCP client (Claude, IDE assistants, agents) to this space using the URL
-        below plus an agent key in the <code>X-Pona-Flow-Key</code> header. The space&apos;s
+        connect an MCP client (Claude, IDE assistants, agents) to this space using the URL
+        below plus an agent key in the <code>X-Pona-Flow-Key</code> header. the space&apos;s
         sequences appear as callable tools.
       </p>
       <label className="muted">MCP server URL</label>
       <CopyField value={`${apiOrigin()}/api/spaces/${spaceId}/mcp`} />
       <p className="muted rbacSectionHint">
-        Prefer plain HTTP? Call a single sequence as a webhook:
+        prefer plain HTTP? call a single sequence as a webhook:
       </p>
-      <label className="muted">Webhook (per sequence)</label>
+      <label className="muted">webhook (per sequence)</label>
       <CopyField value={`${apiOrigin()}/api/spaces/${spaceId}/sequences/{sequence_id}/run`} />
 
       <form className="rbacInviteRow" onSubmit={handleCreate}>
         <input
           type="text"
-          placeholder="New agent name"
+          placeholder="new agent name"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
         />
         <select value={newRoleId} onChange={(e) => setNewRoleId(e.target.value)}>
-          <option value="">Default role</option>
+          <option value="">default role</option>
           {roles
             .filter((r) => r.name.trim().toLowerCase() !== "admin")
             .map((r) => (
@@ -147,13 +147,13 @@ export function AgentsPanel({ spaceId }: AgentsPanelProps) {
             ))}
         </select>
         <button className="btnPrimary" type="submit" disabled={!newName.trim()}>
-          Create key
+          create key
         </button>
       </form>
 
       <h2 className="navSectionHeader">keys</h2>
       {keys.length === 0 ? (
-        <p className="muted">No agent keys yet.</p>
+        <p className="muted">no agent keys yet.</p>
       ) : (
         <ul className="rbacMemberList">
           {keys.map((key) => (
@@ -173,10 +173,10 @@ export function AgentsPanel({ spaceId }: AgentsPanelProps) {
                       type="button"
                       onClick={() => run(() => revokeAgentKey(spaceId, key.id))}
                     >
-                      Revoke
+                      revoke
                     </button>
                   ) : (
-                    <span className="muted">Revoked</span>
+                    <span className="muted">revoked</span>
                   )}
                 </div>
               </div>
@@ -210,12 +210,12 @@ function AgentKeyCreatedModal({
       <div className="builderModalPanel" data-testid="modal-agent-key">
         <h2>agent key created</h2>
         <p className="muted">
-          Copy this key now — it is shown only once and cannot be retrieved later. If you
+          copy this key now — it is shown only once and cannot be retrieved later. if you
           lose it, revoke the key and create a new one.
         </p>
         <CopyField value={created.token} />
         <p className="muted rbacSectionHint">
-          Connect an MCP client to <code>{apiOrigin()}/api/spaces/{spaceId}/mcp</code> with
+          connect an MCP client to <code>{apiOrigin()}/api/spaces/{spaceId}/mcp</code> with
           header <code>X-Pona-Flow-Key</code>, or call a sequence directly at
           <br />
           <code>POST /api/spaces/{spaceId}/sequences/{"{sequence_id}"}/run</code>.
@@ -227,7 +227,7 @@ function AgentKeyCreatedModal({
             data-testid="modal-confirm-btn"
             onClick={onClose}
           >
-            Done
+            done
           </button>
         </div>
       </div>

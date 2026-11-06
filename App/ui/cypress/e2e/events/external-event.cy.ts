@@ -24,6 +24,6 @@ describe("events: external webhook trigger", () => {
     cy.get('[data-testid="event-ingest-url"]').should("contain.text", "/api/hooks/");
     cy.get('[data-testid="event-test-endpoint"]').should("be.visible");
     cy.get('[data-testid="event-test-url"]').should("contain.text", "/api/hooks/").and("contain.text", "/test");
-    cy.get('[data-testid="event-test-endpoint"]').should("contain.text", "Listening");
+    cy.get('[data-testid="event-test-endpoint"]').should("contain.text", "listening");
   });
 });

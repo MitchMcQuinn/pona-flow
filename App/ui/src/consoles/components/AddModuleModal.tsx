@@ -32,20 +32,20 @@ export function AddModuleModal({ opened, onClose, onAdd }: AddModuleModalProps) 
     <Modal
       opened={opened}
       onClose={onClose}
-      title="Add a module"
+      title="add a module"
       size="lg"
       onExitTransitionEnd={() => setQuery('')}
     >
       <Stack gap="md">
         <TextInput
-          placeholder="Search Mantine components"
+          placeholder="search mantine components"
           value={query}
           onChange={(event) => setQuery(event.currentTarget.value)}
           data-autofocus
         />
         {groups.length === 0 ? (
           <Text size="sm" c="dimmed">
-            No modules match that search.
+            no modules match that search.
           </Text>
         ) : (
           groups.map((group) => (
@@ -79,7 +79,7 @@ function CatalogCard({ definition, onAdd }: { definition: ModuleDefinition; onAd
           {definition.title}
         </Text>
         <Badge variant="light" color={definition.kind === 'action' ? 'violet' : 'cyan'}>
-          {definition.kind === 'action' ? 'Posts' : 'Reads'}
+          {definition.kind === 'action' ? 'posts' : 'reads'}
         </Badge>
       </Group>
       <Text size="xs" c="dimmed" mb={6}>

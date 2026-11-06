@@ -49,7 +49,7 @@ export function FieldListEditor({ label, description, value, onChange }: FieldLi
           size="xs"
           value={mode}
           data={[
-            { value: 'builder', label: 'Builder' },
+            { value: 'builder', label: 'builder' },
             { value: 'json', label: 'JSON' },
           ]}
           onChange={(next) => {
@@ -94,24 +94,24 @@ function FieldRows({ fields, onChange }: { fields: ModuleFormField[]; onChange: 
         <Stack key={index} gap="xs" className="field-editor">
           {fields.some((item) => (item.page ?? 0) > 0) ? (
             <Text size="xs" c="dimmed">
-              Page {(field.page ?? 0) + 1}
+              page {(field.page ?? 0) + 1}
             </Text>
           ) : null}
           <TextInput
-            label="Label"
+            label="label"
             value={field.label}
             onChange={(event) => updateAt(index, { ...field, label: event.currentTarget.value })}
           />
           <TextInput
-            label="Name"
-            description="Key in the posted JSON."
+            label="name"
+            description="key in the posted JSON."
             value={field.name}
             onChange={(event) =>
               updateAt(index, { ...field, name: event.currentTarget.value.replace(/[^a-zA-Z0-9_]/g, '') })
             }
           />
           <Select
-            label="Type"
+            label="type"
             data={typeOptions}
             value={field.type}
             allowDeselect={false}
@@ -123,12 +123,12 @@ function FieldRows({ fields, onChange }: { fields: ModuleFormField[]; onChange: 
           {field.type === 'number' ? (
             <Group grow>
               <NumberInput
-                label="Min"
+                label="min"
                 value={field.min ?? ''}
                 onChange={(next) => updateAt(index, { ...field, min: optionalNumber(next) })}
               />
               <NumberInput
-                label="Max"
+                label="max"
                 value={field.max ?? ''}
                 onChange={(next) => updateAt(index, { ...field, max: optionalNumber(next) })}
               />
@@ -136,7 +136,7 @@ function FieldRows({ fields, onChange }: { fields: ModuleFormField[]; onChange: 
           ) : null}
           {field.type === 'number' && field.min != null && field.max != null && field.min > field.max ? (
             <Text size="xs" c="red">
-              Min is greater than max.
+              min is greater than max.
             </Text>
           ) : null}
           {field.type === 'select' || field.type === 'checkbox' || field.type === 'radio' ? (
@@ -144,28 +144,28 @@ function FieldRows({ fields, onChange }: { fields: ModuleFormField[]; onChange: 
           ) : null}
           {field.type === 'array' ? (
             <Stack gap="xs">
-              <Text className="section-label">Item fields</Text>
+              <Text className="section-label">item fields</Text>
               <Text size="xs" c="dimmed">
-                Each entry in the array uses these fields. An item field can itself be an array.
+                each entry in the array uses these fields. an item field can itself be an array.
               </Text>
               <FieldRows fields={field.fields} onChange={(nested) => updateAt(index, { ...field, fields: nested })} />
             </Stack>
           ) : (
             <TextInput
-              label="Placeholder"
+              label="placeholder"
               value={field.placeholder}
               onChange={(event) => updateAt(index, { ...field, placeholder: event.currentTarget.value })}
             />
           )}
           <Group justify="space-between">
             <Switch
-              label="Required"
+              label="required"
               checked={field.required}
               onChange={(event) => updateAt(index, { ...field, required: event.currentTarget.checked })}
             />
             <Group gap="xs">
               <Button size="compact-xs" variant="default" disabled={index === 0} onClick={() => onChange(move(fields, index, -1))}>
-                Up
+                up
               </Button>
               <Button
                 size="compact-xs"
@@ -173,7 +173,7 @@ function FieldRows({ fields, onChange }: { fields: ModuleFormField[]; onChange: 
                 disabled={index === fields.length - 1}
                 onClick={() => onChange(move(fields, index, 1))}
               >
-                Down
+                down
               </Button>
               <Button
                 size="compact-xs"
@@ -181,7 +181,7 @@ function FieldRows({ fields, onChange }: { fields: ModuleFormField[]; onChange: 
                 variant="light"
                 onClick={() => onChange(fields.filter((_, fieldIndex) => fieldIndex !== index))}
               >
-                Remove
+                remove
               </Button>
             </Group>
           </Group>
@@ -189,11 +189,11 @@ function FieldRows({ fields, onChange }: { fields: ModuleFormField[]; onChange: 
       ))}
       {repeated.length > 0 ? (
         <Text size="xs" c="red">
-          Field names must be unique. Repeated: {repeated.join(', ')}.
+          field names must be unique. repeated: {repeated.join(', ')}.
         </Text>
       ) : null}
       <Button variant="default" onClick={() => onChange([...fields, emptyModuleFormField(fields.length + 1)])}>
-        Add field
+        add field
       </Button>
     </Stack>
   )
@@ -203,23 +203,23 @@ function OptionsEditor({ options, onChange }: { options: string[]; onChange: (op
   return (
     <Stack gap={6}>
       <Text size="sm" fw={500}>
-        Options
+        options
       </Text>
       {options.map((option, index) => (
         <Group key={index} gap="xs" wrap="nowrap">
           <TextInput
             style={{ flex: 1 }}
-            aria-label={`Option ${index + 1}`}
+            aria-label={`option ${index + 1}`}
             value={option}
             onChange={(event) => onChange(options.map((current, optionIndex) => (optionIndex === index ? event.currentTarget.value : current)))}
           />
           <Button size="compact-xs" variant="default" onClick={() => onChange(options.filter((_, optionIndex) => optionIndex !== index))}>
-            Remove
+            remove
           </Button>
         </Group>
       ))}
       <Button size="compact-sm" variant="default" onClick={() => onChange([...options, ''])}>
-        Add option
+        add option
       </Button>
     </Stack>
   )

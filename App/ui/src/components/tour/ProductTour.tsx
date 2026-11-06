@@ -230,7 +230,7 @@ export function ProductTour({ open, onClose, mode = "desktop", onShowPane }: Pro
           </span>
           {!isLast ? (
             <button type="button" className="tourSkip" data-testid="tour-skip" onClick={close}>
-              Skip tour
+              skip tour
             </button>
           ) : null}
         </div>
@@ -247,7 +247,7 @@ export function ProductTour({ open, onClose, mode = "desktop", onShowPane }: Pro
           <div className="tourNav">
             {!isFirst ? (
               <button type="button" data-testid="tour-back" onClick={back}>
-                Back
+                back
               </button>
             ) : null}
             <button
@@ -257,11 +257,11 @@ export function ProductTour({ open, onClose, mode = "desktop", onShowPane }: Pro
               data-testid="tour-next"
               onClick={next}
             >
-              {isFirst ? "Show me around" : isLast ? "Finish" : "Next"}
+              {isFirst ? "show me around" : isLast ? "finish" : "next"}
             </button>
           </div>
         </div>
-        {isPhone && !isLast ? <p className="tourSwipeHint">Swipe to move between steps</p> : null}
+        {isPhone && !isLast ? <p className="tourSwipeHint">swipe to move between steps</p> : null}
       </div>
     </div>
   );

@@ -61,14 +61,14 @@ export function InstanceNodeAttributiveField({
           value={attributiveLabel}
           placeholder="(select schema)"
           options={schemas.map((s) => ({ value: s, label: s }))}
-          createActions={[{ label: "+ ADD A PARAMETER", onClick: () => setCreatingParameter(true) }]}
+          createActions={[{ label: "+ add a parameter", onClick: () => setCreatingParameter(true) }]}
           onSelect={(value) => {
             if (!attributiveLabelChanged(attributiveLabel, value)) return;
             onSelect(value);
           }}
           disabled={disabled}
-          title={disabled ? "Locked because this entry has an alias." : undefined}
-          emptyHint="No schema nodes available"
+          title={disabled ? "locked because this entry has an alias." : undefined}
+          emptyHint="no schema nodes available"
         />
       )}
     </div>

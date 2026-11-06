@@ -30,7 +30,7 @@ export function InstanceUpdates() {
       setStatus(next);
       setAppName((current) => current || next.fly_app_name || "");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load updates");
+      setError(e instanceof Error ? e.message : "failed to load updates");
     } finally {
       setLoading(false);
     }
@@ -52,7 +52,7 @@ export function InstanceUpdates() {
       setToken("");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save credentials");
+      setError(e instanceof Error ? e.message : "failed to save credentials");
     } finally {
       setSaving(false);
     }
@@ -85,12 +85,12 @@ export function InstanceUpdates() {
     }
     setUpdating(false);
     if (!restarted) {
-      setNotice("Update requested. Reload this page in a minute if the version hasn't changed.");
+      setNotice("update requested. reload this page in a minute if the version hasn't changed.");
       return;
     }
     if (before && restarted.build_sha === before.current_sha) {
       setNotice(
-        "Restarted onto the image already published. A commit only becomes an image after " +
+        "restarted onto the image already published. a commit only becomes an image after " +
           "CI succeeds — if that run failed, waiting longer will not publish it."
       );
     }
@@ -115,7 +115,7 @@ export function InstanceUpdates() {
           </span>
         ) : null}
       </div>
-      {loading ? <p className="navUserMenuHint">Checking GitHub…</p> : null}
+      {loading ? <p className="navUserMenuHint">checking GitHub…</p> : null}
       {error ? <p className="errorText">{error}</p> : null}
       {status?.github_error ? <p className="navUserMenuHint">{status.github_error}</p> : null}
       {notice ? <p className="navUserMenuHint">{notice}</p> : null}
@@ -124,7 +124,7 @@ export function InstanceUpdates() {
           {status.publish_error}{" "}
           {status.publish_url ? (
             <a href={status.publish_url} target="_blank" rel="noopener noreferrer">
-              View the CI run
+              view the CI run
             </a>
           ) : null}
         </p>
@@ -147,11 +147,11 @@ export function InstanceUpdates() {
       {status && !status.fly_token_configured ? (
         <form className="instanceUpdateCreds" onSubmit={saveCredentials}>
           <p className="navUserMenuHint">
-            Paste an app deploy token for this app to update from this menu. Create one under
+            paste an app deploy token for this app to update from this menu. create one under
             Fly → Account → Access Tokens and select this app, or skip and run <code>{status.manual_hint}</code>.
           </p>
           <label className="field navUserMenuField">
-            Fly app name
+            fly app name
             <input
               type="text"
               value={appName}
@@ -161,7 +161,7 @@ export function InstanceUpdates() {
             />
           </label>
           <label className="field navUserMenuField">
-            Fly deploy token
+            fly deploy token
             <input
               type="password"
               value={token}
@@ -170,7 +170,7 @@ export function InstanceUpdates() {
             />
           </label>
           <button type="submit" className="tinyBtn" disabled={saving || (!token.trim() && !appName.trim())}>
-            {saving ? "Saving…" : "Save"}
+            {saving ? "saving…" : "save"}
           </button>
         </form>
       ) : null}
@@ -182,10 +182,10 @@ export function InstanceUpdates() {
           disabled={updating}
           onClick={() => void apply()}
         >
-          {updating ? "Updating…" : "Update to latest main"}
+          {updating ? "updating…" : "update to latest main"}
         </button>
       ) : null}
-      {status?.up_to_date ? <p className="navUserMenuHint">No update needed.</p> : null}
+      {status?.up_to_date ? <p className="navUserMenuHint">no update needed.</p> : null}
       {status &&
       !status.can_update &&
       status.behind &&

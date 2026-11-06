@@ -14,7 +14,7 @@ export function GraphModule({ data }: ModuleViewProps) {
   if (graph.nodes.length === 0) {
     return (
       <Text size="sm" c="dimmed">
-        No nodes
+        no nodes
       </Text>
     )
   }

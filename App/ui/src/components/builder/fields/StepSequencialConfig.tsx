@@ -77,7 +77,7 @@ function CallRetryFields({ sp, timeoutDefault, warnings, onCommit }: CallRetryFi
           allowParameter
           testId="builder-call-timeout"
           value={sp.timeout_seconds ?? timeoutDefault}
-          hint="How long this call may run before it fails. Failure publishes ok=false (HTTP also publishes status) for edge conditions, and retries if attempts remain."
+          hint="how long this call may run before it fails. failure publishes ok=false (HTTP also publishes status) for edge conditions, and retries if attempts remain."
           onChange={(next) => onCommit({ timeout_seconds: next })}
         />
         <DurationField
@@ -85,11 +85,11 @@ function CallRetryFields({ sp, timeoutDefault, warnings, onCommit }: CallRetryFi
           allowParameter
           testId="builder-call-backoff"
           value={sp.backoff_seconds ?? 0}
-          hint="Wait between retries. 0 retries immediately; longer values park the run until the scheduler wakes it."
+          hint="wait between retries. 0 retries immediately; longer values park the run until the scheduler wakes it."
           onChange={(next) => onCommit({ backoff_seconds: next })}
         />
         <div className="builderField">
-          <FieldLabel tip="Includes the first try. After the last failure the walk continues with ok=false so an edge can escalate.">
+          <FieldLabel tip="includes the first try. after the last failure the walk continues with ok=false so an edge can escalate.">
             max attempts
           </FieldLabel>
           <input
@@ -186,13 +186,13 @@ export function StepSequencialConfig({
     try {
       const parsed = JSON.parse(trimmed);
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-        setHeadersError("Headers must be a JSON object.");
+        setHeadersError("headers must be a JSON object.");
         return;
       }
       setHeadersError(null);
       commitSequencial({ headers: parsed as Record<string, unknown> });
     } catch {
-      setHeadersError("Invalid JSON.");
+      setHeadersError("invalid JSON.");
     }
   }
 
@@ -234,7 +234,7 @@ export function StepSequencialConfig({
     if (stepType !== "code") return;
     reportCheck({
       valid: false,
-      message: "Code-execution STEPs are no longer supported."
+      message: "code-execution STEPs are no longer supported."
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepType]);
@@ -282,7 +282,7 @@ export function StepSequencialConfig({
       })
       .catch((err) => {
         if (cancelled) return;
-        setEventsLoadError(err instanceof Error ? err.message : "Could not load events.");
+        setEventsLoadError(err instanceof Error ? err.message : "could not load events.");
         setEvents([]);
       });
     return () => {
@@ -344,10 +344,10 @@ export function StepSequencialConfig({
       {stepType === "code" ? (
         <div className="builderField">
           <p className="muted">
-            This STEP was a code-execution step, which is no longer supported. Convert it to an HTTP request, or delete it.
+            this STEP was a code-execution step, which is no longer supported. convert it to an HTTP request, or delete it.
           </p>
           <button type="button" onClick={() => switchStepType("http")}>
-            Convert to HTTP request
+            convert to HTTP request
           </button>
         </div>
       ) : (
@@ -359,10 +359,10 @@ export function StepSequencialConfig({
               value={stepType}
               testId="builder-step-type"
               options={[
-                { value: "http", label: "Request" },
-                { value: "wait", label: "Wait" },
-                { value: "join", label: "Join" },
-                { value: "operation", label: "Operation" }
+                { value: "http", label: "request" },
+                { value: "wait", label: "wait" },
+                { value: "join", label: "join" },
+                { value: "operation", label: "operation" }
               ]}
               onChange={switchStepType}
             />
@@ -379,9 +379,9 @@ export function StepSequencialConfig({
                   value={waitMode}
                   testId="builder-wait-mode"
                   options={[
-                    { value: "duration", label: "Duration" },
-                    { value: "until", label: "Until" },
-                    { value: "event", label: "Event" }
+                    { value: "duration", label: "duration" },
+                    { value: "until", label: "until" },
+                    { value: "event", label: "event" }
                   ]}
                   onChange={(mode) => commitSequencial({ wait_mode: mode })}
                 />
@@ -392,7 +392,7 @@ export function StepSequencialConfig({
                   allowParameter
                   testId="builder-wait-duration"
                   value={sp.wait_duration_seconds ?? 0}
-                  hint="The run parks and resumes after this delay. $parameter values are seconds."
+                  hint="the run parks and resumes after this delay. $parameter values are seconds."
                   onChange={(next) => commitSequencial({ wait_duration_seconds: next })}
                 />
               ) : null}
@@ -408,7 +408,7 @@ export function StepSequencialConfig({
                     }
                   />
                   <span className="createSequenceHint">
-                    ISO datetime. A $parameter is also allowed below.
+                    iso datetime. a $parameter is also allowed below.
                   </span>
                   <input
                     className="builderMono"
@@ -436,7 +436,7 @@ export function StepSequencialConfig({
                     onChange={(e) => commitSequencial({ wait_event_id: e.target.value })}
                   >
                     <option value="" disabled>
-                      Select an event
+                      select an event
                     </option>
                     {events.map((event) => (
                       <option key={event.id} value={event.id}>
@@ -445,11 +445,11 @@ export function StepSequencialConfig({
                     ))}
                   </select>
                   <span className="createSequenceHint">
-                    The run parks until this event fires. Time and external events both work.
+                    the run parks until this event fires. time and external events both work.
                   </span>
                   {waitEventAlsoTargetsThis ? (
                     <span className="builderCheckMsg error">
-                      This sequence is also a target of that event, so a fire would start a new
+                      this sequence is also a target of that event, so a fire would start a new
                       run and resume this waiter.
                     </span>
                   ) : null}
@@ -458,9 +458,9 @@ export function StepSequencialConfig({
             </>
           ) : stepType === "join" ? (
             <p className="createSequenceHint">
-              A join continues only after every inbound arm that actually ran has finished.
-              Draw the arms into this step; the outgoing edge is what happens next. Unused
-              conditional branches do not block it. Arms still run one at a time — this is a
+              a join continues only after every inbound arm that actually ran has finished.
+              draw the arms into this step; the outgoing edge is what happens next. unused
+              conditional branches do not block it. arms still run one at a time — this is a
               meeting point, not parallel execution.
             </p>
           ) : stepType === "operation" ? (
