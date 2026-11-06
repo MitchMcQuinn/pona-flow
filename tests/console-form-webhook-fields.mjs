@@ -62,7 +62,7 @@ assert.deepEqual(
     {
       id: "f1",
       name: "ship_to",
-      label: "Ship to",
+      label: "ship to",
       type: "text",
       required: true,
       options: "",
@@ -72,7 +72,7 @@ assert.deepEqual(
     {
       id: "f2",
       name: "qty",
-      label: "Qty",
+      label: "qty",
       type: "number",
       required: false,
       options: "",
@@ -82,7 +82,7 @@ assert.deepEqual(
     {
       id: "f3",
       name: "lane",
-      label: "Lane",
+      label: "lane",
       type: "select",
       required: true,
       options: "Ground, Air",
@@ -92,7 +92,7 @@ assert.deepEqual(
     {
       id: "f4",
       name: "tags",
-      label: "Tags",
+      label: "tags",
       type: "checkbox",
       required: true,
       options: "Cold, Fragile",
@@ -102,7 +102,7 @@ assert.deepEqual(
     {
       id: "f5",
       name: "flag",
-      label: "Flag",
+      label: "flag",
       type: "checkbox",
       required: false,
       options: "",
@@ -112,7 +112,7 @@ assert.deepEqual(
     {
       id: "f6",
       name: "payload",
-      label: "Payload",
+      label: "payload",
       type: "textarea",
       required: false,
       options: "",
@@ -122,7 +122,7 @@ assert.deepEqual(
     {
       id: "f7",
       name: "note",
-      label: "Note",
+      label: "note",
       type: "text",
       required: false,
       options: "",
@@ -132,7 +132,7 @@ assert.deepEqual(
     {
       id: "f8",
       name: "badname",
-      label: "Badname",
+      label: "badname",
       type: "text",
       required: true,
       options: "",
