@@ -18,6 +18,11 @@
   padding-top: env(safe-area-inset-top);
 }
 
+/* Landing has no top bar; keep the face clear of the phone status area. */
+.guideShell-landing .guideStage {
+  padding-top: env(safe-area-inset-top);
+}
+
 .guideStage {
   flex: 1 1 auto;
   min-height: 0;

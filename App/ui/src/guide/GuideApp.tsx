@@ -43,19 +43,21 @@ export function GuideApp() {
   }
 
   return (
-    <div className="guideShell">
-      <header className="topbar">
-        <div className="topbarStart">
-          <span className="topbarSpaceName">pona flow</span>
-        </div>
-        <div className="topbarActions">
-          {wizardOpen && !locked ? (
-            <button type="button" data-testid="guide-back" onClick={() => setWizardOpen(false)}>
-              Back to chat
-            </button>
-          ) : null}
-        </div>
-      </header>
+    <div className={`guideShell${wizardOpen ? "" : " guideShell-landing"}`}>
+      {wizardOpen ? (
+        <header className="topbar">
+          <div className="topbarStart">
+            <span className="topbarSpaceName">pona flow</span>
+          </div>
+          <div className="topbarActions">
+            {!locked ? (
+              <button type="button" data-testid="guide-back" onClick={() => setWizardOpen(false)}>
+                Back to chat
+              </button>
+            ) : null}
+          </div>
+        </header>
+      ) : null}
       <div className="guideStage">
         <section className="chatColumn guideChat" aria-label="Chat">
           <div className="guideFace">
