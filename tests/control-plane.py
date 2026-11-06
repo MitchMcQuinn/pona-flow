@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT / "Engine"))
 from fastapi.testclient import TestClient  # noqa: E402
 
 from control_plane.app import create_app, provision_failure_message  # noqa: E402
-from control_plane.fly import FlyError  # noqa: E402
+from control_plane.fly import FlyClient, FlyError  # noqa: E402
 from control_plane.billing import sign_payload  # noqa: E402
 from control_plane.db import Database  # noqa: E402
 from control_plane.lifecycle import should_delete, upgrade_fields  # noqa: E402
@@ -43,6 +43,9 @@ class FakeFly:
 
     def create_app(self, name: str) -> None:
         self.calls.append(("create_app", name))
+
+    def allocate_public_ips(self, app: str) -> None:
+        self.calls.append(("addresses", app))
 
     def create_volume(self, app: str, region: str, size_gb: int = 1) -> str:
         self.calls.append(("volume", app, region))
@@ -210,6 +213,34 @@ class ControlPlaneTest(unittest.TestCase):
         env = self.fly.config["env"]
         self.assertNotIn("NEO4J_PASSWORD", env)
         self.assertNotIn("FLY_API_TOKEN", env)
+        steps = [call[0] for call in self.fly.calls]
+        self.assertLess(steps.index("create_app"), steps.index("addresses"))
+        self.assertLess(steps.index("addresses"), steps.index("volume"))
+
+    def test_public_addresses_are_assigned_and_a_repeat_is_safe(self) -> None:
+        calls: list[tuple[str, str]] = []
+
+        def transport(method: str, url: str, headers: dict[str, str], body: bytes | None):
+            payload = json.loads(body.decode("utf-8"))
+            calls.append((url, payload["type"]))
+            if payload["type"] == "v6":
+                return 422, b'{"error":"address already allocated"}'
+            return 201, b'{"ip":"66.241.124.246","shared":true}'
+
+        FlyClient("token", transport).allocate_public_ips("ada-flow")
+        self.assertEqual(
+            calls,
+            [
+                ("https://api.machines.dev/v1/apps/ada-flow/ip_assignments", "shared_v4"),
+                ("https://api.machines.dev/v1/apps/ada-flow/ip_assignments", "v6"),
+            ],
+        )
+
+        def reject(method: str, url: str, headers: dict[str, str], body: bytes | None):
+            return 422, b'{"error":"region is full"}'
+
+        with self.assertRaises(FlyError):
+            FlyClient("token", reject).allocate_public_ips("ada-flow")
 
     def test_self_hosted_reports_a_taken_fly_name(self) -> None:
         def reject(name: str) -> None:

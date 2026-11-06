@@ -89,6 +89,7 @@ class Provisioner:
         public_url = f"https://{app}.fly.dev"
         fly = self.fly_factory(fly_token)
         fly.create_app(app)
+        fly.allocate_public_ips(app)
         volume_id = fly.create_volume(app, region)
         fly.set_secrets(
             app,
@@ -142,6 +143,7 @@ class Provisioner:
             if not volume_id:
                 fly.create_app(app)
                 volume_id = fly.create_volume(app, region)
+            fly.allocate_public_ips(app)
             neo_password = (
                 decrypt_secret(str(row["neo4j_password_enc"]))
                 if row.get("neo4j_password_enc")

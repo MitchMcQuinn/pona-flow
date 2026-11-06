@@ -99,6 +99,27 @@ class FlyClient:
             {"input": {"name": name, "organizationId": org_id}},
         )
 
+    def allocate_public_ips(self, app: str) -> None:
+        """Assign the addresses that publish ``<app>.fly.dev``.
+
+        An app created through this API does not receive them. A shared IPv4 is
+        what a normal browser looks up. IPv6 is assigned with it. Repeating the
+        call after the addresses exist is safe.
+        """
+        for kind in ("shared_v4", "v6"):
+            status, raw = self.transport(
+                "POST",
+                f"{MACHINES_URL}/apps/{app}/ip_assignments",
+                self._headers(True),
+                json.dumps({"type": kind}).encode("utf-8"),
+            )
+            if status < 400:
+                continue
+            detail = raw.decode("utf-8", errors="replace").lower()
+            if "already" in detail:
+                continue
+            raise FlyError(f"Fly address was not assigned (HTTP {status})")
+
     def set_secrets(self, app: str, secrets: dict[str, str]) -> None:
         items = [{"key": key, "value": value} for key, value in secrets.items()]
         self.graphql(
