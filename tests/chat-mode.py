@@ -971,7 +971,7 @@ class ChatModeTest(unittest.TestCase):
                     "payload": {
                         "name": "Clerk",
                         "permissions": {
-                            "flows": ["read"],
+                            "flows": ["read:STEP", "read:SCHEMA", "read:INSTANCE"],
                             "sequences": {"all": True, "ids": []},
                             "manage_space": False,
                         },

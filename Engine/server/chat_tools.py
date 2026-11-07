@@ -814,7 +814,10 @@ def execute(
                 ],
             )
         if name == "propose_change":
-            item = chat_apply.normalize_item(arguments if isinstance(arguments, dict) else {})
+            try:
+                item = chat_apply.normalize_item(arguments if isinstance(arguments, dict) else {})
+            except ValueError as exc:
+                return ToolResult({"ok": False, "errors": [str(exc)]})
             problems = chat_apply.validate_item(principal, space_id, item)
             if problems:
                 return ToolResult({"ok": False, "errors": problems})

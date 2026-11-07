@@ -17,6 +17,7 @@ from . import (
     auth,
     branding,
     catalog,
+    chat_fields,
     chat_store,
     console_check,
     console_service,
@@ -70,7 +71,7 @@ REST_KINDS = (
 APPLY_ORDER = SETTINGS_KINDS + AUTHORING_KINDS + REST_KINDS
 
 KIND_HELP = """
-Kinds and payloads. Do not send cypher, sqlite, builder_config, or a raw query object.
+Kinds and payloads. Every field is checked before the item is queued. An error names the field and what it accepts. Do not send cypher, sqlite, builder_config, or a raw query object.
 Builder order inside one batch: schema, then the step, then create_transition, then the sequence, then the event or console.
 - create_space: {name, description?, endpoint?}
 - upsert_schema: {attributive_label, properties?: [{key, value_type, is_required?, is_key?, is_label?, is_indexed?, is_embedded?, format?, options?, default_value?}], is_vectorized?, description?, group_title?}. This saves a create-SCHEMA operation and runs it. The schema keeps attributive_label. Do not reuse that label as a STEP name, sequence entry_step, or operation name. The wrapping STEP is named create_<label>.
@@ -513,6 +514,10 @@ def validate_item(
         _require(principal, space_id, kind, payload)
     except (HTTPException, ValueError) as exc:
         return [_error_text(exc)]
+
+    field_errors = chat_fields.payload_problems(str(kind), payload)
+    if field_errors:
+        return field_errors
 
     try:
         if kind == "create_space":
