@@ -795,6 +795,7 @@ export default function App() {
               onNewThread={chat.newThread}
               onAccept={() => void chat.accept()}
               onReject={() => void chat.reject()}
+              acceptBlocked={chat.acceptBlocked}
               onClearQueue={() => chat.setQueued(null)}
             />
           ) : (
@@ -885,6 +886,31 @@ export default function App() {
               onSelect={chat.selectStack}
               onAccept={() => void chat.accept()}
               onReject={() => void chat.reject()}
+              acceptBlocked={chat.acceptBlocked}
+              onCredentialSecret={chat.setCredentialSecret}
+              settings={{
+                spaceId: state.spaceId,
+                spaces,
+                me: state.me,
+                permissions: state.permissions,
+                sequences: navSequences,
+                events: state.events.items,
+                auditLog: state.auditLog,
+                onSaveSpace: spacesLifecycle.handleUpdateSpace,
+                savingSpace: spacesLifecycle.savingSpaceEdit,
+                saveError: spacesLifecycle.editSpaceError,
+                onLoadAuditLog: loadAuditLog,
+                onClose: () => undefined,
+                onStartTour: handleStartTour,
+                userName:
+                  user?.fullName?.trim() ||
+                  user?.firstName?.trim() ||
+                  state.me?.displayName?.trim() ||
+                  null,
+                userEmail: state.me?.email ?? user?.primaryEmailAddress?.emailAddress ?? null,
+                onSaveTimezone: handleSaveTimezone,
+                onLogout: handleLogout
+              }}
               onRecord={chat.recordStackItem}
               onPatch={chat.patchStackItem}
             />

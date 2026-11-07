@@ -41,3 +41,5 @@ export * from "./packages.js";
 export * from "./preflight.js";
 export * from "./operations.js";
 export * from "./sequences.js";
+export * from "./intent.js";
+export * from "./chatApply.js";

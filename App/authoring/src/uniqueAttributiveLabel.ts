@@ -1,3 +1,5 @@
+import { normalizeAttributiveLabel } from "./normalizeField.js";
+
 /**
  * Pick a unique STEP/SCHEMA-style attributive_label when the requested base name is
  * already taken. Appends a sequential suffix starting at 1: FOO -> FOO1 -> FOO2 …
@@ -14,6 +16,33 @@ export function nextUniqueAttributiveLabel(
     n += 1;
   }
   return base + String(n);
+}
+
+/**
+ * Name for the STEP that wraps a saved operation.
+ *
+ * A create-SCHEMA package writes the schema under its attributive_label. The wrap
+ * STEP shares that namespace, so naming the wrap with the schema label makes the
+ * schema write fail as soon as the wrap lands. When the requested name is one of
+ * those labels, the wrap is `create_<name>` instead.
+ */
+export function stepWrapBaseName(
+  requestedName: string,
+  reservedLabels: readonly string[]
+): string {
+  const name = (requestedName || "").trim();
+  if (!name) return name;
+  const blocked = new Set<string>();
+  for (const label of reservedLabels) {
+    const trimmed = (label || "").trim();
+    if (!trimmed) continue;
+    blocked.add(trimmed);
+    const normalized = normalizeAttributiveLabel(trimmed);
+    if (normalized) blocked.add(normalized);
+  }
+  const normalizedName = normalizeAttributiveLabel(name);
+  if (!blocked.has(name) && !(normalizedName && blocked.has(normalizedName))) return name;
+  return nextUniqueAttributiveLabel(`create_${name}`, blocked);
 }
 
 /**

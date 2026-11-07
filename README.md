@@ -30,6 +30,7 @@ docker compose up -d
 open http://localhost:8765       # create the first admin account
 ```
 
+Settings → Update → **Update locally** pulls a newer image later.
 Full guide: [Docs/SELF-HOSTING.md](Docs/SELF-HOSTING.md). Dev from source: [Docs/FIRST-TIME-SETUP.md](Docs/FIRST-TIME-SETUP.md).
 
 ### Self-hosted (Fly + Aura)

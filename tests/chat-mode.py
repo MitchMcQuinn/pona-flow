@@ -125,103 +125,100 @@ class ChatModeTest(unittest.TestCase):
         names = {row["id"] for row in self.client.get("/api/spaces").json()["spaces"]}
         self.assertIn("DEMO", names)
 
-    def test_operation_is_filed_as_a_nav_sequence(self) -> None:
-        calls: list[dict] = []
-
-        def fake_execute(space_id, cypher, sqlite, params, catalog_row, labels, owners):
-            calls.append({"space_id": space_id, "labels": labels, "cypher": cypher, "sqlite": sqlite})
-            return {}
-
+    def test_cypher_upsert_is_rejected(self) -> None:
         item = chat_apply.normalize_item(
             {
                 "kind": "upsert_query",
                 "summary": "Count people",
                 "payload": {
-                    "id": "ID_op_count",
                     "name": "count people",
                     "kind": "operation",
                     "operation": "read",
+                    "node_label": "INSTANCE",
                     "cypher": [
                         "MATCH (p:INSTANCE { attributive_label: 'person' }) RETURN count(p) AS text"
                     ],
                 },
             }
         )
-        with patch.object(packages, "execute_create_package", fake_execute):
-            result = chat_apply.apply_batch(self.principal, self.space_id, [item])
-            self.assertTrue(result["ok"], result)
-            again = chat_apply.apply_batch(self.principal, self.space_id, [item])
-            self.assertTrue(again["ok"], again)
-        sequence = catalog.find_query_by_name("count people")
-        self.assertIsNotNone(sequence)
-        self.assertEqual(sequence["kind"], "sequence")
-        self.assertIn("attributive_label: 'count people'", sequence["cypher"][0])
-        operation = catalog.fetch_query_for_compose("ID_op_count")
-        self.assertEqual(operation["kind"], "operation")
-        named = [
-            row
-            for row in catalog.fetch_saved_queries()
-            if row["kind"] == "sequence" and row["name"] == "count people"
-        ]
-        self.assertEqual(len(named), 1)
-        self.assertEqual(calls[0]["labels"], ["count people"])
-        self.assertIn("ID_op_count", calls[0]["sqlite"][0])
-
-    def test_query_cypher_must_open_in_the_builder(self) -> None:
-        def problems(cypher: list[str], kind: str = "operation") -> list[str]:
-            item = chat_apply.normalize_item(
+        problems = chat_apply.validate_item(self.principal, self.space_id, item)
+        self.assertTrue(any("cypher" in problem for problem in problems), problems)
+        for escape in ("sqlite", "builder_config", "query"):
+            escaped = chat_apply.normalize_item(
                 {
                     "kind": "upsert_query",
-                    "summary": "Count",
+                    "summary": "Count people",
                     "payload": {
-                        "id": "ID_shape",
-                        "name": "shape check",
-                        "kind": kind,
+                        "name": "count people",
+                        "kind": "operation",
                         "operation": "read",
-                        "cypher": cypher,
+                        "node_label": "INSTANCE",
+                        escape: ["MATCH (n) RETURN n"],
                     },
                 }
             )
-            return chat_apply.validate_item(self.principal, self.space_id, item)
+            refused = chat_apply.validate_item(self.principal, self.space_id, escaped)
+            self.assertTrue(any(escape in problem for problem in refused), refused)
 
-        piped = problems(
-            ["MATCH (n:INSTANCE { attributive_label: 'person' }) WITH n RETURN n"]
-        )
-        self.assertTrue(any("WITH" in problem for problem in piped), piped)
-        custom = problems(["MATCH (p:Person) RETURN p"])
-        self.assertTrue(any("attributive_label" in problem for problem in custom), custom)
-        stacked = problems(
-            [
-                "MATCH (a:INSTANCE { attributive_label: 'nurse' }) RETURN a.name AS name "
-                "UNION MATCH (b:INSTANCE { attributive_label: 'doctor' }) RETURN b.name AS name"
-            ]
-        )
-        self.assertTrue(any("UNION" in problem for problem in stacked), stacked)
-        self.assertEqual(
-            problems(
-                ["MATCH (p:INSTANCE { attributive_label: 'person' }) WHERE p.at > datetime() RETURN p"]
-            ),
-            [],
-        )
-
-    def test_sequence_label_is_registered_on_the_space(self) -> None:
-        item = chat_apply.normalize_item(
+    def test_builder_intent_waits_for_the_browser(self) -> None:
+        operation = chat_apply.normalize_item(
             {
                 "kind": "upsert_query",
-                "summary": "Wait",
+                "summary": "Log shipment",
                 "payload": {
-                    "id": "ID_seq_wait",
-                    "name": "WAIT",
-                    "kind": "sequence",
-                    "operation": "read",
-                    "cypher": ["MATCH (step:STEP { attributive_label: 'STEP1' }) RETURN *"],
+                    "name": "Log shipment",
+                    "kind": "operation",
+                    "operation": "create",
+                    "node_label": "STEP",
+                    "attributive_label": "log shipment",
+                    "http_step": {"endpoint": "https://example.test/shipments", "method": "POST"},
                 },
             }
         )
-        with patch.object(packages, "execute_create_package", side_effect=AssertionError("no wrap")):
-            result = chat_apply.apply_batch(self.principal, self.space_id, [item])
+        sequence = chat_apply.normalize_item(
+            {
+                "kind": "upsert_query",
+                "summary": "Ship it",
+                "payload": {
+                    "name": "Ship it",
+                    "kind": "sequence",
+                    "entry_step": "log shipment",
+                    "traversal": "downstream",
+                },
+            }
+        )
+        transition = chat_apply.normalize_item(
+            {
+                "kind": "create_transition",
+                "summary": "then pack",
+                "payload": {"from_step": "log shipment", "to_step": "pack shipment"},
+            }
+        )
+        for item in (operation, sequence, transition):
+            self.assertEqual(chat_apply.validate_item(self.principal, self.space_id, item), [], item)
+        self.assertEqual(operation["payload"]["attributive_label"], "log_shipment")
+        self.assertEqual(sequence["payload"]["entry_step"], "log_shipment")
+        console = chat_apply.normalize_item(
+            {
+                "kind": "upsert_console",
+                "summary": "Desk",
+                "payload": {"name": "Desk", "id": "ID_console_desk"},
+            }
+        )
+        result = chat_apply.apply_batch(
+            self.principal, self.space_id, [operation, transition, sequence, console]
+        )
         self.assertTrue(result["ok"], result)
-        self.assertIn("STEP1", spaces.fetch_space_labels(self.space_id))
+        self.assertFalse(result["finished"])
+        self.assertEqual(
+            [item["kind"] for item in result["authoring_pending"]],
+            ["upsert_query", "upsert_query", "create_transition"],
+        )
+        self.assertIsNone(catalog.find_query_by_name("Log shipment"))
+        self.assertIsNone(catalog.find_query_by_name("Ship it"))
+        self.assertIsNone(catalog.get_console("ID_console_desk"))
+        with self.assertRaises(ValueError):
+            chat_apply._apply_one(self.principal, self.space_id, operation)
 
     def test_accepted_chat_operation_is_filed_when_the_space_loads(self) -> None:
         catalog.upsert_queries_catalog_row(
@@ -845,10 +842,6 @@ class ChatModeTest(unittest.TestCase):
         self.assertEqual(encoded.canvases[0]["payload"]["frames"][0]["document"]["name"], "Nightly")
 
     def test_upsert_schema_is_a_change_kind(self) -> None:
-        import sqlite3
-
-        from server import spaces
-
         item = chat_apply.normalize_item(
             {
                 "kind": "upsert_schema",
@@ -868,34 +861,12 @@ class ChatModeTest(unittest.TestCase):
             self.assertEqual(
                 chat_apply.validate_item(self.principal, self.space_id, item), []
             )
-        db_path = Path(self._tmpdir.name) / "schema-entities.db"
-        conn = sqlite3.connect(db_path)
-        spaces._ensure_entities_schema(conn)
-        conn.commit()
-        conn.close()
-
-        def open_entities(_space_id: str) -> sqlite3.Connection:
-            return sqlite3.connect(db_path)
-        statements: list[str] = []
-
-        def record(_space_id: str, statement: str, _params: dict) -> dict:
-            statements.append(statement)
-            return {"records": []}
-
-        with patch("server.chat_apply.graph.attributive_label_owner_ids", return_value=set()), patch(
-            "server.chat_apply.graph.run_cypher_for_space", side_effect=record
-        ), patch("server.chat_apply.spaces.connect_sqlite_for_space", side_effect=open_entities):
-            applied = chat_apply._apply_one(self.principal, self.space_id, item)
-        self.assertEqual(applied["attributive_label"], "customer")
-        self.assertTrue(statements and statements[0].startswith("CREATE (n:SCHEMA"))
-        saved = sqlite3.connect(db_path)
-        row = saved.execute(
-            "SELECT node_label, common_label, payload FROM entities"
-        ).fetchone()
-        saved.close()
-        self.assertEqual((row[0], row[1]), ("SCHEMA", "customer"))
-        stored = [entry["property_schema"]["name"] for entry in json.loads(row[2])["schemata"]]
-        self.assertEqual(stored, ["id", "full_name"])
+            held = chat_apply.apply_batch(self.principal, self.space_id, [item], phase="settings")
+        self.assertTrue(held["ok"], held)
+        self.assertFalse(held["finished"])
+        self.assertEqual(held["authoring_pending"][0]["payload"]["attributive_label"], "customer")
+        with self.assertRaises(ValueError):
+            chat_apply._apply_one(self.principal, self.space_id, item)
         with self.assertRaises(ValueError):
             chat_apply.normalize_item(
                 {
@@ -906,6 +877,230 @@ class ChatModeTest(unittest.TestCase):
                     },
                 }
             )
+
+    def test_settings_kinds_apply_through_the_existing_functions(self) -> None:
+        from server import agent_keys, credentials, rbac
+
+        class MemoryStore:
+            writable = True
+            backend = "local"
+
+            def __init__(self) -> None:
+                self.values: dict[str, str] = {}
+
+            def get(self, key: str) -> str | None:
+                return self.values.get(key)
+
+            def set(self, key: str, value: str) -> None:
+                self.values[key] = value
+
+            def delete(self, key: str) -> None:
+                self.values.pop(key, None)
+
+            def is_configured(self, key: str) -> bool:
+                return key in self.values
+
+        store = MemoryStore()
+        embed_calls: list[tuple] = []
+
+        def save_embed(space_id: str, **kwargs):
+            embed_calls.append(("save", space_id, kwargs))
+            return {"provider": kwargs.get("provider") or "ollama", "enabled": kwargs.get("enabled")}
+
+        def reindex(space_id: str):
+            embed_calls.append(("reindex", space_id))
+            return {"embedded": 0}
+
+        record = spaces.fetch_space_record(self.space_id)
+        label_path = Path(self._tmpdir.name) / "icon-label"
+        leaked = chat_apply.normalize_item(
+            {
+                "kind": "upsert_credential",
+                "summary": "OpenAI",
+                "payload": {"name": "OPENAI", "value": "nope"},
+            }
+        )
+        self.assertTrue(chat_apply.validate_item(self.principal, self.space_id, leaked))
+        cloud = chat_apply.normalize_item(
+            {
+                "kind": "update_chat_model",
+                "summary": "cloud",
+                "payload": {"provider": "openai", "credential_name": "MISSING", "api_key": "secret"},
+            }
+        )
+        cloud_problems = chat_apply.validate_item(self.principal, self.space_id, cloud)
+        self.assertTrue(any("API key" in problem for problem in cloud_problems), cloud_problems)
+
+        items = [
+            chat_apply.normalize_item(
+                {
+                    "kind": "update_space",
+                    "summary": "dev",
+                    "payload": {
+                        "name": record["name"],
+                        "description": "home desk",
+                        "dev_mode": True,
+                    },
+                }
+            ),
+            chat_apply.normalize_item(
+                {
+                    "kind": "upsert_credential",
+                    "summary": "OpenAI",
+                    "payload": {"name": "OPENAI", "description": "chat"},
+                }
+            ),
+            chat_apply.normalize_item(
+                {
+                    "kind": "update_chat_model",
+                    "summary": "model",
+                    "payload": {"provider": "platform", "model": "test-model", "max_rounds": 8},
+                }
+            ),
+            chat_apply.normalize_item(
+                {
+                    "kind": "update_embeddings",
+                    "summary": "vectors",
+                    "payload": {"enabled": False, "provider": "ollama"},
+                }
+            ),
+            chat_apply.normalize_item(
+                {
+                    "kind": "update_role",
+                    "summary": "Clerk",
+                    "payload": {
+                        "name": "Clerk",
+                        "permissions": {
+                            "flows": ["read"],
+                            "sequences": {"all": True, "ids": []},
+                            "manage_space": False,
+                        },
+                    },
+                }
+            ),
+            chat_apply.normalize_item(
+                {
+                    "kind": "invite_member",
+                    "summary": "guest",
+                    "payload": {"email": "guest@example.com", "role": "Admin"},
+                }
+            ),
+            chat_apply.normalize_item(
+                {
+                    "kind": "create_agent_key",
+                    "summary": "worker",
+                    "payload": {"name": "worker"},
+                }
+            ),
+            chat_apply.normalize_item(
+                {
+                    "kind": "update_tab_chrome",
+                    "summary": "tab",
+                    "payload": {"icon_label": "Pona"},
+                }
+            ),
+        ]
+        patches = (
+            patch("server.credentials.get_store", return_value=store),
+            patch("server.chat_apply.embeddings.apply_space_config", side_effect=save_embed),
+            patch("server.chat_apply.embeddings.reindex_space", side_effect=reindex),
+            patch("server.branding._label_path", return_value=label_path),
+        )
+        for item in patches:
+            item.start()
+            self.addCleanup(item.stop)
+        result = chat_apply.apply_batch(
+            self.principal,
+            self.space_id,
+            items,
+            credential_secrets={"OPENAI": "sk-test-value"},
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertTrue(result["finished"], result)
+        self.assertEqual(list(store.values.values()), ["sk-test-value"])
+        self.assertNotIn(("reindex", self.space_id), [(row[0], row[1]) for row in embed_calls])
+        saved = spaces.fetch_space_record(self.space_id)
+        self.assertEqual(saved["description"], "home desk")
+        self.assertTrue(saved["dev_mode"])
+        self.assertEqual(chat_store.get_chat_model(self.space_id)["model"], "test-model")
+        self.assertEqual(chat_store.get_chat_model(self.space_id)["max_rounds"], 8)
+        self.assertFalse(embed_calls[0][2]["enabled"])
+        listed = credentials.list_credentials(self.space_id)
+        self.assertEqual(listed[0]["name"], "OPENAI")
+        self.assertNotIn("sk-test-value", json.dumps(listed))
+        self.assertIn("Clerk", {role["name"] for role in rbac.list_roles(self.space_id)})
+        invited = next(entry for entry in result["applied"] if entry["kind"] == "invite_member")
+        minted = next(entry for entry in result["applied"] if entry["kind"] == "create_agent_key")
+        self.assertTrue(str(minted["token"]).startswith("stg_"))
+        self.assertEqual(label_path.read_text(encoding="utf-8"), "Pona")
+
+        follow = chat_apply.apply_batch(
+            self.principal,
+            self.space_id,
+            [
+                chat_apply.normalize_item(
+                    {
+                        "kind": "update_member",
+                        "summary": "guest role",
+                        "payload": {"member_id": invited["id"], "role": "Clerk"},
+                    }
+                ),
+                chat_apply.normalize_item(
+                    {
+                        "kind": "revoke_agent_key",
+                        "summary": "revoke",
+                        "payload": {"id": minted["id"]},
+                    }
+                ),
+                chat_apply.normalize_item(
+                    {"kind": "reindex_embeddings", "summary": "reindex", "payload": {}}
+                ),
+            ],
+        )
+        self.assertTrue(follow["ok"], follow)
+        self.assertIn(("reindex", self.space_id), [(row[0], row[1]) for row in embed_calls])
+        revoked = next(key for key in agent_keys.list_keys(self.space_id) if key["id"] == minted["id"])
+        self.assertTrue(revoked["revoked"])
+        members = rbac.list_members(self.space_id)
+        guest_row = next(row for row in members if row.get("email") == "guest@example.com" or row.get("invited_email") == "guest@example.com")
+        self.assertEqual(guest_row.get("role_name") or guest_row.get("role"), "Clerk")
+
+        described = chat_tools.execute("describe_settings", {}, self.principal, self.space_id, [])
+        self.assertTrue(described.result["ok"], described.result)
+        self.assertNotIn("api_key", described.result["chat_model"])
+        self.assertNotIn("token", json.dumps(described.result["agent_keys"]))
+        self.assertIn("OPENAI", described.result["credentials"])
+        self.assertEqual(described.result["space"]["description"], "home desk")
+
+        opened = chat_tools.execute(
+            "open_settings", {"tab": "embeddings"}, self.principal, self.space_id, []
+        )
+        self.assertEqual(opened.canvases[0]["kind"], "settings")
+        self.assertEqual(opened.canvases[0]["payload"]["tab"], "embeddings")
+        from server import auth, local_auth
+
+        clerk_id = local_auth.create_local_user("clerk@example.com", "a strong password")
+        clerk_role = next(role["id"] for role in rbac.list_roles(self.space_id) if role["name"] == "Clerk")
+        auth.add_space_member(self.space_id, clerk_id, is_owner=False, role_id=clerk_role)
+        guest = Principal(
+            user_id=clerk_id,
+            clerk_user_id=clerk_id,
+            email="clerk@example.com",
+            is_instance_admin=False,
+            is_superadmin=False,
+        )
+        denied = chat_tools.execute("open_settings", {"tab": "update"}, guest, self.space_id, [])
+        self.assertFalse(denied.result["ok"])
+        account = chat_tools.execute("open_settings", {"tab": "account"}, guest, self.space_id, [])
+        self.assertTrue(account.result["ok"], account.result)
+        self.assertEqual(account.canvases[0]["payload"]["tab"], "account")
+        manage = chat_tools.execute("open_settings", {"tab": "chat"}, guest, self.space_id, [])
+        self.assertFalse(manage.result["ok"])
+
+        self.assertIn("describe_settings", chat_agent._SYSTEM)
+        self.assertIn("open_settings", chat_agent._SYSTEM)
+        self.assertIn("Do not send cypher", chat_agent._SYSTEM)
+        self.assertIn("reindex_embeddings", chat_agent._SYSTEM)
 
     def test_follow_up_after_accept_stays_hidden_and_asks_for_a_next_step(self) -> None:
         seen: dict[str, list] = {}

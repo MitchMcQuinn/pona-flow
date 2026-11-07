@@ -1,8 +1,9 @@
 """
 Diagnostic test for space reset and factory reset (Engine/server/reset.py).
 
-Space reset clears one space's graph and the SQLite rows tied to its labels, and
-leaves the space, its credentials, members, settings, and other spaces in place.
+Space reset clears one space's graph, the SQLite rows tied to its labels, and
+catalog rows that are not on any space's label list. It leaves the space, its
+credentials, members, settings, and rows tied only to another space in place.
 Factory reset erases accounts and catalog data so first-run setup is required again.
 
 Runs against a throwaway SQLite file. Neo4j is stubbed.
@@ -79,6 +80,9 @@ def build_db() -> Path:
     badge = json.dumps(["MATCH (n:INSTANCE {attributive_label: 'badge'}) RETURN n"])
     invoice = json.dumps(["MATCH (n:INSTANCE {attributive_label: 'invoice'}) RETURN n"])
     orphan = json.dumps(["RETURN 1"])
+    ledger = json.dumps(["MATCH (n:INSTANCE {attributive_label: 'ledger'}) RETURN n"])
+    blank = json.dumps(["RETURN 1"])
+    other_orphan = json.dumps(["RETURN 1"])
     system = json.dumps(["MATCH (n:STEP {attributive_label: 'badge'}) RETURN n"])
     conn.execute(
         "INSERT INTO queries (id, name, kind, cypher) VALUES (?, ?, 'operation', ?)",
@@ -91,6 +95,18 @@ def build_db() -> Path:
     conn.execute(
         "INSERT INTO queries (id, name, kind, cypher) VALUES (?, ?, 'operation', ?)",
         ("q_orphan", "orphan", orphan),
+    )
+    conn.execute(
+        "INSERT INTO queries (id, name, kind, cypher) VALUES (?, ?, 'operation', ?)",
+        ("q_ledger", "unlisted ledger", ledger),
+    )
+    conn.execute(
+        "INSERT INTO queries (id, name, kind, cypher) VALUES (?, ?, 'operation', ?)",
+        ("q_blank", "unlabeled", blank),
+    )
+    conn.execute(
+        "INSERT INTO queries (id, name, kind, cypher) VALUES (?, ?, 'operation', ?)",
+        ("q_other_orphan", "other unlabeled", other_orphan),
     )
     conn.execute(
         "INSERT INTO queries (id, name, kind, cypher) VALUES (?, ?, 'system', ?)",
@@ -107,6 +123,18 @@ def build_db() -> Path:
     conn.execute(
         "INSERT INTO entities (id, node_label, common_label, payload) VALUES "
         "('e_invoice', 'SCHEMA', 'invoice', '{}')"
+    )
+    conn.execute(
+        "INSERT INTO entities (id, node_label, common_label, payload) VALUES "
+        "('e_ledger', 'SCHEMA', 'ledger', '{}')"
+    )
+    conn.execute(
+        "INSERT INTO entities (id, node_label, common_label, payload) VALUES "
+        "('e_blank', 'SCHEMA', '', '{}')"
+    )
+    conn.execute(
+        "INSERT INTO entities (id, node_label, common_label, payload) VALUES (?, 'STEP', 'invoice', ?)",
+        ("e_invoice_step", json.dumps({"query_id": "q_other_orphan"})),
     )
     conn.execute(
         "INSERT INTO events (id, space_id, name) VALUES ('ev_clinic', 'clinic', 'sweep')"
@@ -209,10 +237,22 @@ def main() -> None:
     )
     check("space reset keeps the other space's entities", "e_invoice" in entity_ids)
     check(
+        "space reset removes entities that are not on any label list",
+        "e_ledger" not in entity_ids and "e_blank" not in entity_ids,
+    )
+    check(
         "space reset removes its queries",
         "q_badge" not in query_ids and "q_orphan" not in query_ids,
     )
+    check(
+        "space reset removes catalog rows that are not on any label list",
+        "q_ledger" not in query_ids and "q_blank" not in query_ids,
+    )
     check("space reset keeps the other space's queries", "q_invoice" in query_ids)
+    check(
+        "space reset keeps a query owned only by the other space",
+        "q_other_orphan" in query_ids,
+    )
     check("space reset keeps system queries", "sys_keep" in query_ids)
     check("space reset removes its events", "ev_clinic" not in ids(conn, "events"))
     check("space reset keeps the other space's events", "ev_other" in ids(conn, "events"))

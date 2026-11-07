@@ -215,6 +215,11 @@ class ControlPlaneTest(unittest.TestCase):
         env = self.fly.config["env"]
         self.assertNotIn("NEO4J_PASSWORD", env)
         self.assertNotIn("FLY_API_TOKEN", env)
+        self.assertEqual(
+            self.fly.config["metadata"],
+            {"fly_platform_version": "v2", "fly_process_group": "app"},
+        )
+        self.assertEqual(self.fly.config["mounts"], [{"volume": "vol_test", "path": "/data", "name": "pona_data"}])
         secret_keys = next(call[2] for call in self.fly.calls if call[0] == "secrets")
         self.assertNotIn("FLY_API_TOKEN", secret_keys)
         self.assertEqual(self.fly.secrets["NEO4J_USER"], "neo4j")

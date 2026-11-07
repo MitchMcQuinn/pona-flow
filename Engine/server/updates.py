@@ -1,8 +1,10 @@
-"""Instance update status: compare this build to GitHub ``main``, redeploy via Fly.
+"""Instance update status: compare this build to GitHub ``main``, then roll forward.
 
-Self-hosted Fly apps bake ``PONA_FLOW_BUILD_SHA`` at image build time. Instance
-admins see the commits on ``main`` they do not have yet, and (when a Fly deploy
-token is configured) can roll the Machines onto ``ghcr.io/…/pona-flow:main``.
+Fly apps with a deploy token roll their Machines onto ``ghcr.io/…/pona-flow:main``.
+A Docker Compose install (``PONA_FLOW_LOCAL_UPDATE=1``) asks the compose updater to
+pull and recreate the app container. A source checkout fast-forwards to the tracked
+branch and restarts the process. ``PONA_FLOW_BUILD_SHA`` is baked into images; a
+checkout with no sha uses ``git rev-parse HEAD``.
 """
 
 from __future__ import annotations
@@ -10,12 +12,18 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
+import subprocess
+import sys
 import threading
 import time
+from pathlib import Path
 import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any, Callable
+
+from . import config
 
 log = logging.getLogger("pona_flow.updates")
 
@@ -27,6 +35,14 @@ FLY_MACHINES_API = "https://api.machines.dev/v1"
 
 HttpGet = Callable[[str, dict[str, str]], tuple[int, Any]]
 HttpPost = Callable[[str, dict[str, str], dict[str, Any]], tuple[int, Any]]
+GitRun = Callable[[list[str]], subprocess.CompletedProcess[str]]
+
+# The compose updater refreshes this file every couple of seconds. Older than this
+# means that container is gone, so the menu must not pretend a click will restart us.
+WATCHER_TTL_S = 20
+REQUEST_NAME = "update-request"
+RESULT_NAME = "update-result"
+WATCHER_NAME = "update-watcher"
 
 # Unauthenticated GitHub API calls are limited to 60/hour per IP, and Fly apps share
 # outbound IPs — so answers are reused for a few minutes and kept as a fallback.
@@ -88,7 +104,171 @@ def track_branch() -> str:
 
 def build_sha() -> str:
     raw = (os.environ.get("PONA_FLOW_BUILD_SHA") or "").strip()
-    return raw
+    if raw:
+        return raw
+    # Source checkouts have no baked sha. HEAD is the version the menu compares to main.
+    if git_checkout_available():
+        return _git_head_sha()
+    return ""
+
+
+def local_update_enabled() -> bool:
+    flag = (os.environ.get("PONA_FLOW_LOCAL_UPDATE") or "").strip().lower()
+    return flag in {"1", "true", "yes", "on"}
+
+
+def configured_version() -> str:
+    return (os.environ.get("PONA_FLOW_VERSION") or "main").strip() or "main"
+
+
+def version_pin() -> str | None:
+    """A compose tag other than ``main`` is a pin. The menu will not roll it forward."""
+    version = configured_version()
+    if version == "main":
+        return None
+    return version
+
+
+def running_in_docker() -> bool:
+    return os.path.exists("/.dockerenv")
+
+
+def on_fly() -> bool:
+    if (os.environ.get("FLY_MACHINE_ID") or "").strip():
+        return True
+    if local_update_enabled():
+        return False
+    return bool(fly_app_name())
+
+
+def _marker(name: str) -> Path:
+    return config.data_dir() / name
+
+
+def local_watcher_ready(now: float | None = None) -> bool:
+    path = _marker(WATCHER_NAME)
+    try:
+        line = path.read_text(encoding="utf-8").splitlines()[0].strip()
+        seen = float(line)
+    except (OSError, ValueError, IndexError):
+        return False
+    current = time.time() if now is None else now
+    return current - seen < WATCHER_TTL_S
+
+
+def read_update_result() -> dict[str, Any] | None:
+    path = _marker(RESULT_NAME)
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    if not lines:
+        return None
+    head = lines[0].strip()
+    if head == "ok":
+        return {"ok": True, "error": None}
+    if head == "fail":
+        error = lines[1].strip() if len(lines) > 1 else ""
+        return {"ok": False, "error": error or "local update failed"}
+    return None
+
+
+def _clear_marker(name: str) -> None:
+    path = _marker(name)
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        log.warning("could not remove %s", path)
+
+
+def git_checkout_available() -> bool:
+    if running_in_docker():
+        return False
+    if not (config.ROOT / ".git").exists():
+        return False
+    return shutil.which("git") is not None
+
+
+def _run_git(args: list[str]) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    # `true` exits without prompting, so a missing credential fails instead of hanging.
+    env["GIT_ASKPASS"] = "true"
+    return subprocess.run(
+        ["git", *args],
+        cwd=config.ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
+    )
+
+
+def _git_head_sha(run: GitRun = _run_git) -> str:
+    try:
+        done = run(["rev-parse", "HEAD"])
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if done.returncode != 0:
+        return ""
+    return (done.stdout or "").strip()
+
+
+def git_block_reason(run: GitRun = _run_git) -> str | None:
+    """Why a source checkout cannot fast-forward, or None when it can."""
+    branch = track_branch()
+    try:
+        head = run(["rev-parse", "--abbrev-ref", "HEAD"])
+    except (OSError, subprocess.TimeoutExpired):
+        return "git could not read this checkout"
+    if head.returncode != 0:
+        detail = (head.stderr or head.stdout or "").strip().splitlines()
+        return detail[-1][:200] if detail else "git could not read this checkout"
+    current = (head.stdout or "").strip()
+    if current != branch:
+        shown = current or "a detached commit"
+        return f"this checkout is on {shown}. switch to {branch} to update from this menu."
+    for args in (["diff", "--quiet"], ["diff", "--cached", "--quiet"]):
+        try:
+            diff = run(args)
+        except (OSError, subprocess.TimeoutExpired):
+            return "git could not check for local changes"
+        if diff.returncode == 1:
+            return "this checkout has uncommitted changes. commit or stash them, then update."
+        if diff.returncode != 0:
+            return "git could not check for local changes"
+    return None
+
+
+def project_dir() -> str:
+    """Folder an admin would update by hand: the compose project, or this checkout."""
+    configured = (os.environ.get("PONA_FLOW_COMPOSE_DIR") or "").strip()
+    if configured:
+        return configured
+    if git_checkout_available():
+        return str(config.ROOT)
+    return ""
+
+
+def current_update_method() -> str:
+    """How this process rolls forward. Fly credentials win over a git checkout."""
+    if local_update_enabled():
+        return "docker"
+    if fly_api_token() and fly_app_name():
+        return "fly"
+    if git_checkout_available():
+        return "git"
+    return "manual"
+
+
+def manual_hint() -> str:
+    app = fly_app_name()
+    if app or fly_api_token():
+        return f"fly deploy --app {app or 'YOUR_APP'} --image {image_ref()}"
+    if git_checkout_available():
+        return f"git pull --ff-only origin {track_branch()}"
+    return "docker compose pull && docker compose up -d"
 
 
 def image_ref() -> str:
@@ -258,7 +438,11 @@ def fetch_ci_publish(sha: str, http_get: HttpGet = _http_get) -> dict[str, Any]:
 
 def version_payload() -> dict[str, Any]:
     """Cheap identity of the running process — polled while an update rolls out."""
-    return {"build_sha": build_sha(), "started_at": STARTED_AT}
+    return {
+        "build_sha": build_sha(),
+        "started_at": STARTED_AT,
+        "update_result": read_update_result(),
+    }
 
 
 def status_payload(http_get: HttpGet = _http_get) -> dict[str, Any]:
@@ -279,10 +463,26 @@ def status_payload(http_get: HttpGet = _http_get) -> dict[str, Any]:
     )
     token = fly_api_token()
     app = fly_app_name()
-    # A failed or still-running CI run has not moved :main. Restarting would
-    # come back on the image already running.
+    # A failed or still-running CI run has not moved :main. Restarting a container
+    # or a Fly machine would come back on the image already running. A git checkout
+    # pulls the commit itself, so that check does not apply there.
     image_ready = publish["status"] in ("success", "unknown")
-    can_update = bool(token and app and not up_to_date and image_ready)
+    method = current_update_method()
+    pin = version_pin() if method == "docker" else None
+    watcher = local_watcher_ready() if method == "docker" else False
+    git_error = git_block_reason() if method == "git" and not up_to_date else None
+    result = read_update_result()
+    local_update_error = (
+        result["error"] if method == "docker" and result and result.get("ok") is False else None
+    )
+    if method == "docker":
+        can_update = bool(watcher and not pin and not up_to_date and image_ready)
+    elif method == "git":
+        can_update = bool(not up_to_date and not git_error)
+    elif method == "fly":
+        can_update = bool(not up_to_date and image_ready)
+    else:
+        can_update = False
     return {
         "github_error": github_error,
         "started_at": STARTED_AT,
@@ -294,18 +494,21 @@ def status_payload(http_get: HttpGet = _http_get) -> dict[str, Any]:
         "up_to_date": up_to_date,
         "commits": commits,
         "can_update": can_update,
-        "update_method": "fly" if (token and app) else "manual",
+        "update_method": method,
         "fly_token_configured": bool(token),
         "fly_app_name": app,
+        "on_fly": on_fly(),
+        "local_update_enabled": local_update_enabled(),
+        "local_updater_ready": watcher,
+        "local_update_error": local_update_error,
+        "version_pin": pin,
+        "git_error": git_error,
+        "project_dir": project_dir(),
         "image": image_ref(),
         "publish_status": publish["status"],
         "publish_url": publish["url"],
         "publish_error": publish["error"],
-        "manual_hint": (
-            f"fly deploy --app {app or 'YOUR_APP'} --image {image_ref()}"
-            if app or token
-            else "docker compose pull && docker compose up -d"
-        ),
+        "manual_hint": manual_hint(),
     }
 
 
@@ -342,7 +545,66 @@ def _fly_headers() -> dict[str, str]:
     }
 
 
-def apply_update(
+def _restart_soon() -> None:
+    """Replace this process after the HTTP response has a chance to flush."""
+
+    def _go() -> None:
+        time.sleep(1)
+        log.warning("restarting after local git update")
+        os.execv(sys.executable, [sys.executable, *sys.argv])
+
+    threading.Thread(target=_go, name="pona-flow-restart", daemon=False).start()
+
+
+def apply_docker_update() -> dict[str, Any]:
+    """Ask the compose updater to pull and recreate this service."""
+    if not local_update_enabled():
+        raise ValueError("local updates are not enabled on this instance")
+    pin = version_pin()
+    if pin:
+        raise ValueError(
+            f"this install is pinned to {pin}. "
+            "Set PONA_FLOW_VERSION=main in .env and restart to update from this menu."
+        )
+    if not local_watcher_ready():
+        raise ValueError(
+            "the local updater is not running. In the folder that contains docker-compose.yml, run: docker compose up -d"
+        )
+    _clear_marker(RESULT_NAME)
+    _marker(REQUEST_NAME).write_text("update\n", encoding="utf-8")
+    return {"ok": True, "method": "docker", "image": image_ref()}
+
+
+def apply_git_update(
+    run: GitRun = _run_git,
+    restart: Callable[[], None] = _restart_soon,
+) -> dict[str, Any]:
+    """Fast-forward the source checkout, then restart this process."""
+    if not git_checkout_available():
+        raise ValueError("this instance is not a git checkout")
+    reason = git_block_reason(run)
+    if reason:
+        raise ValueError(reason)
+    branch = track_branch()
+    try:
+        fetched = run(["fetch", "origin", branch])
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError("git fetch did not finish") from exc
+    if fetched.returncode != 0:
+        detail = (fetched.stderr or fetched.stdout or "git fetch failed").strip().splitlines()
+        raise RuntimeError(detail[-1][:300] if detail else "git fetch failed")
+    try:
+        merged = run(["merge", "--ff-only", f"origin/{branch}"])
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError("git merge did not finish") from exc
+    if merged.returncode != 0:
+        detail = (merged.stderr or merged.stdout or "could not fast-forward").strip().splitlines()
+        raise RuntimeError(detail[-1][:300] if detail else "could not fast-forward")
+    restart()
+    return {"ok": True, "method": "git", "branch": branch}
+
+
+def apply_fly_update(
     http_get: HttpGet = _http_get,
     http_post: HttpPost = _http_post,
 ) -> dict[str, Any]:
@@ -366,8 +628,8 @@ def apply_update(
         mid = str(machine.get("id") or "")
         if not mid:
             continue
-        config = machine.get("config") if isinstance(machine.get("config"), dict) else {}
-        new_config = dict(config)
+        machine_config = machine.get("config") if isinstance(machine.get("config"), dict) else {}
+        new_config = dict(machine_config)
         new_config["image"] = image
         machine_url = (
             f"{FLY_MACHINES_API}/apps/{urllib.parse.quote(app)}/machines/{urllib.parse.quote(mid)}"
@@ -383,3 +645,18 @@ def apply_update(
         if w_code >= 400:
             log.warning("fly wait for %s returned HTTP %s (deploy may still be rolling)", mid, w_code)
     return {"ok": True, "app": app, "image": image, "machines": updated}
+
+
+def apply_update(
+    http_get: HttpGet = _http_get,
+    http_post: HttpPost = _http_post,
+    run_git: GitRun | None = None,
+    restart: Callable[[], None] | None = None,
+) -> dict[str, Any]:
+    """Roll this instance forward. Raises ValueError for operator errors."""
+    method = current_update_method()
+    if method == "docker":
+        return apply_docker_update()
+    if method == "git":
+        return apply_git_update(run_git or _run_git, restart or _restart_soon)
+    return apply_fly_update(http_get, http_post)

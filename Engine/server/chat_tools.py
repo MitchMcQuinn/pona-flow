@@ -12,12 +12,17 @@ from typing import Any
 from fastapi.exceptions import HTTPException
 
 from . import (
+    agent_keys,
     auth,
     catalog,
     chat_apply,
+    chat_store,
     console_check,
+    credentials,
+    embeddings,
     graph,
     id_generator,
+    rbac,
     sequence_service,
     spaces,
 )
@@ -46,6 +51,20 @@ _MODULE_TYPES = {
 }
 
 _OBJECT = {"type": "object", "properties": {}, "additionalProperties": False}
+_SETTINGS_TABS = (
+    "settings",
+    "chat",
+    "users",
+    "agents",
+    "credentials",
+    "embeddings",
+    "templates",
+    "audit",
+    "account",
+    "update",
+)
+_MANAGE_TABS = {"chat", "users", "agents", "credentials", "embeddings", "templates"}
+_WALKTHROUGH_VIEWS = {"workbench", "sequence", "event", "console"}
 
 _MODULE_ITEM = {
     "type": "object",
@@ -87,6 +106,21 @@ TOOLS: list[dict[str, Any]] = [
         "describe_space",
         "Name, description, and registered attributive labels for the current space.",
         _OBJECT,
+    ),
+    _tool(
+        "describe_settings",
+        "Current space settings the proposal may need to change: space record, chat model "
+        "(no API key), embeddings config, credential names, roles, and agent-key names.",
+        _OBJECT,
+    ),
+    _tool(
+        "open_settings",
+        "Open one settings tab on the canvas. The user can use that screen. "
+        "tab is settings, chat, users, agents, credentials, embeddings, templates, audit, account, or update.",
+        _params(
+            {"tab": {"type": "string", "enum": list(_SETTINGS_TABS)}},
+            ["tab"],
+        ),
     ),
     _tool(
         "list_catalog",
@@ -243,7 +277,18 @@ TOOLS: list[dict[str, Any]] = [
                         "create_space",
                         "upsert_schema",
                         "upsert_query",
-                        "execute_package",
+                        "create_transition",
+                        "update_space",
+                        "upsert_credential",
+                        "update_chat_model",
+                        "update_embeddings",
+                        "reindex_embeddings",
+                        "invite_member",
+                        "update_member",
+                        "update_role",
+                        "create_agent_key",
+                        "revoke_agent_key",
+                        "update_tab_chrome",
                         "upsert_event",
                         "delete_event",
                         "upsert_console",
@@ -322,9 +367,6 @@ class ToolResult:
         self.result = result
         self.canvases = canvases or []
         self.proposal = proposal
-
-
-_WALKTHROUGH_VIEWS = {"workbench", "sequence", "event", "console"}
 
 
 def _json_object(value: Any) -> dict[str, Any]:
@@ -505,6 +547,66 @@ def execute(
                     "labels": record.get("labels") or [],
                     "groups": spaces.fetch_space_groups(space_id),
                 }
+            )
+        if name == "describe_settings":
+            record = spaces.fetch_space_record(space_id)
+            model = chat_store.get_chat_model(space_id)
+            model.pop("api_key", None)
+            try:
+                embed = embeddings.resolve_config(space_id)
+            except ValueError as exc:
+                embed = {"error": str(exc)}
+            return ToolResult(
+                {
+                    "ok": True,
+                    "space": {
+                        "id": record.get("id"),
+                        "name": record.get("name"),
+                        "endpoint": record.get("endpoint") or "",
+                        "description": record.get("description") or "",
+                        "dev_mode": bool(record.get("dev_mode")),
+                    },
+                    "chat_model": model,
+                    "embeddings": {
+                        key: embed.get(key)
+                        for key in (
+                            "enabled",
+                            "provider",
+                            "ollama_url",
+                            "base_url",
+                            "embed_model",
+                            "credential",
+                            "dimensions",
+                            "source",
+                            "error",
+                        )
+                        if key in embed or key == "enabled"
+                    },
+                    "credentials": [row.get("name") for row in credentials.list_credentials(space_id)],
+                    "roles": [
+                        {"id": role.get("id"), "name": role.get("name"), "permissions": role.get("permissions")}
+                        for role in rbac.list_roles(space_id)
+                    ],
+                    "agent_keys": [
+                        {"id": key.get("id"), "name": key.get("name"), "revoked": key.get("revoked")}
+                        for key in agent_keys.list_keys(space_id)
+                    ],
+                }
+            )
+        if name == "open_settings":
+            tab = str(arguments.get("tab") or "").strip()
+            if tab not in _SETTINGS_TABS:
+                return ToolResult({"ok": False, "error": "unknown settings tab"})
+            if tab in _MANAGE_TABS:
+                try:
+                    auth.require_space_manage(principal, space_id)
+                except HTTPException as exc:
+                    return _denied(exc)
+            if tab == "update" and not principal.is_superadmin:
+                return ToolResult({"ok": False, "error": "the update tab is limited to the instance superadmin"})
+            return ToolResult(
+                {"ok": True, "opened": tab},
+                canvases=[{"kind": "settings", "title": tab, "payload": {"tab": tab}}],
             )
         if name == "list_catalog":
             wanted = str(arguments.get("kind") or "all").strip()

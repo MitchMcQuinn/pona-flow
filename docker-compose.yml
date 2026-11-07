@@ -9,11 +9,13 @@
 #            point NEO4J_URI at your own database (Aura, Desktop, another host) instead.
 #   https  — Caddy in front of the app with automatic TLS for PONA_FLOW_DOMAIN.
 #
-# Upgrade: docker compose pull && docker compose up -d   (state is in the named volumes)
+# Upgrade: Settings → Update → Update locally
+#          or: docker compose pull && docker compose up -d
+#          (state is in the named volumes)
 
 services:
   pona-flow:
-    image: ghcr.io/mitchmcquinn/pona-flow:${PONA_FLOW_VERSION:-latest}
+    image: ghcr.io/mitchmcquinn/pona-flow:${PONA_FLOW_VERSION:-main}
     build: .
     restart: unless-stopped
     env_file:
@@ -24,11 +26,25 @@ services:
       NEO4J_USER: ${NEO4J_USER:-neo4j}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
       PONA_FLOW_PUBLIC_URL: ${PONA_FLOW_PUBLIC_URL:-}
+      # Settings → Update → Update locally. The updater service performs the pull.
+      PONA_FLOW_LOCAL_UPDATE: "1"
+      PONA_FLOW_VERSION: ${PONA_FLOW_VERSION:-main}
     ports:
       # Bound to loopback by default; put a reverse proxy (the https profile, nginx, Traefik,
       # a Cloudflare tunnel) in front rather than exposing 8765 directly.
       - "${PONA_FLOW_BIND:-127.0.0.1}:${PONA_FLOW_PORT:-8765}:8765"
     volumes:
+      - pona-data:/data
+
+  # Watches /data/update-request (written when an admin clicks Update locally) and runs
+  # `docker compose pull/up` for pona-flow. The socket lets it recreate that container.
+  # It does not accept a command from the request file.
+  updater:
+    build: ./deploy/updater
+    image: pona-flow-updater:local
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
       - pona-data:/data
 
   neo4j:

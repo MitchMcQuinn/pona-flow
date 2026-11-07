@@ -1559,9 +1559,21 @@ export type InstanceUpdateStatus = {
   up_to_date: boolean;
   commits: InstanceUpdateCommit[];
   can_update: boolean;
-  update_method: "fly" | "manual";
+  update_method: "fly" | "docker" | "git" | "manual";
   fly_token_configured: boolean;
   fly_app_name: string;
+  /** This process is a Fly machine, or a Fly app name is saved and local update is off. */
+  on_fly: boolean;
+  local_update_enabled: boolean;
+  local_updater_ready: boolean;
+  /** Set when the compose updater last reported a failure. */
+  local_update_error: string | null;
+  /** Set when PONA_FLOW_VERSION is a tag other than main. */
+  version_pin: string | null;
+  /** Set when a source checkout cannot fast-forward. */
+  git_error: string | null;
+  /** Checkout or compose project folder, when this process knows it. */
+  project_dir?: string;
   image: string;
   /** success once CI has published :main; failure and in_progress block the update button. */
   publish_status?: "success" | "failure" | "in_progress" | "unknown";
@@ -1581,7 +1593,11 @@ export async function fetchInstanceUpdates(): Promise<InstanceUpdateStatus> {
   );
 }
 
-export type InstanceVersion = { build_sha: string; started_at: number };
+export type InstanceVersion = {
+  build_sha: string;
+  started_at: number;
+  update_result?: { ok: boolean; error?: string | null } | null;
+};
 
 /** The running build — cheap, never calls GitHub; polled while an update restarts the app. */
 export async function fetchInstanceVersion(): Promise<InstanceVersion> {
@@ -2295,10 +2311,14 @@ export async function updateChatStackItem(
   return mapStackItem(data.item);
 }
 
-export async function acceptChatBatch(spaceId: string, threadId: string): Promise<ChatBatchResult> {
+export async function acceptChatBatch(
+  spaceId: string,
+  threadId: string,
+  body: Record<string, unknown> = {}
+): Promise<ChatBatchResult> {
   return postJson(
     `/api/spaces/${encodeURIComponent(spaceId)}/chat/threads/${encodeURIComponent(threadId)}/batch/accept`,
-    {},
+    body,
     "Failed to apply the change"
   );
 }

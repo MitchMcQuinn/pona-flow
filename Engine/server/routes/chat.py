@@ -185,20 +185,47 @@ def _finish_batch(thread: dict, status: str, result: dict | None) -> None:
 
 
 @router.post("/api/spaces/{space_id}/chat/threads/{thread_id}/batch/accept")
-def accept_batch(
-    space_id: str, thread_id: str, principal: Principal = Depends(auth.current_principal)
+async def accept_batch(
+    space_id: str,
+    thread_id: str,
+    request: Request,
+    principal: Principal = Depends(auth.current_principal),
 ):
     auth.require_space_access(principal, space_id)
     thread = _thread_or_404(thread_id, space_id, principal)
     pending = chat_store.pending_batch(thread)
     if pending is None:
         raise HTTPException(400, "no change is waiting")
+    body = await json_body(request)
+    phase = str(body.get("phase") or "complete").strip() or "complete"
+    if phase not in ("settings", "rest", "complete"):
+        raise bad_request("phase must be settings, rest, or complete")
+    secrets = body.get("credential_secrets")
+    if secrets is not None and not isinstance(secrets, dict):
+        raise bad_request("credential_secrets must be an object")
+    applied = body.get("authoring_applied")
+    if applied is not None and not isinstance(applied, list):
+        raise bad_request("authoring_applied must be an array")
+    failed = body.get("authoring_failed")
+    if failed is not None and not isinstance(failed, dict):
+        raise bad_request("authoring_failed must be an object")
     items = pending.get("items") if isinstance(pending.get("items"), list) else []
-    result = chat_apply.apply_batch(principal, space_id, items)
+    result = chat_apply.apply_batch(
+        principal,
+        space_id,
+        items,
+        phase=phase,
+        authoring_applied=applied if isinstance(applied, list) else None,
+        authoring_failed=failed if isinstance(failed, dict) else None,
+        credential_secrets={str(key): str(value) for key, value in secrets.items()}
+        if isinstance(secrets, dict)
+        else None,
+    )
     if result.get("validation_errors"):
         return result
-    status = "accepted" if result.get("ok") else "partial"
-    _finish_batch(thread, status, result)
+    if result.get("finished", True):
+        status = "accepted" if result.get("ok") else "partial"
+        _finish_batch(thread, status, result)
     return result
 
 

@@ -41,7 +41,7 @@ type SpaceConfigTab =
   | "account"
   | "update";
 
-interface SpaceConfigPanelProps {
+export interface SpaceConfigPanelProps {
   spaceId: string | null;
   spaces: Array<{ id: string; label: string }>;
   me: Me | null;
@@ -59,6 +59,8 @@ interface SpaceConfigPanelProps {
   userEmail: string | null;
   onSaveTimezone: (timezone: string) => void;
   onLogout: () => void;
+  initialTab?: SpaceConfigTab;
+  showClose?: boolean;
 }
 
 function AuditLogSection({
@@ -208,9 +210,11 @@ export function SpaceConfigPanel({
   userName,
   userEmail,
   onSaveTimezone,
-  onLogout
+  onLogout,
+  initialTab = "settings",
+  showClose = true
 }: SpaceConfigPanelProps) {
-  const [tab, setTab] = useState<SpaceConfigTab>("settings");
+  const [tab, setTab] = useState<SpaceConfigTab>(initialTab);
   const [name, setName] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [description, setDescription] = useState("");
@@ -224,6 +228,11 @@ export function SpaceConfigPanel({
   const [resetError, setResetError] = useState<string | null>(null);
 
   const canManageSpace = Boolean(permissions?.manageSpace || me?.isSuperadmin);
+  const manageTabs: SpaceConfigTab[] = ["chat", "users", "agents", "credentials", "embeddings", "templates"];
+  const visibleTab: SpaceConfigTab =
+    (!canManageSpace && manageTabs.includes(tab)) || (tab === "update" && !me?.isSuperadmin)
+      ? "settings"
+      : tab;
 
   useEffect(() => {
     if (!spaceId) return;
@@ -261,8 +270,8 @@ export function SpaceConfigPanel({
   }, [spaceId]);
 
   useEffect(() => {
-    if (tab === "audit") onLoadAuditLog();
-  }, [tab, onLoadAuditLog]);
+    if (visibleTab === "audit") onLoadAuditLog();
+  }, [visibleTab, onLoadAuditLog]);
 
   useEffect(() => {
     setLocalError(null);
@@ -331,18 +340,20 @@ export function SpaceConfigPanel({
   return (
     <div className="panel configPanel spaceConfigPanel">
       <div className="panel__body">
-        <div className="canvasInsightBar">
-          <button type="button" className="canvasInsightClose" aria-label="close" onClick={onClose}>
-            ×
-          </button>
-        </div>
+        {showClose ? (
+          <div className="canvasInsightBar">
+            <button type="button" className="canvasInsightClose" aria-label="close" onClick={onClose}>
+              ×
+            </button>
+          </div>
+        ) : null}
         <h1>space</h1>
         {!spaceId ? <p className="muted">select a space to configure it.</p> : null}
 
         <div className="spaceConfigTabs" role="tablist" aria-label="space configuration">
           <button
             type="button"
-            className={tab === "settings" ? "active" : undefined}
+            className={visibleTab === "settings" ? "active" : undefined}
             data-testid="space-tab-settings"
             onClick={() => setTab("settings")}
           >
@@ -351,7 +362,7 @@ export function SpaceConfigPanel({
           {canManageSpace ? (
             <button
               type="button"
-              className={tab === "chat" ? "active" : undefined}
+              className={visibleTab === "chat" ? "active" : undefined}
               data-testid="space-tab-chat"
               onClick={() => setTab("chat")}
             >
@@ -361,7 +372,7 @@ export function SpaceConfigPanel({
           {canManageSpace ? (
             <button
               type="button"
-              className={tab === "users" ? "active" : undefined}
+              className={visibleTab === "users" ? "active" : undefined}
               data-testid="space-tab-users"
               onClick={() => setTab("users")}
             >
@@ -371,7 +382,7 @@ export function SpaceConfigPanel({
           {canManageSpace ? (
             <button
               type="button"
-              className={tab === "agents" ? "active" : undefined}
+              className={visibleTab === "agents" ? "active" : undefined}
               data-testid="space-tab-agents"
               onClick={() => setTab("agents")}
             >
@@ -381,7 +392,7 @@ export function SpaceConfigPanel({
           {canManageSpace ? (
             <button
               type="button"
-              className={tab === "credentials" ? "active" : undefined}
+              className={visibleTab === "credentials" ? "active" : undefined}
               data-testid="space-tab-credentials"
               onClick={() => setTab("credentials")}
             >
@@ -391,7 +402,7 @@ export function SpaceConfigPanel({
           {canManageSpace ? (
             <button
               type="button"
-              className={tab === "embeddings" ? "active" : undefined}
+              className={visibleTab === "embeddings" ? "active" : undefined}
               data-testid="space-tab-embeddings"
               onClick={() => setTab("embeddings")}
             >
@@ -401,7 +412,7 @@ export function SpaceConfigPanel({
           {canManageSpace ? (
             <button
               type="button"
-              className={tab === "templates" ? "active" : undefined}
+              className={visibleTab === "templates" ? "active" : undefined}
               data-testid="space-tab-templates"
               onClick={() => setTab("templates")}
             >
@@ -410,7 +421,7 @@ export function SpaceConfigPanel({
           ) : null}
           <button
             type="button"
-            className={tab === "audit" ? "active" : undefined}
+            className={visibleTab === "audit" ? "active" : undefined}
             data-testid="space-tab-audit"
             onClick={() => setTab("audit")}
           >
@@ -418,7 +429,7 @@ export function SpaceConfigPanel({
           </button>
           <button
             type="button"
-            className={tab === "account" ? "active" : undefined}
+            className={visibleTab === "account" ? "active" : undefined}
             data-testid="space-tab-account"
             onClick={() => setTab("account")}
           >
@@ -427,7 +438,7 @@ export function SpaceConfigPanel({
           {me?.isSuperadmin ? (
             <button
               type="button"
-              className={tab === "update" ? "active" : undefined}
+              className={visibleTab === "update" ? "active" : undefined}
               data-testid="space-tab-update"
               onClick={() => setTab("update")}
             >
@@ -437,7 +448,7 @@ export function SpaceConfigPanel({
         </div>
 
         <div key={tab} className="screenFade">
-        {tab === "settings" ? (
+        {visibleTab === "settings" ? (
           <div className="spaceConfigSection">
             <h2>settings</h2>
             {recordLoading ? <p className="muted">loading space...</p> : null}
@@ -563,9 +574,9 @@ export function SpaceConfigPanel({
           </div>
         ) : null}
 
-        {tab === "chat" && canManageSpace && spaceId ? <ChatModelSettings spaceId={spaceId} /> : null}
+        {visibleTab === "chat" && canManageSpace && spaceId ? <ChatModelSettings spaceId={spaceId} /> : null}
 
-        {tab === "users" && canManageSpace ? (
+        {visibleTab === "users" && canManageSpace ? (
           <UsersPanel
             spaceId={spaceId}
             me={me}
@@ -574,21 +585,21 @@ export function SpaceConfigPanel({
           />
         ) : null}
 
-        {tab === "agents" && canManageSpace ? <AgentsPanel spaceId={spaceId} /> : null}
+        {visibleTab === "agents" && canManageSpace ? <AgentsPanel spaceId={spaceId} /> : null}
 
-        {tab === "credentials" && canManageSpace ? (
+        {visibleTab === "credentials" && canManageSpace ? (
           <CredentialsPanel spaceId={spaceId} />
         ) : null}
 
-        {tab === "embeddings" && canManageSpace ? (
+        {visibleTab === "embeddings" && canManageSpace ? (
           <EmbeddingsPanel spaceId={spaceId} />
         ) : null}
 
-        {tab === "templates" && canManageSpace ? (
+        {visibleTab === "templates" && canManageSpace ? (
           <TemplatesPanel spaceId={spaceId} />
         ) : null}
 
-        {tab === "account" ? (
+        {visibleTab === "account" ? (
           <AccountSection
             userName={userName}
             userEmail={userEmail}
@@ -598,14 +609,14 @@ export function SpaceConfigPanel({
           />
         ) : null}
 
-        {tab === "update" && me?.isSuperadmin ? (
+        {visibleTab === "update" && me?.isSuperadmin ? (
           <div className="spaceConfigSection">
             <h2>update</h2>
             <InstanceUpdates />
           </div>
         ) : null}
 
-        {tab === "audit" ? (
+        {visibleTab === "audit" ? (
           <AuditLogSection
             entries={auditLog.entries}
             loading={auditLog.loading}

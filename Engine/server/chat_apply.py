@@ -13,16 +13,19 @@ from typing import Any
 from fastapi.exceptions import HTTPException
 
 from . import (
+    agent_keys,
     auth,
+    branding,
     catalog,
+    chat_store,
     console_check,
     console_service,
+    credentials,
     cypher_utils,
+    embeddings,
     graph,
     id_generator,
     operation_delete,
-    operation_nav,
-    packages,
     rbac,
     schema_delete,
     schema_update,
@@ -32,11 +35,28 @@ from . import (
 from .auth import Principal
 from .http_utils import infer_node_label
 
-APPLY_ORDER = (
-    "create_space",
+SETTINGS_KINDS = (
+    "update_space",
+    "upsert_credential",
+    "update_chat_model",
+    "update_embeddings",
+    "invite_member",
+    "update_member",
+    "update_role",
+    "create_agent_key",
+    "revoke_agent_key",
+    "update_tab_chrome",
+)
+
+AUTHORING_KINDS = (
     "upsert_schema",
     "upsert_query",
-    "execute_package",
+    "create_transition",
+)
+
+REST_KINDS = (
+    "reindex_embeddings",
+    "create_space",
     "upsert_event",
     "upsert_console",
     "delete_schema",
@@ -47,12 +67,27 @@ APPLY_ORDER = (
     "delete_console",
 )
 
+APPLY_ORDER = SETTINGS_KINDS + AUTHORING_KINDS + REST_KINDS
+
 KIND_HELP = """
-Kinds and payloads:
+Kinds and payloads. Do not send cypher, sqlite, builder_config, or a raw query object.
+Builder order inside one batch: schema, then the step, then create_transition, then the sequence, then the event or console.
 - create_space: {name, description?, endpoint?}
-- upsert_schema: {attributive_label, properties?: [{key, value_type, is_required?, is_key?, is_label?, is_indexed?, is_embedded?, format?, options?, default_value?}], is_vectorized?}
-- upsert_query: {id?, name, kind: operation|sequence, operation: create|read|update|delete, cypher: [string], sqlite?: [string], parameters?: [], description?, builder_config?, loop_config?, group_title?}. kind operation is filed in the sequences nav as a one-step sequence. kind sequence must MATCH a STEP by attributive_label. cypher is one visual-builder statement: MATCH (var:INSTANCE|SCHEMA|STEP { attributive_label: 'name' }), optional WHERE, then RETURN, SET, or DELETE. CREATE or MERGE for a new node. Hops are directed. No WITH, UNION, CALL, or a custom label such as :Person.
-- execute_package: {operation: create|read|update|delete, cypher: [string], sqlite?: [string], cypher_params?: {}, parameters?: [], node_label?}
+- upsert_schema: {attributive_label, properties?: [{key, value_type, is_required?, is_key?, is_label?, is_indexed?, is_embedded?, format?, options?, default_value?}], is_vectorized?, description?, group_title?}. This saves a create-SCHEMA operation and runs it. The schema keeps attributive_label. Do not reuse that label as a STEP name, sequence entry_step, or operation name. The wrapping STEP is named create_<label>.
+- upsert_query kind operation: {id?, name, kind: "operation", operation: create|read|update|delete, node_label: STEP|SCHEMA|INSTANCE, attributive_label?, schema_properties?, instance_properties?: [{key, value}], where?: [{property_key, operator?, value?}], return_items?: [{expression, alias?}], unwind?: {alias, expressions}, set_expressions?: [string], delete_targets?: [string], parameters?: [{name, value_type?, value?, is_required?}], limit?, vector_search?: {enabled, text?, k?, all_labels?}, http_step?, wait_step?, join_step?, operation_step?, add_as_sequence?, execute?, description?, group_title?}. Pass id only to update a saved operation. http_step, wait_step, join_step, and operation_step are mutually exclusive. execute runs a create INSTANCE or SCHEMA package after saving it. A single new STEP is published as a one-step sequence unless add_as_sequence is false.
+- upsert_query kind sequence: {id?, name, kind: "sequence", entry_step, traversal?: downstream|single, parameters?: [{name, value}], loop?: {type, count?, condition?, source?, max_iterations?, delay_seconds?, collect?}, description?, group_title?}. entry_step is the STEP attributive_label the run starts at. downstream walks POINTS_TO. Pass id only to update a saved sequence.
+- create_transition: {from_step, to_step, relationship_label?, condition_type?: null|parameter|cypher|implicit|query, condition?, condition_expected?}. Both STEP nodes must already exist or be created earlier in this batch.
+- update_space: {name, endpoint?, description?, dev_mode?}. name is the current name when you are only changing another field.
+- upsert_credential: {name, description?}. Do not send the secret. The user types it on the proposal.
+- update_chat_model: {provider?: platform|anthropic|openai|gemini|local_llm, model?, credential_name?, local_llm_base_url?, local_llm_config_id?, max_rounds?}. Do not send an API key. A cloud provider must name a credential that already exists.
+- update_embeddings: {enabled, provider?, ollama_url?, base_url?, embed_model?, credential?}. credential is a credential name.
+- reindex_embeddings: {}. Put this after a vectorized schema in the same batch.
+- invite_member: {email, role?}. role is a role id or name.
+- update_member: {member_id, role?, is_owner?}.
+- update_role: {id?, name, permissions: {flows, sequences, manageSpace}}.
+- create_agent_key: {name, role?}. The token is shown to the user once.
+- revoke_agent_key: {id}
+- update_tab_chrome: {icon_label}. Instance superadmin only.
 - upsert_event: {id?, name, type: time|external|simulated, event_package?: {timezone, combinator?, groups: [{is_time: "18:00", is_weekday?: [1-7], is_month?, is_date?}]}, sequences?: [id], recovery_sequences?: [id], enabled?: 1, external_package?: {filters, param_mappings, combinator}}. Weekday 1 is Monday. Put the schedule in groups. A note that says 6pm does not set the time field.
 - delete_event: {id}
 - upsert_console: {id?, name, trigger_kind?: ""|url|event, listen_url?, trigger_event_id?, document?: {views, activeViewId}}. views is an array of {id, name, kind: live|form, modules}. A form module puts its fields in config.fields.
@@ -63,6 +98,12 @@ Kinds and payloads:
 - delete_schema: {attributive_label}
 When the batch creates an event, seeds rows, or a console someone fills in, one propose_change call includes inputs: [{name, source: person|clock|external|simulated|seed, lands_as: console|time_event|external_event|simulated_event|execute_package}]. A person or a simulated control lands on a console. A clock lands on a time event. An outside system they have lands on an external event. An outside system they are only describing lands on a simulated event or a console. Invented starting rows land on execute_package. If they did not name a live source, use simulated or a console, not a time or external event.
 """.strip()
+
+_STEP_KINDS = ("http_step", "wait_step", "join_step", "operation_step")
+_NODE_LABELS = {"STEP", "SCHEMA", "INSTANCE"}
+_OPERATIONS = {"create", "read", "update", "delete"}
+_CONDITION_TYPES = {"null", "parameter", "cypher", "implicit", "query"}
+_CHAT_KEY_PROVIDERS = {"anthropic", "openai", "gemini"}
 
 
 _SCHEMA_VALUE_TYPES = {
@@ -169,6 +210,15 @@ def normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
         )
         payload["properties"] = _schema_properties(payload.get("properties") or payload.get("schemata"))
         payload["is_vectorized"] = bool(payload.get("is_vectorized"))
+    if kind == "upsert_query":
+        for key in ("attributive_label", "entry_step"):
+            if payload.get(key):
+                payload[key] = cypher_utils.normalize_attributive_label(str(payload.get(key) or ""))
+        if str(payload.get("kind") or "").strip().lower() == "sequence" and not payload.get("traversal"):
+            payload["traversal"] = "downstream"
+    if kind == "create_transition":
+        payload["from_step"] = cypher_utils.normalize_attributive_label(str(payload.get("from_step") or ""))
+        payload["to_step"] = cypher_utils.normalize_attributive_label(str(payload.get("to_step") or ""))
     item: dict[str, Any] = {
         "kind": kind,
         "summary": _summary(kind, payload, str(raw.get("summary") or "")),
@@ -393,6 +443,19 @@ def _require(principal: Principal, space_id: str, kind: str, payload: dict[str, 
     if kind == "upsert_query":
         auth.require_flow(principal, space_id, "create", "STEP")
         return
+    if kind == "create_transition":
+        auth.require_flow(principal, space_id, "create", "STEP")
+        return
+    if kind in SETTINGS_KINDS:
+        if kind == "update_tab_chrome":
+            if not principal.is_superadmin:
+                raise ValueError("tab chrome is limited to the instance superadmin")
+            return
+        auth.require_space_manage(principal, space_id)
+        return
+    if kind == "reindex_embeddings":
+        auth.require_space_manage(principal, space_id)
+        return
     if kind == "execute_package":
         operation = str(payload.get("operation") or "create").strip().lower()
         element = infer_node_label(payload)
@@ -413,12 +476,28 @@ def _require(principal: Principal, space_id: str, kind: str, payload: dict[str, 
     raise ValueError(f"Unknown change kind {kind!r}")
 
 
-def _string_list(value: Any, label: str) -> list[str]:
-    if value is None:
-        return []
-    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
-        raise ValueError(f"{label} must be an array of strings")
-    return [item for item in value if item.strip()]
+def _reject_authored_escape(payload: dict[str, Any]) -> None:
+    present = [key for key in ("cypher", "sqlite", "builder_config", "query") if key in payload]
+    if present:
+        names = ", ".join(present)
+        raise ValueError(
+            f"{names} is not a builder field. Describe operation, node_label, properties, "
+            "or entry_step instead."
+        )
+
+
+def _role_id(space_id: str, raw: Any) -> str | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    for role in rbac.list_roles(space_id):
+        if str(role.get("id") or "") == text or str(role.get("name") or "").lower() == text.lower():
+            return str(role["id"])
+    raise ValueError(f"role {text!r} was not found in this space")
+
+
+def _credential_names(space_id: str) -> set[str]:
+    return {str(row.get("name") or "") for row in credentials.list_credentials(space_id)}
 
 
 def validate_item(
@@ -447,6 +526,7 @@ def validate_item(
                     raise ValueError(f"Space name already exists: {sid!r}")
             item["preview"] = {"creates_space": sid}
         elif kind == "upsert_schema":
+            _reject_authored_escape(payload)
             label = str(payload.get("attributive_label") or "").strip()
             if not label:
                 raise ValueError("attributive_label is required")
@@ -461,30 +541,98 @@ def validate_item(
                 "is_vectorized": bool(payload.get("is_vectorized")),
             }
         elif kind == "upsert_query":
+            _reject_authored_escape(payload)
             if not str(payload.get("name") or "").strip():
                 raise ValueError("name is required")
-            cypher = _string_list(payload.get("cypher") or [], "cypher")
-            if payload.get("sqlite") is not None:
-                _string_list(payload.get("sqlite"), "sqlite")
             query_kind = str(payload.get("kind") or "operation").strip().lower()
             if query_kind not in ("operation", "sequence"):
                 raise ValueError("kind must be operation or sequence")
-            problem = cypher_utils.builder_query_problem(cypher, kind=query_kind)
-            if problem:
-                raise ValueError(problem)
+            payload["kind"] = query_kind
             if query_kind == "sequence":
+                if not str(payload.get("entry_step") or "").strip():
+                    raise ValueError("entry_step is required")
+                traversal = str(payload.get("traversal") or "downstream").strip().lower()
+                if traversal not in ("downstream", "single"):
+                    raise ValueError("traversal must be downstream or single")
                 conflict = spaces.sequence_name_conflict(
                     space_id, str(payload.get("name") or ""), exclude_id=str(payload.get("id") or "")
                 )
                 if conflict:
                     raise ValueError(f"A sequence named {conflict!r} already exists in this space")
+            else:
+                operation = str(payload.get("operation") or "").strip().lower()
+                node_label = str(payload.get("node_label") or "").strip().upper()
+                if operation not in _OPERATIONS:
+                    raise ValueError("operation must be create, read, update, or delete")
+                if node_label not in _NODE_LABELS:
+                    raise ValueError("node_label must be STEP, SCHEMA, or INSTANCE")
+                payload["operation"] = operation
+                payload["node_label"] = node_label
+                chosen = [name for name in _STEP_KINDS if payload.get(name)]
+                if len(chosen) > 1:
+                    raise ValueError(f"{', '.join(chosen)} are mutually exclusive")
+        elif kind == "create_transition":
+            if not str(payload.get("from_step") or "").strip() or not str(payload.get("to_step") or "").strip():
+                raise ValueError("from_step and to_step are required")
+            condition_type = str(payload.get("condition_type") or "null").strip().lower()
+            if condition_type not in _CONDITION_TYPES:
+                raise ValueError("condition_type must be null, parameter, cypher, implicit, or query")
+            payload["condition_type"] = condition_type
+        elif kind == "update_space":
+            name = str(payload.get("name") or "").strip()
+            if not name:
+                raise ValueError("name is required")
+            spaces.validate_space_name_input(name)
+        elif kind == "upsert_credential":
+            if "value" in payload or "secret" in payload or "api_key" in payload:
+                raise ValueError("do not send the secret. The user types it on the proposal.")
+            if not str(payload.get("name") or "").strip():
+                raise ValueError("credential name is required")
+        elif kind == "update_chat_model":
+            if payload.get("api_key"):
+                raise ValueError("do not send an API key. Name a credential that already exists.")
+            provider = str(payload.get("provider") or "").strip()
+            if provider and provider not in chat_store.CHAT_PROVIDERS:
+                raise ValueError("provider must be platform, anthropic, openai, gemini, or local_llm")
+            if provider in _CHAT_KEY_PROVIDERS:
+                credential_name = str(payload.get("credential_name") or "").strip()
+                if credential_name not in _credential_names(space_id):
+                    raise ValueError(
+                        "name an existing credential. Open the credentials tab to add a key first."
+                    )
+        elif kind == "update_embeddings":
+            if "enabled" not in payload:
+                raise ValueError("enabled is required")
+        elif kind == "reindex_embeddings":
+            pass
+        elif kind == "invite_member":
+            if not str(payload.get("email") or "").strip():
+                raise ValueError("email is required")
+            if payload.get("role") or payload.get("role_id"):
+                payload["role_id"] = _role_id(space_id, payload.get("role") or payload.get("role_id"))
+        elif kind == "update_member":
+            if not str(payload.get("member_id") or "").strip():
+                raise ValueError("member_id is required")
+            if payload.get("role") or payload.get("role_id"):
+                payload["role_id"] = _role_id(space_id, payload.get("role") or payload.get("role_id"))
+        elif kind == "update_role":
+            if not str(payload.get("name") or "").strip():
+                raise ValueError("role name is required")
+            if not isinstance(payload.get("permissions"), dict):
+                raise ValueError("permissions must be an object")
+        elif kind == "create_agent_key":
+            if not str(payload.get("name") or "").strip():
+                raise ValueError("name is required")
+            if payload.get("role") or payload.get("role_id"):
+                payload["role_id"] = _role_id(space_id, payload.get("role") or payload.get("role_id"))
+        elif kind == "revoke_agent_key":
+            if not str(payload.get("id") or "").strip():
+                raise ValueError("id is required")
+        elif kind == "update_tab_chrome":
+            if not isinstance(payload.get("icon_label"), str):
+                raise ValueError("icon_label is required")
         elif kind == "execute_package":
-            operation = str(payload.get("operation") or "create").strip().lower()
-            if operation not in ("create", "read", "update", "delete"):
-                raise ValueError("operation must be create, read, update, or delete")
-            _string_list(payload.get("cypher") or [], "cypher")
-            if payload.get("sqlite") is not None:
-                _string_list(payload.get("sqlite"), "sqlite")
+            raise ValueError("describe an operation with execute instead of execute_package")
         elif kind == "upsert_event":
             if not str(payload.get("name") or "").strip():
                 raise ValueError("event name is required")
@@ -582,43 +730,6 @@ def _ordered(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(items, key=lambda item: rank.get(item.get("kind"), len(rank)))
 
 
-def _apply_schema(space_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Materialize a SCHEMA node, its entities-table contract, and any property indexes."""
-    label = str(payload.get("attributive_label") or "").strip()
-    properties = payload.get("properties") if isinstance(payload.get("properties"), list) else []
-    holders = graph.attributive_label_owner_ids(space_id, label)
-    if holders:
-        raise ValueError(f"attributive_label {label!r} is already used by another STEP or SCHEMA")
-    schema_id = id_generator.generate_id()
-    graph.run_cypher_for_space(
-        space_id,
-        "CREATE (n:SCHEMA {id: $id, attributive_label: $attributive_label})",
-        {"id": schema_id, "attributive_label": label},
-    )
-    body: dict[str, Any] = {"schemata": [{"property_schema": prop} for prop in properties]}
-    if payload.get("is_vectorized"):
-        body["is_vectorized"] = True
-    conn = spaces.connect_sqlite_for_space(space_id)
-    try:
-        conn.execute(
-            "INSERT INTO entities (id, node_label, common_label, parameters, payload, creation_date, modified_date) "
-            "VALUES (?, 'SCHEMA', ?, '[]', ?, datetime('now'), datetime('now'))",
-            (schema_id, label, json.dumps(body)),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    spaces.append_space_attributive_labels(space_id, [label])
-    schema_update._apply_index_changes(
-        space_id,
-        label,
-        {},
-        {str(prop.get("name") or ""): prop for prop in properties},
-        False,
-    )
-    return {"id": schema_id, "attributive_label": label}
-
-
 def _apply_one(
     principal: Principal,
     space_id: str,
@@ -642,67 +753,94 @@ def _apply_one(
                 role_id=roles.get(rbac.ADMIN_ROLE_NAME),
             )
         return {"id": new_id}
-    if kind == "upsert_schema":
-        return _apply_schema(space_id, payload)
-    if kind == "upsert_query":
-        builder = payload.get("builder_config")
-        loop = payload.get("loop_config")
-        result = catalog.upsert_queries_catalog_row(
-            str(payload.get("id") or ""),
-            str(payload.get("name") or ""),
-            _string_list(payload.get("cypher") or [], "cypher"),
-            _string_list(payload.get("sqlite") or [], "sqlite"),
-            payload.get("parameters") if isinstance(payload.get("parameters"), list) else [],
-            kind=str(payload.get("kind") or "operation"),
-            operation=str(payload.get("operation") or "read"),
-            runtime_enabled=1 if payload.get("runtime_enabled", True) else 0,
-            author_selectable=1,
-            group_title=(str(payload.get("group_title") or "").strip() or None),
-            triggerable=1 if payload.get("triggerable", True) else 0,
-            builder_config=json.dumps(builder) if isinstance(builder, (dict, list)) else None,
-            description=str(payload.get("description") or ""),
-            loop_config=json.dumps(loop) if isinstance(loop, (dict, list)) else None,
+    if kind in AUTHORING_KINDS:
+        raise ValueError(f"{kind} is saved from the builder when the user accepts")
+    if kind == "update_space":
+        current = spaces.fetch_space_record(space_id)
+        endpoint = payload.get("endpoint") if "endpoint" in payload else current.get("endpoint")
+        updated = spaces.update_space(
+            space_id,
+            str(payload.get("name") or current.get("name") or ""),
+            (str(endpoint).strip() or None) if endpoint else None,
+            description=str(payload.get("description") or "") if "description" in payload else None,
+            set_description="description" in payload,
+            dev_mode=bool(payload.get("dev_mode")) if "dev_mode" in payload else None,
+            set_dev_mode="dev_mode" in payload,
         )
-        group = str(payload.get("group_title") or "").strip()
-        if group:
-            spaces.append_space_group(space_id, group)
-        saved_id = str(result.get("id") or payload.get("id") or "")
-        query_kind = str(payload.get("kind") or "operation").strip().lower()
-        if query_kind == "sequence":
-            operation_nav.register_sequence_labels(
-                space_id, _string_list(payload.get("cypher") or [], "cypher")
+        return {"id": str(updated.get("id") or space_id)}
+    if kind == "upsert_credential":
+        saved = credentials.upsert_credential(
+            space_id,
+            str(payload.get("name") or ""),
+            value=str(payload.get("value") or "") or None,
+            description=str(payload.get("description") or "") or None,
+        )
+        return {"id": str(saved.get("id") or saved.get("name") or "")}
+    if kind == "update_chat_model":
+        body = {
+            key: payload[key]
+            for key in (
+                "provider",
+                "model",
+                "credential_name",
+                "local_llm_base_url",
+                "local_llm_config_id",
+                "max_rounds",
             )
-        else:
-            operation_nav.publish_operation_sequence(space_id, saved_id)
-        return {"id": saved_id}
-    if kind == "execute_package":
-        operation = str(payload.get("operation") or "create").strip().lower()
-        cypher = _string_list(payload.get("cypher") or [], "cypher")
-        sqlite_stmts = _string_list(payload.get("sqlite") or [], "sqlite")
-        params = payload.get("cypher_params") if isinstance(payload.get("cypher_params"), dict) else {}
-        if operation == "create":
-            packages.execute_create_package(
-                space_id,
-                cypher,
-                sqlite_stmts,
-                params,
-                queries_catalog=payload.get("queries_catalog")
-                if isinstance(payload.get("queries_catalog"), dict)
-                else None,
-                attributive_labels=payload.get("attributive_labels")
-                if isinstance(payload.get("attributive_labels"), list)
-                else None,
-            )
-        else:
-            packages.execute_mutation_package(
-                space_id,
-                cypher,
-                sqlite_stmts,
-                params,
-                operation=operation,
-                declared=payload.get("parameters") if isinstance(payload.get("parameters"), list) else None,
-            )
-        return {"operation": operation}
+            if key in payload
+        }
+        saved = chat_store.set_chat_model(space_id, body)
+        return {"id": str(saved.get("provider") or "")}
+    if kind == "update_embeddings":
+        saved = embeddings.apply_space_config(
+            space_id,
+            enabled=bool(payload.get("enabled")),
+            provider=str(payload.get("provider")).strip() if payload.get("provider") is not None else None,
+            ollama_url=str(payload.get("ollama_url")).strip() if payload.get("ollama_url") is not None else None,
+            base_url=str(payload.get("base_url")).strip() if payload.get("base_url") is not None else None,
+            embed_model=str(payload.get("embed_model")).strip() if payload.get("embed_model") is not None else None,
+            credential=str(payload.get("credential")).strip() if payload.get("credential") is not None else None,
+        )
+        return {"id": str(saved.get("provider") or "")}
+    if kind == "reindex_embeddings":
+        saved = embeddings.reindex_space(space_id)
+        return {"id": space_id, "embedded": saved.get("embedded")}
+    if kind == "invite_member":
+        saved = rbac.invite_member(
+            space_id,
+            str(payload.get("email") or ""),
+            role_id=str(payload.get("role_id") or "") or None,
+        )
+        return {"id": str(saved.get("id") or "")}
+    if kind == "update_member":
+        saved = rbac.update_member(
+            space_id,
+            str(payload.get("member_id") or ""),
+            role_id=str(payload.get("role_id") or "") or None if payload.get("role_id") else None,
+            is_owner=bool(payload.get("is_owner")) if "is_owner" in payload else None,
+        )
+        return {"id": str(saved.get("id") or payload.get("member_id") or "")}
+    if kind == "update_role":
+        saved = rbac.upsert_role(
+            space_id,
+            str(payload.get("name") or ""),
+            payload.get("permissions") if isinstance(payload.get("permissions"), dict) else {},
+            role_id=str(payload.get("id") or "") or None,
+        )
+        return {"id": str(saved.get("id") or "")}
+    if kind == "create_agent_key":
+        saved = agent_keys.mint_key(
+            space_id,
+            str(payload.get("name") or ""),
+            role_id=str(payload.get("role_id") or "") or None,
+        )
+        return {"id": str(saved.get("id") or ""), "token": saved.get("token")}
+    if kind == "revoke_agent_key":
+        saved = agent_keys.revoke_key(space_id, str(payload.get("id") or ""))
+        return {"id": str(saved.get("id") or payload.get("id") or "")}
+    if kind == "update_tab_chrome":
+        branding.set_icon_label(str(payload.get("icon_label") or ""))
+        return {"id": "tab-chrome"}
     if kind == "upsert_event":
         saved = catalog.upsert_event(
             str(payload.get("id") or ""),
@@ -756,52 +894,139 @@ def _apply_one(
     raise ValueError(f"Unknown change kind {kind!r}")
 
 
+def _brief(item: dict[str, Any]) -> dict[str, Any]:
+    return {"kind": item.get("kind"), "summary": item.get("summary")}
+
+
+def _phase_of(kind: str) -> str:
+    if kind in SETTINGS_KINDS:
+        return "settings"
+    if kind in AUTHORING_KINDS:
+        return "authoring"
+    return "rest"
+
+
+def _inject_secret(item: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
+    if item.get("kind") != "upsert_credential":
+        return item
+    name = str(item["payload"].get("name") or "").strip()
+    value = secrets.get(name, "")
+    if not value:
+        return item
+    payload = dict(item["payload"])
+    payload["value"] = value
+    return {**item, "payload": payload}
+
+
 def apply_batch(
     principal: Principal,
     space_id: str,
     items: list[dict[str, Any]],
+    *,
+    phase: str = "complete",
+    authoring_applied: list[dict[str, Any]] | None = None,
+    authoring_failed: dict[str, Any] | None = None,
+    credential_secrets: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Validate every item, then apply. Validation failure writes nothing."""
+    """Validate, then apply one phase.
+
+    ``settings`` writes space settings and leaves builder items for the browser.
+    ``rest`` writes events, consoles, reindex, and deletes after the browser reports
+    what it saved. ``complete`` runs settings and then rest when the batch has no
+    builder items. A batch that still has builder items stops after settings.
+    """
+    secrets = credential_secrets or {}
+    if phase == "rest":
+        rest = _ordered([item for item in items if _phase_of(str(item.get("kind") or "")) == "rest"])
+        applied = [dict(entry) for entry in (authoring_applied or [])]
+        if authoring_failed:
+            return _finish(
+                principal,
+                space_id,
+                items,
+                applied=applied,
+                failed=authoring_failed,
+                not_applied=[_brief(item) for item in rest],
+                created_space_id=None,
+                phase="rest",
+                finished=True,
+            )
+        return _walk(
+            principal,
+            space_id,
+            items,
+            rest,
+            applied=applied,
+            secrets=secrets,
+            phase="rest",
+            finished=True,
+        )
+
     errors = validate_batch(principal, space_id, items)
     if errors:
         return {
             "ok": False,
+            "phase": "settings",
+            "finished": False,
             "validation_errors": errors,
             "applied": [],
             "failed": None,
-            "not_applied": [
-                {"kind": item.get("kind"), "summary": item.get("summary")} for item in items
-            ],
+            "not_applied": [_brief(item) for item in items],
+            "authoring_pending": [],
             "created_space_id": None,
+            "inputs": collect_inputs(items),
         }
-    ordered = _ordered(items)
-    applied: list[dict[str, Any]] = []
-    failed: dict[str, Any] | None = None
-    not_applied: list[dict[str, Any]] = []
-    created_space_id: str | None = None
-    for index, item in enumerate(ordered):
-        try:
-            result = _apply_one(principal, space_id, item)
-        except Exception as exc:
-            failed = {
-                "kind": item.get("kind"),
-                "summary": item.get("summary"),
-                "error": _error_text(exc)[:500],
-            }
-            not_applied = [
-                {"kind": pending.get("kind"), "summary": pending.get("summary")}
-                for pending in ordered[index + 1 :]
-            ]
-            break
-        entry = {
-            "kind": item.get("kind"),
-            "summary": item.get("summary"),
-            "id": result.get("id") if isinstance(result, dict) else None,
-        }
-        applied.append(entry)
-        if item.get("kind") == "create_space" and isinstance(result, dict) and result.get("id"):
-            created_space_id = str(result["id"])
-    if applied:
+    settings = _ordered([item for item in items if _phase_of(str(item.get("kind") or "")) == "settings"])
+    authoring = _ordered([item for item in items if _phase_of(str(item.get("kind") or "")) == "authoring"])
+    rest = _ordered([item for item in items if _phase_of(str(item.get("kind") or "")) == "rest"])
+    walked = _walk(
+        principal,
+        space_id,
+        items,
+        settings,
+        applied=[],
+        secrets=secrets,
+        phase="settings",
+        finished=not authoring and not rest,
+    )
+    if not walked["ok"]:
+        pending = [_brief(item) for item in authoring + rest]
+        walked["not_applied"] = list(walked["not_applied"]) + pending
+        walked["finished"] = True
+        return walked
+    walked["authoring_pending"] = [_brief(item) | {"payload": item.get("payload")} for item in authoring]
+    if phase == "settings" or authoring or not rest:
+        walked["finished"] = not authoring and not rest
+        if not walked["finished"]:
+            walked["phase"] = "settings"
+        return walked
+    rest_walk = _walk(
+        principal,
+        space_id,
+        items,
+        rest,
+        applied=list(walked["applied"]),
+        secrets=secrets,
+        phase="complete",
+        finished=True,
+        created_space_id=walked.get("created_space_id"),
+    )
+    return rest_walk
+
+
+def _finish(
+    principal: Principal,
+    space_id: str,
+    items: list[dict[str, Any]],
+    *,
+    applied: list[dict[str, Any]],
+    failed: dict[str, Any] | None,
+    not_applied: list[dict[str, Any]],
+    created_space_id: str | None,
+    phase: str,
+    finished: bool,
+) -> dict[str, Any]:
+    if applied and finished:
         catalog.record_audit(
             space_id,
             [],
@@ -815,10 +1040,68 @@ def apply_batch(
         )
     return {
         "ok": failed is None,
+        "phase": phase,
+        "finished": finished,
         "validation_errors": [],
         "applied": applied,
         "failed": failed,
         "not_applied": not_applied,
+        "authoring_pending": [],
         "created_space_id": created_space_id,
         "inputs": collect_inputs(items),
     }
+
+
+def _walk(
+    principal: Principal,
+    space_id: str,
+    items: list[dict[str, Any]],
+    ordered: list[dict[str, Any]],
+    *,
+    applied: list[dict[str, Any]],
+    secrets: dict[str, str],
+    phase: str,
+    finished: bool,
+    created_space_id: str | None = None,
+    pending_not_applied: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    failed: dict[str, Any] | None = None
+    not_applied: list[dict[str, Any]] = []
+    for index, item in enumerate(ordered):
+        try:
+            result = _apply_one(principal, space_id, _inject_secret(item, secrets))
+        except Exception as exc:
+            failed = {
+                "kind": item.get("kind"),
+                "summary": item.get("summary"),
+                "error": _error_text(exc)[:500],
+            }
+            not_applied = [_brief(pending) for pending in ordered[index + 1 :]]
+            finished = True
+            break
+        entry = {
+            "kind": item.get("kind"),
+            "summary": item.get("summary"),
+            "id": result.get("id") if isinstance(result, dict) else None,
+        }
+        if isinstance(result, dict) and result.get("token"):
+            entry["token"] = result["token"]
+        applied.append(entry)
+        if item.get("kind") == "create_space" and isinstance(result, dict) and result.get("id"):
+            created_space_id = str(result["id"])
+        if item.get("kind") == "update_space" and isinstance(result, dict) and result.get("id"):
+            if str(result["id"]) != space_id:
+                created_space_id = str(result["id"])
+    if pending_not_applied and failed is None:
+        not_applied = pending_not_applied
+    return _finish(
+        principal,
+        space_id,
+        items,
+        applied=applied,
+        failed=failed,
+        not_applied=not_applied,
+        created_space_id=created_space_id,
+        phase=phase,
+        finished=finished,
+    )

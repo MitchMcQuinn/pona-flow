@@ -67,9 +67,9 @@ jobs:
       - name: Bundle self-hosting files
         run: |
           set -euo pipefail
-          mkdir -p dist/pona-flow-selfhost/deploy
+          mkdir -p dist/pona-flow-selfhost
           cp docker-compose.yml .env.docker.example dist/pona-flow-selfhost/
-          cp deploy/Caddyfile dist/pona-flow-selfhost/deploy/
+          cp -R deploy dist/pona-flow-selfhost/deploy
           cp Docs/SELF-HOSTING.md dist/pona-flow-selfhost/README.md
           (cd dist && tar czf pona-flow-selfhost.tar.gz pona-flow-selfhost)
 

@@ -36,6 +36,7 @@ interface ChatColumnProps {
   onNewThread: () => void;
   onAccept: () => void;
   onReject: () => void;
+  acceptBlocked?: string | null;
   onClearQueue: () => void;
 }
 
@@ -57,6 +58,7 @@ export function ChatColumn({
   onNewThread,
   onAccept,
   onReject,
+  acceptBlocked = null,
   onClearQueue
 }: ChatColumnProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -255,12 +257,15 @@ export function ChatColumn({
                     this instance already has its workspace, so this change cannot be applied.
                   </p>
                 ) : null}
+                {acceptBlocked ? <p className="builderCheckMsg error">{acceptBlocked}</p> : null}
                 <div className="buttonRow">
                   <button
                     type="button"
                     className="btnPrimary"
                     disabled={
-                      batchBusy || message.batch.items.some((item) => item.kind === "create_space")
+                      batchBusy ||
+                      Boolean(acceptBlocked) ||
+                      message.batch.items.some((item) => item.kind === "create_space")
                     }
                     onClick={onAccept}
                   >

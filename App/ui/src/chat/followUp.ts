@@ -9,7 +9,9 @@ export function isFollowUp(content: string): boolean {
 
 /** Prompt for the turn that runs after a batch is applied. The user does not see this bubble. */
 export function followUpPrompt(result: ChatBatchResult): string {
-  const applied = result.applied.map((item) => item.summary || item.kind).filter(Boolean);
+  const applied = result.applied
+    .map((item) => item.summary || item.kind)
+    .filter((text) => Boolean(text) && !text.startsWith("stg_"));
   const lines = [
     FOLLOW_UP_MARK,
     "The user accepted the proposed changes and they have been applied.",
@@ -41,5 +43,5 @@ export function followUpPrompt(result: ChatBatchResult): string {
       "Continue the conversation. Say what landed, then ask one question or offer one concrete next step. Reply in text only. Do not call a tool."
     );
   }
-  return lines.join("\n");
+  return lines.join("\n").replace(/stg_[A-Za-z0-9_-]+/g, "[token hidden]");
 }

@@ -72,10 +72,21 @@ admin. There is nothing else to configure: the app is already pointed at the bun
 
 ### Upgrade
 
+Open **Settings → Update** and choose **Update locally**. That pulls
+`ghcr.io/mitchmcquinn/pona-flow:main` and restarts the app container. The compose file
+runs a small updater next to the app so this works on the machine where pona flow is
+running. The updater mounts the Docker socket and only runs `docker compose pull` and
+`up` for the app container. Your data volumes stay as they are.
+
+The same step from a terminal:
+
 ```bash
 docker compose pull
 docker compose up -d
 ```
+
+The first time you pick up a compose file that includes the updater, run that command
+once so the updater container is created. After that, the settings menu can do it.
 
 Fly self-host (after `scripts/fly-setup.sh`):
 
@@ -83,12 +94,12 @@ Fly self-host (after `scripts/fly-setup.sh`):
 fly deploy --app YOUR_APP --image ghcr.io/mitchmcquinn/pona-flow:main
 ```
 
-Every push to `main` publishes that tag. Instance admins can also open the gear menu →
-**Update to latest main** when `FLY_API_TOKEN` was saved at setup (or later in that menu).
+Every push to `main` publishes that tag. The compose file tracks `main`. Set
+`PONA_FLOW_VERSION` in `.env` (for example `0.1.0`) to stay on a numbered release.
+On Fly, instance admins can roll forward from the same menu when a deploy token is saved.
 
 Catalog schema migrations run automatically at startup. Your data is in the `pona-data`
-and `neo4j-data` volumes and is untouched by image upgrades. Pin a version with
-`PONA_FLOW_VERSION=0.1.0` in `.env` if you do not want `latest`.
+and `neo4j-data` volumes and is untouched by image upgrades.
 
 ### Back up
 

@@ -128,10 +128,12 @@ class FlyClient:
         )
 
     def create_volume(self, app: str, region: str, size_gb: int = 1) -> str:
+        from .machines import VOLUME_NAME
+
         payload = self._json(
             "POST",
             f"{MACHINES_URL}/apps/{app}/volumes",
-            {"name": "pona_data", "region": region, "size_gb": size_gb},
+            {"name": VOLUME_NAME, "region": region, "size_gb": size_gb},
         )
         volume_id = ""
         if isinstance(payload, dict):

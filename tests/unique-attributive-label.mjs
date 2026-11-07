@@ -2,7 +2,11 @@
  * nextUniqueAttributiveLabel: suffix collision when a STEP attributive_label is taken.
  */
 import assert from "node:assert/strict";
-import { nextUniqueAttributiveLabel, shouldRetargetOperationWrap } from "../App/authoring/src/uniqueAttributiveLabel.ts";
+import {
+  nextUniqueAttributiveLabel,
+  shouldRetargetOperationWrap,
+  stepWrapBaseName,
+} from "../App/authoring/src/uniqueAttributiveLabel.ts";
 
 assert.equal(nextUniqueAttributiveLabel("FOO", new Set()), "FOO", "unused base is kept");
 assert.equal(
@@ -22,6 +26,14 @@ assert.equal(
 );
 assert.equal(nextUniqueAttributiveLabel("  FOO  ", new Set(["FOO"])), "FOO1", "trims base name");
 assert.equal(nextUniqueAttributiveLabel("", new Set(["FOO"])), "", "empty base stays empty");
+assert.equal(stepWrapBaseName("Create customer", ["customer_record"]), "Create customer");
+assert.equal(stepWrapBaseName("entity", ["entity"]), "create_entity");
+assert.equal(stepWrapBaseName("ENTITY", ["entity"]), "create_ENTITY");
+assert.equal(
+  stepWrapBaseName("entity", ["entity", "create_entity"]),
+  "create_entity1",
+  "suffixes when create_<label> is also reserved"
+);
 
 assert.equal(
   shouldRetargetOperationWrap({

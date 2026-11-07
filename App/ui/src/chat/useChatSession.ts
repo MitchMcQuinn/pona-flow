@@ -10,6 +10,7 @@ import {
   streamChatTurn,
   updateChatStackItem
 } from "../services/api";
+import { applyChatIntents, isChatAuthoringKind, previewChatIntent } from "@pona-flow/authoring";
 import { followUpPrompt } from "./followUp";
 import { isInsightKind, resolveInsight, visibleCanvasId, type InsightRequest } from "./insight";
 import type { ChatMessage, ChatStackItem, ChatThreadSummary } from "./types";
@@ -36,6 +37,7 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
   const [turnStatus, setTurnStatus] = useState<"idle" | "running">("idle");
   const [insight, setInsight] = useState<InsightRequest | null>(null);
   const threadIdRef = useRef<string | null>(null);
+  const secretsRef = useRef<Record<string, string>>({});
   const openerRef = useRef<{ spaceId: string; prompt: string } | null>(null);
   threadIdRef.current = threadId;
   const onAppliedRef = useRef(onApplied);
@@ -262,13 +264,59 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     }
   }
 
+  function reportBatch(result: Awaited<ReturnType<typeof acceptChatBatch>>) {
+    if (result.validation_errors?.length) {
+      setError(result.validation_errors.join(" "));
+      return;
+    }
+    if (!result.ok && result.failed) {
+      const skipped = result.not_applied.map((item) => item.summary || item.kind).join(", ");
+      setError(
+        `${result.failed.summary || result.failed.kind} failed: ${result.failed.error}${
+          skipped ? `. Not applied: ${skipped}` : ""
+        }`
+      );
+    }
+  }
+
+  async function continueAfter(result: Awaited<ReturnType<typeof acceptChatBatch>>) {
+    const prompt = followUpPrompt(result);
+    if (result.created_space_id) {
+      if (queued) await flushQueue();
+      else openerRef.current = { spaceId: result.created_space_id, prompt };
+      onSpaceCreatedRef.current?.(result.created_space_id);
+      return;
+    }
+    onAppliedRef.current?.();
+    if (queued) await flushQueue();
+    else if (streaming && spaceId) openerRef.current = { spaceId, prompt };
+    else await send(prompt, { bypassPending: true, hidden: true });
+  }
+
+  function setCredentialSecret(name: string, value: string) {
+    secretsRef.current = { ...secretsRef.current, [name]: value };
+  }
+
+  const acceptBlocked = useMemo(() => {
+    for (const message of messages) {
+      if (message.batch?.status !== "pending") continue;
+      for (const item of message.batch.items) {
+        if (!isChatAuthoringKind(item.kind)) continue;
+        try {
+          previewChatIntent(item);
+        } catch (caught) {
+          return caught instanceof Error ? caught.message : "this configuration cannot be opened in the builder";
+        }
+      }
+    }
+    return null;
+  }, [messages]);
+
   async function accept() {
+    const secrets = secretsRef.current;
     if (!spaceId || !threadIdRef.current) return;
-    const proposesAnotherSpace = messages.some((message) =>
-      message.batch?.status === "pending"
-        ? message.batch.items.some((item) => item.kind === "create_space")
-        : false
-    );
+    const pendingBatch = messages.find((message) => message.batch?.status === "pending")?.batch;
+    const proposesAnotherSpace = pendingBatch?.items.some((item) => item.kind === "create_space") ?? false;
     if (proposesAnotherSpace) {
       setError("This instance already has its workspace.");
       return;
@@ -276,31 +324,28 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     setBatchBusy(true);
     setError(null);
     try {
-      const result = await acceptChatBatch(spaceId, threadIdRef.current);
-      await reloadOpenThread();
-      if (result.validation_errors?.length) {
-        setError(result.validation_errors.join(" "));
+      const settings = await acceptChatBatch(spaceId, threadIdRef.current, {
+        phase: "settings",
+        credential_secrets: secrets
+      });
+      if (settings.validation_errors?.length || !settings.ok || settings.finished) {
+        await reloadOpenThread();
+        reportBatch(settings);
+        if (settings.finished) await continueAfter(settings);
         return;
       }
-      if (!result.ok && result.failed) {
-        const skipped = result.not_applied.map((item) => item.summary || item.kind).join(", ");
-        setError(
-          `${result.failed.summary || result.failed.kind} failed: ${result.failed.error}${
-            skipped ? `. Not applied: ${skipped}` : ""
-          }`
-        );
-      }
-      const prompt = followUpPrompt(result);
-      if (result.created_space_id) {
-        if (queued) await flushQueue();
-        else openerRef.current = { spaceId: result.created_space_id, prompt };
-        onSpaceCreatedRef.current?.(result.created_space_id);
-      } else {
-        onAppliedRef.current?.();
-        if (queued) await flushQueue();
-        else if (streaming) openerRef.current = { spaceId, prompt };
-        else await send(prompt, { bypassPending: true, hidden: true });
-      }
+      const authoringItems = (pendingBatch?.items ?? []).filter((item) => isChatAuthoringKind(item.kind));
+      const authoring = authoringItems.length
+        ? await applyChatIntents(spaceId, authoringItems)
+        : { ok: true, applied: [], failed: null, not_applied: [] };
+      const result = await acceptChatBatch(spaceId, threadIdRef.current, {
+        phase: "rest",
+        authoring_applied: authoring.applied,
+        authoring_failed: authoring.failed
+      });
+      await reloadOpenThread();
+      reportBatch(result);
+      if (result.finished !== false) await continueAfter(result);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to apply the change");
     } finally {
@@ -370,6 +415,8 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     selectMessage,
     selectRead,
     accept,
+    acceptBlocked,
+    setCredentialSecret,
     reject,
     recordStackItem,
     patchStackItem

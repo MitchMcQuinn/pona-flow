@@ -1,4 +1,4 @@
-"""Instance-admin endpoints: changelog vs GitHub main, Fly self-update."""
+"""Instance-admin endpoints: changelog vs GitHub main, local or Fly self-update."""
 
 from __future__ import annotations
 

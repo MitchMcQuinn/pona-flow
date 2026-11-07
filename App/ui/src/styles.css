@@ -1608,6 +1608,20 @@ button:focus-visible {
   width: auto;
 }
 
+.instanceUpdateFly {
+  margin-top: 4px;
+}
+
+.instanceUpdateFly summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.instanceUpdateCmd {
+  font-size: 12px;
+}
+
 .navUserLogoutBtn {
   align-self: flex-start;
   width: auto;

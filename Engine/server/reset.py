@@ -2,9 +2,11 @@
 Reset a space's authored data, or return the whole instance to first-run setup.
 
 Space reset clears the graph that space is connected to and the SQLite rows that
-belong to it (entities, sequences, events, consoles, chat, in-flight runs). The
-space row stays, and so do members, roles, agent keys, credential metadata, chat
-and embedding settings, and the audit log.
+belong to it (entities, sequences, events, consoles, chat, in-flight runs). Catalog
+rows tied to this space's labels go, and so do catalog rows that are not on any
+space's label list. Rows tied only to another space's labels stay. The space row
+stays, and so do members, roles, agent keys, credential metadata, chat and
+embedding settings, and the audit log.
 
 Factory reset does that for every space, then deletes accounts, sessions, and
 catalog rows and restores the built-in system queries. With no local account
@@ -212,13 +214,15 @@ def _wipe_space_entities(space_id: str, labels: list[str]) -> int:
             conn.commit()
             return int(cur.rowcount or 0)
         names = _label_set(labels)
-        if not names:
-            return 0
-        ids = [
-            str(row[0])
-            for row in conn.execute("SELECT id, common_label FROM entities")
-            if cypher_utils.normalize_attributive_label(row[1]) in names
-        ]
+        others: set[str] = set()
+        for sid, sid_labels in _labels_by_space().items():
+            if sid != space_id:
+                others |= sid_labels
+        ids = []
+        for row in conn.execute("SELECT id, common_label FROM entities"):
+            normalized = cypher_utils.normalize_attributive_label(row[1])
+            if normalized in names or normalized not in others:
+                ids.append(str(row[0]))
         removed = _delete_ids(conn, "entities", ids)
         conn.commit()
         return removed
@@ -258,27 +262,63 @@ def _wipe_space_catalog(space_id: str, query_ids: list[str]) -> dict[str, int]:
         conn.close()
 
 
-def _query_ids_for_space(space_id: str, labels: list[str]) -> list[str]:
-    """Non-system queries this space owns, collected before its entities are deleted.
+def _labels_by_space() -> dict[str, set[str]]:
+    found: dict[str, set[str]] = {}
+    for sid in _space_ids():
+        try:
+            found[sid] = _label_set(spaces.fetch_space_labels(sid))
+        except (ValueError, KeyError, sqlite3.Error, OSError):
+            found[sid] = set()
+    return found
 
-    The queries table is global. A row belongs to this space when its Cypher names
-    one of the space's attributive labels, or a STEP entity in this space points at
-    it through ``payload.query_id``. ``kind = system`` rows are the built-in primitives
-    and are never removed here.
+
+def _query_ids_for_entities(labels: set[str] | None) -> set[str]:
+    """Query ids named by entity payloads.
+
+    ``labels is None`` takes every entity. Otherwise only entities whose
+    common_label is in ``labels``.
     """
-    names = _label_set(labels)
-    dedicated = _sqlite_is_dedicated(space_id)
     extra: set[str] = set()
-    entity_conn = config.connect_sqlite(spaces.sqlite_path_for_space(space_id))
-    try:
-        if sqlite_util.table_exists(entity_conn, "entities"):
+    paths = {Path(config.catalog_sqlite_path()).resolve()}
+    for sid in _space_ids():
+        try:
+            paths.add(Path(spaces.sqlite_path_for_space(sid)).resolve())
+        except (ValueError, KeyError, OSError):
+            continue
+    for path in paths:
+        entity_conn = config.connect_sqlite(path)
+        try:
+            if not sqlite_util.table_exists(entity_conn, "entities"):
+                continue
             for common_label, payload in entity_conn.execute(
                 "SELECT common_label, payload FROM entities"
             ):
-                if dedicated or cypher_utils.normalize_attributive_label(common_label) in names:
-                    extra.update(_payload_query_ids(payload))
-    finally:
-        entity_conn.close()
+                normalized = cypher_utils.normalize_attributive_label(common_label)
+                if labels is not None and normalized not in labels:
+                    continue
+                extra.update(_payload_query_ids(payload))
+        finally:
+            entity_conn.close()
+    return extra
+
+
+def _query_ids_for_space(space_id: str, labels: list[str]) -> list[str]:
+    """Non-system queries removed by resetting ``space_id``.
+
+    The queries table is global. A row is removed when its Cypher names one of
+    this space's attributive labels, a STEP entity of this space points at it,
+    or it is not on any space's label list. A row that only names another
+    space's labels stays. ``kind = system`` rows are the built-in primitives
+    and are never removed here.
+    """
+    names = _label_set(labels)
+    registered = _labels_by_space()
+    others: set[str] = set()
+    for sid, sid_labels in registered.items():
+        if sid != space_id:
+            others |= sid_labels
+    owned_here = _query_ids_for_entities(names)
+    owned_elsewhere = _query_ids_for_entities(others) - owned_here
     conn = config.connect_sqlite(config.catalog_sqlite_path())
     try:
         if not sqlite_util.table_exists(conn, "queries"):
@@ -288,12 +328,19 @@ def _query_ids_for_space(space_id: str, labels: list[str]) -> list[str]:
             if str(row[1] or "") == "system":
                 continue
             qid = str(row[0])
+            if qid in owned_elsewhere and qid not in owned_here:
+                continue
             found = {
                 cypher_utils.normalize_attributive_label(match)
                 for match in cypher_utils.ATTR_LABEL_RE.findall(str(row[2] or ""))
             }
-            if qid in extra or (names and found & names):
+            found.discard("")
+            if qid in owned_here or (names and found & names):
                 ids.append(qid)
+                continue
+            if found & others:
+                continue
+            ids.append(qid)
         return ids
     finally:
         conn.close()

@@ -6,6 +6,13 @@ from typing import Any
 
 from .util import HOSTED_IMAGE, SELF_HOSTED_IMAGE
 
+# Fly Launch only restarts machines that carry this metadata. Without it,
+# `fly secrets set` stages the values, finds no Launch machine, and stops with
+# "app has no current release" instead of rolling the new secrets onto the VM.
+VOLUME_NAME = "pona_data"
+FLY_PLATFORM_VERSION = "v2"
+FLY_PROCESS_GROUP = "app"
+
 
 def service_mode(awake: bool, suspended: bool = False) -> str:
     if suspended:
@@ -104,6 +111,10 @@ def machine_config(
         "image": HOSTED_IMAGE if hosted else SELF_HOSTED_IMAGE,
         "guest": guest(hosted),
         "env": public_env(app, public_url, fleet_url, instance_id),
-        "mounts": [{"volume": volume_id, "path": "/data"}],
+        "metadata": {
+            "fly_platform_version": FLY_PLATFORM_VERSION,
+            "fly_process_group": FLY_PROCESS_GROUP,
+        },
+        "mounts": [{"volume": volume_id, "path": "/data", "name": VOLUME_NAME}],
         "services": [http_service(mode)],
     }

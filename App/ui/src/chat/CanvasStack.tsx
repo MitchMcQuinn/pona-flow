@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
+import { isChatAuthoringKind, previewChatIntent } from "@pona-flow/authoring";
 import { AgentFace } from "./AgentFace";
 import { ConsoleHost } from "../consoles/ConsoleHost";
+import { SpaceConfigPanel, type SpaceConfigPanelProps } from "../components/space/SpaceConfigPanel";
 import { runSequenceExecution } from "../services/api";
 import type { EventSummary, SequenceSummary } from "../state/types";
 import { ConfigPreview } from "./ConfigPreview";
@@ -22,6 +24,9 @@ interface CanvasStackProps {
   onSelect: (id: string) => void;
   onAccept: () => void;
   onReject: () => void;
+  acceptBlocked?: string | null;
+  onCredentialSecret?: (name: string, value: string) => void;
+  settings?: Omit<SpaceConfigPanelProps, "initialTab" | "showClose"> | null;
   onRecord: (item: {
     kind: ChatStackItem["kind"];
     title: string;
@@ -42,6 +47,9 @@ export function CanvasStack({
   onSelect,
   onAccept,
   onReject,
+  acceptBlocked = null,
+  onCredentialSecret,
+  settings = null,
   onRecord,
   onPatch
 }: CanvasStackProps) {
@@ -98,6 +106,9 @@ export function CanvasStack({
                 batchBusy={batchBusy}
                 onAccept={onAccept}
                 onReject={onReject}
+                acceptBlocked={acceptBlocked}
+                onCredentialSecret={onCredentialSecret}
+                settings={settings}
                 onRecord={onRecord}
                 onPatch={onPatch}
               />
@@ -117,6 +128,9 @@ function CanvasItem({
   batchBusy,
   onAccept,
   onReject,
+  acceptBlocked,
+  onCredentialSecret,
+  settings,
   onRecord,
   onPatch
 }: {
@@ -127,6 +141,9 @@ function CanvasItem({
   batchBusy: boolean;
   onAccept: () => void;
   onReject: () => void;
+  acceptBlocked: string | null;
+  onCredentialSecret?: (name: string, value: string) => void;
+  settings: Omit<SpaceConfigPanelProps, "initialTab" | "showClose"> | null;
   onRecord: CanvasStackProps["onRecord"];
   onPatch: CanvasStackProps["onPatch"];
 }) {
@@ -157,6 +174,19 @@ function CanvasItem({
         batchBusy={batchBusy}
         onAccept={onAccept}
         onReject={onReject}
+        acceptBlocked={acceptBlocked}
+        onCredentialSecret={onCredentialSecret}
+      />
+    );
+  }
+  if (item.kind === "settings") {
+    if (!settings) return <p className="muted">open a space before changing its settings.</p>;
+    const tab = String(item.payload.tab || "settings");
+    return (
+      <SpaceConfigPanel
+        {...settings}
+        initialTab={isSettingsTab(tab) ? tab : "settings"}
+        showClose={false}
       />
     );
   }
@@ -178,7 +208,9 @@ function ProposalList({
   sequences,
   batchBusy,
   onAccept,
-  onReject
+  onReject,
+  acceptBlocked,
+  onCredentialSecret
 }: {
   spaceId: string;
   item: ChatStackItem;
@@ -186,10 +218,15 @@ function ProposalList({
   batchBusy: boolean;
   onAccept: () => void;
   onReject: () => void;
+  acceptBlocked: string | null;
+  onCredentialSecret?: (name: string, value: string) => void;
 }) {
   const status = String(item.payload.status || "pending");
   const proposalItems = Array.isArray(item.payload.items) ? (item.payload.items as ChatBatchItem[]) : [];
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [secrets, setSecrets] = useState<Record<string, string>>({});
+  const compileError = proposalItems.map(intentProblem).find((problem): problem is string => Boolean(problem)) ?? null;
+  const blocked = compileError || acceptBlocked;
   return (
     <div className="canvasProposal">
       <h2>proposed changes</h2>
@@ -197,6 +234,7 @@ function ProposalList({
       <ul className="proposalList">
         {proposalItems.map((proposal, index) => {
           const open = openIndex === index;
+          const problem = intentProblem(proposal);
           return (
             <li key={`${proposal.kind}-${index}`} className="proposalItem">
               <button
@@ -208,7 +246,20 @@ function ProposalList({
                 <span>{proposal.summary || proposal.kind}</span>
                 <span className="proposalKind">{open ? "hide" : "show"} configuration</span>
               </button>
-              {open ? <ConfigPreview spaceId={spaceId} item={proposal} sequences={sequences} /> : null}
+              {problem ? <p className="builderCheckMsg error">{problem}</p> : null}
+              {open ? (
+                <ConfigPreview
+                  spaceId={spaceId}
+                  item={proposal}
+                  sequences={sequences}
+                  secret={secrets[String(proposal.payload?.name || "")] || ""}
+                  onSecret={(value) => {
+                    const name = String(proposal.payload?.name || "");
+                    setSecrets((current) => ({ ...current, [name]: value }));
+                    if (name) onCredentialSecret?.(name, value);
+                  }}
+                />
+              ) : null}
             </li>
           );
         })}
@@ -216,17 +267,22 @@ function ProposalList({
       {status !== "pending" && item.payload.result ? (
         <p className="muted">{resultSentence(item.payload.result)}</p>
       ) : null}
-      {status === "pending" && proposalItems.some((item) => item.kind === "create_space") ? (
+      {status === "pending" && proposalItems.some((entry) => entry.kind === "create_space") ? (
         <p className="muted">
           this instance already has its workspace, so this change cannot be applied.
         </p>
       ) : null}
+      {status !== "pending" && item.payload.result ? <AgentKeyNotice result={item.payload.result} /> : null}
       {status === "pending" ? (
         <div className="buttonRow">
           <button
             type="button"
             className="btnPrimary"
-            disabled={batchBusy || proposalItems.some((item) => item.kind === "create_space")}
+            disabled={
+              batchBusy ||
+              Boolean(blocked) ||
+              proposalItems.some((entry) => entry.kind === "create_space")
+            }
             onClick={onAccept}
           >
             accept
@@ -236,6 +292,53 @@ function ProposalList({
           </button>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+const SETTINGS_TABS = [
+  "settings",
+  "chat",
+  "users",
+  "agents",
+  "credentials",
+  "embeddings",
+  "templates",
+  "audit",
+  "account",
+  "update"
+] as const;
+
+function isSettingsTab(tab: string): tab is (typeof SETTINGS_TABS)[number] {
+  return (SETTINGS_TABS as readonly string[]).includes(tab);
+}
+
+function intentProblem(item: ChatBatchItem): string | null {
+  if (!isChatAuthoringKind(item.kind)) return null;
+  try {
+    previewChatIntent(item);
+    return null;
+  } catch (caught) {
+    return caught instanceof Error ? caught.message : "this configuration cannot be opened in the builder";
+  }
+}
+
+function AgentKeyNotice({ result }: { result: unknown }) {
+  if (!result || typeof result !== "object" || !("applied" in result)) return null;
+  const applied = (result as { applied?: unknown }).applied;
+  if (!Array.isArray(applied)) return null;
+  const tokens = applied.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || !("token" in entry)) return [];
+    const token = (entry as { token?: unknown }).token;
+    return typeof token === "string" && token ? [token] : [];
+  });
+  if (tokens.length === 0) return null;
+  return (
+    <div className="canvasField">
+      <p>agent key, shown once. copy it before you leave this proposal.</p>
+      {tokens.map((token) => (
+        <code key={token}>{token}</code>
+      ))}
     </div>
   );
 }

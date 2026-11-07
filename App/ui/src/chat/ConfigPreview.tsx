@@ -1,6 +1,6 @@
 import { Component, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { newQuery, type Operation } from "@pona-flow/authoring";
+import { newQuery, previewChatIntent, type Operation } from "@pona-flow/authoring";
 import { BuilderPanel } from "../components/builder/BuilderPanel";
 import { EventBuilder } from "../components/events/EventBuilder";
 import { eventPreviewFrom } from "./eventPreviewDocument";
@@ -15,15 +15,23 @@ interface ConfigPreviewProps {
   spaceId: string;
   item: ChatBatchItem;
   sequences: SequenceSummary[];
+  secret?: string;
+  onSecret?: (value: string) => void;
 }
 
 /** Read-only config for one proposed change, with notes sitting on the fields they describe. */
-export function ConfigPreview({ spaceId, item, sequences }: ConfigPreviewProps) {
+export function ConfigPreview({ spaceId, item, sequences, secret, onSecret }: ConfigPreviewProps) {
   const pins = item.pins ?? [];
   return (
     <AnnotatedConfig note={item.note} pins={pins}>
       <PreviewBoundary resetKey={`${item.kind}:${item.summary}`}>
-        <KindPreview spaceId={spaceId} item={item} sequences={sequences} />
+        <KindPreview
+          spaceId={spaceId}
+          item={item}
+          sequences={sequences}
+          secret={secret}
+          onSecret={onSecret}
+        />
       </PreviewBoundary>
     </AnnotatedConfig>
   );
@@ -77,8 +85,32 @@ export function ConsoleConfigPreview({
   );
 }
 
-function KindPreview({ spaceId, item, sequences }: ConfigPreviewProps) {
+function KindPreview({ spaceId, item, sequences, secret, onSecret }: ConfigPreviewProps) {
   const payload = item.payload || {};
+  if (item.kind === "upsert_query" || item.kind === "upsert_schema" || item.kind === "create_transition") {
+    return <IntentPreview spaceId={spaceId} item={item} />;
+  }
+  if (item.kind === "upsert_credential") {
+    return (
+      <>
+        <ConfigPanel title="credential">
+          <ConfigField target="name" label="name" value={text(payload.name)} />
+          {text(payload.description) ? (
+            <ConfigField target="description" label="description" value={text(payload.description)} />
+          ) : null}
+        </ConfigPanel>
+        <label className="canvasField">
+          <span>secret</span>
+          <input
+            type="password"
+            value={secret || ""}
+            autoComplete="off"
+            onChange={(event) => onSecret?.(event.target.value)}
+          />
+        </label>
+      </>
+    );
+  }
   if (item.kind === "upsert_event") {
     return (
       <EventConfig
@@ -89,12 +121,6 @@ function KindPreview({ spaceId, item, sequences }: ConfigPreviewProps) {
         pins={item.pins}
       />
     );
-  }
-  if (item.kind === "upsert_query") {
-    return <QueryConfig spaceId={spaceId} payload={payload} />;
-  }
-  if (item.kind === "upsert_schema") {
-    return <SchemaConfig payload={payload} />;
   }
   if (item.kind === "upsert_console") {
     const document = asObject(payload.document) ?? {};
@@ -155,6 +181,34 @@ function EventConfig({
   );
 }
 
+function IntentPreview({ spaceId, item }: { spaceId: string; item: ChatBatchItem }) {
+  let error = "";
+  let compiled: ReturnType<typeof previewChatIntent> = null;
+  try {
+    compiled = previewChatIntent(item);
+  } catch (caught) {
+    error = caught instanceof Error ? caught.message : "this configuration cannot be opened in the builder";
+  }
+  if (error || !compiled) {
+    return (
+      <ConfigPanel title={item.summary || item.kind}>
+        <p className="builderCheckMsg error">{error || "this configuration cannot be opened in the builder"}</p>
+      </ConfigPanel>
+    );
+  }
+  return (
+    <BuilderPanel
+      spaceId={spaceId}
+      createSequenceMode={compiled.sequence}
+      preview={{
+        query: compiled.query,
+        name: compiled.name,
+        description: compiled.description || undefined
+      }}
+    />
+  );
+}
+
 export function QueryConfig({ spaceId, payload }: { spaceId: string; payload: Record<string, unknown> }) {
   const config = structuredQuery(payload);
   if (config) {
@@ -179,28 +233,6 @@ export function QueryConfig({ spaceId, payload }: { spaceId: string; payload: Re
         <ConfigField target="description" label="description" value={text(payload.description)} />
       ) : null}
       {cypher.length ? <ConfigField target="cypher" label="cypher" value={cypher.join("\n\n")} multiline /> : null}
-    </ConfigPanel>
-  );
-}
-
-function SchemaConfig({ payload }: { payload: Record<string, unknown> }) {
-  const properties = Array.isArray(payload.properties) ? payload.properties : [];
-  return (
-    <ConfigPanel title="create a schema">
-      <ConfigField target="attributive_label" label="attributive label" value={text(payload.attributive_label)} />
-      {properties.map((entry) => {
-        const property = asObject(entry) ?? {};
-        const nested = asObject(property.property_schema) ?? property;
-        const name = text(nested.name) || text(nested.key);
-        if (!name) return null;
-        const flags = ["is_required", "is_key", "is_label", "is_indexed", "is_embedded"].filter(
-          (flag) => nested[flag] === true
-        );
-        const detail = [text(nested.value_type) || "string", ...flags.map((flag) => flag.replace("is_", ""))].join(
-          " · "
-        );
-        return <ConfigField key={name} target={name} label={name} value={detail} />;
-      })}
     </ConfigPanel>
   );
 }

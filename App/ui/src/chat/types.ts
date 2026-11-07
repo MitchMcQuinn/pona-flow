@@ -7,7 +7,8 @@ export type StackKind =
   | "run_log"
   | "reasoning"
   | "reads"
-  | "walkthrough";
+  | "walkthrough"
+  | "settings";
 
 export interface ChatToolCall {
   name: string;
@@ -40,10 +41,13 @@ export interface ChatBatchItem {
 
 export interface ChatBatchResult {
   ok: boolean;
+  phase?: string;
+  finished?: boolean;
   validation_errors: string[];
-  applied: Array<{ kind: string; summary: string; id?: string | null }>;
+  applied: Array<{ kind: string; summary: string; id?: string | null; token?: string }>;
   failed: { kind: string; summary: string; error: string } | null;
   not_applied: Array<{ kind: string; summary: string }>;
+  authoring_pending?: Array<{ kind: string; summary: string; payload?: Record<string, unknown> }>;
   created_space_id: string | null;
   inputs?: Array<{ name: string; source: string; lands_as: string }>;
 }

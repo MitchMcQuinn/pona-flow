@@ -10,7 +10,10 @@
 
 import { composer } from "@pona-flow/composer";
 import { connector } from "@pona-flow/connector";
-import { collectStepCreateAttributiveLabels } from "./attributiveLabels.js";
+import {
+  collectSchemaCreateAttributiveLabels,
+  collectStepCreateAttributiveLabels,
+} from "./attributiveLabels.js";
 import { normalizeForCompose, primaryNodeLabel } from "./normalize.js";
 import {
   buildCreateBodyWithOptions,
@@ -26,6 +29,7 @@ import {
   maybeRetargetOperationWrap,
   resolveStepWrapAttributiveLabel
 } from "./stepWrapLabel.js";
+import { stepWrapBaseName } from "./uniqueAttributiveLabel.js";
 import { isSingleNewStepCreate, isStepCreateQuery } from "./validation.js";
 import {
   GRAPH_NODE_LABELS,
@@ -143,7 +147,12 @@ export async function saveQueryOperation(
   // the previous operation (ON CONFLICT) and retargets its wrap STEP, which orphans
   // the one-step sequence that was just filed in the nav.
   const operationId = await connector.generateQueryId();
-  const wrapName = await resolveStepWrapAttributiveLabel(spaceId, input.name);
+  // A create-SCHEMA operation must not wrap a STEP in the schema's own label.
+  // That STEP is written first and the schema create then rejects the name.
+  const wrapName = await resolveStepWrapAttributiveLabel(
+    spaceId,
+    stepWrapBaseName(input.name, collectSchemaCreateAttributiveLabels(ctx.query))
+  );
   const catalog = buildQueriesCatalogPayload(
     { ...ctx, query: { ...ctx.query, id: operationId } },
     input.runtimeEnabled,

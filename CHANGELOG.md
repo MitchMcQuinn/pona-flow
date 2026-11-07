@@ -7,6 +7,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Update locally** in Settings → Update. A Docker Compose install pulls and restarts
+  the app container from that menu (a small updater service in `docker-compose.yml`
+  does the pull). A source checkout fast-forwards to the tracked branch and restarts.
+  The compose image tag defaults to `main`, the same tag that menu tracks. Set
+  `PONA_FLOW_VERSION` to stay on a numbered release.
 - **Phones and tablets**: on phones the app shows one screen at a time — Menu, Workbench,
   or Map — switched from a bottom tab bar, and follows you to the right one (pick a
   sequence → Workbench; a finished run → Map). On tablets the menu slides out from the

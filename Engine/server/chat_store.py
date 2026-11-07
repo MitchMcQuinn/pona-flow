@@ -26,6 +26,7 @@ STACK_KINDS = (
     "reasoning",
     "reads",
     "walkthrough",
+    "settings",
 )
 
 MAX_ROUNDS_DEFAULT = 24
