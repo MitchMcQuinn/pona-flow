@@ -876,6 +876,17 @@ def _json_loads_or(value: Any, fallback: Any) -> Any:
         return fallback
 
 
+def _normalize_event_package(package: Any) -> dict[str, Any]:
+    """Schedule groups are optional on simulated events. Readers index ``groups``."""
+    source = package if isinstance(package, dict) else {}
+    normalized = dict(source)
+    if not isinstance(source.get("groups"), list):
+        normalized["groups"] = []
+    if not isinstance(source.get("parameters"), dict):
+        normalized["parameters"] = {}
+    return normalized
+
+
 def _event_row_to_dict(row: sqlite3.Row | tuple) -> dict[str, Any]:
     return {
         "id": row[0],
@@ -883,7 +894,7 @@ def _event_row_to_dict(row: sqlite3.Row | tuple) -> dict[str, Any]:
         "name": row[2],
         "type": row[3],
         "enabled": int(row[4] if row[4] is not None else 1),
-        "event_package": _json_loads_or(row[5], {}),
+        "event_package": _normalize_event_package(_json_loads_or(row[5], {})),
         "external_package": _json_loads_or(row[6], {}),
         "sequences": _json_loads_or(row[7], []),
         "timers": _json_loads_or(row[8], {}),

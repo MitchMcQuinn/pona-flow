@@ -988,6 +988,20 @@ function toSortOrder(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+/** A saved simulated event often has `{}` here. Callers read `groups.length`. */
+function eventPackageFromApi(raw: unknown): EventPackage {
+  const source =
+    raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Partial<EventPackage>) : {};
+  const parameters = source.parameters;
+  return {
+    combinator: source.combinator === "AND" ? "AND" : "OR",
+    groups: Array.isArray(source.groups) ? source.groups : [],
+    parameters:
+      parameters && typeof parameters === "object" && !Array.isArray(parameters) ? parameters : {},
+    ...(typeof source.timezone === "string" && source.timezone ? { timezone: source.timezone } : {})
+  };
+}
+
 function toEventSummary(row: EventApiRow): EventSummary {
   return {
     id: row.id || "",
@@ -1019,8 +1033,7 @@ export async function fetchEvent(eventId: string): Promise<EventDetail> {
   return {
     ...toEventSummary(data),
     spaceId: data.space_id || "",
-    eventPackage:
-      (data.event_package as EventPackage) || { combinator: "OR", groups: [], parameters: {} },
+    eventPackage: eventPackageFromApi(data.event_package),
     externalPackage: {
       ...emptyExternalPackage(),
       ...((data.external_package as ExternalPackage) || {})

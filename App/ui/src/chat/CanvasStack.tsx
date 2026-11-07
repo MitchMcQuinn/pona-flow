@@ -6,6 +6,7 @@ import { SpaceConfigPanel, type SpaceConfigPanelProps } from "../components/spac
 import { runSequenceExecution } from "../services/api";
 import type { EventSummary, SequenceSummary } from "../state/types";
 import { ConfigPreview } from "./ConfigPreview";
+import { acceptBlockingProblems, inputProblemBlocksAccept } from "./followUp";
 import { EphemeralConsole } from "./EphemeralConsole";
 import { Markdown } from "./Markdown";
 import { isInsightKind, type InsightView } from "./insight";
@@ -223,6 +224,9 @@ function ProposalList({
 }) {
   const status = String(item.payload.status || "pending");
   const proposalItems = Array.isArray(item.payload.items) ? (item.payload.items as ChatBatchItem[]) : [];
+  const problems = Array.isArray(item.payload.problems)
+    ? item.payload.problems.filter((problem): problem is string => typeof problem === "string" && problem.length > 0)
+    : [];
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [secrets, setSecrets] = useState<Record<string, string>>({});
   const compileError = proposalItems.map(intentProblem).find((problem): problem is string => Boolean(problem)) ?? null;
@@ -273,6 +277,11 @@ function ProposalList({
         </p>
       ) : null}
       {status !== "pending" && item.payload.result ? <AgentKeyNotice result={item.payload.result} /> : null}
+      {problems.map((problem) => (
+        <p key={problem} className={inputProblemBlocksAccept(problem) ? "builderCheckMsg error" : "muted"}>
+          {problem}
+        </p>
+      ))}
       {status === "pending" ? (
         <div className="buttonRow">
           <button
@@ -281,6 +290,7 @@ function ProposalList({
             disabled={
               batchBusy ||
               Boolean(blocked) ||
+              acceptBlockingProblems(problems).length > 0 ||
               proposalItems.some((entry) => entry.kind === "create_space")
             }
             onClick={onAccept}

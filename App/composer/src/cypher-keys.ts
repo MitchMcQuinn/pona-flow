@@ -15,19 +15,37 @@ export function cypherNodePropertyRef(variable: string, key: unknown): string {
 }
 
 /**
- * A boolean-declared property authored in the builder arrives as the string
- * "true"/"false"; render it as a Cypher boolean literal so the stored graph value
- * matches boolean WHERE filters. Other value types pass through unchanged.
+ * Builder fields and chat applies hand property values over as strings. Render a
+ * boolean as a Cypher boolean, and an integer or number as a numeric literal, so
+ * the graph stores the declared type. A later `+` on a quoted integer concatenates
+ * text instead of adding. Text that is not a literal of that type stays quoted.
  */
 function literalForDeclaredType(
   value: unknown,
   schematic: { value_type?: string } | undefined
 ): unknown {
-  if (schematic?.value_type !== "boolean" || typeof value !== "string") return value;
-  const t = value.trim().toLowerCase();
-  if (t === "true") return true;
-  if (t === "false") return false;
+  if (typeof value !== "string") return value;
+  const valueType = schematic?.value_type;
+  if (valueType === "boolean") {
+    const t = value.trim().toLowerCase();
+    if (t === "true") return true;
+    if (t === "false") return false;
+    return value;
+  }
+  if (valueType === "integer" || valueType === "number") return numericLiteral(value, valueType);
   return value;
+}
+
+function numericLiteral(value: string, valueType: "integer" | "number"): number | string {
+  const text = value.trim();
+  if (!text) return value;
+  if (valueType === "integer") {
+    if (!/^-?\d+$/.test(text)) return value;
+    return Number.parseInt(text, 10);
+  }
+  if (!/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(text)) return value;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : value;
 }
 
 export function renderPropertyMap(

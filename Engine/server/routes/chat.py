@@ -151,7 +151,13 @@ async def start_turn(
 
         threading.Thread(target=work, daemon=True).start()
         while True:
-            item = events.get()
+            try:
+                item = events.get(timeout=15)
+            except queue.Empty:
+                # A planning call can sit quiet while the model writes. A comment
+                # keeps the browser stream open until the next real event.
+                yield ": ping\n\n"
+                continue
             if item is None:
                 break
             yield _sse(item["event"], item["data"])

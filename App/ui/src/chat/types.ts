@@ -56,6 +56,7 @@ export interface ChatBatch {
   status: "pending" | "accepted" | "rejected" | "partial";
   items: ChatBatchItem[];
   result?: ChatBatchResult | null;
+  problems?: string[];
 }
 
 export interface ChatMessage {

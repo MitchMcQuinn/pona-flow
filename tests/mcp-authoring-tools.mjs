@@ -232,6 +232,59 @@ assert.deepEqual(
 const schemaCypher = composer.composeQuery(schemaQuery).cypher;
 assert.match(schemaCypher, /MERGE \(customer_record:SCHEMA \{[^}]*id: 'ent-1'/);
 
+function labelKey(query) {
+  const props = query.match[0].patterns[0].path[0].node.properties;
+  const labeled = props.filter((prop) => prop.schematic_properties?.is_label);
+  assert.equal(labeled.length, 1, "a node SCHEMA has exactly one is_label");
+  return labeled[0].key;
+}
+
+const simulation = buildOperationQuery(
+  {
+    name: "Create SIMULATION_STATE",
+    operation: "create",
+    node_label: "SCHEMA",
+    attributive_label: "simulation_state",
+    schema_properties: [
+      { key: "tick", value_type: "integer" },
+      { key: "growth_rate", value_type: "number" },
+      { key: "season_name", value_type: "string" },
+    ],
+  },
+  { queryId: "q-sim", entityIds: ["ent-sim"] }
+);
+assert.deepEqual(validateQuery(simulation, true), []);
+assert.equal(labelKey(simulation), "season_name", "a *_name field is the display name when is_label was omitted");
+
+const clock = buildOperationQuery(
+  {
+    name: "Create clock",
+    operation: "create",
+    node_label: "SCHEMA",
+    attributive_label: "clock",
+    schema_properties: [
+      { key: "tick", value_type: "integer" },
+      { key: "rate", value_type: "number" },
+    ],
+  },
+  { queryId: "q-clock", entityIds: ["ent-clock"] }
+);
+assert.deepEqual(validateQuery(clock, true), []);
+assert.equal(labelKey(clock), "tick", "the first property is the display name when none is textual");
+
+const untitled = buildOperationQuery(
+  {
+    name: "Create blank",
+    operation: "create",
+    node_label: "SCHEMA",
+    attributive_label: "blank",
+    schema_properties: [],
+  },
+  { queryId: "q-blank", entityIds: ["ent-blank"] }
+);
+assert.deepEqual(validateQuery(untitled, true), []);
+assert.equal(labelKey(untitled), "name");
+
 const readQuery = buildOperationQuery(
   {
     name: "Find customer",

@@ -98,7 +98,10 @@ export const ModuleCard = memo(function ModuleCard({
         })
       }
       notifications.show({ color: 'teal', title: useSequence ? 'ran' : 'posted', message: module.title })
-      refetch()
+      // The action changed data other modules are showing. Refresh the console,
+      // the same way a form does, so a tick log or roster updates with the click.
+      if (module.config.autoRefresh !== false) onConsoleRefresh()
+      else refetch()
       return true
     } catch (reason) {
       notifications.show({

@@ -533,8 +533,209 @@ class ChatModeTest(unittest.TestCase):
         )
         self.assertEqual(chat_apply.input_inventory_problems([display]), [])
 
-    def test_a_feed_without_inputs_is_not_proposed(self) -> None:
+    def test_implied_inputs_cover_a_seed_a_simulation_and_a_console(self) -> None:
+        form = {
+            "views": [
+                {
+                    "id": "control",
+                    "kind": "live",
+                    "modules": [{"id": "reset", "type": "button", "title": "Reset"}],
+                }
+            ]
+        }
+        items = [
+            chat_apply.normalize_item(
+                {
+                    "kind": "upsert_query",
+                    "summary": "Seed founding kikis",
+                    "payload": {
+                        "name": "seed_ecosystem_entities",
+                        "kind": "operation",
+                        "operation": "create",
+                        "node_label": "INSTANCE",
+                        "execute": True,
+                    },
+                }
+            ),
+            chat_apply.normalize_item(
+                {
+                    "kind": "upsert_event",
+                    "summary": "Generation tick",
+                    "payload": {"name": "Generation tick", "type": "simulated"},
+                }
+            ),
+            chat_apply.normalize_item(
+                {
+                    "kind": "upsert_console",
+                    "summary": "Ecosystem",
+                    "payload": {"name": "Ecosystem", "document": form},
+                }
+            ),
+        ]
+        self.assertTrue(chat_apply.input_inventory_problems(items))
+        chat_apply.supply_implied_inputs(items)
+        self.assertEqual(chat_apply.input_inventory_problems(items), [])
+        landed = {entry["lands_as"] for entry in chat_apply.collect_inputs(items)}
+        self.assertEqual(landed, {"execute_package", "simulated_event", "console"})
+
+    def test_a_follow_up_can_name_a_simulated_event_already_in_the_space(self) -> None:
+        follow_up = chat_apply.normalize_item(
+            {
+                "kind": "upsert_query",
+                "summary": "Create read_ecosystem_casualties_count operation",
+                "payload": {
+                    "name": "read_ecosystem_casualties_count",
+                    "kind": "operation",
+                    "operation": "create",
+                    "node_label": "INSTANCE",
+                    "attributive_label": "ecosystem_entity",
+                    "execute": True,
+                },
+                "inputs": [
+                    {"name": "starting rows", "source": "seed", "lands_as": "execute_package"},
+                    {"name": "generation", "source": "simulated", "lands_as": "simulated_event"},
+                ],
+            }
+        )
+        problems = chat_apply.input_inventory_problems([follow_up])
+        self.assertTrue(any("no simulated event" in problem for problem in problems))
+        self.assertFalse(any(chat_apply.input_problem_blocks_accept(problem) for problem in problems))
+        self.assertEqual(chat_apply.validate_batch(self.principal, self.space_id, [follow_up]), [])
+
+        external = chat_apply.normalize_item(
+            {
+                "kind": "upsert_event",
+                "summary": "Badge-in",
+                "payload": {"name": "Badge-in", "type": "external"},
+            }
+        )
+        blocked = chat_apply.validate_batch(self.principal, self.space_id, [external])
+        self.assertTrue(any("does not name its inputs" in problem for problem in blocked))
+
+    def test_an_executed_instance_create_is_the_seed(self) -> None:
+        seed = chat_apply.normalize_item(
+            {
+                "kind": "upsert_query",
+                "summary": "Seed founding kikis",
+                "payload": {
+                    "name": "seed_ecosystem_entities",
+                    "kind": "operation",
+                    "operation": "create",
+                    "node_label": "INSTANCE",
+                    "attributive_label": "ecosystem_entity",
+                    "execute": True,
+                    "instance_properties": [{"key": "kind", "value": "kiki"}],
+                },
+                "inputs": [
+                    {
+                        "name": "founding population",
+                        "source": "seed",
+                        "lands_as": "execute_package",
+                    }
+                ],
+            }
+        )
+        self.assertEqual(chat_apply.input_inventory_problems([seed]), [])
+
+        form = {
+            "views": [
+                {
+                    "id": "control",
+                    "kind": "live",
+                    "modules": [{"id": "reset", "type": "form", "title": "Reset"}],
+                }
+            ]
+        }
+        console = chat_apply.normalize_item(
+            {
+                "kind": "upsert_console",
+                "summary": "Ecosystem console",
+                "payload": {"name": "Ecosystem", "document": form},
+                "inputs": [{"name": "reset", "source": "person", "lands_as": "console"}],
+            }
+        )
+        saved_only = {
+            **seed,
+            "payload": {**seed["payload"], "execute": False},
+        }
+        withheld = chat_apply.input_inventory_problems([saved_only, console])
+        self.assertTrue(any("does not seed rows" in problem for problem in withheld))
+        self.assertTrue(any("execute true" in problem for problem in withheld))
+
+        step = chat_apply.normalize_item(
+            {
+                "kind": "upsert_query",
+                "summary": "Grow apples",
+                "payload": {
+                    "name": "step_grow_and_forage_apples",
+                    "kind": "operation",
+                    "operation": "create",
+                    "node_label": "STEP",
+                    "execute": True,
+                },
+            }
+        )
+        self.assertEqual(chat_apply.input_inventory_problems([step]), [])
+
+    def test_an_executed_seed_is_proposed(self) -> None:
         def complete(_cfg, _key, messages, _tools):
+            if not any(message.get("role") == "tool" for message in messages):
+                yield {
+                    "type": "tool_call",
+                    "id": "call_seed",
+                    "name": "propose_change",
+                    "arguments": {
+                        "kind": "upsert_query",
+                        "summary": "Seed founding kikis and boobas",
+                        "payload": {
+                            "name": "seed_ecosystem_entities",
+                            "kind": "operation",
+                            "operation": "create",
+                            "node_label": "INSTANCE",
+                            "attributive_label": "ecosystem_entity",
+                            "execute": True,
+                        },
+                        "inputs": [
+                            {
+                                "name": "founding population",
+                                "source": "seed",
+                                "lands_as": "execute_package",
+                            }
+                        ],
+                    },
+                }
+                return
+            yield {"type": "text", "delta": "Accept the proposal to seed the founding population."}
+
+        events = list(
+            chat_agent.run_turn(
+                space_id=self.space_id,
+                principal=self.principal,
+                content="seed the ecosystem and show me the proposal",
+                thread_id=None,
+                model=({"provider": "openai", "model": "test", "base_url": ""}, "test-key"),
+                complete=complete,
+            )
+        )
+        kinds = [
+            event["data"]["item"]["kind"]
+            for event in events
+            if event["event"] in ("canvas", "canvas_update")
+        ]
+        self.assertIn("proposal", kinds)
+        text = "".join(event["data"].get("delta", "") for event in events if event["event"] == "text")
+        self.assertNotIn("I did not show the proposal", text)
+
+    def test_a_feed_without_inputs_is_still_proposed(self) -> None:
+        calls = {"n": 0}
+
+        def complete(_cfg, _key, messages, _tools):
+            calls["n"] += 1
+            if calls["n"] > 2:
+                raise RuntimeError(
+                    'Chat model request failed (400): { "error": { "code": 400, '
+                    '"message": "Request contains an invalid argument.", "status": "INVALID_ARGUMENT" } }'
+                )
             last = messages[-1] if messages else {}
             if "was not shown" in str(last.get("content") or ""):
                 yield {"type": "text", "delta": "Still missing inputs."}
@@ -568,7 +769,10 @@ class ChatModeTest(unittest.TestCase):
             for event in events
             if event["event"] in ("canvas", "canvas_update")
         ]
-        self.assertNotIn("proposal", kinds)
+        self.assertIn("proposal", kinds)
+        self.assertLessEqual(calls["n"], 2)
+        proposal = next(event["data"]["item"] for event in events if event["event"] == "canvas" and event["data"]["item"]["kind"] == "proposal")
+        self.assertTrue(proposal["payload"]["problems"])
         text = "".join(event["data"].get("delta", "") for event in events if event["event"] == "text")
         self.assertIn("does not name its inputs", text)
 
@@ -877,6 +1081,115 @@ class ChatModeTest(unittest.TestCase):
                     },
                 }
             )
+
+    def test_upsert_schema_marks_a_display_name_when_is_label_is_omitted(self) -> None:
+        item = chat_apply.normalize_item(
+            {
+                "kind": "upsert_schema",
+                "summary": "Create SIMULATION_STATE schema",
+                "payload": {
+                    "attributive_label": "simulation_state",
+                    "properties": [
+                        {"key": "tick", "value_type": "integer"},
+                        {"key": "growth_rate", "value_type": "number"},
+                        {"key": "season_name", "value_type": "string"},
+                    ],
+                },
+            }
+        )
+        flags = {prop["name"]: prop["is_label"] for prop in item["payload"]["properties"]}
+        self.assertEqual(flags["season_name"], True)
+        self.assertEqual(flags["tick"], False)
+        self.assertEqual(flags["id"], False)
+        season = next(prop for prop in item["payload"]["properties"] if prop["name"] == "season_name")
+        self.assertFalse(season["is_required"])
+
+        numbers = chat_apply.normalize_item(
+            {
+                "kind": "upsert_schema",
+                "payload": {
+                    "attributive_label": "clock",
+                    "properties": [
+                        {"key": "tick", "value_type": "integer"},
+                        {"key": "rate", "value_type": "number"},
+                    ],
+                },
+            }
+        )
+        labeled = [prop["name"] for prop in numbers["payload"]["properties"] if prop["is_label"]]
+        self.assertEqual(labeled, ["tick"])
+
+        blank = chat_apply.normalize_item(
+            {
+                "kind": "upsert_schema",
+                "payload": {"attributive_label": "blank", "properties": []},
+            }
+        )
+        blank_flags = {prop["name"]: prop for prop in blank["payload"]["properties"]}
+        self.assertEqual(set(blank_flags), {"id", "name"})
+        self.assertTrue(blank_flags["name"]["is_label"])
+        self.assertTrue(blank_flags["name"]["is_required"])
+
+        both = chat_apply.normalize_item(
+            {
+                "kind": "upsert_schema",
+                "payload": {
+                    "attributive_label": "creature",
+                    "properties": [
+                        {"key": "notes", "value_type": "string", "is_label": True},
+                        {"key": "name", "value_type": "string", "is_label": True},
+                    ],
+                },
+            }
+        )
+        both_flags = {prop["name"]: prop["is_label"] for prop in both["payload"]["properties"]}
+        self.assertEqual(both_flags["name"], True)
+        self.assertEqual(both_flags["notes"], False)
+
+    def test_console_event_trigger_without_an_id_is_opened_by_hand(self) -> None:
+        item = chat_apply.normalize_item(
+            {
+                "kind": "upsert_console",
+                "summary": "Create Kiki & Booba Evolutionary Ecosystem Console",
+                "payload": {
+                    "name": "Kiki & Booba",
+                    "trigger_kind": "event",
+                    "document": {"views": [{"id": "story", "name": "Story", "kind": "live", "modules": []}]},
+                },
+            }
+        )
+        self.assertEqual(item["payload"]["trigger_kind"], "")
+        self.assertEqual(item["payload"]["trigger_event_id"], "")
+        kept = chat_apply.normalize_item(
+            {
+                "kind": "upsert_console",
+                "payload": {
+                    "name": "Nightly",
+                    "trigger_kind": "event",
+                    "trigger_event_id": "EV_time",
+                },
+            }
+        )
+        self.assertEqual(kept["payload"]["trigger_kind"], "event")
+        self.assertEqual(kept["payload"]["trigger_event_id"], "EV_time")
+        named = chat_apply.normalize_item(
+            {
+                "kind": "upsert_console",
+                "payload": {
+                    "name": "Desk",
+                    "triggerKind": "url",
+                    "listenUrl": "https://example.test/hook",
+                },
+            }
+        )
+        self.assertEqual(named["payload"]["trigger_kind"], "url")
+        self.assertEqual(named["payload"]["listen_url"], "https://example.test/hook")
+        result = chat_apply.apply_batch(self.principal, self.space_id, [item])
+        self.assertTrue(result["ok"], result)
+        saved = catalog.get_console(item["payload"]["id"])
+        self.assertIsNotNone(saved)
+        self.assertEqual(saved.get("trigger_kind"), "")
+        self.assertEqual(saved.get("trigger_event_id"), "")
 
     def test_settings_kinds_apply_through_the_existing_functions(self) -> None:
         from server import agent_keys, credentials, rbac
@@ -1194,7 +1507,7 @@ class GeminiToolSchemaTest(unittest.TestCase):
         payload = {
             "candidates": [{"finishReason": "SAFETY", "content": {"role": "model", "parts": []}}]
         }
-        with patch.object(chat_models, "_post_json", return_value=json.dumps(payload).encode()):
+        with patch.object(chat_models, "_read_gemini", return_value=[payload]):
             with self.assertRaises(RuntimeError) as caught:
                 chat_models._gemini(
                     {"model": "gemini-3.8-flash"},
@@ -1208,7 +1521,7 @@ class GeminiToolSchemaTest(unittest.TestCase):
         payload = {
             "candidates": [{"finishReason": "STOP", "content": {"role": "model", "parts": []}}]
         }
-        with patch.object(chat_models, "_post_json", return_value=json.dumps(payload).encode()):
+        with patch.object(chat_models, "_read_gemini", return_value=[payload]):
             parsed = chat_models._gemini(
                 {"model": "gemini-3.8-flash"},
                 "key",
@@ -1233,7 +1546,7 @@ class GeminiToolSchemaTest(unittest.TestCase):
                 }
             ]
         }
-        with patch.object(chat_models, "_post_json", return_value=json.dumps(payload).encode()) as posted:
+        with patch.object(chat_models, "_read_gemini", return_value=[payload]) as posted:
             parsed = chat_models._gemini(
                 {"model": "gemini-3.8-flash"},
                 "key",
@@ -1244,6 +1557,28 @@ class GeminiToolSchemaTest(unittest.TestCase):
         self.assertTrue(body["generationConfig"]["thinkingConfig"]["includeThoughts"])
         self.assertEqual(parsed["text"], "hello")
         self.assertEqual(parsed["thought"], "scratch")
+        self.assertIn("streamGenerateContent", posted.call_args.args[0])
+
+    def test_streamed_chunks_fold_into_one_reply(self) -> None:
+        events = list(
+            chat_models._iter_sse_json(
+                [
+                    b'data: {"candidates":[{"content":{"parts":[{"text":"hel"}]}}]}\n',
+                    b"\n",
+                    b'data: {"candidates":[{"content":{"parts":[{"text":"lo"},{"functionCall":{"name":"list_schemas","args":{}}}]},"finishReason":"STOP"}]}\n',
+                ]
+            )
+        )
+        parsed = chat_models._gemini_from_events(events)
+        self.assertEqual(parsed["text"], "hello")
+        self.assertEqual(parsed["tool_calls"][0]["name"], "list_schemas")
+
+    def test_socket_read_timeout_names_the_plan(self) -> None:
+        with patch("server.chat_models.urllib.request.urlopen", side_effect=TimeoutError("The read operation timed out")):
+            with self.assertRaises(RuntimeError) as caught:
+                chat_models._post_json("http://example.test", {}, {})
+        self.assertNotEqual(str(caught.exception), "The read operation timed out")
+        self.assertIn("plan", str(caught.exception).lower())
 
 
 if __name__ == "__main__":

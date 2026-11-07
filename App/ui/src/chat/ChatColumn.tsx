@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { isFollowUp } from "./followUp";
+import { acceptBlockingProblems, inputProblemBlocksAccept, isFollowUp } from "./followUp";
 import { Markdown } from "./Markdown";
 import type { ChatMessage, ChatThreadSummary } from "./types";
 
@@ -258,6 +258,14 @@ export function ChatColumn({
                   </p>
                 ) : null}
                 {acceptBlocked ? <p className="builderCheckMsg error">{acceptBlocked}</p> : null}
+                {(message.batch.problems || []).map((problem) => (
+                  <p
+                    key={problem}
+                    className={inputProblemBlocksAccept(problem) ? "builderCheckMsg error" : "muted"}
+                  >
+                    {problem}
+                  </p>
+                ))}
                 <div className="buttonRow">
                   <button
                     type="button"
@@ -265,6 +273,7 @@ export function ChatColumn({
                     disabled={
                       batchBusy ||
                       Boolean(acceptBlocked) ||
+                      acceptBlockingProblems(message.batch.problems).length > 0 ||
                       message.batch.items.some((item) => item.kind === "create_space")
                     }
                     onClick={onAccept}

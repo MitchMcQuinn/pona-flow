@@ -343,6 +343,13 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
         authoring_applied: authoring.applied,
         authoring_failed: authoring.failed
       });
+      if (authoring.not_applied.length) {
+        const listed = new Set(result.not_applied.map((item) => `${item.kind}:${item.summary}`));
+        const missing = authoring.not_applied.filter(
+          (item) => !listed.has(`${item.kind}:${item.summary}`)
+        );
+        result.not_applied = [...missing, ...result.not_applied];
+      }
       await reloadOpenThread();
       reportBatch(result);
       if (result.finished !== false) await continueAfter(result);

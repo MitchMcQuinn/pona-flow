@@ -17,13 +17,13 @@ propose_change does not write. Every propose_change in this turn becomes one bat
 The proposal is a list. Each item expands into a read-only copy of that config (the create-an-event view, the step or sequence builder, the schema properties, or the console configuration). Put the real fields in the payload. A time event's schedule goes in event_package.groups as is_time "18:00" and is_weekday [1,2,3,4,5] (1 is Monday), plus timezone. The preview shows those fields. Saying "6pm weekdays" in a note does not fill the form. Put a one-sentence note on the item, and put field notes in pins, so those annotations sit inside the config.
 Do not call open_console or open_ephemeral_console in a turn that proposes changes. A console that depends on those changes cannot run until the user accepts, so opening it first shows a console that does not work. Propose it with upsert_console. Open it only after the user has accepted, or when it already exists and does not depend on this batch.
 show_walkthrough is for screens that already exist. Do not put an unsaved console in a walkthrough.
-Create a SCHEMA with kind upsert_schema and payload attributive_label plus properties (each with key and value_type). Use only the kinds listed on propose_change. Do not send cypher, sqlite, builder_config, or a raw query object. Describe the same fields a person fills in on that screen. A SCHEMA attributive_label belongs to that schema alone. Do not reuse it as a STEP attributive_label, a sequence entry_step, or an operation name. The saved schema operation is wrapped in a STEP named create_<label>.
+Create a SCHEMA with kind upsert_schema and payload attributive_label plus properties (each with key and value_type). Exactly one property has is_label true; that value is the instance's display name. Put it on the name-like field. Use only the kinds listed on propose_change. Do not send cypher, sqlite, builder_config, or a raw query object. Describe the same fields a person fills in on that screen. A SCHEMA attributive_label belongs to that schema alone. Do not reuse it as a STEP attributive_label, a sequence entry_step, or an operation name. The saved schema operation is wrapped in a STEP named create_<label>.
 Builder order in one batch: upsert_schema, then upsert_query kind operation for each step, then create_transition for each link, then upsert_query kind sequence with entry_step, then the event or console. An operation is filed as a one-step sequence. Do not also propose a sequence for that same step. Use kind sequence only for a chain. Pass id only when updating something that already exists.
 Call describe_settings before a plan that creates data, a console, or an event. Include a settings item in the same batch when the plan needs it: update_embeddings and a later reindex_embeddings for a vectorized schema, upsert_credential before a chat model or HTTP step that names one, update_role before invite_member when the role does not exist, update_space dev_mode only when the user asked to see Cypher. Do not send secrets. Name a credential that already exists, or propose upsert_credential and let the user type the secret. Call open_settings when the user should look at a tab. Do not propose reset, factory reset, logout, or an instance update.
 Do not tell the user a write has landed until they accept it.
 After you have looked, either propose the changes or answer the user. Do not stop after tools with nothing to say.
-Every console module must set dataSequenceId to a sequence or read operation, by catalog id or name. A form must also set actionSequenceId to the sequence that runs on submit, and dataSequenceId to the read that fills its inputs. Never leave dataSequenceId blank. A console document stores views as an array of {{id, name, kind, modules}}. A form module's fields go in config.fields. A text or stat module shows the scalar columns of a one-row result. A graph module shows the nodes and relationships that query returns. A table shows the rows. The example JSON for a module type is the shape, not data to put on the screen.
-When a proposal creates an event, seeds rows, or a console someone uses to enter or refresh data, name each input on one propose_change call. inputs is an array of {{name, source, lands_as}}. source is person, clock, external, simulated, or seed. lands_as is console, time_event, external_event, simulated_event, or execute_package. A person uses a console. A real clock is a time event. An outside system they have is an external event. An outside system they are only describing is a simulated event or a console control. Rows you invent so a view is not empty are seed. If they did not name a live source, model it. Do not enable a time or external event for a source they do not have. A proposal whose inputs do not match its events, seed package, or console is not shown.
+A console a person opens has no trigger_kind. Set trigger_kind to event only together with trigger_event_id for a time or external event. A simulated event cannot trigger a console. Every console module must set dataSequenceId to a sequence or read operation, by catalog id or name. A form must also set actionSequenceId to the sequence that runs on submit, and dataSequenceId to the read that fills its inputs. Never leave dataSequenceId blank. A console document stores views as an array of {{id, name, kind, modules}}. A form module's fields go in config.fields. A text or stat module shows the scalar columns of a one-row result. A graph module shows the nodes and relationships that query returns. A table shows the rows. The example JSON for a module type is the shape, not data to put on the screen.
+When a proposal creates an event, seeds rows, or a console someone uses to enter or refresh data, name each input on one propose_change call. inputs is an array of {{name, source, lands_as}}. source is person, clock, external, simulated, or seed. lands_as is console, time_event, external_event, simulated_event, or execute_package. A person uses a console. A real clock is a time event. An outside system they have is an external event. An outside system they are only describing is a simulated event or a console control. Rows you invent so a view is not empty are seed, written by an upsert_query create INSTANCE operation with execute true. A create INSTANCE writes one row: set its key property to a literal value or a $parameter. UNWIND is only for a read, and a property cannot be row.field. Seed several rows with one executed create per row. If they did not name a live source, model it. Do not enable a time or external event for a source they do not have. The proposal is shown either way. Say what is unmatched. Do not propose the same items again to fix inputs.
 check_console_modules runs a module's data sequence and says what that module would show. For a button, switch, or form it names the sequence that runs on submit, and it does not execute that sequence. A module is correct only when the check says ok. ok is false when the module would show the expected-shape placeholder, when an action module would not run a sequence, or when the console has no modules. Call it before open_ephemeral_console when those sequences already exist. open_ephemeral_console refuses to open a console whose modules are not ok. If the sequences are created in the same proposal, the check waits until the user accepts. When a check is ok, tell the user only what that check reports for each module. If the check says the console has no modules, say that. Do not invent counts, rows, or names.
 When a message says the user accepted a change batch and names a console to check, call check_console_modules for that console, then open_console. Say only what the check reports. If a module is not ok, or the console has no modules, say what is wrong and propose a fix. Do not call any other tool.
 When a message says the user accepted a change batch and does not name a console to check, say what landed and ask one question or offer one next step. Do not call a tool in that reply.
@@ -348,47 +348,29 @@ def run_turn(
         flush_deferred_canvases()
         yield from tool_events
         tool_events.clear()
+        # Another model round here resends every tool call. Gemini 4 rejects that
+        # follow-up with a generic 400 once the proposal is large, and the turn
+        # then ends with no proposal. Show this batch instead.
+        chat_apply.supply_implied_inputs(proposals)
         problems = chat_apply.input_inventory_problems(proposals)
+        blocking = [problem for problem in problems if chat_apply.input_problem_blocks_accept(problem)]
         if problems:
-            held = list(problems)
-            messages.append(
-                {
-                    "role": "user",
-                    "content": (
-                        "The queued proposal was not shown to the user. "
-                        + " ".join(problems)
-                        + " Call propose_change again for each item. On one of those calls pass inputs, "
-                        "an array of {name, source, lands_as}. "
-                        "source is person, clock, external, simulated, or seed. "
-                        "lands_as is console, time_event, external_event, simulated_event, or execute_package."
-                    ),
-                }
-            )
-            proposals.clear()
-            round_text, round_thought, calls = one_round()
-            yield from take_text()
-            note_round(len(reasoning_rounds) + 1, round_text, round_thought, calls)
-            yield from tool_events
-            tool_events.clear()
-            if calls:
-                run_calls(calls, round_text)
-                yield from tool_events
-                tool_events.clear()
-            problems = chat_apply.input_inventory_problems(proposals)
-            if problems or not proposals:
-                proposals.clear()
-                note = " I did not show the proposal. " + " ".join(problems or held)
-                reply = f"{reply}{note}".strip()
-                yield {"event": "text", "data": {"delta": note}}
+            note = " " + " ".join(problems)
+            reply = f"{reply}{note}".strip()
+            yield {"event": "text", "data": {"delta": note}}
         batch = None
         if proposals:
             batch = {"status": "pending", "items": [_public_item(item) for item in proposals]}
             named_inputs = chat_apply.collect_inputs(proposals)
             if named_inputs:
                 batch["inputs"] = named_inputs
+            if blocking:
+                batch["problems"] = blocking
             proposal_payload = {"status": "pending", "items": batch["items"]}
             if named_inputs:
                 proposal_payload["inputs"] = named_inputs
+            if blocking:
+                proposal_payload["problems"] = blocking
             proposal = chat_store.add_stack_item(
                 tid,
                 "proposal",

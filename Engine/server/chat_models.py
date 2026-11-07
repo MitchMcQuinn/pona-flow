@@ -23,6 +23,18 @@ _DEFAULT_MODELS = {
     "openai_compatible": "gpt-4.1",
 }
 
+# Idle time on the model socket. A planning turn thinks, then writes a large
+# tool call. Non-streaming Gemini sends no bytes until that is finished, so a
+# short read timeout surfaces as "The read operation timed out" before a plan.
+_MODEL_HTTP_TIMEOUT_SECONDS = 600
+
+
+def _timeout_error(exc: BaseException) -> RuntimeError:
+    return RuntimeError(
+        "The chat model was still working when the connection timed out, "
+        "so this turn stopped before a plan. Send the message again."
+    )
+
 
 def platform_configured() -> bool:
     return bool((os.environ.get("PONA_FLOW_CHAT_API_KEY") or "").strip())
@@ -134,17 +146,61 @@ def _chunk_text_and_calls(parsed: dict[str, Any]) -> Iterator[dict[str, Any]]:
         yield {"type": "thought", "delta": thought[index : index + step]}
 
 
-def _post_json(url: str, body: dict[str, Any], headers: dict[str, str], timeout: int = 180) -> bytes:
+def _model_http_error(exc: urllib.error.HTTPError) -> RuntimeError:
+    """Surface the provider message and, when present, which field it rejected."""
+    raw = exc.read().decode("utf-8", errors="replace")
+    detail = raw[:500]
+    try:
+        body = json.loads(raw)
+    except ValueError:
+        body = None
+    error = body.get("error") if isinstance(body, dict) else None
+    if isinstance(error, dict):
+        message = str(error.get("message") or detail)
+        fields: list[str] = []
+        for entry in error.get("details") or []:
+            if not isinstance(entry, dict):
+                continue
+            for violation in entry.get("fieldViolations") or []:
+                if not isinstance(violation, dict):
+                    continue
+                field = str(violation.get("field") or "").strip()
+                description = str(violation.get("description") or "").strip()
+                if field or description:
+                    fields.append(f"{field}: {description}".strip(": "))
+        if fields:
+            message = f"{message} {' '.join(fields)}"
+        detail = message[:800]
+    return RuntimeError(f"Chat model request failed ({exc.code}): {detail}")
+
+
+def _raise_model_transport(exc: BaseException) -> None:
+    if isinstance(exc, urllib.error.HTTPError):
+        raise _model_http_error(exc) from exc
+    if isinstance(exc, TimeoutError):
+        raise _timeout_error(exc) from exc
+    if isinstance(exc, urllib.error.URLError):
+        reason = exc.reason
+        if isinstance(reason, TimeoutError) or "timed out" in str(reason).lower():
+            raise _timeout_error(exc) from exc
+        raise RuntimeError(f"Chat model request failed: {reason}") from exc
+    raise exc
+
+
+def _post_json(
+    url: str,
+    body: dict[str, Any],
+    headers: dict[str, str],
+    timeout: int = _MODEL_HTTP_TIMEOUT_SECONDS,
+) -> bytes:
     data = json.dumps(body).encode("utf-8")
     request = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.read()
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:500]
-        raise RuntimeError(f"Chat model request failed ({exc.code}): {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Chat model request failed: {exc.reason}") from exc
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+        _raise_model_transport(exc)
+        raise AssertionError("unreachable") from exc
 
 
 def _openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -210,7 +266,7 @@ def _openai(
     )
     calls: dict[int, dict[str, str]] = {}
     try:
-        with urllib.request.urlopen(request, timeout=180) as response:
+        with urllib.request.urlopen(request, timeout=_MODEL_HTTP_TIMEOUT_SECONDS) as response:
             for raw_line in response:
                 line = raw_line.decode("utf-8", errors="replace").strip()
                 if not line.startswith("data:"):
@@ -237,11 +293,8 @@ def _openai(
                         slot["name"] += function["name"]
                     if function.get("arguments"):
                         slot["arguments"] += function["arguments"]
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:500]
-        raise RuntimeError(f"Chat model request failed ({exc.code}): {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Chat model request failed: {exc.reason}") from exc
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+        _raise_model_transport(exc)
     for index in sorted(calls):
         slot = calls[index]
         try:
@@ -334,7 +387,7 @@ def _anthropic(
     )
     blocks: dict[int, dict[str, Any]] = {}
     try:
-        with urllib.request.urlopen(request, timeout=180) as response:
+        with urllib.request.urlopen(request, timeout=_MODEL_HTTP_TIMEOUT_SECONDS) as response:
             for raw_line in response:
                 line = raw_line.decode("utf-8", errors="replace").strip()
                 if not line.startswith("data:"):
@@ -365,11 +418,8 @@ def _anthropic(
                         yield {"type": "text", "delta": delta["text"]}
                     if delta.get("partial_json"):
                         slot["json"] += delta["partial_json"]
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:500]
-        raise RuntimeError(f"Chat model request failed ({exc.code}): {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Chat model request failed: {exc.reason}") from exc
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+        _raise_model_transport(exc)
     for index in sorted(blocks):
         slot = blocks[index]
         if slot.get("type") != "tool_use":
@@ -479,6 +529,87 @@ def _gemini_contents(messages: list[dict[str, Any]]) -> tuple[str, list[dict[str
     return system, contents
 
 
+def _iter_sse_json(chunks: Any) -> Iterator[dict[str, Any]]:
+    """JSON objects from an SSE body. Blank lines and non-data lines are skipped."""
+    for raw_line in chunks:
+        line = raw_line.decode("utf-8", errors="replace") if isinstance(raw_line, bytes) else str(raw_line)
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        payload = line[5:].strip()
+        if not payload or payload == "[DONE]":
+            continue
+        try:
+            event = json.loads(payload)
+        except ValueError:
+            continue
+        if isinstance(event, dict):
+            yield event
+        elif isinstance(event, list):
+            for item in event:
+                if isinstance(item, dict):
+                    yield item
+
+
+def _gemini_from_events(events: list[dict[str, Any]]) -> dict[str, Any]:
+    """Fold streamed GenerateContent chunks into one reply.
+
+    Each chunk carries the next text or a finished function call, not a
+    snapshot of the whole answer.
+    """
+    text = ""
+    thought = ""
+    calls: list[dict[str, Any]] = []
+    finish = ""
+    block = ""
+    call_index = 0
+    for parsed in events:
+        feedback = parsed.get("promptFeedback") if isinstance(parsed.get("promptFeedback"), dict) else {}
+        if feedback.get("blockReason"):
+            block = str(feedback.get("blockReason") or "")
+        candidate = (parsed.get("candidates") or [{}])[0] or {}
+        if candidate.get("finishReason"):
+            finish = str(candidate.get("finishReason") or "")
+        parts = ((candidate.get("content") or {}).get("parts") or [])
+        for part in parts:
+            if not isinstance(part, dict):
+                continue
+            if part.get("text") and part.get("thought"):
+                thought += part["text"]
+            elif part.get("text"):
+                text += part["text"]
+            call = part.get("functionCall")
+            if isinstance(call, dict):
+                args = call.get("args") if isinstance(call.get("args"), dict) else {}
+                signature = part.get("thoughtSignature") or part.get("thought_signature") or ""
+                recorded: dict[str, Any] = {
+                    "id": str(call.get("id") or f"gemini_{call_index}"),
+                    "name": call.get("name") or "",
+                    "arguments": args,
+                }
+                if signature:
+                    recorded["thought_signature"] = signature
+                calls.append(recorded)
+                call_index += 1
+    if not text and not calls and not thought:
+        reason = block or finish
+        if reason and reason not in ("STOP", "MAX_TOKENS"):
+            raise RuntimeError(f"Chat model stopped ({reason}).")
+    return {"text": text, "tool_calls": calls, "thought": thought}
+
+
+def _read_gemini(url: str, body: dict[str, Any]) -> list[dict[str, Any]]:
+    """Stream generateContent so tokens keep the socket alive while a plan is written."""
+    data = json.dumps(body).encode("utf-8")
+    request = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=_MODEL_HTTP_TIMEOUT_SECONDS) as response:
+            return list(_iter_sse_json(response))
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+        _raise_model_transport(exc)
+        raise AssertionError("unreachable") from exc
+
+
 def _gemini(
     model_cfg: dict[str, Any],
     api_key: str,
@@ -490,7 +621,7 @@ def _gemini(
     model = model_cfg.get("model") or _DEFAULT_MODELS["gemini"]
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{model}:generateContent?key={api_key}"
+        f"{model}:streamGenerateContent?alt=sse&key={api_key}"
     )
     body: dict[str, Any] = {
         "contents": contents,
@@ -499,39 +630,7 @@ def _gemini(
     }
     if system:
         body["systemInstruction"] = {"parts": [{"text": system}]}
-    raw = _post_json(url, body, {"Content-Type": "application/json"})
-    parsed = json.loads(raw.decode("utf-8"))
-    candidate = (parsed.get("candidates") or [{}])[0] or {}
-    finish = str(candidate.get("finishReason") or "")
-    feedback = parsed.get("promptFeedback") if isinstance(parsed.get("promptFeedback"), dict) else {}
-    block = str(feedback.get("blockReason") or "")
-    parts = ((candidate.get("content") or {}).get("parts") or [])
-    text = ""
-    thought = ""
-    calls = []
-    for index, part in enumerate(parts):
-        # Thought parts are the model's scratchpad. The reply is the other text.
-        if part.get("text") and part.get("thought"):
-            thought += part["text"]
-        elif part.get("text"):
-            text += part["text"]
-        call = part.get("functionCall")
-        if isinstance(call, dict):
-            args = call.get("args") if isinstance(call.get("args"), dict) else {}
-            signature = part.get("thoughtSignature") or part.get("thought_signature") or ""
-            recorded: dict[str, Any] = {
-                "id": str(call.get("id") or f"gemini_{index}"),
-                "name": call.get("name") or "",
-                "arguments": args,
-            }
-            if signature:
-                recorded["thought_signature"] = signature
-            calls.append(recorded)
-    if not text and not calls and not thought:
-        reason = block or finish
-        if reason and reason not in ("STOP", "MAX_TOKENS"):
-            raise RuntimeError(f"Chat model stopped ({reason}).")
-    return {"text": text, "tool_calls": calls, "thought": thought}
+    return _gemini_from_events(_read_gemini(url, body))
 
 
 def _local(

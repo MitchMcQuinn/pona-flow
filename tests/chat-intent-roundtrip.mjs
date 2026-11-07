@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 
 import { applyChatIntents, normalizeForCompose, previewChatIntent } from "../App/authoring/src/index.ts";
 import connector from "../App/connector/src/index.ts";
-import { followUpPrompt } from "../App/ui/src/chat/followUp.ts";
+import { acceptBlockingProblems, followUpPrompt } from "../App/ui/src/chat/followUp.ts";
 import composer from "./helpers/composer.mjs";
 
 const SPACE_ID = "space-chat-intent";
@@ -53,6 +53,31 @@ async function fakeFetch(url, init = {}) {
   }
   if (path === "/api/graph/id-exists") return json({ exists: false });
   if (path === "/api/graph/instance-property-exists") return json({ exists: false });
+  if (path === "/api/schema/definition") {
+    return json({
+      space_id: SPACE_ID,
+      schema_id: "schema-area",
+      attributive_label: parsed.searchParams.get("attributive_label"),
+      schemata: [
+        {
+          key: "area_name",
+          value_type: "string",
+          is_required: true,
+          is_key: true,
+          is_label: true,
+          is_indexed: false,
+        },
+        {
+          key: "apples_available",
+          value_type: "integer",
+          is_required: true,
+          is_key: false,
+          is_label: false,
+          is_indexed: false,
+        },
+      ],
+    });
+  }
   if (path === "/api/graph/step-wrap-entity-id") {
     return json({ entity_id: stepWraps.get(parsed.searchParams.get("operation_id")) || "" });
   }
@@ -170,6 +195,29 @@ assert.equal(
   "entity"
 );
 
+const simulation = await applyChatIntents(SPACE_ID, [
+  {
+    kind: "upsert_schema",
+    summary: "Create SIMULATION_STATE schema for simulation control parameters",
+    payload: {
+      attributive_label: "simulation_state",
+      properties: [
+        { key: "tick", value_type: "integer" },
+        { key: "growth_rate", value_type: "number" },
+        { key: "season_name", value_type: "string" },
+      ],
+    },
+  },
+]);
+assert.equal(simulation.ok, true, simulation.failed?.error);
+const simulationProps =
+  queries.get(simulation.applied[0].id).builder_config.query.match[0].patterns[0].path[0].node
+    .properties;
+assert.equal(
+  simulationProps.find((prop) => prop.schematic_properties?.is_label)?.key,
+  "season_name"
+);
+
 const prompt = followUpPrompt({
   ok: true,
   validation_errors: [],
@@ -187,3 +235,137 @@ const prompt = followUpPrompt({
 });
 assert.equal(prompt.includes("stg_"), false);
 assert.match(prompt, /\[token hidden\]/);
+assert.deepEqual(
+  acceptBlockingProblems([
+    "An input lands on a simulated event, but this batch has no simulated event.",
+    "A time event needs an input with source clock and lands_as time_event.",
+  ]),
+  ["A time event needs an input with source clock and lands_as time_event."]
+);
+
+const kpis = previewChatIntent({
+  kind: "upsert_query",
+  summary: "KPIs",
+  payload: {
+    name: "read_population_kpis",
+    kind: "operation",
+    operation: "read",
+    node_label: "INSTANCE",
+    attributive_label: "entity",
+    return_items: [
+      {
+        alias: "Living Boobas",
+        expression: "sum(CASE WHEN n.species = 'booba' AND n.status = 'alive' THEN 1 ELSE 0 END)",
+      },
+      { alias: "Ready to Mate (2+ Meals)", expression: "sum(CASE WHEN n.meals_eaten >= 2 THEN 1 ELSE 0 END)" },
+      { alias: "At Risk / Starved", expression: "n.status" },
+    ],
+  },
+});
+assert.deepEqual(
+  kpis.query.return.items.map((item) => item.alias),
+  ["Living_Boobas", "Ready_to_Mate_2_Meals", "At_Risk_Starved"]
+);
+assert.match(kpis.query.return.items[0].expression, /entity\.species/);
+assert.doesNotMatch(kpis.query.return.items[0].expression, /(?<![A-Za-z0-9_])n(?![A-Za-z0-9_])/);
+const savedKpis = await applyChatIntents(SPACE_ID, [
+  {
+    kind: "upsert_query",
+    summary: "KPIs",
+    payload: {
+      name: "read_population_kpis",
+      kind: "operation",
+      operation: "read",
+      node_label: "INSTANCE",
+      attributive_label: "entity",
+      return_items: [{ alias: "Living Boobas", expression: "n.species" }],
+    },
+  },
+]);
+assert.equal(savedKpis.ok, true, savedKpis.failed?.error);
+
+const step = previewChatIntent({
+  kind: "upsert_query",
+  summary: "Regenerate",
+  payload: {
+    name: "step_regenerate_apples",
+    kind: "operation",
+    operation: "update",
+    node_label: "INSTANCE",
+    attributive_label: "area",
+    set_expressions: [
+      "n.apples_available = toInteger(coalesce(n.apples_available, 0)) + toInteger(coalesce(n.apple_regen_rate, 0))",
+    ],
+  },
+});
+assert.equal(
+  step.query.set[0].expression,
+  "area.apples_available = toInteger(coalesce(area.apples_available, 0)) + toInteger(coalesce(area.apple_regen_rate, 0))"
+);
+
+const seed = {
+  kind: "upsert_query",
+  summary: "Seed orchard",
+  payload: {
+    name: "seed_orchard",
+    kind: "operation",
+    operation: "create",
+    node_label: "INSTANCE",
+    attributive_label: "ecosystem_area",
+    execute: true,
+    instance_properties: [
+      { key: "area_name", value: "Orchard Grove" },
+      { key: "apples_available", value: "18" },
+    ],
+  },
+};
+const seeded = await applyChatIntents(SPACE_ID, [seed]);
+assert.equal(seeded.ok, true, seeded.failed?.error);
+const seedNode = queries.get(seeded.applied[0].id).builder_config.query.match[0].patterns[0].path[0].node;
+const areaName = seedNode.properties.find((property) => property.key === "area_name");
+assert.equal(areaName.value, "Orchard Grove");
+assert.equal(areaName.schematic_properties.is_key, true);
+assert.equal(seedNode.id_binding.value, "Orchard Grove");
+
+assert.throws(
+  () =>
+    previewChatIntent({
+      kind: "upsert_query",
+      summary: "Seed habitats",
+      payload: {
+        name: "seed_ecosystem_areas",
+        kind: "operation",
+        operation: "create",
+        node_label: "INSTANCE",
+        attributive_label: "ecosystem_area",
+        unwind: { alias: "row", expressions: [{ area_name: "Orchard Grove" }] },
+        instance_properties: [
+          { key: "area_name", value: "row.area_name" },
+          { key: "apples_available", value: "row.apples_available" },
+        ],
+        execute: true,
+      },
+    }),
+  /UNWIND is only for a read/
+);
+
+const rowFields = await applyChatIntents(SPACE_ID, [
+  {
+    kind: "upsert_query",
+    summary: "Seed habitats",
+    payload: {
+      name: "seed_ecosystem_areas",
+      kind: "operation",
+      operation: "create",
+      node_label: "INSTANCE",
+      attributive_label: "ecosystem_area",
+      execute: true,
+      instance_properties: [
+        { key: "area_name", value: "row.area_name" },
+        { key: "apples_available", value: "row.apples_available" },
+      ],
+    },
+  },
+]);
+assert.equal(rowFields.ok, false);
+assert.match(rowFields.failed.error, /row\.field/);

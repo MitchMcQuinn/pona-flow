@@ -62,6 +62,82 @@ export const DEFAULT_SCHEMA_KEY_PROPERTY_NAME = "id";
 export const DEFAULT_SCHEMA_LABEL_PROPERTY_NAME = "name";
 
 /**
+ * Display-name keys, best first. Mirrors `_pick_schema_label` in Engine/server/chat_apply.py.
+ * A node SCHEMA must have exactly one is_label; agent proposals often omit the flag.
+ */
+const SCHEMA_LABEL_KEY_PREFERENCE = ["name", "label", "title", "display_name"];
+
+function schemaLabelRank(binding: PropertyBinding, index: number): [number, number, number] {
+  const key = normalizeSchemaPropertyKey(binding.key || "");
+  const preferred = SCHEMA_LABEL_KEY_PREFERENCE.indexOf(key);
+  if (preferred >= 0) return [0, preferred, index];
+  if (key.endsWith("_name") || key.endsWith("_label") || key.endsWith("_title")) {
+    return [1, index, 0];
+  }
+  const valueType = binding.schematic_properties?.value_type ?? "string";
+  if (valueType === "string" || valueType === "radio") return [2, index, 0];
+  return [3, index, 0];
+}
+
+function rankBefore(left: [number, number, number], right: [number, number, number]): boolean {
+  if (left[0] !== right[0]) return left[0] < right[0];
+  if (left[1] !== right[1]) return left[1] < right[1];
+  return left[2] < right[2];
+}
+
+function pickSchemaLabel(properties: PropertyBinding[]): PropertyBinding {
+  let best = properties[0];
+  let bestRank = schemaLabelRank(best, 0);
+  properties.forEach((prop, index) => {
+    const rank = schemaLabelRank(prop, index);
+    if (rankBefore(rank, bestRank)) {
+      best = prop;
+      bestRank = rank;
+    }
+  });
+  return best;
+}
+
+function defaultSchemaLabelBinding(): PropertyBinding {
+  return {
+    key: DEFAULT_SCHEMA_LABEL_PROPERTY_NAME,
+    value: "",
+    schematic_properties: {
+      value_type: "string",
+      format: "any",
+      is_required: true,
+      is_key: false,
+      is_label: true,
+      is_indexed: false,
+      is_embedded: false,
+    },
+  };
+}
+
+/**
+ * A node SCHEMA needs exactly one is_label. Keep a single existing flag.
+ * When none is set, mark a name-like field, otherwise the first string, otherwise
+ * the first property — without adding a field the rest of the proposal does not know
+ * about. An empty property list gets the builder's default `name` property.
+ * Extra flags are cleared down to that one property. is_required is left alone so a
+ * seed that already omits the field still validates.
+ */
+export function ensureSchemaLabelProperties(properties: PropertyBinding[]): PropertyBinding[] {
+  const labeled = properties.filter((prop) => prop.schematic_properties?.is_label);
+  if (labeled.length === 1) return properties;
+  if (!properties.length) return [defaultSchemaLabelBinding()];
+  const pool = labeled.length > 1 ? labeled : properties;
+  const keep = pickSchemaLabel(pool);
+  return properties.map((prop) => {
+    const schematic = prop.schematic_properties;
+    if (!schematic) return prop;
+    const isLabel = prop === keep;
+    if (schematic.is_label === isLabel) return prop;
+    return { ...prop, schematic_properties: { ...schematic, is_label: isLabel } };
+  });
+}
+
+/**
  * System property names an author may not define, and why.
  *
  * `id` is injected as the implicit UID key at compose time. The embedding properties are

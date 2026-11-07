@@ -96,7 +96,13 @@ const intentSchema = {
         format: z.string().optional().describe("Named regex format; 'any' when unconstrained."),
         is_required: z.boolean().optional(),
         is_key: z.boolean().optional().describe("Value must be unique across instances."),
-        is_label: z.boolean().optional().describe("Used as the instance's display name."),
+        is_label: z
+          .boolean()
+          .optional()
+          .describe(
+            "Used as the instance's display name. Exactly one property on a node SCHEMA " +
+              "must set this. If none does, a name-like or string property is marked."
+          ),
         is_indexed: z.boolean().optional(),
         is_embedded: z
           .boolean()
@@ -110,7 +116,10 @@ const intentSchema = {
       })
     )
     .optional()
-    .describe("Property contract. Only meaningful when creating a SCHEMA."),
+    .describe(
+      "Property contract when creating a SCHEMA. Exactly one property is the display " +
+        "name (is_label). If you omit it, a name-like or string property is marked."
+    ),
   is_vectorized: z
     .boolean()
     .optional()

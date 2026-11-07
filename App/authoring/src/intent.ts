@@ -14,8 +14,9 @@
 
 import { VECTOR_SEARCH_DEFAULT_K, VECTOR_SEARCH_MAX_K } from "@pona-flow/composer";
 import { newMatchClause, newQuery, newSchematicProperties } from "./defaults.js";
+import { ensureSchemaLabelProperties } from "./schemaRules.js";
 import { isLoopType, normalizeLoopConfig } from "./loopRules.js";
-import { normalizeAttributiveLabel, normalizeSchemaPropertyKey } from "./normalizeField.js";
+import { normalizeAlias, normalizeAttributiveLabel, normalizeSchemaPropertyKey } from "./normalizeField.js";
 import { extractExactParameterRef } from "./parameterRefs.js";
 import type {
   ConditionType,
@@ -215,6 +216,36 @@ function valueType(raw: string | undefined, fallback: ValueType = "string"): Val
   return (VALUE_TYPES.has(v) ? v : fallback) as ValueType;
 }
 
+/**
+ * The flat tools have one node and no place to name it, so models write that node as `n`.
+ * The builder variable comes from the schema label (`area`, `entity`). Rewrite a bare `n`
+ * onto that variable. Letters inside words (`toInteger`, `coalesce`) stay put.
+ */
+export function rewriteDefaultNodeAlias(expression: string, variable: string): string {
+  if (!expression || !variable || variable === "n") return expression;
+  return expression.replace(/(?<![A-Za-z0-9_])n(?![A-Za-z0-9_])/g, variable);
+}
+
+/** Column titles become Cypher aliases: "Living Boobas" → Living_Boobas. Collisions gain a suffix. */
+export function returnItemAliases(
+  items: Array<{ expression: string; alias?: string }>
+): Array<{ expression: string; alias?: string }> {
+  const used = new Set<string>();
+  return items.map((item) => {
+    let alias = normalizeAlias(item.alias || "")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    if (!alias) return { expression: item.expression };
+    if (used.has(alias)) {
+      let suffix = 2;
+      while (used.has(`${alias}_${suffix}`)) suffix += 1;
+      alias = `${alias}_${suffix}`;
+    }
+    used.add(alias);
+    return { expression: item.expression, alias };
+  });
+}
+
 /** Cypher-safe variable derived from an attributive_label (mirrors the builder default). */
 export function aliasFor(attributiveLabel: string, fallback: string): string {
   const cleaned = (attributiveLabel || "").trim().replace(/[^A-Za-z0-9_]/g, "_");
@@ -237,11 +268,13 @@ function schematicFrom(prop: SchemaPropertyIntent): SchematicProperties {
 }
 
 function schemaProperties(intent: OperationIntent): PropertyBinding[] {
-  return (intent.schema_properties || []).map((prop) => ({
-    key: normalizeSchemaPropertyKey(prop.key),
-    value: prop.default_value ?? "",
-    schematic_properties: schematicFrom(prop),
-  }));
+  return ensureSchemaLabelProperties(
+    (intent.schema_properties || []).map((prop) => ({
+      key: normalizeSchemaPropertyKey(prop.key),
+      value: prop.default_value ?? "",
+      schematic_properties: schematicFrom(prop),
+    }))
+  );
 }
 
 function instanceProperties(intent: OperationIntent): PropertyBinding[] {
@@ -393,16 +426,16 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
   if (intent.operation === "read") {
     query.return = {
       distinct: false,
-      items: (intent.return_items || []).map((item) => ({
-        expression: item.expression,
+      items: returnItemAliases(intent.return_items || []).map((item) => ({
+        expression: rewriteDefaultNodeAlias(item.expression, variable),
         ...(item.alias ? { alias: item.alias } : {}),
       })),
     };
     if (typeof intent.limit === "number") query.limit = { value: intent.limit };
     const unwindExpressions = (intent.unwind?.expressions || [])
-      .map((expression) => String(expression || "").trim())
+      .map((expression) => rewriteDefaultNodeAlias(String(expression || "").trim(), variable))
       .filter(Boolean);
-    const unwindAlias = (intent.unwind?.alias || "").trim();
+    const unwindAlias = normalizeAlias(intent.unwind?.alias || "");
     if (unwindAlias && unwindExpressions.length >= 2) {
       query.unwind = {
         alias: unwindAlias,
@@ -420,12 +453,16 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
     }
   }
   if (intent.operation === "update") {
-    query.set = (intent.set_expressions || []).map((expression) => ({ expression }));
+    query.set = (intent.set_expressions || []).map((expression) => ({
+      expression: rewriteDefaultNodeAlias(expression, variable),
+    }));
   }
   if (intent.operation === "delete") {
     query.delete = {
       detach: true,
-      targets: intent.delete_targets?.length ? intent.delete_targets : [variable],
+      targets: (intent.delete_targets?.length ? intent.delete_targets : [variable]).map((target) =>
+        target.trim() === "n" ? variable : target
+      ),
     };
   }
 

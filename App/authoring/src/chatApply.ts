@@ -23,7 +23,9 @@ import {
   type SchemaPropertyIntent,
   type SequenceIntent,
 } from "./intent.js";
-import { normalizeAttributiveLabel } from "./normalizeField.js";
+import { instanceEntityIdPatch, instanceKeyIsUid } from "./instanceRules.js";
+import { normalizeAttributiveLabel, normalizeSchemaPropertyKey } from "./normalizeField.js";
+import { propertiesFromSchemata } from "./schemaRules.js";
 import {
   publishCreatedStepAsSequence,
   runCreate,
@@ -85,6 +87,70 @@ function payloadOf(item: ChatIntentItem): Record<string, unknown> {
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+const ROW_FIELD = /^([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * A create writes one instance. UNWIND and `row.field` values are how a model tries to
+ * stamp several rows into that one create; they would be stored as literal text.
+ */
+export function assertInstanceCreateShape(payload: Record<string, unknown>): void {
+  if (text(payload.operation).toLowerCase() !== "create") return;
+  if (text(payload.node_label).toUpperCase() !== "INSTANCE") return;
+  if (payload.unwind != null) {
+    throw new Error(
+      "UNWIND is only for a read. A create INSTANCE writes one row. Set the key property to a literal value or a $parameter, and propose one executed create per row."
+    );
+  }
+  const properties = Array.isArray(payload.instance_properties) ? payload.instance_properties : [];
+  const aliases = new Set<string>();
+  let dotted = 0;
+  for (const entry of properties) {
+    const row = asRecord(entry);
+    if (!row) continue;
+    const match = ROW_FIELD.exec(text(row.value));
+    if (!match) continue;
+    aliases.add(match[1]);
+    dotted += 1;
+  }
+  if (dotted >= 2 && aliases.size === 1) {
+    const alias = [...aliases][0];
+    throw new Error(
+      `INSTANCE properties are set to ${alias}.field. A create writes one instance, so set each property to a literal value or a $parameter. To seed several rows, propose one executed create per row.`
+    );
+  }
+}
+
+/** Copy the live schema onto a create INSTANCE so the key check sees is_key, keeping authored values. */
+async function adoptInstanceSchema(spaceId: string, query: QueryObject): Promise<void> {
+  if (query.operation !== "create" || query.match?.[0]?.label !== "INSTANCE") return;
+  const element = query.match[0]?.patterns?.[0]?.path?.[0];
+  if (!element || element.kind !== "node" || element.node.node_source !== "new") return;
+  const label = (element.node.attributive_label || "").trim();
+  if (!label) return;
+  let definition;
+  try {
+    definition = await connector.fetchSchemaDefinition({ spaceId, attributiveLabel: label });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`No SCHEMA named "${label}" is available for this instance. ${message}`);
+  }
+  const authored = element.node.properties ?? [];
+  const properties = propertiesFromSchemata(definition.schemata ?? []).map((prop) => {
+    const given = authored.find(
+      (item) => normalizeSchemaPropertyKey(item.key) === normalizeSchemaPropertyKey(prop.key)
+    );
+    return given ? { ...prop, value: given.value ?? "" } : prop;
+  });
+  const patch = instanceEntityIdPatch(
+    { alias_locked: true, variable: element.node.variable },
+    properties,
+    { attributiveLabel: label, takenVariables: [] }
+  );
+  element.node.properties = properties;
+  if (instanceKeyIsUid(properties)) element.node.id_binding = undefined;
+  else if (patch.id_binding) element.node.id_binding = patch.id_binding;
 }
 
 function summaryOf(item: ChatIntentItem): string {
@@ -434,6 +500,7 @@ export function previewChatIntent(item: ChatIntentItem): ChatIntentPreview | nul
   if (!text(payload.operation) || !text(payload.node_label)) {
     throw new Error("An operation needs operation and node_label.");
   }
+  assertInstanceCreateShape(payload);
   const intent = operationIntent(payload, name);
   if (intent.node_label === "STEP" && !(intent.attributive_label || "").trim()) {
     intent.attributive_label = name;
@@ -466,6 +533,7 @@ async function applySchema(spaceId: string, payload: Record<string, unknown>): P
 async function applyOperation(spaceId: string, payload: Record<string, unknown>): Promise<string> {
   const name = text(payload.name);
   if (!name) throw new Error("name is required");
+  assertInstanceCreateShape(payload);
   const existingId = text(payload.id);
   const stored = existingId ? await loadPackage(existingId) : null;
   if (stored && stored.kind !== "sequence") {
@@ -480,6 +548,7 @@ async function applyOperation(spaceId: string, payload: Record<string, unknown>)
     });
     query.id = existingId;
     query.name = name;
+    await adoptInstanceSchema(spaceId, query);
     const ctx: AuthoringContext = {
       spaceId,
       query,
@@ -506,6 +575,7 @@ async function applyOperation(spaceId: string, payload: Record<string, unknown>)
   }
   const ids = await mintIds(mintedIdCount(intent));
   const query = buildOperationQuery(intent, ids);
+  await adoptInstanceSchema(spaceId, query);
   const ctx: AuthoringContext = {
     spaceId,
     query,

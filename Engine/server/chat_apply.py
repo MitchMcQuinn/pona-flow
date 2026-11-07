@@ -74,8 +74,8 @@ KIND_HELP = """
 Kinds and payloads. Every field is checked before the item is queued. An error names the field and what it accepts. Do not send cypher, sqlite, builder_config, or a raw query object.
 Builder order inside one batch: schema, then the step, then create_transition, then the sequence, then the event or console.
 - create_space: {name, description?, endpoint?}
-- upsert_schema: {attributive_label, properties?: [{key, value_type, is_required?, is_key?, is_label?, is_indexed?, is_embedded?, format?, options?, default_value?}], is_vectorized?, description?, group_title?}. This saves a create-SCHEMA operation and runs it. The schema keeps attributive_label. Do not reuse that label as a STEP name, sequence entry_step, or operation name. The wrapping STEP is named create_<label>.
-- upsert_query kind operation: {id?, name, kind: "operation", operation: create|read|update|delete, node_label: STEP|SCHEMA|INSTANCE, attributive_label?, schema_properties?, instance_properties?: [{key, value}], where?: [{property_key, operator?, value?}], return_items?: [{expression, alias?}], unwind?: {alias, expressions}, set_expressions?: [string], delete_targets?: [string], parameters?: [{name, value_type?, value?, is_required?}], limit?, vector_search?: {enabled, text?, k?, all_labels?}, http_step?, wait_step?, join_step?, operation_step?, add_as_sequence?, execute?, description?, group_title?}. Pass id only to update a saved operation. http_step, wait_step, join_step, and operation_step are mutually exclusive. execute runs a create INSTANCE or SCHEMA package after saving it. A single new STEP is published as a one-step sequence unless add_as_sequence is false.
+- upsert_schema: {attributive_label, properties?: [{key, value_type, is_required?, is_key?, is_label?, is_indexed?, is_embedded?, format?, options?, default_value?}], is_vectorized?, description?, group_title?}. This saves a create-SCHEMA operation and runs it. The schema keeps attributive_label. Do not reuse that label as a STEP name, sequence entry_step, or operation name. The wrapping STEP is named create_<label>. Exactly one property is the instance display name (is_label true); put it on the name-like field. If none is set, name, label, title, display_name, a key ending in _name/_label/_title, or the first string property is marked. An empty property list gets a name property.
+- upsert_query kind operation: {id?, name, kind: "operation", operation: create|read|update|delete, node_label: STEP|SCHEMA|INSTANCE, attributive_label?, schema_properties?, instance_properties?: [{key, value}], where?: [{property_key, operator?, value?}], return_items?: [{expression, alias?}], unwind?: {alias, expressions}, set_expressions?: [string], delete_targets?: [string], parameters?: [{name, value_type?, value?, is_required?}], limit?, vector_search?: {enabled, text?, k?, all_labels?}, http_step?, wait_step?, join_step?, operation_step?, add_as_sequence?, execute?, description?, group_title?}. Pass id only to update a saved operation. http_step, wait_step, join_step, and operation_step are mutually exclusive. execute runs a create INSTANCE or SCHEMA package after saving it. A create INSTANCE writes one row. Give the schema key a literal value or a $parameter. unwind is only for a read. To seed several rows, propose one executed create per row. A return alias may be a title; spaces and punctuation become underscores. In a return or SET expression, call the matched node n. A single new STEP is published as a one-step sequence unless add_as_sequence is false.
 - upsert_query kind sequence: {id?, name, kind: "sequence", entry_step, traversal?: downstream|single, parameters?: [{name, value}], loop?: {type, count?, condition?, source?, max_iterations?, delay_seconds?, collect?}, description?, group_title?}. entry_step is the STEP attributive_label the run starts at. downstream walks POINTS_TO. Pass id only to update a saved sequence.
 - create_transition: {from_step, to_step, relationship_label?, condition_type?: null|parameter|cypher|implicit|query, condition?, condition_expected?}. Both STEP nodes must already exist or be created earlier in this batch.
 - update_space: {name, endpoint?, description?, dev_mode?}. name is the current name when you are only changing another field.
@@ -91,7 +91,7 @@ Builder order inside one batch: schema, then the step, then create_transition, t
 - update_tab_chrome: {icon_label}. Instance superadmin only.
 - upsert_event: {id?, name, type: time|external|simulated, event_package?: {timezone, combinator?, groups: [{is_time: "18:00", is_weekday?: [1-7], is_month?, is_date?}]}, sequences?: [id], recovery_sequences?: [id], enabled?: 1, external_package?: {filters, param_mappings, combinator}}. Weekday 1 is Monday. Put the schedule in groups. A note that says 6pm does not set the time field.
 - delete_event: {id}
-- upsert_console: {id?, name, trigger_kind?: ""|url|event, listen_url?, trigger_event_id?, document?: {views, activeViewId}}. views is an array of {id, name, kind: live|form, modules}. A form module puts its fields in config.fields.
+- upsert_console: {id?, name, trigger_kind?: ""|url|event, listen_url?, trigger_event_id?, document?: {views, activeViewId}}. views is an array of {id, name, kind: live|form, modules}. A form module puts its fields in config.fields. Leave trigger_kind empty when a person opens the console. trigger_kind event needs trigger_event_id of a time or external event; with no id the trigger is dropped. A simulated event cannot trigger a console.
 - delete_console: {id}
 - delete_sequence: {id} removes the catalog sequence only
 - delete_operation: {id} deletes the operation, its wrap step, and one-step sequences; suspends multi-step sequences
@@ -118,9 +118,63 @@ _SCHEMA_VALUE_TYPES = {
     "checkbox",
 }
 
+# Mirrors ensureSchemaLabelProperties in App/authoring/src/schemaRules.ts.
+_LABEL_KEY_PREFERENCE = ("name", "label", "title", "display_name")
+_LABEL_TEXT_TYPES = {"string", "radio"}
+
+
+def _schema_label_rank(prop: dict[str, Any], index: int) -> tuple[int, int, int]:
+    key = str(prop.get("key") or prop.get("name") or "").strip().lower()
+    if key in _LABEL_KEY_PREFERENCE:
+        return (0, _LABEL_KEY_PREFERENCE.index(key), index)
+    if key.endswith(("_name", "_label", "_title")):
+        return (1, index, 0)
+    value_type = str(prop.get("value_type") or "string")
+    if value_type in _LABEL_TEXT_TYPES:
+        return (2, index, 0)
+    return (3, index, 0)
+
+
+def _pick_schema_label(properties: list[dict[str, Any]]) -> dict[str, Any]:
+    best = properties[0]
+    best_rank = _schema_label_rank(best, 0)
+    for index, prop in enumerate(properties):
+        rank = _schema_label_rank(prop, index)
+        if rank < best_rank:
+            best = prop
+            best_rank = rank
+    return best
+
+
+def _ensure_schema_label(properties: list[dict[str, Any]]) -> None:
+    """Give a node SCHEMA exactly one is_label, without inventing a field seeds omit.
+
+    An empty list gets the builder default ``name`` property. is_required is not
+    flipped on an existing property.
+    """
+    labeled = [prop for prop in properties if prop.get("is_label")]
+    if len(labeled) == 1:
+        return
+    if not properties:
+        properties.append(
+            schema_update._to_property_schema(
+                {
+                    "key": "name",
+                    "value_type": "string",
+                    "is_required": True,
+                    "is_key": False,
+                    "is_label": True,
+                }
+            )
+        )
+        return
+    keep = _pick_schema_label(labeled or properties)
+    for prop in properties:
+        prop["is_label"] = prop is keep
+
 
 def _schema_properties(raw: Any) -> list[dict[str, Any]]:
-    """Property contract for a new SCHEMA, with the built-in id key when none is marked."""
+    """Property contract for a new SCHEMA, with id and one is_label when omitted."""
     items = raw if isinstance(raw, list) else []
     properties: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -160,6 +214,7 @@ def _schema_properties(raw: Any) -> list[dict[str, Any]]:
             "default_value": source.get("default_value"),
         }
         properties.append(schema_update._to_property_schema(constraint))
+    _ensure_schema_label(properties)
     if not any(prop.get("is_key") for prop in properties):
         properties.insert(
             0,
@@ -199,6 +254,31 @@ def _pins(raw: Any) -> list[dict[str, str]]:
     return pins
 
 
+def _normalize_console_trigger(payload: dict[str, Any]) -> None:
+    """A console someone opens has no trigger. An event trigger needs an event id.
+
+    ``trigger_kind: event`` with no ``trigger_event_id`` is what a model sends when it
+    has no time or external event. Saving that used to fail the whole console.
+    """
+    if not str(payload.get("trigger_kind") or "").strip() and payload.get("triggerKind"):
+        payload["trigger_kind"] = payload.get("triggerKind")
+    if not str(payload.get("trigger_event_id") or "").strip() and payload.get("triggerEventId"):
+        payload["trigger_event_id"] = payload.get("triggerEventId")
+    if not str(payload.get("listen_url") or "").strip() and payload.get("listenUrl"):
+        payload["listen_url"] = payload.get("listenUrl")
+    kind = str(payload.get("trigger_kind") or "").strip().lower()
+    event_id = str(payload.get("trigger_event_id") or "").strip()
+    if kind == "event" and not event_id:
+        kind = ""
+        event_id = ""
+    if kind != "event":
+        event_id = ""
+    payload["trigger_kind"] = kind
+    payload["trigger_event_id"] = event_id
+    if kind != "url":
+        payload["listen_url"] = ""
+
+
 def normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
     kind = str(raw.get("kind") or "").strip()
     payload = raw.get("payload") if isinstance(raw.get("payload"), dict) else {}
@@ -220,6 +300,8 @@ def normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
     if kind == "create_transition":
         payload["from_step"] = cypher_utils.normalize_attributive_label(str(payload.get("from_step") or ""))
         payload["to_step"] = cypher_utils.normalize_attributive_label(str(payload.get("to_step") or ""))
+    if kind == "upsert_console":
+        _normalize_console_trigger(payload)
     item: dict[str, Any] = {
         "kind": kind,
         "summary": _summary(kind, payload, str(raw.get("summary") or "")),
@@ -318,6 +400,22 @@ def _console_takes_input(document: dict[str, Any]) -> bool:
     return False
 
 
+def _writes_seed_rows(payload: dict[str, Any]) -> bool:
+    """A create INSTANCE operation with execute true writes the invented starting rows.
+
+    propose_change has no execute_package kind. That kind is rejected, and the rows
+    are written by an upsert_query whose payload sets execute. A STEP create
+    materializes the step itself, so it is not a seed.
+    """
+    if str(payload.get("kind") or "operation").strip().lower() == "sequence":
+        return False
+    if str(payload.get("operation") or "").strip().lower() != "create":
+        return False
+    if str(payload.get("node_label") or "").strip().upper() != "INSTANCE":
+        return False
+    return payload.get("execute") is True
+
+
 def _batch_feeds(items: list[dict[str, Any]]) -> dict[str, bool]:
     feeds = {
         "time_event": False,
@@ -337,6 +435,8 @@ def _batch_feeds(items: list[dict[str, Any]]) -> dict[str, bool]:
                 feeds["simulated_event"] = True
             else:
                 feeds["time_event"] = True
+        elif kind == "upsert_query" and _writes_seed_rows(payload):
+            feeds["execute_package"] = True
         elif kind == "execute_package":
             operation = str(payload.get("operation") or "create").strip().lower()
             if operation != "read":
@@ -353,7 +453,8 @@ def input_inventory_problems(items: list[dict[str, Any]]) -> list[str]:
 
     The model names each input. This checks that a person has a console, a clock has a
     time event, an outside system they have has an external event, a described system
-    has a simulated event or a console, and invented rows have a seed package.
+    has a simulated event or a console, and invented rows are an executed create INSTANCE
+    operation. There is no execute_package change kind.
     """
     feeds = _batch_feeds(items)
     if not any(feeds.values()):
@@ -416,12 +517,83 @@ def input_inventory_problems(items: list[dict[str, Any]]) -> list[str]:
     if lands("simulated_event") and not feeds["simulated_event"]:
         problems.append("An input lands on a simulated event, but this batch has no simulated event.")
     if lands("execute_package") and not feeds["execute_package"]:
-        problems.append("An input lands on execute_package, but this batch does not seed rows.")
+        problems.append(
+            "An input lands on execute_package, but this batch does not seed rows. "
+            "Write those rows with an upsert_query create INSTANCE operation and execute true."
+        )
     if lands("console") and not feeds["console"]:
         problems.append(
             "An input lands on a console, but this batch has no console someone can enter or refresh."
         )
     return problems
+
+
+def input_problem_blocks_accept(problem: str) -> bool:
+    """A landing that names something this batch does not create is a note, not a veto.
+
+    A follow-up often points at a simulated event, console, or seed that already
+    exists. The changes in the batch still apply.
+    """
+    text = problem or ""
+    if "but this batch has no" in text or "but this batch does not seed" in text:
+        return False
+    return True
+
+
+def _valid_input_entries(items: list[dict[str, Any]]) -> list[dict[str, str]]:
+    valid: list[dict[str, str]] = []
+    for entry in collect_inputs(items):
+        source = entry["source"]
+        if not entry["name"] or source not in _INPUT_SOURCES:
+            continue
+        if entry["lands_as"] not in _INPUT_LANDINGS[source]:
+            continue
+        valid.append(entry)
+    return valid
+
+
+_IMPLIED_INPUTS = (
+    (
+        "execute_package",
+        {"seed"},
+        {"name": "starting rows", "source": "seed", "lands_as": "execute_package"},
+    ),
+    (
+        "simulated_event",
+        {"simulated"},
+        {"name": "simulated source", "source": "simulated", "lands_as": "simulated_event"},
+    ),
+    (
+        "console",
+        {"person", "simulated"},
+        {"name": "console", "source": "person", "lands_as": "console"},
+    ),
+)
+
+
+def supply_implied_inputs(items: list[dict[str, Any]]) -> None:
+    """Name a seed, a simulated event, or a console when the batch already contains it.
+
+    A clock or an outside system is not invented. Those stay a problem until the
+    proposal names a source the user actually has.
+    """
+    if not items:
+        return
+    feeds = _batch_feeds(items)
+    valid = _valid_input_entries(items)
+
+    def has(kind: str, sources: set[str]) -> bool:
+        return any(entry["lands_as"] == kind and entry["source"] in sources for entry in valid)
+
+    missing = [
+        dict(entry)
+        for kind, sources, entry in _IMPLIED_INPUTS
+        if feeds[kind] and not has(kind, sources)
+    ]
+    if not missing:
+        return
+    host = items[0]
+    host["inputs"] = list(host.get("inputs") or []) + missing
 
 
 def _error_text(exc: Exception) -> str:
@@ -726,7 +898,9 @@ def validate_batch(
             if normalized in seen_spaces:
                 errors.append(f"Item {index + 1}: duplicate space name {normalized!r} in this batch")
             seen_spaces.add(normalized)
-    errors.extend(input_inventory_problems(items))
+    errors.extend(
+        problem for problem in input_inventory_problems(items) if input_problem_blocks_accept(problem)
+    )
     return errors
 
 
@@ -867,6 +1041,7 @@ def _apply_one(
     if kind == "delete_event":
         return catalog.delete_event(str(payload.get("id") or ""))
     if kind == "upsert_console":
+        _normalize_console_trigger(payload)
         document = payload.get("document") if isinstance(payload.get("document"), dict) else {}
         document = catalog._normalize_console_document(document)
         document = console_service.link_console_document(document)

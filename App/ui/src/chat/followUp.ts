@@ -3,6 +3,15 @@ import type { ChatBatchResult } from "./types";
 /** Stored on the user row so the transcript can hide it. The model sees the text after this mark. */
 export const FOLLOW_UP_MARK = "[[pona-follow-up]]";
 
+/** An input label that points at something this batch does not create. It does not veto accept. */
+export function inputProblemBlocksAccept(problem: string): boolean {
+  return !problem.includes("but this batch has no") && !problem.includes("but this batch does not seed");
+}
+
+export function acceptBlockingProblems(problems: string[] | undefined): string[] {
+  return (problems || []).filter(inputProblemBlocksAccept);
+}
+
 export function isFollowUp(content: string): boolean {
   return content.trimStart().startsWith(FOLLOW_UP_MARK);
 }

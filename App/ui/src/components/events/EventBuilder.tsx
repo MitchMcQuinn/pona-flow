@@ -251,18 +251,24 @@ export function EventBuilder({
         setEventType(
           detail.type === "external" || detail.type === "simulated" ? detail.type : "time"
         );
-        setCombinator(detail.eventPackage.combinator || "OR");
+        const eventPackage = detail.eventPackage;
+        setCombinator(eventPackage?.combinator || "OR");
         // Legacy events have no timezone — their values were authored in UTC.
-        setTimezone(detail.eventPackage.timezone || "UTC");
+        setTimezone(eventPackage?.timezone || "UTC");
+        const loadedGroups = Array.isArray(eventPackage?.groups) ? eventPackage.groups : [];
         setGroups(
-          detail.eventPackage.groups.length > 0
-            ? detail.eventPackage.groups.map((group) => ({ ...emptyGroup(), ...group }))
+          loadedGroups.length > 0
+            ? loadedGroups.map((group) => ({ ...emptyGroup(), ...group }))
             : [emptyGroup()]
         );
         setScheduleEpoch((epoch) => epoch + 1);
         setSelectedSequences(detail.sequences);
         setSelectedRecovery(detail.recoverySequences);
-        setParameters(detail.eventPackage.parameters || {});
+        setParameters(
+          eventPackage?.parameters && typeof eventPackage.parameters === "object"
+            ? eventPackage.parameters
+            : {}
+        );
         const ext = detail.externalPackage;
         setIngestToken(ext.ingest_token || "");
         setSecret(ext.secret || "");
