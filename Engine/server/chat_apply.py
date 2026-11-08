@@ -74,13 +74,13 @@ KIND_HELP = """
 Kinds and payloads. Every field is checked before the item is queued. An error names the field and what it accepts. Do not send cypher, sqlite, builder_config, or a raw query object.
 Builder order inside one batch: schema, then the step, then create_transition, then the sequence, then the event or console.
 - create_space: {name, description?, endpoint?}
-- upsert_schema: {attributive_label, properties?: [{key, value_type, is_required?, is_key?, is_label?, is_indexed?, is_embedded?, format?, options?, default_value?}], is_vectorized?, description?, group_title?}. This saves a create-SCHEMA operation and runs it. The schema keeps attributive_label. Do not reuse that label as a STEP name, sequence entry_step, or operation name. The wrapping STEP is named create_<label>. Exactly one property is the instance display name (is_label true); put it on the name-like field. If none is set, name, label, title, display_name, a key ending in _name/_label/_title, or the first string property is marked. An empty property list gets a name property.
+- upsert_schema: {attributive_label, properties?: [{key, value_type, is_required?, is_key?, is_label?, is_indexed?, is_embedded?, format?, options?, default_value?}], is_vectorized?, description?, group_title?, schema_id?, update_existing?}. This saves a create-SCHEMA operation and runs it. The schema keeps attributive_label. Do not reuse that label as a STEP name, sequence entry_step, or operation name. The wrapping STEP is named create_<label>. Exactly one property is the instance display name (is_label true and is_required true); put it on the name-like field. If none is set, name, label, title, display_name, a key ending in _name/_label/_title, or the first string property is marked. An empty property list gets a name property. Pass schema_id and update_existing true to add properties on a schema that already exists. Retained properties keep their value type. Do not send a second create of that label.
 - upsert_query kind operation: {id?, name, kind: "operation", operation: create|read|update|delete, node_label: STEP|SCHEMA|INSTANCE, attributive_label?, schema_properties?, instance_properties?: [{key, value}], where?: [{property_key, operator?, value?}], return_items?: [{expression, alias?}], unwind?: {alias, expressions}, set_expressions?: [string], delete_targets?: [string], parameters?: [{name, value_type?, value?, is_required?}], limit?, vector_search?: {enabled, text?, k?, all_labels?}, http_step?, wait_step?, join_step?, operation_step?, add_as_sequence?, execute?, description?, group_title?}. Pass id only to update a saved operation. http_step, wait_step, join_step, and operation_step are mutually exclusive. execute runs a create INSTANCE or SCHEMA package after saving it. A create INSTANCE writes one row. Give the schema key a literal value or a $parameter. unwind is only for a read. To seed several rows, propose one executed create per row. A return alias may be a title; spaces and punctuation become underscores. In a return or SET expression, call the matched node n. A single new STEP is published as a one-step sequence unless add_as_sequence is false.
 - upsert_query kind sequence: {id?, name, kind: "sequence", entry_step, traversal?: downstream|single, parameters?: [{name, value}], loop?: {type, count?, condition?, source?, max_iterations?, delay_seconds?, collect?}, description?, group_title?}. entry_step is the STEP attributive_label the run starts at. downstream walks POINTS_TO. Pass id only to update a saved sequence.
 - create_transition: {from_step, to_step, relationship_label?, condition_type?: null|parameter|cypher|implicit|query, condition?, condition_expected?}. Both STEP nodes must already exist or be created earlier in this batch.
 - update_space: {name, endpoint?, description?, dev_mode?}. name is the current name when you are only changing another field.
 - upsert_credential: {name, description?}. Do not send the secret. The user types it on the proposal.
-- update_chat_model: {provider?: platform|anthropic|openai|gemini|local_llm, model?, credential_name?, local_llm_base_url?, local_llm_config_id?, max_rounds?}. Do not send an API key. A cloud provider must name a credential that already exists.
+- update_chat_model: {role?: planner|surface|builder, provider?: platform|anthropic|openai|gemini|local_llm, model?, credential_name?, local_llm_base_url?, local_llm_config_id?, max_rounds?}. role defaults to planner. Do not send an API key. A cloud provider must name a credential that already exists.
 - update_embeddings: {enabled, provider?, ollama_url?, base_url?, embed_model?, credential?}. credential is a credential name.
 - reindex_embeddings: {}. Put this after a vectorized schema in the same batch.
 - invite_member: {email, role?}. role is a role id or name.
@@ -91,7 +91,7 @@ Builder order inside one batch: schema, then the step, then create_transition, t
 - update_tab_chrome: {icon_label}. Instance superadmin only.
 - upsert_event: {id?, name, type: time|external|simulated, event_package?: {timezone, combinator?, groups: [{is_time: "18:00", is_weekday?: [1-7], is_month?, is_date?}]}, sequences?: [id], recovery_sequences?: [id], enabled?: 1, external_package?: {filters, param_mappings, combinator}}. Weekday 1 is Monday. Put the schedule in groups. A note that says 6pm does not set the time field.
 - delete_event: {id}
-- upsert_console: {id?, name, trigger_kind?: ""|url|event, listen_url?, trigger_event_id?, document?: {views, activeViewId}}. views is an array of {id, name, kind: live|form, modules}. A form module puts its fields in config.fields. Leave trigger_kind empty when a person opens the console. trigger_kind event needs trigger_event_id of a time or external event; with no id the trigger is dropped. A simulated event cannot trigger a console.
+- upsert_console: {id?, name, trigger_kind?: ""|url|event, listen_url?, trigger_event_id?, document?: {views, activeViewId}}. views is an array of {id, name, kind: live|form, modules, fields?, dataSequenceId?, actionSequenceId?, submitLabel?}. A form view (kind form) puts its fields on the view: {id, name, label, type, required, options?, placeholder?, page?}. A form module puts its fields in config.fields. Pass id to update a console that already exists. Leave trigger_kind empty when a person opens the console. trigger_kind event needs trigger_event_id of a time or external event; with no id the trigger is dropped. A simulated event cannot trigger a console.
 - delete_console: {id}
 - delete_sequence: {id} removes the catalog sequence only
 - delete_operation: {id} deletes the operation, its wrap step, and one-step sequences; suspends multi-step sequences
@@ -149,11 +149,12 @@ def _pick_schema_label(properties: list[dict[str, Any]]) -> dict[str, Any]:
 def _ensure_schema_label(properties: list[dict[str, Any]]) -> None:
     """Give a node SCHEMA exactly one is_label, without inventing a field seeds omit.
 
-    An empty list gets the builder default ``name`` property. is_required is not
-    flipped on an existing property.
+    An empty list gets the builder default ``name`` property. The property that
+    keeps is_label is required, matching the schema form.
     """
     labeled = [prop for prop in properties if prop.get("is_label")]
     if len(labeled) == 1:
+        labeled[0]["is_required"] = True
         return
     if not properties:
         properties.append(
@@ -171,6 +172,8 @@ def _ensure_schema_label(properties: list[dict[str, Any]]) -> None:
     keep = _pick_schema_label(labeled or properties)
     for prop in properties:
         prop["is_label"] = prop is keep
+        if prop is keep:
+            prop["is_required"] = True
 
 
 def _schema_properties(raw: Any) -> list[dict[str, Any]]:
@@ -708,7 +711,8 @@ def validate_item(
             if not label:
                 raise ValueError("attributive_label is required")
             holders = graph.attributive_label_owner_ids(space_id, label)
-            if holders:
+            updating = payload.get("update_existing") is True and str(payload.get("schema_id") or "").strip()
+            if holders and not updating:
                 raise ValueError(
                     f"attributive_label {label!r} is already used by another STEP or SCHEMA"
                 )
@@ -965,6 +969,7 @@ def _apply_one(
                 "local_llm_base_url",
                 "local_llm_config_id",
                 "max_rounds",
+                "role",
             )
             if key in payload
         }

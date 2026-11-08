@@ -2336,6 +2336,17 @@ export async function acceptChatBatch(
   );
 }
 
+export async function confirmChatPlan(
+  spaceId: string,
+  threadId: string
+): Promise<{ ok: boolean; blocking: string[]; summary?: string }> {
+  return postJson(
+    `/api/spaces/${encodeURIComponent(spaceId)}/chat/threads/${encodeURIComponent(threadId)}/plan/confirm`,
+    {},
+    "Failed to confirm the plan"
+  );
+}
+
 export async function rejectChatBatch(spaceId: string, threadId: string): Promise<void> {
   await postJson(
     `/api/spaces/${encodeURIComponent(spaceId)}/chat/threads/${encodeURIComponent(threadId)}/batch/reject`,
@@ -2350,12 +2361,26 @@ export async function fetchChatModel(spaceId: string): Promise<ChatModelSettings
 
 export async function saveChatModel(
   spaceId: string,
-  settings: Partial<ChatModelSettings> & { api_key?: string }
+  settings: Partial<ChatModelSettings> & {
+    api_key?: string;
+    planner_api_key?: string;
+    surface_api_key?: string;
+    builder_api_key?: string;
+  }
 ): Promise<ChatModelSettings> {
   return postJson(
     `/api/spaces/${encodeURIComponent(spaceId)}/chat-model`,
     settings,
     "Failed to save chat model"
+  );
+}
+
+/** Start the session reads so the first message of a new thread can include them. */
+export async function warmChatSession(spaceId: string): Promise<void> {
+  await postJson(
+    `/api/spaces/${encodeURIComponent(spaceId)}/chat/context`,
+    {},
+    "Failed to prepare chat"
   );
 }
 

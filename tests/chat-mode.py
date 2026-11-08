@@ -373,6 +373,43 @@ class ChatModeTest(unittest.TestCase):
         self.assertIn("propose the schemas", text)
         self.assertIn("done", [event["event"] for event in events])
 
+    def test_tool_only_finish_states_where_things_stand(self) -> None:
+        def complete(_cfg, _key, messages, tools):
+            last = str((messages[-1] or {}).get("content") or "")
+            if "Say where things stand" in last or tools == []:
+                return
+            if _NUDGE_MARK in last:
+                yield {
+                    "type": "tool_call",
+                    "id": "call_again",
+                    "name": "list_schemas",
+                    "arguments": {},
+                }
+                return
+            if any(message.get("role") == "tool" for message in messages):
+                return
+            yield {
+                "type": "tool_call",
+                "id": "call_read",
+                "name": "list_catalog",
+                "arguments": {},
+            }
+
+        events = list(
+            chat_agent.run_turn(
+                space_id=self.space_id,
+                principal=self.principal,
+                content="design a small world",
+                thread_id=None,
+                model=({"provider": "openai", "model": "test", "base_url": ""}, "test-key"),
+                complete=complete,
+            )
+        )
+        text = "".join(event["data"].get("delta", "") for event in events if event["event"] == "text")
+        self.assertNotIn("I stopped after those tool calls", text)
+        self.assertNotIn("Send another message", text)
+        self.assertIn("What should we do next?", text)
+
     def test_max_rounds_is_clamped_and_shown(self) -> None:
         saved = chat_store.set_chat_model(self.space_id, {"provider": "platform", "max_rounds": 99})
         self.assertEqual(saved["max_rounds"], 48)
@@ -918,7 +955,7 @@ class ChatModeTest(unittest.TestCase):
         self.assertTrue(opened.result["ok"])
         self.assertEqual(opened.canvases[0]["kind"], "ephemeral_console")
         self.assertIn("a=1", opened.result["check"]["modules"][0]["shows"])
-        self.assertIn("check_console_modules", chat_agent._SYSTEM)
+        self.assertIn("check_console_modules", chat_agent._BUILDER)
 
     def test_proposal_rejects_a_module_that_would_show_the_shape_note(self) -> None:
         def resolve(ref: str):
@@ -1061,6 +1098,9 @@ class ChatModeTest(unittest.TestCase):
         self.assertEqual(item["payload"]["attributive_label"], "customer")
         names = [prop["name"] for prop in item["payload"]["properties"]]
         self.assertEqual(names, ["id", "full_name"])
+        full_name = next(prop for prop in item["payload"]["properties"] if prop["name"] == "full_name")
+        self.assertTrue(full_name["is_label"])
+        self.assertTrue(full_name["is_required"])
         with patch("server.chat_apply.graph.attributive_label_owner_ids", return_value=set()):
             self.assertEqual(
                 chat_apply.validate_item(self.principal, self.space_id, item), []
@@ -1102,7 +1142,9 @@ class ChatModeTest(unittest.TestCase):
         self.assertEqual(flags["tick"], False)
         self.assertEqual(flags["id"], False)
         season = next(prop for prop in item["payload"]["properties"] if prop["name"] == "season_name")
-        self.assertFalse(season["is_required"])
+        self.assertTrue(season["is_required"])
+        tick = next(prop for prop in item["payload"]["properties"] if prop["name"] == "tick")
+        self.assertFalse(tick["is_required"])
 
         numbers = chat_apply.normalize_item(
             {
@@ -1116,8 +1158,9 @@ class ChatModeTest(unittest.TestCase):
                 },
             }
         )
-        labeled = [prop["name"] for prop in numbers["payload"]["properties"] if prop["is_label"]]
-        self.assertEqual(labeled, ["tick"])
+        labeled = [prop for prop in numbers["payload"]["properties"] if prop["is_label"]]
+        self.assertEqual([prop["name"] for prop in labeled], ["tick"])
+        self.assertTrue(labeled[0]["is_required"])
 
         blank = chat_apply.normalize_item(
             {
@@ -1142,9 +1185,11 @@ class ChatModeTest(unittest.TestCase):
                 },
             }
         )
-        both_flags = {prop["name"]: prop["is_label"] for prop in both["payload"]["properties"]}
-        self.assertEqual(both_flags["name"], True)
-        self.assertEqual(both_flags["notes"], False)
+        both_flags = {prop["name"]: prop for prop in both["payload"]["properties"]}
+        self.assertTrue(both_flags["name"]["is_label"])
+        self.assertTrue(both_flags["name"]["is_required"])
+        self.assertFalse(both_flags["notes"]["is_label"])
+        self.assertFalse(both_flags["notes"]["is_required"])
 
     def test_console_event_trigger_without_an_id_is_opened_by_hand(self) -> None:
         item = chat_apply.normalize_item(
@@ -1411,9 +1456,10 @@ class ChatModeTest(unittest.TestCase):
         self.assertFalse(manage.result["ok"])
 
         self.assertIn("describe_settings", chat_agent._SYSTEM)
-        self.assertIn("open_settings", chat_agent._SYSTEM)
-        self.assertIn("Do not send cypher", chat_agent._SYSTEM)
-        self.assertIn("reindex_embeddings", chat_agent._SYSTEM)
+        self.assertIn("open_settings", chat_agent._BUILDER)
+        self.assertIn("Do not send cypher", chat_agent._BUILDER)
+        self.assertIn("reindex_embeddings", chat_agent._BUILDER)
+        self.assertNotIn("event_package", chat_agent._PLANNER)
 
     def test_follow_up_after_accept_stays_hidden_and_asks_for_a_next_step(self) -> None:
         seen: dict[str, list] = {}
@@ -1449,6 +1495,115 @@ class ChatModeTest(unittest.TestCase):
         self.assertIsNotNone(thread)
         stored = thread["messages"][0]["content"]
         self.assertTrue(stored.startswith("[[pona-follow-up]]"))
+
+    def test_first_message_includes_the_session_snapshot(self) -> None:
+        chat_tools.reset_session_reads()
+        calls = {"n": 0}
+        real_gather = chat_tools.gather_session_reads
+
+        def counting_gather(principal, space_id):
+            calls["n"] += 1
+            return real_gather(principal, space_id)
+
+        with patch.object(chat_tools, "gather_session_reads", counting_gather):
+            with patch.object(chat_tools.graph, "list_graph_nodes_by_label", return_value=[]):
+                started = self.client.post(
+                    f"/api/spaces/{self.space_id}/chat/context",
+                    headers={"Origin": self.BASE},
+                )
+                self.assertEqual(started.status_code, 200, started.text)
+                again = self.client.post(
+                    f"/api/spaces/{self.space_id}/chat/context",
+                    headers={"Origin": self.BASE},
+                )
+                self.assertEqual(again.status_code, 200, again.text)
+        self.assertEqual(calls["n"], 1)
+
+        seen: list[dict[str, object]] = []
+
+        def complete(_cfg, _key, messages, tools):
+            seen.append(
+                {
+                    "system": messages[0]["content"],
+                    "user": next(message["content"] for message in reversed(messages) if message["role"] == "user"),
+                    "tools": [tool["function"]["name"] for tool in tools],
+                }
+            )
+            yield {"type": "text", "delta": "Nothing is set up yet."}
+
+        model = ({"provider": "openai", "model": "test", "base_url": ""}, "test-key")
+        follow = (
+            "[[pona-follow-up]]\n"
+            "The user accepted the proposed changes and they have been applied."
+        )
+        list(
+            chat_agent.run_turn(
+                space_id=self.space_id,
+                principal=self.principal,
+                content=follow,
+                thread_id=None,
+                model=model,
+                complete=complete,
+            )
+        )
+        self.assertNotIn("Session snapshot", seen[0]["user"])
+        self.assertIn("You start with no catalog", seen[0]["system"])
+        self.assertIn("describe_space", seen[0]["tools"])
+        seen.clear()
+
+        events = list(
+            chat_agent.run_turn(
+                space_id=self.space_id,
+                principal=self.principal,
+                content="what is here?",
+                thread_id=None,
+                model=model,
+                complete=complete,
+            )
+        )
+        self.assertIn("done", [event["event"] for event in events])
+        self.assertIn("Session snapshot", seen[0]["user"])
+        self.assertIn("User message:\nwhat is here?", seen[0]["user"])
+        self.assertIn('"name": "Home"', seen[0]["user"])
+        for name in chat_tools.SESSION_READS:
+            self.assertIn(name, seen[0]["user"])
+        self.assertIn("Do not call those tools again", seen[0]["system"])
+        for name in chat_tools.SESSION_READS:
+            self.assertNotIn(name, seen[0]["tools"])
+        self.assertNotIn("list_steps", seen[0]["tools"])
+        self.assertIn("describe_schema", seen[0]["tools"])
+        thread_id = next(event["data"]["thread_id"] for event in events if event["event"] == "start")
+        stored = chat_store.get_thread(thread_id, self.space_id, self.principal.user_id)
+        self.assertIsNotNone(stored)
+        self.assertEqual(stored["messages"][0]["content"], "what is here?")
+
+        seen.clear()
+        list(
+            chat_agent.run_turn(
+                space_id=self.space_id,
+                principal=self.principal,
+                content="and now?",
+                thread_id=thread_id,
+                model=model,
+                complete=complete,
+            )
+        )
+        self.assertNotIn("Session snapshot", seen[0]["user"])
+
+        seen.clear()
+        list(
+            chat_agent.run_turn(
+                space_id=self.space_id,
+                principal=self.principal,
+                content="a later thread",
+                thread_id=None,
+                model=model,
+                complete=complete,
+            )
+        )
+        self.assertNotIn("Session snapshot", seen[0]["user"])
+        self.assertIn("You start with no catalog", seen[0]["system"])
+        self.assertIn("list_schemas", seen[0]["tools"])
 
 
 class GeminiToolSchemaTest(unittest.TestCase):

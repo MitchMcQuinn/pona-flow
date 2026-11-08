@@ -2,6 +2,7 @@ export type StackKind =
   | "saved_console"
   | "ephemeral_console"
   | "proposal"
+  | "plan"
   | "hitl"
   | "builder"
   | "run_log"
@@ -88,13 +89,19 @@ export interface ChatThread extends ChatThreadSummary {
   stack: ChatStackItem[];
 }
 
-export interface ChatModelSettings {
+export interface ChatModelRole {
   provider: "platform" | "anthropic" | "openai" | "gemini" | "local_llm";
   model: string;
   credential_name: string;
   local_llm_base_url: string;
   local_llm_config_id: string;
   max_rounds: number;
+}
+
+export interface ChatModelSettings extends ChatModelRole {
+  planner: ChatModelRole;
+  surface: ChatModelRole | null;
+  builder: ChatModelRole | null;
   platform_configured?: boolean;
 }
 

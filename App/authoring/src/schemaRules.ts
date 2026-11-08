@@ -119,12 +119,18 @@ function defaultSchemaLabelBinding(): PropertyBinding {
  * When none is set, mark a name-like field, otherwise the first string, otherwise
  * the first property — without adding a field the rest of the proposal does not know
  * about. An empty property list gets the builder's default `name` property.
- * Extra flags are cleared down to that one property. is_required is left alone so a
- * seed that already omits the field still validates.
+ * Extra flags are cleared down to that one property. The property that keeps
+ * is_label is required, the same rule the schema form applies when the label is turned on.
  */
 export function ensureSchemaLabelProperties(properties: PropertyBinding[]): PropertyBinding[] {
   const labeled = properties.filter((prop) => prop.schematic_properties?.is_label);
-  if (labeled.length === 1) return properties;
+  if (labeled.length === 1) {
+    return properties.map((prop) => {
+      const schematic = prop.schematic_properties;
+      if (!schematic?.is_label || schematic.is_required) return prop;
+      return { ...prop, schematic_properties: { ...schematic, is_required: true } };
+    });
+  }
   if (!properties.length) return [defaultSchemaLabelBinding()];
   const pool = labeled.length > 1 ? labeled : properties;
   const keep = pickSchemaLabel(pool);
@@ -132,8 +138,12 @@ export function ensureSchemaLabelProperties(properties: PropertyBinding[]): Prop
     const schematic = prop.schematic_properties;
     if (!schematic) return prop;
     const isLabel = prop === keep;
-    if (schematic.is_label === isLabel) return prop;
-    return { ...prop, schematic_properties: { ...schematic, is_label: isLabel } };
+    const isRequired = isLabel ? true : schematic.is_required;
+    if (schematic.is_label === isLabel && schematic.is_required === isRequired) return prop;
+    return {
+      ...prop,
+      schematic_properties: { ...schematic, is_label: isLabel, is_required: isRequired },
+    };
   });
 }
 

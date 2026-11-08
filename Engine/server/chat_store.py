@@ -20,6 +20,7 @@ STACK_KINDS = (
     "saved_console",
     "ephemeral_console",
     "proposal",
+    "plan",
     "hitl",
     "builder",
     "run_log",
@@ -363,6 +364,16 @@ def update_stack_item(
         conn.close()
 
 
+_ROLE_KEYS = (
+    "provider",
+    "model",
+    "credential_name",
+    "local_llm_base_url",
+    "local_llm_config_id",
+    "max_rounds",
+)
+
+
 def default_chat_model() -> dict[str, Any]:
     return {
         "provider": "platform",
@@ -374,20 +385,8 @@ def default_chat_model() -> dict[str, Any]:
     }
 
 
-def get_chat_model(space_id: str) -> dict[str, Any]:
-    """Per-space chat model settings. Never includes a secret value."""
-    spaces.ensure_catalog_space_schema()
+def _sanitize_role(parsed: Any) -> dict[str, Any]:
     cfg = default_chat_model()
-    conn = _conn()
-    try:
-        row = conn.execute(
-            "SELECT chat_model FROM spaces WHERE id = ?", (space_id.strip(),)
-        ).fetchone()
-    finally:
-        conn.close()
-    if row is None:
-        return cfg
-    parsed = _loads(row["chat_model"], {})
     if not isinstance(parsed, dict):
         return cfg
     provider = str(parsed.get("provider") or "platform").strip()
@@ -401,8 +400,23 @@ def get_chat_model(space_id: str) -> dict[str, Any]:
     return cfg
 
 
-def set_chat_model(space_id: str, raw: dict[str, Any]) -> dict[str, Any]:
-    current = get_chat_model(space_id)
+def _read_chat_blob(space_id: str) -> dict[str, Any]:
+    spaces.ensure_catalog_space_schema()
+    conn = _conn()
+    try:
+        row = conn.execute(
+            "SELECT chat_model FROM spaces WHERE id = ?", (space_id.strip(),)
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return {}
+    parsed = _loads(row["chat_model"], {})
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _write_role(target: dict[str, Any], raw: dict[str, Any]) -> None:
+    current = _sanitize_role(target)
     provider = str(raw.get("provider") or current["provider"]).strip()
     if provider not in CHAT_PROVIDERS:
         raise ValueError("provider must be platform, anthropic, openai, gemini, or local_llm")
@@ -418,12 +432,67 @@ def set_chat_model(space_id: str, raw: dict[str, Any]) -> dict[str, Any]:
         current["local_llm_config_id"] = str(raw.get("local_llm_config_id") or "").strip()
     if "max_rounds" in raw:
         current["max_rounds"] = clamp_max_rounds(raw.get("max_rounds"))
+    for key in _ROLE_KEYS:
+        target[key] = current[key]
+
+
+def _named_role(blob: dict[str, Any], name: str) -> dict[str, Any] | None:
+    role = blob.get(name)
+    return _sanitize_role(role) if isinstance(role, dict) else None
+
+
+def _store_named_role(blob: dict[str, Any], name: str, raw: dict[str, Any]) -> None:
+    current = blob[name] if isinstance(blob.get(name), dict) else default_chat_model()
+    _write_role(current, raw)
+    blob[name] = {key: current[key] for key in _ROLE_KEYS}
+
+
+def get_chat_model(space_id: str) -> dict[str, Any]:
+    """Per-space chat model settings. Never includes a secret value.
+
+    The top-level fields are the planner. ``surface`` is the consultation model
+    and ``builder`` files changes. Either is None until the space sets one,
+    and a missing one uses the planner.
+    """
+    blob = _read_chat_blob(space_id)
+    cfg = _sanitize_role(blob)
+    cfg["planner"] = {key: cfg[key] for key in _ROLE_KEYS}
+    cfg["surface"] = _named_role(blob, "surface")
+    cfg["builder"] = _named_role(blob, "builder")
+    return cfg
+
+
+def set_chat_model(space_id: str, raw: dict[str, Any]) -> dict[str, Any]:
+    blob = _read_chat_blob(space_id)
+    for key in _ROLE_KEYS:
+        blob.setdefault(key, default_chat_model()[key])
+    wrote_roles = (
+        isinstance(raw.get("planner"), dict) or "surface" in raw or "builder" in raw
+    )
+    if wrote_roles:
+        if isinstance(raw.get("planner"), dict):
+            _write_role(blob, raw["planner"])
+        for name in ("surface", "builder"):
+            if name not in raw:
+                continue
+            if raw.get(name) is None:
+                blob.pop(name, None)
+            elif isinstance(raw.get(name), dict):
+                _store_named_role(blob, name, raw[name])
+    else:
+        role = str(raw.get("role") or "planner").strip().lower()
+        if role in ("surface", "builder"):
+            _store_named_role(blob, role, raw)
+        else:
+            _write_role(blob, raw)
+    blob.pop("planner", None)
+    blob.pop("role", None)
     spaces.ensure_catalog_space_schema()
     conn = _conn()
     try:
         cur = conn.execute(
             "UPDATE spaces SET chat_model = ? WHERE id = ?",
-            (json.dumps(current), space_id.strip()),
+            (json.dumps(blob), space_id.strip()),
         )
         if cur.rowcount == 0:
             raise ValueError(f"Unknown space id: {space_id!r}")

@@ -791,6 +791,7 @@ export default function App() {
               onSelectRead={chat.selectRead}
               onDraft={chat.setDraft}
               onSend={() => void chat.send(chat.draft)}
+              onComposerFocus={chat.noteComposerFocus}
               onOpenThread={(id) => void chat.openThread(id)}
               onNewThread={chat.newThread}
               onAccept={() => void chat.accept()}
@@ -886,6 +887,7 @@ export default function App() {
               onSelect={chat.selectStack}
               onAccept={() => void chat.accept()}
               onReject={() => void chat.reject()}
+              onConfirmPlan={() => void chat.confirmPlan()}
               acceptBlocked={chat.acceptBlocked}
               onCredentialSecret={chat.setCredentialSecret}
               settings={{

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import StreamingResponse
 
-from .. import auth, chat_agent, chat_apply, chat_models, chat_store, credentials
+from .. import auth, chat_agent, chat_apply, chat_models, chat_plan, chat_store, chat_tools, credentials
 from ..auth import Principal
 from ..http_utils import bad_request, json_body
 
@@ -110,6 +110,17 @@ async def update_stack_item(
     return {"item": item}
 
 
+@router.post("/api/spaces/{space_id}/chat/context")
+def prepare_session_context(space_id: str, principal: Principal = Depends(auth.current_principal)):
+    """Start the reads a new chat session needs, so the first message can include them."""
+    auth.require_space_access(principal, space_id)
+    try:
+        chat_tools.begin_session_reads(principal, space_id)
+    except Exception as exc:
+        raise HTTPException(500, str(exc)[:500]) from exc
+    return {"ok": True}
+
+
 @router.post("/api/spaces/{space_id}/chat/turns")
 async def start_turn(
     space_id: str, request: Request, principal: Principal = Depends(auth.current_principal)
@@ -127,7 +138,11 @@ async def start_turn(
         if chat_store.pending_batch(thread):
             raise HTTPException(409, "batch_pending")
     try:
-        model = chat_models.resolve_model(space_id)
+        models = {
+            "planner": chat_models.resolve_model(space_id, "planner"),
+            "surface": chat_models.resolve_model(space_id, "surface"),
+            "builder": chat_models.resolve_model(space_id, "builder"),
+        }
     except ValueError as exc:
         raise bad_request(str(exc))
 
@@ -141,7 +156,7 @@ async def start_turn(
                     principal=principal,
                     content=content,
                     thread_id=thread_id,
-                    model=model,
+                    models=models,
                 ):
                     events.put(event)
             except Exception as exc:
@@ -181,11 +196,19 @@ def _finish_batch(thread: dict, status: str, result: dict | None) -> None:
     chat_store.update_message_batch(pending["message_id"], batch)
     for item in reversed(thread.get("stack") or []):
         payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
-        if item.get("kind") == "proposal" and payload.get("status") == "pending":
+        kind = item.get("kind")
+        if kind == "proposal" and payload.get("status") == "pending":
             chat_store.update_stack_item(
                 thread["id"],
                 item["id"],
                 payload={**payload, "status": status, "result": result},
+            )
+            break
+        if kind == "plan" and payload.get("batch_status") == "pending":
+            chat_store.update_stack_item(
+                thread["id"],
+                item["id"],
+                payload={**payload, "batch_status": status, "result": result},
             )
             break
 
@@ -245,6 +268,143 @@ def reject_batch(
     return {"ok": True, "status": "rejected"}
 
 
+def _open_plan(thread: dict) -> dict | None:
+    for item in reversed(thread.get("stack") or []):
+        if item.get("kind") != "plan":
+            continue
+        payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+        if payload.get("status") == "confirmed":
+            continue
+        return item
+    return None
+
+
+@router.post("/api/spaces/{space_id}/chat/threads/{thread_id}/plan/confirm")
+def confirm_plan(
+    space_id: str, thread_id: str, principal: Principal = Depends(auth.current_principal)
+):
+    """Compile a ready brief into a proposal. The planner is not called."""
+    auth.require_space_access(principal, space_id)
+    thread = _thread_or_404(thread_id, space_id, principal)
+    if chat_store.pending_batch(thread):
+        raise HTTPException(409, "batch_pending")
+    plan = _open_plan(thread)
+    if plan is None:
+        raise HTTPException(400, "no plan is waiting")
+    payload = plan.get("payload") if isinstance(plan.get("payload"), dict) else {}
+    brief = payload.get("brief") if isinstance(payload.get("brief"), dict) else {}
+    try:
+        fitted = chat_plan.preview_for_brief(space_id, brief)
+    except ValueError as exc:
+        problem = str(exc)
+        chat_store.update_stack_item(
+            thread["id"],
+            plan["id"],
+            payload={
+                **payload,
+                "brief": brief,
+                "blocking": [problem],
+                "ready": False,
+                "status": "consulting",
+                "preview": {"items": [], "error": problem, "problems": []},
+            },
+        )
+        return {"ok": False, "blocking": [problem]}
+    brief = fitted["brief"]
+    items = fitted["items"]
+    blocking = chat_plan.readiness(brief)
+    public = [_public_batch_item(item) for item in items]
+    if not items and not blocking:
+        blocking = [chat_plan.ALREADY_CONFIGURED]
+    if blocking:
+        chat_store.update_stack_item(
+            thread["id"],
+            plan["id"],
+            payload={
+                **payload,
+                "brief": brief,
+                "blocking": blocking,
+                "ready": False,
+                "status": "consulting",
+                "preview": {
+                    "items": public,
+                    "problems": [],
+                    "already": fitted["already"],
+                    "conflicts": fitted["conflicts"],
+                    "configured": fitted["configured"],
+                },
+            },
+        )
+        return {"ok": False, "blocking": blocking}
+    problems = chat_plan.validation_problems(principal, space_id, items)
+    if problems:
+        questions = list(brief.get("open_questions") or [])
+        for problem in problems:
+            if not any(question.get("question") == problem for question in questions if isinstance(question, dict)):
+                questions.append({"id": problem[:80], "question": problem, "blocks": "compile"})
+        revised = {**brief, "open_questions": questions, "status": "consulting"}
+        chat_store.update_stack_item(
+            thread["id"],
+            plan["id"],
+            payload={
+                "status": "consulting",
+                "brief": revised,
+                "blocking": problems,
+                "ready": False,
+                "preview": {"items": public, "problems": problems},
+            },
+        )
+        return {"ok": False, "blocking": problems}
+    named_inputs = chat_apply.collect_inputs(items)
+    batch: dict = {"status": "pending", "items": public}
+    confirmed = {**brief, "status": "confirmed"}
+    confirmed_payload: dict = {
+        "status": "confirmed",
+        "brief": confirmed,
+        "blocking": [],
+        "ready": False,
+        "items": public,
+        "batch_status": "pending",
+        "preview": {"items": public, "problems": [], "already": fitted["already"]},
+    }
+    if named_inputs:
+        confirmed_payload["inputs"] = named_inputs
+        batch["inputs"] = named_inputs
+    proposal = chat_store.update_stack_item(thread["id"], plan["id"], payload=confirmed_payload)
+    assumptions = [
+        str(item.get("adds") or "")
+        for item in confirmed.get("assumptions") or []
+        if isinstance(item, dict) and item.get("adds")
+    ]
+    summary = "The plan is ready to accept."
+    if assumptions:
+        summary = "Assumed: " + " ".join(assumptions)
+    message = chat_store.append_message(thread["id"], "assistant", summary, [], batch)
+    return {
+        "ok": True,
+        "blocking": [],
+        "summary": summary,
+        "message_id": message["id"],
+        "proposal": proposal,
+    }
+
+
+def _public_batch_item(item: dict) -> dict:
+    public = {
+        "kind": item.get("kind"),
+        "summary": item.get("summary"),
+        "payload": item.get("payload"),
+        "preview": item.get("preview"),
+    }
+    if item.get("note"):
+        public["note"] = item["note"]
+    if item.get("pins"):
+        public["pins"] = item["pins"]
+    if item.get("inputs"):
+        public["inputs"] = item["inputs"]
+    return public
+
+
 @router.get("/api/spaces/{space_id}/chat-model")
 def read_chat_model(space_id: str, principal: Principal = Depends(auth.current_principal)):
     auth.require_space_access(principal, space_id)
@@ -259,25 +419,37 @@ async def write_chat_model(
 ):
     auth.require_space_manage(principal, space_id)
     body = await json_body(request)
-    api_key = body.get("api_key")
-    credential_name = str(body.get("credential_name") or "").strip()
-    if isinstance(api_key, str) and api_key.strip():
-        name = credential_name or "CHAT_MODEL"
+
+    def store_key(secret: object, holder: dict, default_name: str) -> dict:
+        if not isinstance(secret, str) or not secret.strip():
+            return holder
+        name = str(holder.get("credential_name") or "").strip() or default_name
         try:
             saved = credentials.upsert_credential(
                 space_id,
                 name,
-                value=api_key.strip(),
+                value=secret.strip(),
                 description="Chat mode model key",
             )
         except PermissionError as exc:
             raise HTTPException(400, str(exc))
         except ValueError as exc:
             raise bad_request(str(exc))
-        body = {**body, "credential_name": saved["name"]}
-        body.pop("api_key", None)
-    else:
-        body = {key: value for key, value in body.items() if key != "api_key"}
+        return {**holder, "credential_name": saved["name"]}
+
+    if isinstance(body.get("planner"), dict):
+        body["planner"] = store_key(body.get("planner_api_key") or body.get("api_key"), body["planner"], "CHAT_MODEL")
+    elif isinstance(body.get("api_key"), str) and body.get("api_key").strip():
+        body = store_key(body.get("api_key"), body, "CHAT_MODEL")
+    if isinstance(body.get("surface"), dict):
+        body["surface"] = store_key(body.get("surface_api_key"), body["surface"], "CHAT_MODEL_SURFACE")
+    if isinstance(body.get("builder"), dict):
+        body["builder"] = store_key(body.get("builder_api_key"), body["builder"], "CHAT_MODEL_BUILDER")
+    body = {
+        key: value
+        for key, value in body.items()
+        if key not in ("api_key", "planner_api_key", "surface_api_key", "builder_api_key")
+    }
     try:
         cfg = chat_store.set_chat_model(space_id, body)
     except ValueError as exc:

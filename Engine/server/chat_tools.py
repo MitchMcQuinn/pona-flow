@@ -7,6 +7,9 @@ record a stack item for the client. propose_change only queues a batch item.
 from __future__ import annotations
 
 import json
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from fastapi.exceptions import HTTPException
@@ -354,7 +357,67 @@ TOOLS: list[dict[str, Any]] = [
             ["kind", "summary", "payload"],
         ),
     ),
+    _tool(
+        "choose_route",
+        "Choose which model continues this turn. Call this before any other tool. "
+        "deep when the user is describing or changing the system, a record kind, an operation, a screen, or a decision. "
+        "Choosing or changing any of those is deep, even when they are answering a question. "
+        "Answering the open question is deep, including when they say they do not know. "
+        "surface when they are confirming a source, describing a simulation, dropping an assumption, "
+        "or asking what already exists.",
+        _params(
+            {
+                "route": {"type": "string", "enum": ["surface", "deep"]},
+                "reason": {"type": "string"},
+            },
+            ["route"],
+        ),
+    ),
+    _tool(
+        "update_plan",
+        "Revise the consultation brief. Does not write the space. "
+        "The planner may set routine, reconstruction, ontology, multi_hop, outputs, operations, screens, vector, inputs, and open_questions. "
+        "When a plan is open, send only the sections that change. "
+        "The surface model may confirm an input, set a simulation, or drop an assumption. "
+        "A surface change to the routine, types, links, path, outputs, operations, or screens is handed to the planner, "
+        "as is a surface update that does not touch an input or an assumption.",
+        _params(
+            {
+                "routine": {"type": "string"},
+                "reconstruction": {"type": "object"},
+                "ontology": {"type": "object"},
+                "multi_hop": {"type": "object"},
+                "inputs": {"type": "array", "items": {"type": "object"}},
+                "outputs": {"type": "array", "items": {"type": "object"}},
+                "operations": {"type": "array", "items": {"type": "object"}},
+                "screens": {"type": "array", "items": {"type": "object"}},
+                "vector": {"type": "object"},
+                "assumptions": {"type": "array", "items": {"type": "object"}},
+                "rejected": {"type": "array", "items": {"type": "string"}},
+                "open_questions": {"type": "array", "items": {"type": "object"}},
+            },
+        ),
+    ),
 ]
+
+
+def select_tools(*, role: str, consulting: bool, routing: bool) -> list[dict[str, Any]]:
+    """The tools for this turn. Routing offers only the choice. A planner cannot propose."""
+    if routing:
+        return [tool for tool in TOOLS if tool["function"]["name"] == "choose_route"]
+    selected: list[dict[str, Any]] = []
+    for tool in TOOLS:
+        name = tool["function"]["name"]
+        if name == "choose_route":
+            continue
+        if role == "planner":
+            if name == "update_plan" or name.startswith(("list_", "get_", "describe_")):
+                selected.append(tool)
+            continue
+        if role != "builder" and consulting and name == "propose_change":
+            continue
+        selected.append(tool)
+    return selected
 
 
 class ToolResult:
@@ -415,6 +478,121 @@ def _walkthrough_frames(raw: Any) -> list[dict[str, Any]]:
     if not frames:
         raise ValueError("show_walkthrough needs at least one frame")
     return frames
+
+
+# Reads a new chat session would otherwise spend its first round collecting.
+# The composer starts them when the message field is focused, and the first
+# message of a thread receives the snapshot.
+SESSION_READS: tuple[str, ...] = (
+    "describe_space",
+    "describe_settings",
+    "list_schemas",
+    "list_steps",
+    "list_catalog",
+    "list_consoles",
+    "list_events",
+)
+
+# Covers composing the first message. A snapshot older than this is gathered again.
+_SESSION_READS_TTL_SECONDS = 600
+_SESSION_READS_WAIT_SECONDS = 60
+_session_lock = threading.Lock()
+_session_jobs: dict[tuple[str, str], dict[str, Any]] = {}
+
+
+def gather_session_reads(principal: Principal, space_id: str) -> dict[str, Any]:
+    """Run the session reads in parallel. A failed tool stays in its own result."""
+    with catalog.catalog_connection():
+        pass
+
+    def one(name: str) -> tuple[str, Any]:
+        outcome = execute(name, {}, principal, space_id, [])
+        return name, outcome.result
+
+    results: dict[str, Any] = {}
+    with ThreadPoolExecutor(max_workers=len(SESSION_READS)) as pool:
+        for name, result in pool.map(one, SESSION_READS):
+            results[name] = result
+    return results
+
+
+def format_session_snapshot(reads: dict[str, Any]) -> str:
+    """Text block prepended to the first user message the model sees."""
+    lines = [
+        "Session snapshot gathered before this message. These reads already ran. Do not call them again."
+    ]
+    for name in SESSION_READS:
+        if name not in reads:
+            continue
+        lines.append(f"{name}: {json.dumps(reads[name], default=str)}")
+    return "\n".join(lines)
+
+
+def begin_session_reads(principal: Principal, space_id: str) -> None:
+    """Gather the session reads, or wait for the gather already running.
+
+    A fresh unused snapshot is kept. The caller blocks until it is ready.
+    """
+    key = (principal.user_id, space_id)
+    with _session_lock:
+        job = _session_jobs.get(key)
+        now = time.monotonic()
+        fresh = (
+            job is not None
+            and job.get("result") is not None
+            and not job.get("used")
+            and now - float(job["finished"]) < _SESSION_READS_TTL_SECONDS
+        )
+        if fresh:
+            return
+        in_flight = job is not None and job.get("result") is None and job.get("error") is None
+        if in_flight:
+            event = job["event"]
+            owner = False
+        else:
+            event = threading.Event()
+            job = {
+                "event": event,
+                "result": None,
+                "error": None,
+                "finished": 0.0,
+                "used": False,
+            }
+            _session_jobs[key] = job
+            owner = True
+    if owner:
+        try:
+            job["result"] = gather_session_reads(principal, space_id)
+        except Exception as exc:
+            job["error"] = str(exc)[:500]
+        finally:
+            job["finished"] = time.monotonic()
+            event.set()
+    elif not event.wait(_SESSION_READS_WAIT_SECONDS):
+        raise TimeoutError("session snapshot timed out")
+    if job.get("error"):
+        raise RuntimeError(str(job["error"]))
+    if job.get("result") is None:
+        raise RuntimeError("session snapshot was not ready")
+
+
+def take_session_reads(principal: Principal, space_id: str) -> dict[str, Any] | None:
+    """Return the fresh snapshot once, for the first message of a new thread."""
+    key = (principal.user_id, space_id)
+    with _session_lock:
+        job = _session_jobs.get(key)
+        if job is None or job.get("used") or job.get("result") is None:
+            return None
+        if time.monotonic() - float(job["finished"]) > _SESSION_READS_TTL_SECONDS:
+            return None
+        job["used"] = True
+        return job["result"]
+
+
+def reset_session_reads() -> None:
+    """Drop cached snapshots. Tests use this so cases do not share one."""
+    with _session_lock:
+        _session_jobs.clear()
 
 
 def _clip(value: Any, limit: int = 12000) -> Any:

@@ -40,9 +40,18 @@ def platform_configured() -> bool:
     return bool((os.environ.get("PONA_FLOW_CHAT_API_KEY") or "").strip())
 
 
-def resolve_model(space_id: str) -> tuple[dict[str, Any], str]:
-    """Return ``(request config, api key)`` for this space, or raise ValueError."""
-    cfg = chat_store.get_chat_model(space_id)
+def resolve_model(space_id: str, role: str = "planner") -> tuple[dict[str, Any], str]:
+    """Return ``(request config, api key)`` for this space, or raise ValueError.
+
+    ``role`` is ``planner`` (the consultant), ``surface`` (consultation), or
+    ``builder`` (change proposals). A space that has not saved that role uses
+    the planner.
+    """
+    stored = chat_store.get_chat_model(space_id)
+    if role in ("surface", "builder") and isinstance(stored.get(role), dict):
+        cfg = stored[role]
+    else:
+        cfg = stored
     provider = cfg["provider"]
     if provider == "platform":
         key = (os.environ.get("PONA_FLOW_CHAT_API_KEY") or "").strip()

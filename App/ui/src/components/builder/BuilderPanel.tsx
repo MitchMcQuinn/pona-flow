@@ -1149,15 +1149,36 @@ function BuilderBody({
     };
   }, [state.spaceId, dispatch]);
 
+  // Re-entering edit clears field checks. A parent re-render hands this panel a new
+  // object with the same query, which restarted the attributive_label probe and left
+  // "checking…" above that field. Apply a preview only when its content changes.
+  const previewSignature = preview
+    ? JSON.stringify({
+        sequence: createSequenceMode,
+        name: preview.name ?? "",
+        description: preview.description ?? "",
+        query: preview.query
+      })
+    : "";
+  const appliedPreview = useRef("");
+  const previewRef = useRef(preview);
+  previewRef.current = preview;
   useEffect(() => {
-    if (!preview) return;
-    if (preview.name) setSequenceName(preview.name);
-    if (preview.description) setSequenceDescription(preview.description);
+    if (!previewSignature) {
+      appliedPreview.current = "";
+      return;
+    }
+    if (appliedPreview.current === previewSignature) return;
+    appliedPreview.current = previewSignature;
+    const current = previewRef.current;
+    if (!current) return;
+    if (current.name) setSequenceName(current.name);
+    if (current.description) setSequenceDescription(current.description);
     if (createSequenceMode) {
       dispatch({
         type: "ENTER_EDIT_SEQUENCE",
         queryId: "preview",
-        query: preview.query,
+        query: current.query,
         runtimeEnabled: true
       });
       return;
@@ -1165,11 +1186,11 @@ function BuilderBody({
     dispatch({
       type: "ENTER_EDIT_OPERATION",
       queryId: "preview",
-      query: preview.query,
+      query: current.query,
       runtimeEnabled: true,
-      originalName: preview.name
+      originalName: current.name
     });
-  }, [preview, createSequenceMode, dispatch]);
+  }, [previewSignature, createSequenceMode, dispatch]);
 
   return (
     <div className={["builderRoot", preview ? "previewLocked" : "", ...issueClasses].filter(Boolean).join(" ")}>

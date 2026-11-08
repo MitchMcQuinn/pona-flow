@@ -1094,6 +1094,17 @@ def _check_endpoint(value: Any, path: str, problems: list[str]) -> None:
 _http["fields"]["endpoint"]["check"] = _check_endpoint
 
 
+_hop = _obj(
+    "One same-kind POINTS_TO hop after the anchor node.",
+    {
+        "relationship_label": _labeled("must be a lowercase name.", required=True),
+        "target_label": _labeled("must be the label of the node this hop reaches.", required=True),
+        "target_source": _enum(("new", "existing")),
+        "instance_properties": _arr("must be property values on a new INSTANCE target.", _instance_property),
+    },
+)
+
+
 def _operation_fields() -> dict[str, Any]:
     return {
         "id": _str("must be a catalog id. Omit it to create."),
@@ -1118,6 +1129,8 @@ def _operation_fields() -> dict[str, Any]:
         "parameters": _arr("must be an array of parameters.", _op_parameter),
         "limit": _int("must be a whole number, at least 1.", minimum=1, invalid=0),
         "vector_search": _vector,
+        "anchor_source": _enum(("new", "existing")),
+        "hops": _arr("must be same-kind hops after the anchor node.", _hop),
         "http_step": _http,
         "wait_step": _wait,
         "join_step": _obj("A join step has no settings.", {}),
@@ -1165,6 +1178,8 @@ def _build_specs() -> dict[str, dict[str, Any]]:
                 "is_vectorized": _bool(),
                 "description": text,
                 "group_title": text,
+                "schema_id": _str("must be the existing schema node id when update_existing is true."),
+                "update_existing": _bool(),
             },
         ),
         "update_space": _root(
@@ -1192,6 +1207,7 @@ def _build_specs() -> dict[str, dict[str, Any]]:
                 "local_llm_base_url": _url("must be an absolute http or https URL."),
                 "local_llm_config_id": text,
                 "max_rounds": _int(f"must be a whole number from {MIN_ROUNDS} through {MAX_ROUNDS}.", minimum=MIN_ROUNDS, maximum=MAX_ROUNDS, invalid=3),
+                "role": _enum(("planner", "surface", "builder")),
             },
         ),
         "update_embeddings": _root(
@@ -1600,6 +1616,23 @@ def _rules_query(payload: dict[str, Any], problems: list[str]) -> None:
     vector = payload.get("vector_search") if isinstance(payload.get("vector_search"), dict) else None
     if vector is not None and (operation != "read" or label != "INSTANCE"):
         _fail(problems, "payload.vector_search", "is only for a read INSTANCE.")
+    hops = payload.get("hops")
+    if hops:
+        if operation not in ("create", "read"):
+            _fail(problems, "payload.hops", "is only for a create or a read.")
+        if vector and vector.get("enabled") is not False:
+            _fail(problems, "payload.hops", "is not combined with vector search. Search names a record, then a later step walks.")
+        for index, hop in enumerate(hops if isinstance(hops, list) else []):
+            if not isinstance(hop, dict):
+                continue
+            if hop.get("instance_properties") and not (
+                operation == "create" and label == "INSTANCE" and hop.get("target_source") == "new"
+            ):
+                _fail(
+                    problems,
+                    f"payload.hops[{index}].instance_properties",
+                    "is only for a new INSTANCE at the end of a create.",
+                )
     if vector and vector.get("enabled") is not False:
         if payload.get("unwind"):
             _fail(problems, "payload.unwind", "is not combined with vector search.")
@@ -1947,6 +1980,8 @@ _SAMPLES: list[tuple[str, str, dict[str, Any]]] = [
             "is_vectorized": True,
             "description": "People",
             "group_title": "Directory",
+            "schema_id": "schema_customer",
+            "update_existing": True,
         },
     ),
     (
@@ -2102,7 +2137,16 @@ _SAMPLES: list[tuple[str, str, dict[str, Any]]] = [
             "node_label": "INSTANCE",
             "attributive_label": "person",
             "execute": True,
+            "anchor_source": "new",
             "instance_properties": [{"key": "full_name", "value": "Ada"}],
+            "hops": [
+                {
+                    "relationship_label": "person_unit",
+                    "target_label": "unit",
+                    "target_source": "new",
+                    "instance_properties": [{"key": "name", "value": "Ward"}],
+                }
+            ],
         },
     ),
     (
@@ -2210,6 +2254,7 @@ _SAMPLES: list[tuple[str, str, dict[str, Any]]] = [
             "local_llm_base_url": "http://127.0.0.1:8000",
             "local_llm_config_id": "cfg",
             "max_rounds": 8,
+            "role": "planner",
         },
     ),
     (

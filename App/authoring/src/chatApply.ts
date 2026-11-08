@@ -6,9 +6,10 @@
  * package functions. The Python accept path does not write these rows.
  */
 
-import { connector } from "@pona-flow/connector";
+import { connector, type SchemaPropertyConstraint } from "@pona-flow/connector";
 import {
   collectCreateEntityIds,
+  collectSchemaCreateAttributiveLabels,
   collectStepCreateAttributiveLabels,
   DEFAULT_STEP_RELATIONSHIP_LABEL,
 } from "./attributiveLabels.js";
@@ -32,7 +33,7 @@ import {
   saveQueryOperation,
   updateQueryOperation,
 } from "./operations.js";
-import { assertPreflightClear } from "./preflight.js";
+import { assertPreflightClear, preflight } from "./preflight.js";
 import {
   parseSequenceParameterValues,
   saveSequencePackage,
@@ -40,7 +41,8 @@ import {
   updateSequencePackage,
   type SequenceParameterValue,
 } from "./sequences.js";
-import type { AuthoringContext, BuilderConfig, ConditionType, QueryObject } from "./types.js";
+import type { AuthoringContext, BuilderConfig, ConditionType, NodePattern, QueryObject } from "./types.js";
+import { nextUniqueAttributiveLabel, stepWrapBaseName } from "./uniqueAttributiveLabel.js";
 import { isSingleNewStepCreate, isStepCreateQuery } from "./validation.js";
 
 export interface ChatIntentItem {
@@ -122,35 +124,56 @@ export function assertInstanceCreateShape(payload: Record<string, unknown>): voi
   }
 }
 
-/** Copy the live schema onto a create INSTANCE so the key check sees is_key, keeping authored values. */
-async function adoptInstanceSchema(spaceId: string, query: QueryObject): Promise<void> {
-  if (query.operation !== "create" || query.match?.[0]?.label !== "INSTANCE") return;
-  const element = query.match[0]?.patterns?.[0]?.path?.[0];
-  if (!element || element.kind !== "node" || element.node.node_source !== "new") return;
-  const label = (element.node.attributive_label || "").trim();
+/** Copy one SCHEMA onto a new INSTANCE node so its key check sees is_key, keeping authored values. */
+async function adoptNewInstance(
+  spaceId: string,
+  node: NodePattern,
+  batchSchemas?: ReadonlyMap<string, SchemaPropertyConstraint[]>
+): Promise<void> {
+  const label = (node.attributive_label || "").trim();
   if (!label) return;
-  let definition;
-  try {
-    definition = await connector.fetchSchemaDefinition({ spaceId, attributiveLabel: label });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`No SCHEMA named "${label}" is available for this instance. ${message}`);
+  const key = normalizeAttributiveLabel(label);
+  let schemata: SchemaPropertyConstraint[];
+  if (batchSchemas?.has(key)) {
+    schemata = batchSchemas.get(key) ?? [];
+  } else {
+    try {
+      const definition = await connector.fetchSchemaDefinition({ spaceId, attributiveLabel: label });
+      schemata = definition.schemata ?? [];
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`No SCHEMA named "${label}" is available for this instance. ${message}`);
+    }
   }
-  const authored = element.node.properties ?? [];
-  const properties = propertiesFromSchemata(definition.schemata ?? []).map((prop) => {
+  const authored = node.properties ?? [];
+  const properties = propertiesFromSchemata(schemata).map((prop) => {
     const given = authored.find(
       (item) => normalizeSchemaPropertyKey(item.key) === normalizeSchemaPropertyKey(prop.key)
     );
     return given ? { ...prop, value: given.value ?? "" } : prop;
   });
   const patch = instanceEntityIdPatch(
-    { alias_locked: true, variable: element.node.variable },
+    { alias_locked: true, variable: node.variable },
     properties,
     { attributiveLabel: label, takenVariables: [] }
   );
-  element.node.properties = properties;
-  if (instanceKeyIsUid(properties)) element.node.id_binding = undefined;
-  else if (patch.id_binding) element.node.id_binding = patch.id_binding;
+  node.properties = properties;
+  if (instanceKeyIsUid(properties)) node.id_binding = undefined;
+  else if (patch.id_binding) node.id_binding = patch.id_binding;
+}
+
+/** Copy the live schema onto every new INSTANCE in the create, including a related record. */
+async function adoptInstanceSchema(
+  spaceId: string,
+  query: QueryObject,
+  batchSchemas?: ReadonlyMap<string, SchemaPropertyConstraint[]>
+): Promise<void> {
+  if (query.operation !== "create" || query.match?.[0]?.label !== "INSTANCE") return;
+  const path = query.match[0]?.patterns?.[0]?.path ?? [];
+  for (const element of path) {
+    if (element.kind !== "node" || element.node.node_source !== "new") continue;
+    await adoptNewInstance(spaceId, element.node, batchSchemas);
+  }
 }
 
 function summaryOf(item: ChatIntentItem): string {
@@ -259,6 +282,28 @@ function operationIntent(payload: Record<string, unknown>, name: string): Operat
         })
       : undefined,
     limit: typeof payload.limit === "number" ? payload.limit : undefined,
+    anchor_source: text(payload.anchor_source) === "existing" ? "existing" : undefined,
+    hops: Array.isArray(payload.hops)
+      ? payload.hops.flatMap((entry) => {
+          const row = asRecord(entry);
+          if (!row || !text(row.relationship_label) || !text(row.target_label)) return [];
+          const targetSource = text(row.target_source) === "new" ? "new" : "existing";
+          return [
+            {
+              relationship_label: text(row.relationship_label),
+              target_label: text(row.target_label),
+              target_source: targetSource as "new" | "existing",
+              instance_properties: Array.isArray(row.instance_properties)
+                ? row.instance_properties.flatMap((prop) => {
+                    const property = asRecord(prop);
+                    if (!property || !text(property.key)) return [];
+                    return [{ key: text(property.key), value: property.value == null ? "" : String(property.value) }];
+                  })
+                : undefined,
+            },
+          ];
+        })
+      : undefined,
   };
   if (http) {
     intent.http_step = {
@@ -358,6 +403,13 @@ function rank(item: ChatIntentItem): number {
   if (item.kind === "upsert_query") return 1;
   if (item.kind === "create_transition") return 2;
   return 9;
+}
+
+function orderedItems(items: ChatIntentItem[]): ChatIntentItem[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => rank(left.item) - rank(right.item) || left.index - right.index)
+    .map((entry) => entry.item);
 }
 
 async function mintIds(count: number): Promise<{ queryId: string; entityIds: string[] }> {
@@ -515,6 +567,16 @@ export function previewChatIntent(item: ChatIntentItem): ChatIntentPreview | nul
 async function applySchema(spaceId: string, payload: Record<string, unknown>): Promise<string> {
   const intent = schemaIntent(payload);
   if (!intent.attributive_label) throw new Error("attributive_label is required");
+  const schemaId = text(payload.schema_id);
+  if (payload.update_existing === true && schemaId) {
+    await connector.updateSchemaDefinition({
+      spaceId,
+      schemaId,
+      attributiveLabel: intent.attributive_label,
+      schemata: updateConstraints(payload),
+    });
+    return schemaId;
+  }
   const ids = await mintIds(mintedIdCount(intent));
   const query = buildOperationQuery(intent, ids);
   const ctx: AuthoringContext = { spaceId, query, runtimeEnabled: true };
@@ -717,6 +779,232 @@ async function applySequence(spaceId: string, payload: Record<string, unknown>):
   return saved.id;
 }
 
+function constraintsOf(intent: OperationIntent): SchemaPropertyConstraint[] {
+  return (intent.schema_properties ?? []).map((prop) => ({
+    key: prop.key,
+    value_type: prop.value_type || "string",
+    is_required: Boolean(prop.is_required),
+    is_key: Boolean(prop.is_key),
+    is_label: Boolean(prop.is_label),
+    is_indexed: Boolean(prop.is_indexed),
+    ...(prop.is_embedded ? { is_embedded: true } : {}),
+    ...(prop.format ? { format: prop.format } : {}),
+    ...(prop.default_value != null ? { default_value: prop.default_value } : {}),
+    ...(prop.options?.length ? { options: [...prop.options] } : {}),
+  }));
+}
+
+/** Constraints for an add/delete schema update, including the key property a create omits. */
+function updateConstraints(payload: Record<string, unknown>): SchemaPropertyConstraint[] {
+  const raw = Array.isArray(payload.properties) ? payload.properties : [];
+  const schemata: SchemaPropertyConstraint[] = [];
+  for (const entry of raw) {
+    const object = asRecord(entry);
+    if (!object) continue;
+    const key = text(object.key) || text(object.name);
+    if (!key) continue;
+    const constraint: SchemaPropertyConstraint = {
+      key,
+      value_type: text(object.value_type) || "string",
+      is_required: Boolean(object.is_required),
+      is_key: Boolean(object.is_key),
+      is_label: Boolean(object.is_label),
+      is_indexed: Boolean(object.is_indexed),
+    };
+    if (object.is_embedded) constraint.is_embedded = true;
+    const format = text(object.format);
+    if (format) constraint.format = format;
+    if (object.default_value != null && String(object.default_value).trim()) {
+      constraint.default_value = String(object.default_value);
+    }
+    if (Array.isArray(object.options) && object.options.length) {
+      constraint.options = object.options.map((option) => String(option));
+    }
+    schemata.push(constraint);
+  }
+  return schemata;
+}
+
+/** The query apply would save, including schemas this batch creates but has not written yet. */
+async function operationQuery(
+  spaceId: string,
+  payload: Record<string, unknown>,
+  batchSchemas: ReadonlyMap<string, SchemaPropertyConstraint[]>
+): Promise<QueryObject> {
+  const name = text(payload.name);
+  if (!name) throw new Error("name is required");
+  assertInstanceCreateShape(payload);
+  const existingId = text(payload.id);
+  const stored = existingId ? await loadPackage(existingId) : null;
+  if (stored && stored.kind !== "sequence") {
+    const base = (stored.builder_config as unknown as BuilderConfig | undefined)?.query;
+    if (!text(payload.operation) || !text(payload.node_label)) {
+      throw new Error("Updating an operation needs operation and node_label.");
+    }
+    const intent = operationIntent(payload, name);
+    const query = buildOperationQuery(intent, {
+      queryId: existingId,
+      entityIds: base ? collectCreateEntityIds(base) : [],
+    });
+    query.id = existingId;
+    query.name = name;
+    await adoptInstanceSchema(spaceId, query, batchSchemas);
+    return query;
+  }
+  if (!text(payload.operation) || !text(payload.node_label)) {
+    throw new Error("An operation needs operation and node_label.");
+  }
+  const intent = operationIntent(payload, name);
+  if (intent.node_label === "STEP" && !(intent.attributive_label || "").trim()) {
+    intent.attributive_label = name;
+  }
+  const ids = await mintIds(mintedIdCount(intent));
+  const query = buildOperationQuery(intent, ids);
+  await adoptInstanceSchema(spaceId, query, batchSchemas);
+  return query;
+}
+
+const PREFLIGHT_LIMIT = 12;
+
+/**
+ * Builder checks for a proposal, without writing.
+ *
+ * Schemas and STEP labels this batch creates count as present, so a later seed can
+ * adopt a schema from the same proposal and a link can point at the read's wrap STEP.
+ * The wrap label is the one save will use. A link that still names the requested
+ * operation is reported when that name is already a step.
+ */
+export async function preflightChatItems(spaceId: string, items: ChatIntentItem[]): Promise<string[]> {
+  const ordered = orderedItems(items);
+  if (!ordered.some((item) => isChatAuthoringKind(item.kind))) return [];
+  const problems: string[] = [];
+  const taken = new Set<string>();
+  const batchSteps = new Set<string>();
+  const renamed = new Map<string, string>();
+  const batchSchemas = new Map<string, SchemaPropertyConstraint[]>();
+  const live = await connector.fetchGraphNodesByLabel({ spaceId, nodeLabel: "STEP" });
+  for (const node of live) {
+    const label = (node.attributive_label || "").trim();
+    if (label) taken.add(label);
+  }
+  const note = (problem: string) => {
+    const line = problem.trim();
+    if (!line || problems.length >= PREFLIGHT_LIMIT || problems.includes(line)) return;
+    problems.push(line);
+  };
+  const stepReference = (summary: string, label: string): string | null => {
+    const renamedTo = renamed.get(label);
+    if (renamedTo) {
+      return `${summary}: points at "${label}", but this batch saves that step as "${renamedTo}".`;
+    }
+    if (taken.has(label)) return null;
+    return `${summary}: No STEP node named "${label}" exists in this space. Create the step before linking it.`;
+  };
+  const rememberWrap = (summary: string, name: string, query: QueryObject) => {
+    const base = stepWrapBaseName(name, collectSchemaCreateAttributiveLabels(query));
+    const wrap = nextUniqueAttributiveLabel(base, taken);
+    if (wrap !== base) {
+      note(`${summary}: would be saved as the step "${wrap}" because "${base}" is already a step.`);
+    }
+    if (name && wrap !== name) renamed.set(name, wrap);
+    taken.add(wrap);
+    batchSteps.add(wrap);
+  };
+  const rememberCreated = (summary: string, labels: string[]) => {
+    for (const label of labels) {
+      if (!label) continue;
+      if (batchSteps.has(label)) {
+        note(`${summary}: STEP node "${label}" is already used by an earlier change in this proposal.`);
+      }
+      batchSteps.add(label);
+      taken.add(label);
+    }
+  };
+
+  for (const item of ordered) {
+    if (!isChatAuthoringKind(item.kind)) continue;
+    const payload = payloadOf(item);
+    const summary = summaryOf(item);
+    try {
+      if (item.kind === "upsert_schema") {
+        const intent = schemaIntent(payload);
+        if (!intent.attributive_label) throw new Error("attributive_label is required");
+        batchSchemas.set(normalizeAttributiveLabel(intent.attributive_label), constraintsOf(intent));
+        if (payload.update_existing === true && text(payload.schema_id)) {
+          await connector.previewSchemaUpdate({
+            spaceId,
+            schemaId: text(payload.schema_id),
+            attributiveLabel: intent.attributive_label,
+            schemata: updateConstraints(payload),
+          });
+          continue;
+        }
+        const ids = await mintIds(mintedIdCount(intent));
+        const query = buildOperationQuery(intent, ids);
+        const warnings = await preflight({ spaceId, query, runtimeEnabled: true });
+        warnings.forEach((warning) => note(`${summary}: ${warning}`));
+        rememberWrap(summary, intent.name, query);
+        continue;
+      }
+      if (item.kind === "create_transition") {
+        const from = text(payload.from_step);
+        const to = text(payload.to_step);
+        if (from) {
+          const problem = stepReference(summary, from);
+          if (problem) note(problem);
+        }
+        if (to) {
+          const problem = stepReference(summary, to);
+          if (problem) note(problem);
+        }
+        if (!from || !to) throw new Error("from_step and to_step are required");
+        const query = buildStepTransitionQuery(
+          {
+            from: { id: "preview-from", attributive_label: from },
+            to: { id: "preview-to", attributive_label: to },
+            relationship_label: text(payload.relationship_label) || DEFAULT_STEP_RELATIONSHIP_LABEL,
+            condition: text(payload.condition) || undefined,
+            condition_type: (text(payload.condition_type) || "null") as ConditionType,
+            condition_expected:
+              typeof payload.condition_expected === "boolean" ? payload.condition_expected : undefined,
+          },
+          { queryId: "preview", entityIds: ["preview-rel"] }
+        );
+        const warnings = await preflight({ spaceId, query, runtimeEnabled: false });
+        warnings.forEach((warning) => note(`${summary}: ${warning}`));
+        continue;
+      }
+      if (text(payload.kind).toLowerCase() === "sequence") {
+        const entry = text(payload.entry_step);
+        if (entry) {
+          const problem = stepReference(summary, entry);
+          if (problem) note(problem);
+        }
+        const preview = previewChatIntent(item);
+        if (preview) {
+          const warnings = await preflight({ spaceId, query: preview.query, runtimeEnabled: true });
+          warnings.forEach((warning) => note(`${summary}: ${warning}`));
+        }
+        continue;
+      }
+      const existingId = text(payload.id);
+      const stored = existingId ? await loadPackage(existingId) : null;
+      const query = await operationQuery(spaceId, payload, batchSchemas);
+      const warnings = await preflight({
+        spaceId,
+        query,
+        runtimeEnabled: payload.runtime_enabled !== false,
+      });
+      warnings.forEach((warning) => note(`${summary}: ${warning}`));
+      if (isStepCreateQuery(query)) rememberCreated(summary, collectStepCreateAttributiveLabels(query));
+      else if (!(stored && stored.kind !== "sequence")) rememberWrap(summary, text(payload.name) || query.name, query);
+    } catch (error) {
+      note(`${summary}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  return problems;
+}
+
 async function applyOne(spaceId: string, item: ChatIntentItem): Promise<string> {
   const payload = payloadOf(item);
   if (item.kind === "upsert_schema") return applySchema(spaceId, payload);
@@ -730,10 +1018,26 @@ async function applyOne(spaceId: string, item: ChatIntentItem): Promise<string> 
 
 /** Save builder items in schema, operation, transition, sequence order. Stops at the first failure. */
 export async function applyChatIntents(spaceId: string, items: ChatIntentItem[]): Promise<ChatIntentResult> {
-  const ordered = items
-    .map((item, index) => ({ item, index }))
-    .sort((left, right) => rank(left.item) - rank(right.item) || left.index - right.index)
-    .map((entry) => entry.item);
+  const ordered = orderedItems(items);
+  const problems = await preflightChatItems(spaceId, ordered);
+  if (problems.length) {
+    const failedSummary = problems[0].split(": ")[0] || "proposal";
+    const failedIndex = ordered.findIndex((item) => summaryOf(item) === failedSummary);
+    const index = failedIndex >= 0 ? failedIndex : 0;
+    const failed = ordered[index];
+    return {
+      ok: false,
+      applied: [],
+      failed: {
+        kind: failed?.kind || "proposal",
+        summary: failed ? summaryOf(failed) : failedSummary,
+        error: problems.join(" ").slice(0, 500),
+      },
+      not_applied: ordered
+        .filter((_, itemIndex) => itemIndex !== index)
+        .map((pending) => ({ kind: pending.kind, summary: summaryOf(pending) })),
+    };
+  }
   const applied: ChatIntentApplied[] = [];
   for (let index = 0; index < ordered.length; index += 1) {
     const item = ordered[index];

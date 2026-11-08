@@ -32,6 +32,7 @@ interface ChatColumnProps {
   onSelectRead?: (messageId: string, index: number) => void;
   onDraft: (value: string) => void;
   onSend: () => void;
+  onComposerFocus: (focused: boolean) => void;
   onOpenThread: (threadId: string) => void;
   onNewThread: () => void;
   onAccept: () => void;
@@ -54,6 +55,7 @@ export function ChatColumn({
   onSelectRead,
   onDraft,
   onSend,
+  onComposerFocus,
   onOpenThread,
   onNewThread,
   onAccept,
@@ -334,6 +336,8 @@ export function ChatColumn({
           rows={3}
           placeholder="message"
           aria-label="message"
+          onFocus={() => onComposerFocus(true)}
+          onBlur={() => onComposerFocus(false)}
           onChange={(event) => onDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {

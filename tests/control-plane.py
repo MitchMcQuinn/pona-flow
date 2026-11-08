@@ -414,7 +414,7 @@ class ControlPlaneTest(unittest.TestCase):
         self.assertNotIn(b"whsec_test", Path(self.db.path).read_bytes())
 
     def test_guide_refuses_tools_and_rate_limits(self) -> None:
-        self.assertIn("propose_change", chat_agent._SYSTEM)
+        self.assertIn("propose_change", chat_agent._BUILDER)
         self.assertNotIn("propose_change", SYSTEM)
         client = TestClient(self._app(limit=2))
         tools = client.post(

@@ -155,11 +155,26 @@ function callPolicyFromStep(step: {
   return out;
 }
 
+export interface HopIntent {
+  relationship_label: string;
+  target_label: string;
+  /** existing matches a node already in the graph. new mints one. */
+  target_source?: "new" | "existing";
+  instance_properties?: InstancePropertyIntent[];
+}
+
 export interface OperationIntent {
   name: string;
   operation: Operation;
   node_label: GraphNodeLabel;
   attributive_label?: string;
+  /**
+   * create only. existing matches the anchor instead of minting it, which is how a
+   * link attaches a POINTS_TO edge between two schemas that are already saved.
+   */
+  anchor_source?: "new" | "existing";
+  /** Same-kind hops after the anchor: a relationship, then the target node. */
+  hops?: HopIntent[];
   schema_properties?: SchemaPropertyIntent[];
   /** SCHEMA-level: embed this type's INSTANCE records for vector search. */
   is_vectorized?: boolean;
@@ -351,6 +366,13 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
     properties: [],
   };
 
+  let nextEntity = 0;
+  const takeId = (): string => {
+    const id = ids.entityIds[nextEntity] ?? "";
+    nextEntity += 1;
+    return id;
+  };
+
   if (intent.operation === "create") {
     const stepKinds = [
       intent.http_step ? "http_step" : "",
@@ -361,9 +383,14 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
     if (stepKinds.length > 1) {
       throw new Error(`${stepKinds.join(", ")} are mutually exclusive.`);
     }
-    element.node.node_source = "new";
-    element.node.id_binding = { key: "id", value: ids.entityIds[0] ?? "" };
-    if (intent.node_label === "SCHEMA") {
+    const anchorExisting = intent.anchor_source === "existing";
+    element.node.node_source = anchorExisting ? "existing" : "new";
+    if (!anchorExisting) {
+      element.node.id_binding = { key: "id", value: takeId() };
+    }
+    if (anchorExisting) {
+      // The anchor is already saved. Hops below create the edge.
+    } else if (intent.node_label === "SCHEMA") {
       element.node.properties = schemaProperties(intent);
       if (intent.is_vectorized) element.node.is_vectorized = true;
     } else if (intent.node_label === "INSTANCE") {
@@ -421,6 +448,44 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
     }
   }
 
+  const path = clause.patterns[0].path;
+  (intent.hops || []).forEach((hop, index) => {
+    const relLabel = normalizeAttributiveLabel(hop.relationship_label);
+    const targetLabel = normalizeAttributiveLabel(hop.target_label);
+    const targetSource = hop.target_source === "new" ? "new" : "existing";
+    const creating = intent.operation === "create";
+    path.push({
+      kind: "relationship",
+      relationship: {
+        variable: aliasFor(relLabel, `r${index + 1}`),
+        alias_mode: "define",
+        type: "POINTS_TO",
+        attributive_label: relLabel,
+        condition_type: "null",
+        properties: [],
+        ...(creating
+          ? { id_binding: { key: "id", value: takeId() }, node_source: "new" as const }
+          : { node_source: "existing" as const }),
+      },
+    });
+    path.push({
+      kind: "node",
+      node: {
+        variable: aliasFor(`${targetLabel}_${index + 2}`, `n${index + 2}`),
+        alias_mode: "define",
+        node_source: creating ? targetSource : "existing",
+        attributive_label: targetLabel,
+        properties:
+          creating && targetSource === "new" && intent.node_label === "INSTANCE"
+            ? instanceProperties({ ...intent, instance_properties: hop.instance_properties })
+            : [],
+        ...(creating && targetSource === "new"
+          ? { id_binding: { key: "id", value: takeId() } }
+          : {}),
+      },
+    });
+  });
+
   query.match = [clause];
 
   if (intent.operation === "read") {
@@ -471,7 +536,13 @@ export function buildOperationQuery(intent: OperationIntent, ids: MintedIds): Qu
 
 /** Number of graph ids `buildOperationQuery` will consume for these arguments. */
 export function mintedIdCount(intent: OperationIntent): number {
-  return intent.operation === "create" ? 1 : 0;
+  if (intent.operation !== "create") return 0;
+  let count = intent.anchor_source === "existing" ? 0 : 1;
+  for (const hop of intent.hops || []) {
+    count += 1;
+    if (hop.target_source === "new") count += 1;
+  }
+  return count;
 }
 
 export interface StepTransitionIntent {

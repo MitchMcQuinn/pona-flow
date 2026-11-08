@@ -182,30 +182,41 @@ function EventConfig({
 }
 
 function IntentPreview({ spaceId, item }: { spaceId: string; item: ChatBatchItem }) {
-  let error = "";
-  let compiled: ReturnType<typeof previewChatIntent> = null;
-  try {
-    compiled = previewChatIntent(item);
-  } catch (caught) {
-    error = caught instanceof Error ? caught.message : "this configuration cannot be opened in the builder";
-  }
-  if (error || !compiled) {
+  const itemKey = JSON.stringify(item);
+  const view = useMemo(() => {
+    try {
+      const compiled = previewChatIntent(item);
+      if (!compiled) {
+        return { error: "this configuration cannot be opened in the builder", preview: null, sequence: false };
+      }
+      return {
+        error: "",
+        sequence: compiled.sequence,
+        preview: {
+          query: compiled.query,
+          name: compiled.name,
+          description: compiled.description || undefined
+        }
+      };
+    } catch (caught) {
+      return {
+        error: caught instanceof Error ? caught.message : "this configuration cannot be opened in the builder",
+        preview: null,
+        sequence: false
+      };
+    }
+    // itemKey is the content of item. A new object with the same fields must not rebuild the preview.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemKey]);
+  if (view.error || !view.preview) {
     return (
       <ConfigPanel title={item.summary || item.kind}>
-        <p className="builderCheckMsg error">{error || "this configuration cannot be opened in the builder"}</p>
+        <p className="builderCheckMsg error">{view.error || "this configuration cannot be opened in the builder"}</p>
       </ConfigPanel>
     );
   }
   return (
-    <BuilderPanel
-      spaceId={spaceId}
-      createSequenceMode={compiled.sequence}
-      preview={{
-        query: compiled.query,
-        name: compiled.name,
-        description: compiled.description || undefined
-      }}
-    />
+    <BuilderPanel spaceId={spaceId} createSequenceMode={view.sequence} preview={view.preview} />
   );
 }
 

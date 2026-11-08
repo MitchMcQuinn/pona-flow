@@ -3,14 +3,16 @@ import {
   acceptChatBatch,
   addChatStackItem,
   ChatRequestError,
+  confirmChatPlan,
   fetchChatThread,
   fetchChatThreads,
   rejectChatBatch,
   setActiveChatStackItem,
   streamChatTurn,
-  updateChatStackItem
+  updateChatStackItem,
+  warmChatSession
 } from "../services/api";
-import { applyChatIntents, isChatAuthoringKind, previewChatIntent } from "@pona-flow/authoring";
+import { applyChatIntents, isChatAuthoringKind, preflightChatItems, previewChatIntent } from "@pona-flow/authoring";
 import { followUpPrompt } from "./followUp";
 import { isInsightKind, resolveInsight, visibleCanvasId, type InsightRequest } from "./insight";
 import type { ChatMessage, ChatStackItem, ChatThreadSummary } from "./types";
@@ -39,6 +41,9 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
   const threadIdRef = useRef<string | null>(null);
   const secretsRef = useRef<Record<string, string>>({});
   const openerRef = useRef<{ spaceId: string; prompt: string } | null>(null);
+  const warmRef = useRef<{ spaceId: string; promise: Promise<void> } | null>(null);
+  const composerFocusedRef = useRef(false);
+  const spaceGen = useRef(0);
   threadIdRef.current = threadId;
   const onAppliedRef = useRef(onApplied);
   const onSpaceCreatedRef = useRef(onSpaceCreated);
@@ -66,8 +71,18 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     setThreads(rows);
   }, []);
 
+  const warmSession = useCallback(() => {
+    if (!spaceId || threadIdRef.current) return;
+    if (warmRef.current?.spaceId === spaceId) return;
+    const current = spaceId;
+    const promise = warmChatSession(current).then(() => undefined).catch(() => undefined);
+    warmRef.current = { spaceId: current, promise };
+  }, [spaceId]);
+
   useEffect(() => {
+    spaceGen.current += 1;
     threadIdRef.current = null;
+    warmRef.current = null;
     setThreadId(null);
     setMessages([]);
     setStack([]);
@@ -77,6 +92,7 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     setDraft("");
     setError(null);
     setTurnStatus("idle");
+    if (spaceId && composerFocusedRef.current) warmSession();
     if (!spaceId) {
       setThreads([]);
       return;
@@ -92,7 +108,7 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     return () => {
       cancelled = true;
     };
-  }, [spaceId]);
+  }, [spaceId, warmSession]);
 
   const send = useCallback(
     async (text: string, options?: { bypassPending?: boolean; hidden?: boolean }) => {
@@ -107,6 +123,7 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
         setError(null);
         setDraft("");
       }
+      const generation = spaceGen.current;
       setStreaming(true);
       const localUser: ChatMessage | null = options?.hidden
         ? null
@@ -126,6 +143,16 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
       let assistant = "";
       const tools: ChatMessage["tool_calls"] = [];
       try {
+        if (!options?.hidden && !threadIdRef.current) {
+          const warm = warmRef.current;
+          if (warm?.spaceId === spaceId) await warm.promise;
+        }
+        if (generation !== spaceGen.current) {
+          setMessages((current) =>
+            current.filter((message) => message.id !== localUser?.id && message.id !== localAssistantId)
+          );
+          return;
+        }
         await streamChatTurn(spaceId, { threadId: threadIdRef.current, content }, (event) => {
           if (event.event === "start") {
             threadIdRef.current = event.data.thread_id;
@@ -189,6 +216,11 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     [applyThread, pending, reloadThreads, spaceId, streaming]
   );
 
+  function noteComposerFocus(focused: boolean) {
+    composerFocusedRef.current = focused;
+    if (focused) warmSession();
+  }
+
   useEffect(() => {
     const opener = openerRef.current;
     if (!spaceId || streaming || !opener || opener.spaceId !== spaceId) return;
@@ -236,6 +268,7 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
   function newThread() {
     setThreadId(null);
     threadIdRef.current = null;
+    warmRef.current = null;
     setMessages([]);
     setStack([]);
     setActiveStackId(null);
@@ -243,6 +276,7 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     setQueued(null);
     setError(null);
     setTurnStatus("idle");
+    if (composerFocusedRef.current) warmSession();
   }
 
   function selectMessage(messageId: string) {
@@ -324,6 +358,14 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     setBatchBusy(true);
     setError(null);
     try {
+      const authoringItems = (pendingBatch?.items ?? []).filter((item) => isChatAuthoringKind(item.kind));
+      if (authoringItems.length) {
+        const problems = await preflightChatItems(spaceId, authoringItems);
+        if (problems.length) {
+          setError(problems.slice(0, 3).join(" "));
+          return;
+        }
+      }
       const settings = await acceptChatBatch(spaceId, threadIdRef.current, {
         phase: "settings",
         credential_secrets: secrets
@@ -334,7 +376,6 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
         if (settings.finished) await continueAfter(settings);
         return;
       }
-      const authoringItems = (pendingBatch?.items ?? []).filter((item) => isChatAuthoringKind(item.kind));
       const authoring = authoringItems.length
         ? await applyChatIntents(spaceId, authoringItems)
         : { ok: true, applied: [], failed: null, not_applied: [] };
@@ -355,6 +396,36 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
       if (result.finished !== false) await continueAfter(result);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to apply the change");
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
+  async function confirmPlan() {
+    if (!spaceId || !threadIdRef.current) return;
+    setBatchBusy(true);
+    setError(null);
+    try {
+      const plan = [...stack].reverse().find((item) => item.kind === "plan" && item.payload.status !== "confirmed");
+      const preview = plan?.payload.preview;
+      const previewItems =
+        preview && typeof preview === "object" && Array.isArray((preview as { items?: unknown }).items)
+          ? (preview as { items: Array<{ kind: string; summary?: string; payload?: Record<string, unknown> }> }).items
+          : [];
+      if (previewItems.length) {
+        const problems = await preflightChatItems(spaceId, previewItems);
+        if (problems.length) {
+          setError(problems.slice(0, 3).join(" "));
+          return;
+        }
+      }
+      const result = await confirmChatPlan(spaceId, threadIdRef.current);
+      await reloadOpenThread();
+      if (!result.ok) {
+        setError(result.blocking[0] || "The plan is not ready to confirm.");
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to confirm the plan");
     } finally {
       setBatchBusy(false);
     }
@@ -418,10 +489,12 @@ export function useChatSession({ spaceId, onApplied, onSpaceCreated }: Options) 
     send,
     openThread,
     newThread,
+    noteComposerFocus,
     selectStack,
     selectMessage,
     selectRead,
     accept,
+    confirmPlan,
     acceptBlocked,
     setCredentialSecret,
     reject,
